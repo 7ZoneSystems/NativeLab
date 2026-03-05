@@ -1,0 +1,31 @@
+# .github/workflows/build-mac.yml
+name: Build macOS App
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: macos-latest      # GitHub gives you a real Mac machine here
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          # Metal-enabled llama-cpp-python for Apple Silicon
+          CMAKE_ARGS="-DLLAMA_METAL=on" pip install llama-cpp-python
+          pip install PyQt6 PyPDF2 psutil pyinstaller
+      
+      - name: Build .app with PyInstaller
+        run: |
+          pyinstaller --windowed --name "NativeLab Pro" nativelab.py
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: NativeLab-Pro-macOS
+          path: dist/NativeLab Pro.app
