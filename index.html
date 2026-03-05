@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NativeLab — Think Locally. Work Deeply.</title>
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:      #0f0e17;
+      --paper:    #faf9f6;
+      --warm:     #f2efe8;
+      --sage:     #3d5a47;
+      --sage-lt:  #6b8f76;
+      --clay:     #b85c38;
+      --clay-lt:  #e07b52;
+      --mist:     #c8d4c4;
+      --gold:     #c9a84c;
+      --dim:      #6e6b62;
+      --border:   #e0dbd0;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 5vw;
+      height: 64px;
+      background: rgba(250,249,246,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: 'Instrument Serif', serif;
+      font-size: 1.2rem;
+      color: var(--ink);
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      display: flex; align-items: center; gap: 0.55rem;
+    }
+    .nav-logo img {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      object-fit: contain;
+    }
+    .nav-logo span { color: var(--sage); }
+    .nav-links { display: flex; gap: 2rem; align-items: center; }
+    .nav-links a {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--dim);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--ink); }
+    .nav-cta {
+      background: var(--sage) !important;
+      color: #fff !important;
+      padding: 0.45rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.85rem !important;
+      transition: background 0.2s !important;
+    }
+    .nav-cta:hover { background: var(--sage-lt) !important; }
+
+    /* ── HERO ── */
+    #hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 120px 5vw 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-texture {
+      position: absolute; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 70% 60% at 80% 30%, rgba(61,90,71,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 20% 80%, rgba(201,168,76,0.05) 0%, transparent 55%);
+    }
+    .hero-inner { position: relative; z-index: 1; max-width: 780px; }
+    .hero-icon-wrap { margin-bottom: 1.6rem; }
+    .hero-icon {
+      width: 72px; height: 72px;
+      border-radius: 18px;
+      object-fit: contain;
+      box-shadow: 0 4px 20px rgba(61,90,71,0.15), 0 0 0 1px var(--border);
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--warm); border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 0.3rem 0.9rem;
+      font-size: 0.8rem; font-weight: 500;
+      color: var(--sage);
+      margin-bottom: 2rem;
+      letter-spacing: 0.04em;
+    }
+    .hero-badge::before {
+      content: ''; width: 7px; height: 7px;
+      background: var(--sage); border-radius: 50%;
+    }
+    h1 {
+      font-family: 'Instrument Serif', serif;
+      font-size: clamp(2.8rem, 7vw, 5.2rem);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+      margin-bottom: 1.5rem;
+    }
+    h1 em { font-style: italic; color: var(--sage); }
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--dim);
+      max-width: 560px;
+      margin-bottom: 3rem;
+      line-height: 1.8;
+      font-weight: 300;
+    }
+    .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: var(--sage); color: #fff;
+      padding: 0.85rem 1.8rem;
+      border-radius: 8px; text-decoration: none;
+      font-weight: 500; font-size: 0.95rem;
+      transition: all 0.2s;
+      border: 2px solid var(--sage);
+    }
+    .btn-primary:hover { background: transparent; color: var(--sage); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: transparent; color: var(--ink);
+      padding: 0.85rem 1.8rem;
+      border-radius: 8px; text-decoration: none;
+      font-weight: 500; font-size: 0.95rem;
+      border: 2px solid var(--border);
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover { border-color: var(--ink); }
+
+    .hero-fig {
+      position: absolute; right: 4vw; top: 50%; transform: translateY(-50%);
+      width: min(420px, 40vw);
+      opacity: 0.9;
+      display: flex; flex-direction: column; gap: 0.5rem;
+      pointer-events: none;
+    }
+    @media (max-width: 900px) { .hero-fig { display: none; } }
+
+    .terminal {
+      background: #141414;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.06);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.82rem;
+    }
+    .terminal-bar {
+      background: #1e1e1e;
+      padding: 0.6rem 1rem;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #ff5f57; }
+    .dot-y { background: #ffbd2e; }
+    .dot-g { background: #28c840; }
+    .terminal-title { font-size: 0.7rem; color: #666; margin-left: auto; font-family: 'DM Sans', sans-serif; }
+    .terminal-body { padding: 1.2rem 1.2rem 1.4rem; line-height: 1.8; }
+    .t-dim   { color: #555; }
+    .t-green { color: #34d399; }
+    .t-blue  { color: #60a5fa; }
+    .t-amber { color: #fbbf24; }
+    .t-white { color: #e5e5e5; }
+    .cursor  { display: inline-block; width: 8px; height: 14px; background: #34d399; vertical-align: middle; animation: blink 1.1s step-end infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── SECTION SHARED ── */
+    section { padding: 6rem 5vw; }
+    .section-label {
+      font-size: 0.75rem; font-weight: 500;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--sage-lt); margin-bottom: 1rem;
+    }
+    h2 {
+      font-family: 'Instrument Serif', serif;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.2; letter-spacing: -0.01em;
+      color: var(--ink); margin-bottom: 1.2rem;
+    }
+    h2 em { font-style: italic; color: var(--clay); }
+    .section-intro {
+      font-size: 1.05rem; color: var(--dim);
+      max-width: 540px; line-height: 1.8; font-weight: 300;
+    }
+
+    /* ── FOR YOU SECTION ── */
+    #foryou { background: var(--warm); }
+    .audience-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5px;
+      margin-top: 3rem;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .audience-card {
+      background: var(--paper);
+      padding: 2.2rem;
+      transition: background 0.2s;
+    }
+    .audience-card:hover { background: #fff; }
+    .aud-icon {
+      font-size: 1.6rem;
+      margin-bottom: 1rem;
+      display: block;
+    }
+    .aud-title {
+      font-family: 'Instrument Serif', serif;
+      font-size: 1.25rem; color: var(--ink);
+      margin-bottom: 0.6rem;
+    }
+    .aud-desc {
+      font-size: 0.9rem; color: var(--dim);
+      line-height: 1.75; font-weight: 300;
+    }
+    .aud-tag {
+      margin-top: 1rem;
+      display: inline-block;
+      background: var(--mist);
+      color: var(--sage);
+      font-size: 0.75rem; font-weight: 500;
+      padding: 0.2rem 0.7rem; border-radius: 100px;
+    }
+
+    /* ── CAPABILITIES ── */
+    #capabilities { background: var(--paper); }
+    .caps-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 5rem;
+      align-items: start;
+      margin-top: 3rem;
+    }
+    @media (max-width: 860px) { .caps-layout { grid-template-columns: 1fr; gap: 3rem; } }
+    .caps-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .cap-item {
+      display: flex; align-items: flex-start; gap: 1rem;
+      padding: 1.2rem;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.18s;
+      border: 1px solid transparent;
+    }
+    .cap-item.active, .cap-item:hover {
+      background: var(--warm);
+      border-color: var(--border);
+    }
+    .cap-item.active .cap-num { color: var(--sage); }
+    .cap-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem; color: var(--mist);
+      min-width: 28px; padding-top: 2px;
+      transition: color 0.18s;
+    }
+    .cap-text-head {
+      font-weight: 500; font-size: 0.95rem;
+      color: var(--ink); margin-bottom: 0.25rem;
+    }
+    .cap-text-sub {
+      font-size: 0.85rem; color: var(--dim);
+      font-weight: 300; line-height: 1.6;
+    }
+    .caps-detail {
+      position: sticky; top: 100px;
+    }
+    .detail-card {
+      background: var(--warm);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 2.5rem;
+      display: none;
+    }
+    .detail-card.active { display: block; }
+    .detail-card h3 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 1.6rem; color: var(--ink);
+      margin-bottom: 0.8rem;
+    }
+    .detail-card p {
+      font-size: 0.95rem; color: var(--dim);
+      line-height: 1.8; font-weight: 300;
+      margin-bottom: 1rem;
+    }
+    .detail-card p:last-child { margin-bottom: 0; }
+    .detail-badge {
+      display: inline-flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 1rem;
+    }
+    .badge {
+      font-size: 0.75rem; font-weight: 500;
+      padding: 0.25rem 0.7rem; border-radius: 100px;
+      background: var(--mist); color: var(--sage);
+    }
+    .badge.clay { background: #f5ddd3; color: var(--clay); }
+    .badge.gold { background: #f5edcf; color: #8a6d1a; }
+
+    /* ── PHILOSOPHY ── */
+    #philosophy {
+      background: var(--ink);
+      color: #fff;
+    }
+    #philosophy .section-label { color: #8a937d; }
+    #philosophy h2 { color: #fff; }
+    #philosophy h2 em { color: var(--gold); }
+    #philosophy .section-intro { color: #9e9b92; }
+    .pillars {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 2rem;
+      margin-top: 4rem;
+    }
+    .pillar {
+      border-top: 1px solid #2a2a2a;
+      padding-top: 1.8rem;
+    }
+    .pillar-num {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem; color: #444;
+      margin-bottom: 0.8rem; letter-spacing: 0.08em;
+    }
+    .pillar h4 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 1.2rem; color: #e8e4d8;
+      margin-bottom: 0.6rem;
+    }
+    .pillar p {
+      font-size: 0.88rem; color: #7a7870;
+      line-height: 1.75; font-weight: 300;
+    }
+
+    /* ── HOW IT WORKS ── */
+    #how { background: var(--warm); }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 2rem;
+      margin-top: 3.5rem;
+      counter-reset: steps;
+    }
+    .step {
+      counter-increment: steps;
+    }
+    .step::before {
+      content: counter(steps);
+      font-family: 'Instrument Serif', serif;
+      font-size: 3rem; color: var(--mist);
+      display: block; line-height: 1; margin-bottom: 1rem;
+    }
+    .step h4 {
+      font-weight: 500; font-size: 1rem;
+      color: var(--ink); margin-bottom: 0.5rem;
+    }
+    .step p {
+      font-size: 0.875rem; color: var(--dim);
+      line-height: 1.7; font-weight: 300;
+    }
+
+    /* ── MODEL COMPAT ── */
+    #models { background: var(--paper); }
+    .models-intro-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 4rem; align-items: start; margin-top: 3rem;
+    }
+    @media (max-width: 720px) { .models-intro-row { grid-template-columns: 1fr; } }
+    .model-tags {
+      display: flex; flex-wrap: wrap; gap: 0.5rem;
+      margin-top: 1.5rem;
+    }
+    .model-tag {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      background: var(--warm); border: 1px solid var(--border);
+      color: var(--dim); padding: 0.3rem 0.75rem;
+      border-radius: 6px;
+    }
+    .model-tag.highlight { background: var(--mist); color: var(--sage); border-color: var(--mist); }
+    .model-note {
+      font-size: 0.875rem; color: var(--dim);
+      line-height: 1.8; font-weight: 300;
+    }
+
+    /* ── REQUIREMENTS ── */
+    #requirements { background: var(--warm); }
+    .req-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem; margin-top: 3rem;
+    }
+    .req-card {
+      background: var(--paper); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.8rem;
+    }
+    .req-card h4 {
+      font-weight: 500; font-size: 0.95rem;
+      color: var(--ink); margin-bottom: 1rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .req-card ul {
+      list-style: none; display: flex; flex-direction: column; gap: 0.45rem;
+    }
+    .req-card li {
+      font-size: 0.875rem; color: var(--dim); font-weight: 300;
+      padding-left: 1rem; position: relative;
+    }
+    .req-card li::before {
+      content: '–'; position: absolute; left: 0; color: var(--mist);
+    }
+    .req-card .note {
+      margin-top: 1rem; font-size: 0.78rem; color: var(--sage-lt);
+      font-style: italic;
+    }
+
+    /* ── CTA ── */
+    #cta {
+      background: var(--sage);
+      color: #fff;
+      text-align: center;
+      padding: 8rem 5vw;
+    }
+    #cta .section-label { color: rgba(255,255,255,0.5); }
+    #cta h2 { color: #fff; }
+    #cta h2 em { font-style: italic; color: var(--gold); }
+    #cta p {
+      color: rgba(255,255,255,0.7); max-width: 480px;
+      margin: 0 auto 2.5rem; font-size: 1rem; font-weight: 300; line-height: 1.8;
+    }
+    #cta .btn-primary {
+      background: #fff; color: var(--sage); border-color: #fff;
+      font-size: 1rem;
+    }
+    #cta .btn-primary:hover { background: transparent; color: #fff; }
+    #cta .btn-secondary {
+      color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.3);
+      font-size: 1rem;
+    }
+    #cta .btn-secondary:hover { border-color: #fff; color: #fff; }
+    .cta-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+
+    /* ── FOOTER ── */
+    footer {
+      background: var(--ink); color: #555;
+      padding: 2.5rem 5vw;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 1rem;
+      font-size: 0.82rem;
+    }
+    footer a { color: #666; text-decoration: none; transition: color 0.2s; }
+    footer a:hover { color: #aaa; }
+    .footer-brand {
+      font-family: 'Instrument Serif', serif;
+      font-size: 1rem; color: #888;
+    }
+
+    /* ── ANIMATIONS ── */
+    .fade-up {
+      opacity: 0; transform: translateY(24px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .fade-up.visible { opacity: 1; transform: translateY(0); }
+    .fade-up:nth-child(2) { transition-delay: 0.1s; }
+    .fade-up:nth-child(3) { transition-delay: 0.2s; }
+    .fade-up:nth-child(4) { transition-delay: 0.3s; }
+
+    /* ── DIVIDER ── */
+    .divider {
+      width: 40px; height: 2px; background: var(--mist);
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 600px) {
+      h1 { font-size: 2.4rem; }
+      section { padding: 4rem 5vw; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a class="nav-logo" href="#"><img src="icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
+  <div class="nav-links">
+    <a href="#foryou">For you</a>
+    <a href="#capabilities">Capabilities</a>
+    <a href="#how">Get started</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab/releases/tag/Beta" target="_blank" class="nav-cta">Download →</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section id="hero">
+  <div class="hero-texture"></div>
+  <div class="hero-inner">
+    <div class="hero-icon-wrap">
+      <img src="icon.png" alt="NativeLab" class="hero-icon" />
+    </div>
+    <div class="hero-badge">Open Source · Runs Offline · Beta</div>
+    <h1>Your AI.<br><em>On your machine.</em><br>Answering to you.</h1>
+    <p class="hero-sub">NativeLab puts powerful language models on your desktop — no subscriptions, no data leaving your device, no internet required. Talk to your documents, chain reasoning pipelines, and work with any open model you choose.</p>
+    <div class="hero-actions">
+      <a href="https://github.com/7ZoneSystems/NativeLab/releases/tag/Beta" target="_blank" class="btn-primary">
+        ↓ &nbsp;Download for Free
+      </a>
+      <a href="#capabilities" class="btn-secondary">See what it does →</a>
+    </div>
+  </div>
+
+  <!-- Terminal illustration -->
+  <div class="hero-fig">
+    <div class="terminal">
+      <div class="terminal-bar">
+        <div class="dot dot-r"></div>
+        <div class="dot dot-y"></div>
+        <div class="dot dot-g"></div>
+        <span class="terminal-title">NativeLab Pro v2</span>
+      </div>
+      <div class="terminal-body">
+        <div><span class="t-dim">model  </span><span class="t-green">DeepSeek-R1-Q5_K_M</span></div>
+        <div><span class="t-dim">role   </span><span class="t-blue">reasoning → coding</span></div>
+        <div><span class="t-dim">status </span><span class="t-amber">pipeline ready</span></div>
+        <br>
+        <div class="t-dim">──────────────────────</div>
+        <br>
+        <div><span class="t-white">You › </span><span class="t-dim">Summarise these 4 PDFs and extract key findings.</span></div>
+        <br>
+        <div><span class="t-green">✦ </span><span class="t-dim">Processing chunk 3/12…</span></div>
+        <div><span class="t-green">✦ </span><span class="t-dim">Tokens: 2,841 / 4,096</span></div>
+        <div><span class="t-green">✦ </span><span class="t-dim">Speed: 18.4 tok/s</span></div>
+        <br>
+        <div><span class="t-white">Lab › </span><span class="cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FOR YOU ── -->
+<section id="foryou">
+  <p class="section-label">Who it's for</p>
+  <h2>Built for work that<br><em>demands privacy</em> and depth</h2>
+  <p class="section-intro">NativeLab is for anyone who thinks carefully, works with sensitive material, or simply wants an AI that doesn't phone home.</p>
+
+  <div class="audience-grid">
+    <div class="audience-card fade-up">
+      <span class="aud-icon">🔬</span>
+      <div class="aud-title">Academic Researchers</div>
+      <p class="aud-desc">Feed NativeLab your papers, drafts, and datasets. Get summaries, extract key findings across multiple PDFs, and use a reasoning model to stress-test arguments — all without uploading sensitive research to external servers.</p>
+      <span class="aud-tag">Literature review · PDF analysis</span>
+    </div>
+    <div class="audience-card fade-up">
+      <span class="aud-icon">👩‍💻</span>
+      <div class="aud-title">Developers</div>
+      <p class="aud-desc">Assign a dedicated coding model and a reasoning model. Let the pipeline think through the problem first, then generate code. Copy snippets directly from chat. Keep your proprietary codebase local and private.</p>
+      <span class="aud-tag">Reasoning pipeline · Code generation</span>
+    </div>
+    <div class="audience-card fade-up">
+      <span class="aud-icon">⚖️</span>
+      <div class="aud-title">Legal & Medical Professionals</div>
+      <p class="aud-desc">Analyze case documents and clinical notes without compliance risk. NativeLab processes everything on your hardware. Nothing is sent, stored, or logged anywhere outside your machine.</p>
+      <span class="aud-tag">Air-gapped · Zero telemetry</span>
+    </div>
+    <div class="audience-card fade-up">
+      <span class="aud-icon">📓</span>
+      <div class="aud-title">Writers & Knowledge Workers</div>
+      <p class="aud-desc">Bring your own notes, books, and reference documents. Ask questions, request summaries, and build a thinking partner that knows your material — not the internet's.</p>
+      <span class="aud-tag">Document chat · Reference context</span>
+    </div>
+    <div class="audience-card fade-up">
+      <span class="aud-icon">🏗️</span>
+      <div class="aud-title">Builders & Tinkerers</div>
+      <p class="aud-desc">NativeLab is open source. Every parameter is exposed — threads, context window, generation length, quantization format. Swap models freely, experiment with prompt templates, and extend however you like.</p>
+      <span class="aud-tag">GGUF · llama.cpp · Configurable</span>
+    </div>
+    <div class="audience-card fade-up">
+      <span class="aud-icon">🌐</span>
+      <div class="aud-title">Offline & Remote Environments</div>
+      <p class="aud-desc">Field researchers, journalists in restricted regions, or anyone without reliable internet can run full AI inference with no cloud dependency whatsoever. Once downloaded, it works anywhere.</p>
+      <span class="aud-tag">No internet required · Self-contained</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── CAPABILITIES ── -->
+<section id="capabilities">
+  <p class="section-label">What you can do</p>
+  <h2>Less setup.<br><em>More thinking.</em></h2>
+  <p class="section-intro">NativeLab handles the complexity of local AI so you can focus on your work. Here's what it unlocks.</p>
+
+  <div class="caps-layout">
+    <div class="caps-list">
+      <div class="cap-item active" onclick="selectCap(0, this)">
+        <span class="cap-num">01</span>
+        <div>
+          <div class="cap-text-head">Talk to your PDFs</div>
+          <div class="cap-text-sub">Ask questions across single or multiple documents at once</div>
+        </div>
+      </div>
+      <div class="cap-item" onclick="selectCap(1, this)">
+        <span class="cap-num">02</span>
+        <div>
+          <div class="cap-text-head">Reasoning → Code Pipeline</div>
+          <div class="cap-text-sub">Chain a reasoning model into a coding model automatically</div>
+        </div>
+      </div>
+      <div class="cap-item" onclick="selectCap(2, this)">
+        <span class="cap-num">03</span>
+        <div>
+          <div class="cap-text-head">Parallel Model Roles</div>
+          <div class="cap-text-sub">Run different models simultaneously for different tasks</div>
+        </div>
+      </div>
+      <div class="cap-item" onclick="selectCap(3, this)">
+        <span class="cap-num">04</span>
+        <div>
+          <div class="cap-text-head">Pause & Resume Long Jobs</div>
+          <div class="cap-text-sub">Save state mid-summarization and pick up later</div>
+        </div>
+      </div>
+      <div class="cap-item" onclick="selectCap(4, this)">
+        <span class="cap-num">05</span>
+        <div>
+          <div class="cap-text-head">Reference System</div>
+          <div class="cap-text-sub">Attach a library of documents to any chat for persistent context</div>
+        </div>
+      </div>
+      <div class="cap-item" onclick="selectCap(5, this)">
+        <span class="cap-num">06</span>
+        <div>
+          <div class="cap-text-head">Export & Session History</div>
+          <div class="cap-text-sub">Save conversations as JSON, Markdown, or plain text</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="caps-detail">
+      <div class="detail-card active" id="detail-0">
+        <h3>Talk to your documents</h3>
+        <p>Load one PDF or a whole folder of them. NativeLab chunks, indexes, and feeds relevant sections into the model's context window automatically. You ask questions naturally — it finds the right passages.</p>
+        <p>Multi-PDF mode summarizes each document, then synthesizes a final answer across all of them. Ideal for literature reviews, legal discovery, or comparing research papers.</p>
+        <div class="detail-badge">
+          <span class="badge">PDF ingestion</span>
+          <span class="badge">Multi-document synthesis</span>
+          <span class="badge clay">Context-aware chunking</span>
+        </div>
+      </div>
+      <div class="detail-card" id="detail-1">
+        <h3>Reasoning into Code</h3>
+        <p>Assign one model as your reasoning engine and another as your coding engine. When you submit a task, the reasoning model thinks through the intent and architecture, then passes a concise brief to the coding model to generate the implementation.</p>
+        <p>The result: better code, with less back-and-forth. You get the full chain of thought in the chat so nothing is hidden.</p>
+        <div class="detail-badge">
+          <span class="badge">Two-model pipeline</span>
+          <span class="badge clay">Visible reasoning trace</span>
+          <span class="badge">Code copy buttons</span>
+        </div>
+      </div>
+      <div class="detail-card" id="detail-2">
+        <h3>Parallel Model Roles</h3>
+        <p>Load multiple GGUF models at once, each assigned a role: general chat, reasoning, summarization, coding, or secondary. Switch between them mid-conversation or let pipelines invoke them automatically.</p>
+        <p>RAM-aware warnings keep you from overloading your system. You choose how much hardware to commit.</p>
+        <div class="detail-badge">
+          <span class="badge">5 model roles</span>
+          <span class="badge clay">RAM monitoring</span>
+          <span class="badge">Hot-swap</span>
+        </div>
+      </div>
+      <div class="detail-card" id="detail-3">
+        <h3>Pause & Resume</h3>
+        <p>Summarizing a 200-page document? You don't have to sit and wait. NativeLab can pause mid-job, save the exact state — which chunks have been processed, what's been generated — and let you pick it up exactly where you left off, even after restarting.</p>
+        <div class="detail-badge">
+          <span class="badge">State serialization</span>
+          <span class="badge clay">Auto-pause threshold</span>
+          <span class="badge">Persistent job queue</span>
+        </div>
+      </div>
+      <div class="detail-card" id="detail-4">
+        <h3>Reference Library</h3>
+        <p>Build a persistent knowledge base for any chat session. Attach PDFs, notes, or text files as references — they're indexed once and retrieved semantically every time you ask something relevant.</p>
+        <p>Think of it as giving your AI a bookshelf it can always reach for, separate from the active conversation.</p>
+        <div class="detail-badge">
+          <span class="badge">Semantic retrieval</span>
+          <span class="badge clay">Persistent index</span>
+          <span class="badge gold">Per-session libraries</span>
+        </div>
+      </div>
+      <div class="detail-card" id="detail-5">
+        <h3>Sessions & Exports</h3>
+        <p>Every conversation is a session with its own history, title, and context window usage indicator. Export to JSON for programmatic use, Markdown for notes and documentation, or plain text for anything else.</p>
+        <p>Nothing is locked in. Your conversations are yours.</p>
+        <div class="detail-badge">
+          <span class="badge">JSON · Markdown · TXT</span>
+          <span class="badge clay">Context usage meter</span>
+          <span class="badge">Sidebar history</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── PHILOSOPHY ── -->
+<section id="philosophy">
+  <p class="section-label">Why it exists</p>
+  <h2>AI should be a tool,<br><em>not a subscription.</em></h2>
+  <p class="section-intro">We built NativeLab because powerful inference shouldn't require cloud accounts, billing cycles, or trusting a third party with your data.</p>
+
+  <div class="pillars">
+    <div class="pillar">
+      <div class="pillar-num">01 — PRIVACY</div>
+      <h4>Air-gapped by design</h4>
+      <p>No API calls. No telemetry. No account required. Everything runs on your CPU and RAM. Your prompts, documents, and outputs stay on your hardware, full stop.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">02 — OWNERSHIP</div>
+      <h4>Your models, your rules</h4>
+      <p>Download any GGUF model from HuggingFace or anywhere else and drop it in. You're not locked into one vendor's model family or one company's judgment about what you should be able to ask.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">03 — TRANSPARENCY</div>
+      <h4>Open source, fully</h4>
+      <p>The entire codebase is on GitHub. Read it, fork it, audit it. Every configuration parameter is exposed in the UI. Nothing happens behind the scenes that you can't see.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">04 — RELIABILITY</div>
+      <h4>Works without internet</h4>
+      <p>Field work, travel, restricted networks, power outages — NativeLab runs wherever your laptop runs. Once set up, there are no external dependencies that can go down.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ── -->
+<section id="how">
+  <p class="section-label">Getting started</p>
+  <h2>Up and running<br><em>in four steps</em></h2>
+  <p class="section-intro">No Docker, no Python environment management, no cloud account. Just download, add a model, and start.</p>
+
+  <div class="steps">
+    <div class="step fade-up">
+      <h4>Download NativeLab</h4>
+      <p>Grab the latest Beta release from GitHub. Available for Windows and Linux. Comes bundled with everything it needs.</p>
+    </div>
+    <div class="step fade-up">
+      <h4>Add a GGUF model</h4>
+      <p>Drop any <code>.gguf</code> model file into the <code>/localllm</code> folder. NativeLab detects the model family and configures prompt templates automatically.</p>
+    </div>
+    <div class="step fade-up">
+      <h4>Configure to your hardware</h4>
+      <p>Set threads, context window size, and generation length in the Config tab. The UI shows RAM usage and context fill in real time so you know you're not overloading anything.</p>
+    </div>
+    <div class="step fade-up">
+      <h4>Start working</h4>
+      <p>Open a chat session, attach documents, assign model roles, and start your conversation. Export anytime. Everything persists between sessions.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── MODEL COMPAT ── -->
+<section id="models">
+  <p class="section-label">Model compatibility</p>
+  <h2>Works with the models<br><em>you already know</em></h2>
+
+  <div class="models-intro-row">
+    <div>
+      <p class="model-note">NativeLab automatically detects model families from filenames and applies the correct prompt template. No manual configuration needed for supported families.</p>
+      <p class="model-note" style="margin-top:1rem;">Any GGUF-format model that runs on llama.cpp will work. The list below shows families with automatic template detection.</p>
+      <div class="model-tags">
+        <span class="model-tag highlight">DeepSeek</span>
+        <span class="model-tag highlight">Mistral</span>
+        <span class="model-tag highlight">LLaMA 2 / 3</span>
+        <span class="model-tag highlight">Qwen / ChatML</span>
+        <span class="model-tag highlight">Phi</span>
+        <span class="model-tag">Gemma</span>
+        <span class="model-tag">CodeLlama</span>
+        <span class="model-tag">Falcon</span>
+        <span class="model-tag">Vicuna</span>
+        <span class="model-tag">OpenChat</span>
+        <span class="model-tag">Yi</span>
+        <span class="model-tag">Command-R</span>
+        <span class="model-tag">Starling</span>
+        <span class="model-tag">Neural-Chat</span>
+        <span class="model-tag">+ more</span>
+      </div>
+    </div>
+    <div>
+      <p class="section-label" style="margin-bottom:0.8rem;">Quantization formats</p>
+      <p class="model-note">NativeLab supports the full range of GGUF quantization levels, so you can balance quality and speed for your hardware.</p>
+      <div class="model-tags" style="margin-top:1rem;">
+        <span class="model-tag">Q2_K → Q8_0</span>
+        <span class="model-tag">IQ2 / IQ3 / IQ4</span>
+        <span class="model-tag">Q4_K_M</span>
+        <span class="model-tag">Q5_K_M</span>
+        <span class="model-tag">F16 / F32</span>
+        <span class="model-tag">BF16</span>
+      </div>
+      <p class="model-note" style="margin-top:1.2rem; font-style:italic; font-size:0.82rem; color:var(--sage-lt);">Not sure which quant to pick? Q4_K_M or Q5_K_M strike the best balance for most desktop hardware.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── REQUIREMENTS ── -->
+<section id="requirements">
+  <p class="section-label">System requirements</p>
+  <h2>What you<br><em>actually need</em></h2>
+  <p class="section-intro">No GPU required. NativeLab runs on CPU with standard RAM — though more RAM gives you larger models and longer contexts.</p>
+
+  <div class="req-grid">
+    <div class="req-card">
+      <h4>🖥️ Operating System</h4>
+      <ul>
+        <li>Windows 10 / 11</li>
+        <li>Linux (most distros)</li>
+        <li>macOS support planned</li>
+      </ul>
+    </div>
+    <div class="req-card">
+      <h4>🧠 Memory (RAM)</h4>
+      <ul>
+        <li>8 GB minimum (small models)</li>
+        <li>16 GB recommended</li>
+        <li>32 GB for larger models</li>
+      </ul>
+      <p class="note">RAM usage shown live in-app</p>
+    </div>
+    <div class="req-card">
+      <h4>💾 Storage</h4>
+      <ul>
+        <li>~200 MB for the app</li>
+        <li>2–8 GB per model (varies by quant)</li>
+        <li>Space for sessions & references</li>
+      </ul>
+    </div>
+    <div class="req-card">
+      <h4>⚡ Processor</h4>
+      <ul>
+        <li>Any modern multi-core CPU</li>
+        <li>More threads = faster generation</li>
+        <li>GPU acceleration: planned</li>
+      </ul>
+      <p class="note">12 threads default, fully configurable</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section id="cta">
+  <p class="section-label">Open source · Free forever</p>
+  <h2>Own your AI.<br><em>Start today.</em></h2>
+  <p>Download NativeLab Beta and bring local AI inference to your workflow. No account. No credit card. No data leaving your machine.</p>
+  <div class="cta-actions">
+    <a href="https://github.com/7ZoneSystems/NativeLab/releases/tag/Beta" target="_blank" class="btn-primary">
+      ↓ &nbsp;Download Beta
+    </a>
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-secondary">
+      View on GitHub →
+    </a>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <span class="footer-brand">NativeLab</span>
+  <span>Open source · Beta · 7ZoneSystems</span>
+  <div style="display:flex;gap:1.5rem;">
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab/releases/tag/Beta" target="_blank">Releases</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank">Issues</a>
+  </div>
+</footer>
+
+<script>
+  // Capability selector
+  function selectCap(idx, el) {
+    document.querySelectorAll('.cap-item').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.detail-card').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('detail-' + idx).classList.add('active');
+  }
+
+  // Fade-up on scroll
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.1 });
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+  // Smooth nav link offset for fixed header
+  document.querySelectorAll('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) {
+        e.preventDefault();
+        window.scrollTo({ top: target.offsetTop - 70, behavior: 'smooth' });
+      }
+    });
+  });
+</script>
+</body>
+</html>
