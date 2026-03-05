@@ -1647,6 +1647,44 @@ class LlamaEngine:
         ]
         return CliStreamWorker(cmd)
 
+    def ensure_server(self, log_cb=None) -> bool:
+        """
+        If already in server mode, return True immediately.
+        If in CLI mode, try to start a fresh server on a new port.
+        If server start fails, return False — caller should abort pipeline.
+        """
+        if self.mode == "server":
+            return True
+        if not self.model_path or not Path(self.model_path).exists():
+            return False
+        if log_cb:
+            self._log = log_cb
+        self._log(f"[INFO] ensure_server: attempting server start for {Path(self.model_path).name}")
+        ok = self._start_server(self.model_path, DEFAULT_THREADS, self.ctx_value)
+        if ok:
+            self._log(f"[INFO] ensure_server: server started on port {self.server_port}")
+        else:
+            self._log(f"[WARN] ensure_server: server start failed for {Path(self.model_path).name}")
+        return ok
+
+    def ensure_server_or_reload(self, log_cb=None) -> bool:
+        """
+        Like ensure_server but if server start fails, kills any existing
+        server proc and retries once on a fresh port.
+        """
+        if self.mode == "server":
+            return True
+        # Kill existing proc if any
+        if self.server_proc:
+            try:
+                self.server_proc.terminate()
+                self.server_proc.wait(timeout=5)
+            except Exception:
+                pass
+            self.server_proc = None
+        self.server_port = _free_port()
+        return self.ensure_server(log_cb=log_cb)
+
     def shutdown(self):
         if self.server_proc:
             try:
@@ -1669,12 +1707,25 @@ class LlamaEngine:
 
     def _start_server(self, model_path: str, threads: int, ctx: int) -> bool:
         import http.client
+        # Only reuse an existing server if it's for the exact same model
         for test_port in range(8600, 8700):
             if self._check_existing_server(test_port):
-                self.server_port = test_port
-                self.mode = "server"
-                self._log(f"[INFO] Connected to existing llama-server on port {test_port}")
-                return True
+                # Verify it's serving our model by checking /props endpoint
+                try:
+                    conn = http.client.HTTPConnection("127.0.0.1", test_port, timeout=2)
+                    conn.request("GET", "/props")
+                    res = conn.getresponse()
+                    props = json.loads(res.read().decode("utf-8", errors="replace"))
+                    running_model = props.get("model_path", props.get("default_generation_settings", {}).get("model", ""))
+                    if Path(running_model).resolve() == Path(model_path).resolve():
+                        self.server_port = test_port
+                        self.mode = "server"
+                        self._log(f"[INFO] Reusing existing server for same model on port {test_port}")
+                        return True
+                    else:
+                        self._log(f"[INFO] Port {test_port} has different model — skipping reuse")
+                except Exception:
+                    pass
 
         self.server_port = _free_port()
         cmd = [LLAMA_SERVER, "-m", model_path, "-t", str(threads),
@@ -6175,6 +6226,31 @@ class MainWindow(QMainWindow):
         ]
 
     def _start_pipeline(self, text: str, ts: str):
+        # Ensure all engines are in server mode before starting pipeline
+        # to avoid CLI prompt echo glitch
+        engines_to_check = []
+        if self.coding_engine and self.coding_engine.is_loaded:
+            engines_to_check.append(("coding", self.coding_engine))
+        for role in ("reasoning", "summarization", "secondary"):
+            eng = getattr(self, f"{role}_engine", None)
+            if eng and eng.is_loaded:
+                engines_to_check.append((role, eng))
+
+        for role, eng in engines_to_check:
+            if eng.mode != "server":
+                self._log("WARN", f"{role} engine in CLI mode — attempting server upgrade…")
+                ok = eng.ensure_server_or_reload(log_cb=self._log)
+                if not ok:
+                    self._log("ERROR",
+                        f"{role} engine could not start server mode — aborting pipeline")
+                    self.chat_area.add_message(
+                        "assistant",
+                        f"⚠️ Pipeline aborted: **{role}** engine could not start in server mode.\n"
+                        f"Try reloading the model from the Models tab.",
+                        ts)
+                    self.input_bar.set_generating(False)
+                    return
+
         insight_engines = self._collect_insight_engines()
 
         if not insight_engines:
