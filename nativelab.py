@@ -985,6 +985,51 @@ def _free_port(lo: int = 8600, hi: int = 8700) -> int:
     return lo
 
 
+def _kill_stray_llama_servers(keep_pids: set = None):
+    """
+    Kill every llama-server process on this machine whose PID is NOT in keep_pids.
+    Uses psutil process tree kill when available; falls back to pkill/taskkill.
+    Returns count of killed processes (-1 if count unknown via pkill).
+    """
+    keep_pids = keep_pids or set()
+    import platform
+    killed = 0
+    if HAS_PSUTIL:
+        for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+            try:
+                name = proc.info.get("name") or ""
+                cmd  = " ".join(proc.info.get("cmdline") or [])
+                if ("llama-server" in name or "llama-server" in cmd) \
+                        and proc.pid not in keep_pids:
+                    try:
+                        # Kill whole subtree first
+                        try:
+                            for child in proc.children(recursive=True):
+                                child.kill()
+                        except Exception:
+                            pass
+                        proc.kill()
+                        killed += 1
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                pass
+    else:
+        try:
+            if __import__("platform").system() == "Windows":
+                subprocess.call(
+                    ["taskkill", "/F", "/IM", "llama-server.exe"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.call(
+                    ["pkill", "-9", "-f", "llama-server"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            killed = -1   # count unknown
+        except Exception:
+            pass
+    return killed
+
+
 class ServerStreamWorker(QThread):
     token  = pyqtSignal(str)
     done   = pyqtSignal(float)
@@ -1376,7 +1421,8 @@ class ChunkedSummaryWorker(QThread):
     def __init__(self, engine: "LlamaEngine", text: str, filename: str = "",
                  engine2: "LlamaEngine" = None,
                  resume_job_id: str = "",
-                 session_id: str = ""):
+                 session_id: str = "",
+                 summary_mode: str = "summary"):
         super().__init__()
         self.engine        = engine
         self.engine2       = engine2
@@ -1384,10 +1430,12 @@ class ChunkedSummaryWorker(QThread):
         self.filename      = filename
         self.resume_job_id = resume_job_id
         self.session_id    = session_id
+        self.summary_mode  = summary_mode
         self._abort        = False
         self._pause        = False
+        self._pending_txt = ""
         self.job_id        = resume_job_id or f"sum_{_simple_hash(filename + text[:32])}_{int(time.time())}"
-
+    
     def abort(self):
         self._abort = True
 
@@ -1402,10 +1450,55 @@ class ChunkedSummaryWorker(QThread):
         N_PRED_FINAL = int(cfg["summary_n_pred_final"])
         PAUSE_THRESH = int(cfg["pause_after_chunks"])
 
+        mode = getattr(self, "summary_mode", "summary")
+
+        MODE_SECTION_INSTRUCTIONS = {
+            "summary": (
+                "Summarise this section clearly. Retain all key facts, named entities, "
+                "numbers, arguments, and logical connections. Use bullet points for key facts."
+            ),
+            "logical": (
+                "Explain the logic, mechanism, or methodology described in this section. "
+                "Break it down step by step. Use numbered points and sub-bullets. "
+                "Preserve technical accuracy. Focus on HOW and WHY things work."
+            ),
+            "advice": (
+                "Extract actionable advice, recommendations, or implications from this section. "
+                "Frame findings as practical advice. Use bullet points. "
+                "Focus on what the reader should DO or KNOW based on this content."
+            ),
+        }
+
+        MODE_FINAL_INSTRUCTIONS = {
+            "summary": (
+                "Write a single, well-structured, coherent final summary.\n"
+                "Use clear headings (##) and bullet points for key facts.\n"
+                "Do NOT omit any core findings, data points, or named entities.\n"
+                "Structure: Overview → Key Points → Findings → Conclusion."
+            ),
+            "logical": (
+                "Write a structured explanation of the complete logic, mechanism, and methodology "
+                "of this document.\n"
+                "Use ## headings for each major concept or process.\n"
+                "Use numbered steps and sub-bullets for mechanisms.\n"
+                "Explain the WHY and HOW at each stage.\n"
+                "Structure: Core Premise → Mechanisms → Process Flow → Key Findings → Implications."
+            ),
+            "advice": (
+                "Write a structured advisory brief based on the full document.\n"
+                "Use ## headings for each advice category.\n"
+                "Use bullet points for every recommendation.\n"
+                "Make all advice actionable and specific.\n"
+                "Structure: Key Takeaways → Recommendations → What To Do → What To Avoid → Next Steps."
+            ),
+        }
+
+        sect_instruction = MODE_SECTION_INSTRUCTIONS.get(mode, MODE_SECTION_INSTRUCTIONS["summary"])
+        final_instruction = MODE_FINAL_INSTRUCTIONS.get(mode, MODE_FINAL_INSTRUCTIONS["summary"])
+
         chunks = self._split(self.text, CHUNK_CHARS)
         total  = len(chunks)
 
-        # Resume state
         start_idx = 0
         section_summaries: List[str] = []
         running_ctx = ""
@@ -1426,7 +1519,6 @@ class ChunkedSummaryWorker(QThread):
                 self.err.emit("Aborted by user."); return
 
             if self._pause:
-                # Save state to disk and signal UI
                 state = {
                     "job_id":      self.job_id,
                     "filename":    self.filename,
@@ -1438,6 +1530,7 @@ class ChunkedSummaryWorker(QThread):
                     "raw_text":    self.text,
                     "model_path":  getattr(self.engine, "model_path", ""),
                     "paused_at":   datetime.now().isoformat(),
+                    "summary_mode": mode,
                 }
                 _save_paused_job(self.job_id, state)
                 self.progress.emit(
@@ -1445,7 +1538,6 @@ class ChunkedSummaryWorker(QThread):
                 self.err.emit(f"__PAUSED__:{self.job_id}")
                 return
 
-            # Auto-suggest pause after PAUSE_THRESH chunks if many remain
             if i > 0 and i == PAUSE_THRESH and (total - i) > PAUSE_THRESH:
                 self.pause_suggest.emit(self.job_id)
 
@@ -1455,12 +1547,12 @@ class ChunkedSummaryWorker(QThread):
                          if running_ctx else "")
             prompt = (
                 fam.bos + fam.user_prefix +
-                f"You are summarising a long document section by section.\n"
-                f"File: '{self.filename}'  |  Section {i+1} of {total}\n\n"
+                f"You are analysing a long document section by section.\n"
+                f"File: '{self.filename}'  |  Section {i+1} of {total}\n"
+                f"Mode: {mode.upper()}\n\n"
                 f"{ctx_block}"
                 f"Current section:\n{chunk}\n\n"
-                f"Summarise this section clearly. Retain all key facts, named entities, "
-                f"numbers, arguments, and logical connections." +
+                f"{sect_instruction}" +
                 fam.user_suffix + fam.assistant_prefix
             )
             summary = self._infer(prompt, N_PRED_SECT)
@@ -1471,7 +1563,6 @@ class ChunkedSummaryWorker(QThread):
             running_ctx = summary[-CTX_CARRY:]
             self.section_done.emit(i + 1, total, chunk, summary)
 
-            # Incremental disk save every 3 chunks
             if (i + 1) % 3 == 0:
                 _save_paused_job(self.job_id + "_autosave", {
                     "job_id":      self.job_id,
@@ -1484,10 +1575,12 @@ class ChunkedSummaryWorker(QThread):
                     "raw_text":    self.text,
                     "model_path":  getattr(self.engine, "model_path", ""),
                     "paused_at":   datetime.now().isoformat(),
+                    "summary_mode": mode,
                 })
 
         if self._abort: return
 
+        # ── Final consolidation pass ──────────────────────────────────────────
         fin_eng   = self.engine2 if (self.engine2 and self.engine2.is_loaded) else self.engine
         fin_label = "reasoning model" if fin_eng is self.engine2 else "primary model"
         self.progress.emit(f"Running final consolidation pass ({fin_label})…")
@@ -1496,16 +1589,24 @@ class ChunkedSummaryWorker(QThread):
         all_sects = "\n\n".join(section_summaries)
         final_prompt = (
             fin_fam.bos + fin_fam.user_prefix +
-            f"You have finished reading all {total} sections of '{self.filename}'.\n\n"
-            f"Section-by-section summaries:\n{all_sects}\n\n"
-            f"Now write a single, well-structured, coherent final summary." +
+            f"You have finished reading all {total} sections of '{self.filename}'.\n"
+            f"Mode: {mode.upper()}\n\n"
+            f"Section-by-section notes:\n{all_sects}\n\n"
+            f"{final_instruction}" +
             fin_fam.user_suffix + fin_fam.assistant_prefix
         )
+
         final = self._infer_with(fin_eng, final_prompt, N_PRED_FINAL)
         if final is None:
-            self.err.emit("Final consolidation pass failed"); return
+            # Fallback: try primary engine if secondary failed
+            self.progress.emit("⚠️ Final pass failed on secondary engine — retrying with primary…")
+            final = self._infer_with(self.engine, final_prompt, N_PRED_FINAL)
 
-        # Cleanup autosave
+        if final is None:
+            # Last resort: concatenate section summaries
+            self.progress.emit("⚠️ Final pass failed — using section summaries as fallback.")
+            final = f"[Auto-fallback — final consolidation failed]\n\n" + all_sects
+
         _delete_paused_job(self.job_id + "_autosave")
         _delete_paused_job(self.job_id)
         self.final_done.emit(final.strip())
@@ -1687,9 +1788,20 @@ class LlamaEngine:
 
     def shutdown(self):
         if self.server_proc:
+            pid = getattr(self.server_proc, "pid", None)
             try:
-                self.server_proc.terminate()
-                self.server_proc.wait(timeout=5)
+                if HAS_PSUTIL and pid:
+                    try:
+                        parent = psutil.Process(pid)
+                        for child in parent.children(recursive=True):
+                            try: child.kill()
+                            except (psutil.NoSuchProcess, psutil.AccessDenied): pass
+                        parent.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        self.server_proc.terminate()
+                else:
+                    self.server_proc.terminate()
+                self.server_proc.wait(timeout=3)
             except Exception:
                 pass
         self.server_proc = None
@@ -1726,6 +1838,26 @@ class LlamaEngine:
                         self._log(f"[INFO] Port {test_port} has different model — skipping reuse")
                 except Exception:
                     pass
+
+        # Kill our own previous server process if it is still alive
+        if self.server_proc and self.server_proc.poll() is None:
+            pid = getattr(self.server_proc, "pid", None)
+            try:
+                if HAS_PSUTIL and pid:
+                    try:
+                        p = psutil.Process(pid)
+                        for c in p.children(recursive=True):
+                            try: c.kill()
+                            except Exception: pass
+                        p.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        self.server_proc.terminate()
+                else:
+                    self.server_proc.terminate()
+                self.server_proc.wait(timeout=3)
+            except Exception:
+                pass
+            self.server_proc = None
 
         self.server_port = _free_port()
         cmd = [LLAMA_SERVER, "-m", model_path, "-t", str(threads),
@@ -3449,8 +3581,11 @@ class MessageWidget(QWidget):
     def append_text(self, text: str):
         self._text += text
         self._pending_txt += text
-        if not self._flush_timer.isActive():
-            self._flush_timer.start(40)
+        try:
+            if not self._flush_timer.isActive():
+                self._flush_timer.start(40)
+        except RuntimeError:
+            pass  # widget destroyed mid-stream (e.g. session switched); safe to ignore
 
     def _flush_pending(self):
         if not self._pending_txt:
@@ -4193,6 +4328,64 @@ class ChatArea(QScrollArea):
     def _scroll_bottom(self):
         self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
 
+    def add_pause_banner(self, on_pause_cb, on_abort_cb) -> QWidget:
+        """Add a live pause/abort control bar during summarization."""
+        banner = QFrame()
+        banner.setObjectName("pause_banner")
+        banner.setStyleSheet(
+            f"QFrame#pause_banner{{background:rgba(251,191,36,0.08);"
+            f"border:1px solid rgba(251,191,36,0.3);border-radius:10px;"
+            f"margin:4px 12px;}}")
+        bl = QHBoxLayout()
+        bl.setContentsMargins(14, 8, 14, 8); bl.setSpacing(10)
+
+        spinner = QLabel("⏳")
+        spinner.setStyleSheet(f"color:{C['warn']};font-size:13px;")
+        status_lbl = QLabel("Summarizing… click Pause to save state and stop.")
+        status_lbl.setStyleSheet(f"color:{C['warn']};font-size:11px;")
+
+        pause_btn = QPushButton("⏸  Pause & Save")
+        pause_btn.setFixedHeight(28)
+        pause_btn.setFixedWidth(120)
+        pause_btn.setStyleSheet(
+            f"QPushButton{{background:rgba(251,191,36,0.15);color:{C['warn']};"
+            f"border:1px solid rgba(251,191,36,0.4);border-radius:7px;"
+            f"font-size:11px;font-weight:600;}}"
+            f"QPushButton:hover{{background:rgba(251,191,36,0.3);}}")
+        pause_btn.clicked.connect(on_pause_cb)
+
+        abort_btn = QPushButton("⏹  Abort")
+        abort_btn.setFixedHeight(28)
+        abort_btn.setFixedWidth(80)
+        abort_btn.setStyleSheet(
+            f"QPushButton{{background:rgba(248,113,113,0.12);color:{C['err']};"
+            f"border:1px solid rgba(248,113,113,0.3);border-radius:7px;"
+            f"font-size:11px;font-weight:600;}}"
+            f"QPushButton:hover{{background:rgba(248,113,113,0.3);}}")
+        abort_btn.clicked.connect(on_abort_cb)
+
+        bl.addWidget(spinner)
+        bl.addWidget(status_lbl, 1)
+        bl.addWidget(pause_btn)
+        bl.addWidget(abort_btn)
+        banner.setLayout(bl)
+        banner.status_lbl = status_lbl
+        banner.spinner    = spinner
+
+        self._vbox.insertWidget(self._vbox.count() - 1, banner)
+        self._widgets.append(banner)
+        QTimer.singleShot(30, self._scroll_bottom)
+        return banner
+
+    def remove_pause_banner(self):
+        """Remove the pause control bar."""
+        for w in list(self._widgets):
+            if isinstance(w, QFrame) and w.objectName() == "pause_banner":
+                self._vbox.removeWidget(w)
+                w.deleteLater()
+                self._widgets.remove(w)
+                break
+
 class ChatModule(QWidget):
     """
     Self-contained chat module: ChatArea + ReferencePanel + InputBar.
@@ -4367,7 +4560,25 @@ class InputBar(QWidget):
             f"border-color:rgba(167,139,250,0.3);}}"
         )
         toolbar.addWidget(self.code_btn)
-
+        # Summary mode selector
+        self.summary_mode_combo = QComboBox()
+        self.summary_mode_combo.setFixedHeight(30)
+        self.summary_mode_combo.setFixedWidth(110)
+        self.summary_mode_combo.addItem("📋 Summary", "summary")
+        self.summary_mode_combo.addItem("🔬 Logical", "logical")
+        self.summary_mode_combo.addItem("💡 Advice", "advice")
+        self.summary_mode_combo.setToolTip(
+            "Summary: standard summary\n"
+            "Logical: mechanism/logic explained with structured points\n"
+            "Advice: actionable advice based on the document")
+        self.summary_mode_combo.setStyleSheet(
+            f"QComboBox{{background:rgba(19,19,42,0.85);color:{C['acc2']};"
+            f"border:1px solid rgba(167,139,250,0.3);border-radius:8px;"
+            f"padding:3px 8px;font-size:10px;}}"
+            f"QComboBox QAbstractItemView{{background:rgba(13,13,28,0.97);"
+            f"color:{C['txt']};selection-background-color:rgba(124,58,237,0.4);}}"
+        )
+        toolbar.addWidget(self.summary_mode_combo)
         # Pipeline mode indicator
         self.pipeline_badge = QLabel("")
         self.pipeline_badge.setStyleSheet(
@@ -4471,6 +4682,10 @@ class InputBar(QWidget):
     def selected_model(self) -> str:
         return self.model_combo.currentData() or ""
 
+    @property
+    def summary_mode(self) -> str:
+        return self.summary_mode_combo.currentData() or "summary"
+
 
 class SessionSidebar(QWidget):
     session_selected = pyqtSignal(str)
@@ -4516,10 +4731,12 @@ class SessionSidebar(QWidget):
         self.setLayout(root)
         self._sessions: Dict[str, Session] = {}
         self._active:   str = ""
+        self._busy:     str = ""
 
-    def refresh(self, sessions: Dict[str, Session], active_id: str = ""):
+    def refresh(self, sessions: Dict[str, Session], active_id: str = "", busy_id: str = ""):
         self._sessions = sessions
         self._active   = active_id
+        self._busy     = busy_id
         self._redraw()
 
     def set_active(self, sid: str):
@@ -4547,8 +4764,11 @@ class SessionSidebar(QWidget):
                 if s.id == self._active:
                     item.setForeground(QColor(C["acc"]))
                     fo = item.font(); fo.setBold(True); item.setFont(fo)
+                elif s.id == self._busy:
+                    item.setForeground(QColor(C["pipeline"]))   # cyan = actively processing
+                    item.setToolTip("⚡ Processing…")
+                    fo = item.font(); fo.setBold(True); item.setFont(fo)
                 self.lst.addItem(item)
-
     def _on_click(self, item: QListWidgetItem):
         sid = item.data(Qt.ItemDataRole.UserRole)
         if sid: self.session_selected.emit(sid)
@@ -5198,9 +5418,16 @@ class MainWindow(QMainWindow):
         self._pipeline_code_w:   Optional[MessageWidget] = None
         self._pipeline_insight_widgets: list = []
 
-        self._force_coding_mode: bool = False
-        self._pending_ref_ctx:   str  = ""
+        self._force_coding_mode:  bool = False
+        self._pending_ref_ctx:    str  = ""
+        # ── busy / session-tracking ───────────────────────────────────────────
+        self._busy_session_id:    str  = ""   # sid of the session currently generating
+        self._stream_session_id:  str  = ""   # sid that owns the active stream worker
+        self._stream_buffer:      str  = ""   # shadow text buffer; survives widget deletion
+        self._summary_session_id: str  = ""   # sid that owns the active summary worker
         self._multi_pdf_worker:  Optional[QThread] = None
+        self._pause_banner: Optional[QWidget] = None
+        self._summarizing_active: bool = False
         self.current_ctx = DEFAULT_CTX
         self._ctx_reload_timer = QTimer(self)
         self._ctx_reload_timer.setSingleShot(True)
@@ -5234,19 +5461,40 @@ class MainWindow(QMainWindow):
                     break
 
     def _start_role_engine_load(self, role: str, path: str):
-        attr = f"{role}_engine"
-        if not getattr(self, attr, None):
-            setattr(self, attr, LlamaEngine())
-        eng = getattr(self, attr)
-        cfg = MODEL_REGISTRY.get_config(path)
-        loader = ModelLoaderThread(eng, path, cfg.ctx)
+        attr        = f"{role}_engine"
+        loader_attr = f"_loader_{role}"
+
+        # Cancel any in-progress loader for this role to avoid double-loading
+        old_loader = getattr(self, loader_attr, None)
+        if old_loader and old_loader.isRunning():
+            self._log("WARN", f"Cancelling previous {role} loader before new one starts")
+            try: old_loader.finished.disconnect()
+            except Exception: pass
+            old_loader.quit()
+            old_loader.wait(2000)
+
+        # Shutdown any existing engine for this role before creating a fresh one
+        old_eng = getattr(self, attr, None)
+        if old_eng and old_eng.is_loaded:
+            self._log("INFO", f"Shutting down existing {role} engine before reload")
+            old_eng.shutdown()
+
+        # Always create a brand-new engine instance to avoid state leakage
+        new_eng = LlamaEngine()
+        setattr(self, attr, new_eng)
+
+        cfg    = MODEL_REGISTRY.get_config(path)
+        loader = ModelLoaderThread(new_eng, path, cfg.ctx)
         loader.log.connect(self._log)
         loader.finished.connect(
             lambda ok, st, r=role, n=Path(path).name:
             self._on_role_engine_loaded(ok, st, r, n, None))
         loader.start()
-        setattr(self, f"_loader_{role}", loader)
-        self._log("INFO", f"Auto-loading {role} engine: {Path(path).name}")
+        setattr(self, loader_attr, loader)
+
+        # Give immediate visual feedback so the user sees something changed
+        self._refresh_engine_status()
+        self._log("INFO", f"Loading {role} engine: {Path(path).name}")
 
     # ── context management ────────────────────────────────────────────────────
 
@@ -5784,7 +6032,44 @@ class MainWindow(QMainWindow):
             self.engine.shutdown()
             QTimer.singleShot(200, self._start_model_load)
         elif role in ("reasoning", "summarization", "coding", "secondary"):
-            self._start_role_engine_load(role, path)
+            # Disable button while loading to prevent rapid re-clicks causing races
+            self.btn_load_role_engine.setEnabled(False)
+            self.btn_load_role_engine.setText("⏳  Loading…")
+
+            attr        = f"{role}_engine"
+            loader_attr = f"_loader_{role}"
+
+            # Cancel any in-progress loader for this role
+            old_loader = getattr(self, loader_attr, None)
+            if old_loader and old_loader.isRunning():
+                self._log("WARN", f"Cancelling stale {role} loader")
+                try: old_loader.finished.disconnect()
+                except Exception: pass
+                old_loader.quit()
+                old_loader.wait(2000)
+
+            # Cleanly shut down any already-running engine for this role
+            old_eng = getattr(self, attr, None)
+            if old_eng and old_eng.is_loaded:
+                self._log("INFO", f"Shutting down existing {role} engine")
+                old_eng.shutdown()
+
+            new_eng = LlamaEngine()
+            setattr(self, attr, new_eng)
+            cfg = MODEL_REGISTRY.get_config(path)
+
+            def _on_loaded_reenable(ok, st, r=role, n=Path(path).name):
+                self._on_role_engine_loaded(ok, st, r, n, None)
+                self.btn_load_role_engine.setEnabled(True)
+                self.btn_load_role_engine.setText("⚡  Load Engine for Role")
+
+            loader = ModelLoaderThread(new_eng, path, cfg.ctx)
+            loader.log.connect(self._log)
+            loader.finished.connect(_on_loaded_reenable)
+            loader.start()
+            setattr(self, loader_attr, loader)
+            self._log("INFO", f"Loading {role} engine: {Path(path).name}")
+
         self._refresh_engine_status()
 
     def _on_role_engine_loaded(self, ok: bool, status: str, role: str,
@@ -6005,7 +6290,11 @@ class MainWindow(QMainWindow):
                 self._log("WARN", f"Skipping corrupt session {p.name}: {e}")
 
     def _refresh_sidebar(self):
-        self.sidebar.refresh(self.sessions, self.active.id if self.active else "")
+        self.sidebar.refresh(
+            self.sessions,
+            self.active.id if self.active else "",
+            busy_id=self._busy_session_id,
+        )
 
     def _new_session(self):
         s = Session.new()
@@ -6014,14 +6303,17 @@ class MainWindow(QMainWindow):
         self._switch_session(s.id)
 
     def _switch_session(self, sid: str):
-        if self._worker:
-            try:
-                if hasattr(self._worker, "abort"): self._worker.abort()
-                self._worker.wait(2000)
-            except Exception:
-                pass
-            self._worker = None
-            self._stream_w = None
+        # Null the widget refs NOW so callbacks that fire after the switch
+        # won't try to write to widgets that are about to be destroyed by
+        # clear_messages().  Workers keep running; _stream_buffer / session
+        # ids ensure output is still saved to the correct session on completion.
+        self._stream_w         = None
+        self._summary_bubble   = None
+        self._pipeline_reason_w = None
+        self._pipeline_code_w   = None
+
+        # Only reset the generating UI indicator if we're not the busy session
+        if sid != self._busy_session_id:
             self.input_bar.set_generating(False)
 
         s = self.sessions.get(sid)
@@ -6146,7 +6438,30 @@ class MainWindow(QMainWindow):
         if not self.active:    self._new_session()
         if not self.engine.is_loaded:
             self._log("WARN", "Model not yet loaded — please wait."); return
-
+        # Block sends while ANY session is generating
+        if self._busy_session_id:
+            current_sid = self.active.id if self.active else ""
+            if self._busy_session_id != current_sid:
+                busy_sess = self.sessions.get(self._busy_session_id)
+                busy_title = busy_sess.title if busy_sess else self._busy_session_id
+                QMessageBox.warning(
+                    self, "Processing in Progress",
+                    f'Chat "{busy_title}" is currently generating a response.\n\n'
+                    f"Please wait for it to finish before sending a new message.")
+            else:
+                QMessageBox.warning(
+                    self, "Processing in Progress",
+                    "This chat is already generating a response.\n"
+                    "Please wait for it to finish.")
+            return
+        # Block new messages while summarization is active
+        if getattr(self, "_summarizing_active", False):
+            QMessageBox.warning(
+                self, "Summarization Active",
+                "A summarization job is in progress.\n\n"
+                "Please pause or abort it from the chat panel before sending new messages.\n"
+                "You can resume paused jobs from the Config tab.")
+            return
         ts = datetime.now().strftime("%H:%M")
         if not self.active.messages:
             self.active.title = text[:40].replace("\n", " ")
@@ -6200,6 +6515,11 @@ class MainWindow(QMainWindow):
         self._worker.done.connect(self._on_done)
         self._worker.err.connect(self._on_err)
         self._worker.start()
+
+        self._stream_buffer     = ""
+        self._stream_session_id = self.active.id if self.active else ""
+        self._busy_session_id   = self._stream_session_id
+        self._refresh_sidebar()
 
         self.input_bar.set_generating(True)
         lbl_txt = "💻 Coding…" if is_coding else "⚡  Generating…"
@@ -6305,6 +6625,8 @@ class MainWindow(QMainWindow):
         self._pipeline_worker.stage_changed.connect(self._on_pipeline_stage)
         self._pipeline_worker.err.connect(self._on_pipeline_err)
         self._pipeline_worker.start()
+        self._busy_session_id = self.active.id if self.active else ""
+        self._refresh_sidebar()
 
     def _on_pipeline_insight_started(self, idx: int, label: str):
         self.lbl_engine.setText(f"{label} analysing…")
@@ -6389,7 +6711,9 @@ class MainWindow(QMainWindow):
         self._pipeline_reason_w = None
         self._pipeline_code_w   = None
         self._pipeline_worker   = None
+        self._busy_session_id   = ""
         self._update_ctx_bar()
+        self._refresh_sidebar()
 
     def _on_pipeline_err(self, msg: str):
         self._log("ERROR", f"Pipeline error: {msg}")
@@ -6405,14 +6729,18 @@ class MainWindow(QMainWindow):
         self._pipeline_reason_w = None
         self._pipeline_code_w   = None
         self._pipeline_worker   = None
+        self._busy_session_id   = ""
+        self._refresh_sidebar()
 
     # ── normal streaming handlers ──────────────────────────────────────────────
 
     def _on_token(self, text: str):
+        self._stream_buffer += text          # shadow-buffer; always kept
         if not self._stream_w: return
         try:
             self._stream_w.append_text(text)
         except RuntimeError:
+            self._stream_w = None            # widget gone; stop future writes
             return
         self.chat_area._scroll_bottom()
 
@@ -6425,6 +6753,8 @@ class MainWindow(QMainWindow):
             try: self._stream_w.finalize()
             except RuntimeError: pass
         self._save_streamed()
+        self._busy_session_id = ""
+        self._refresh_sidebar()
 
     def _on_err(self, msg: str):
         self._log("ERROR", msg)
@@ -6432,11 +6762,14 @@ class MainWindow(QMainWindow):
         self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
         self.input_bar.set_generating(False)
         if self._stream_w:
-            self._stream_w.append_text(f"\n\n⚠️ Error: {msg}")
+            try: self._stream_w.append_text(f"\n\n⚠️ Error: {msg}")
+            except RuntimeError: pass
         if self._stream_w:
             try: self._stream_w.finalize()
             except RuntimeError: pass
         self._save_streamed()
+        self._busy_session_id = ""
+        self._refresh_sidebar()
 
     def _on_stop(self):
         if self._pipeline_worker:
@@ -6497,8 +6830,14 @@ class MainWindow(QMainWindow):
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         self._log("INFO", "Generation stopped by user.")
         self._save_streamed(suffix=" ✋")
+        self._busy_session_id  = ""
+        self._stream_session_id = ""
+        self._stream_buffer     = ""
+        self._summary_session_id = ""
+        self._refresh_sidebar()
 
     def _save_streamed(self, suffix: str = ""):
+        # Try to flush the live widget first; fall back to the shadow buffer
         content = ""
         if self._stream_w:
             try:
@@ -6506,12 +6845,22 @@ class MainWindow(QMainWindow):
                 self._stream_w._flush_pending()
                 content = self._stream_w.full_text.strip()
             except RuntimeError:
-                content = ""
-        if content and self.active:
-            self.active.add_message("assistant", content + suffix)
-            self.active.save()
-        self._stream_w = None
-        self._worker   = None
+                self._stream_w = None
+        if not content:
+            content = self._stream_buffer.strip()
+
+        # Save to the session that STARTED the stream, not necessarily self.active
+        save_sid = self._stream_session_id or (self.active.id if self.active else "")
+        if content and save_sid:
+            sess = self.sessions.get(save_sid)
+            if sess:
+                sess.add_message("assistant", content + suffix)
+                sess.save()
+
+        self._stream_w         = None
+        self._worker           = None
+        self._stream_buffer    = ""
+        self._stream_session_id = ""
         self._update_ctx_bar()
 
     # ── PDF loading ────────────────────────────────────────────────────────────
@@ -6557,14 +6906,27 @@ class MainWindow(QMainWindow):
         self._refresh_sidebar()
 
         ts = datetime.now().strftime("%H:%M")
+        mode = self.input_bar.summary_mode
+        mode_label = {"summary": "📋 Summary", "logical": "🔬 Logical Analysis", "advice": "💡 Advisory"}.get(mode, "📋 Summary")
+
         self._summary_bubble = self.chat_area.add_message(
             "assistant",
-            f"📄  Starting chunked summarisation of **{filename}** "
+            f"📄  Starting **{mode_label}** of **{filename}** "
             f"({n_pages} pages, {len(text):,} chars)…\n", ts)
 
         self.input_bar.set_generating(True)
+        self.input_bar.input.setEnabled(False)
+        self.input_bar.input.setPlaceholderText(
+            "⏸ Summarization in progress — pause or abort above before typing…")
+        self._summarizing_active = True
         self.lbl_engine.setText("📄  Summarising…")
         self.lbl_engine.setStyleSheet(f"color:{C['acc']};padding:0 8px;")
+
+        # Add pause banner to chat
+        self._pause_banner = self.chat_area.add_pause_banner(
+            on_pause_cb=self._on_pause_summary,
+            on_abort_cb=self._on_stop
+        )
 
         if self._summary_worker:
             if hasattr(self._summary_worker, "abort"): self._summary_worker.abort()
@@ -6578,13 +6940,33 @@ class MainWindow(QMainWindow):
             self.engine, text, filename,
             engine2=getattr(self, "summarization_engine", None) or
                     getattr(self, "reasoning_engine", None),
-            session_id=self.active.id if self.active else "")
+            session_id=self.active.id if self.active else "",
+            summary_mode=mode)
         self._summary_worker.progress.connect(self._on_summary_progress)
         self._summary_worker.section_done.connect(self._on_section_done)
         self._summary_worker.final_done.connect(self._on_summary_final)
         self._summary_worker.err.connect(self._on_summary_err_or_pause)
         self._summary_worker.pause_suggest.connect(self._on_pause_suggest)
         self._summary_worker.start()
+        self._summary_session_id = self.active.id if self.active else ""
+        self._busy_session_id    = self._summary_session_id
+        self._refresh_sidebar()
+
+    def _on_pause_summary(self):
+        """Pause the active summary worker gracefully."""
+        if self._summary_worker and hasattr(self._summary_worker, "request_pause"):
+            self._summary_worker.request_pause()
+            self.lbl_engine.setText("⏸  Pausing…")
+            self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
+            if self._pause_banner:
+                try:
+                    self._pause_banner.status_lbl.setText("Pausing after current chunk…")
+                except RuntimeError:
+                    pass
+        elif self._multi_pdf_worker and hasattr(self._multi_pdf_worker, "request_pause"):
+            self._multi_pdf_worker.request_pause()
+            self.lbl_engine.setText("⏸  Pausing…")
+            self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
 
     def _on_summary_progress(self, msg: str):
         self._log("INFO", msg)
@@ -6613,6 +6995,15 @@ class MainWindow(QMainWindow):
 
     def _on_summary_final(self, final: str):
         self._log("INFO", f"Final summary ready ({len(final)} chars)")
+
+        # Remove pause banner
+        self.chat_area.remove_pause_banner()
+        self._pause_banner = None
+        self._summarizing_active = False
+        self.input_bar.input.setEnabled(True)
+        self.input_bar.input.setPlaceholderText(
+            "Type a message…  (Enter = send · Shift+Enter = newline)")
+
         try:
             bubble = getattr(self, "_summary_bubble", None)
             if bubble is not None:
@@ -6633,18 +7024,23 @@ class MainWindow(QMainWindow):
             self._thinking_block = None
 
         final_text = final
+        save_sid     = self._summary_session_id or (self.active.id if self.active else "")
         def _persist():
             try:
-                if self.active:
-                    self.active.add_message("assistant", f"**Document Summary**\n\n{final_text}")
-                    self.active.save()
+                sess = self.sessions.get(save_sid)
+                if sess:
+                    sess.add_message("assistant", f"**Document Summary**\n\n{final_text}")
+                    sess.save()
             except Exception as e:
                 self._log("WARN", f"Could not save final summary: {e}")
-            self._summary_worker = None
+            self._summary_worker    = None
+            self._summary_session_id = ""
+            self._busy_session_id   = ""
             self.input_bar.set_generating(False)
             self.lbl_engine.setText(self.engine.status_text)
             self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
             self._update_ctx_bar()
+            self._refresh_sidebar()
         QTimer.singleShot(120, _persist)
 
     def _on_multi_pdf_ram_warning(self, msg: str):
@@ -6847,7 +7243,8 @@ class MainWindow(QMainWindow):
             engine2=getattr(self, "summarization_engine", None) or
                     getattr(self, "reasoning_engine", None),
             resume_job_id=job_id,
-            session_id=session_id or (self.active.id if self.active else ""))
+            session_id=session_id or (self.active.id if self.active else ""),
+            summary_mode=state.get("summary_mode", "summary"))
         self._summary_worker.progress.connect(self._on_summary_progress)
         self._summary_worker.section_done.connect(self._on_section_done)
         self._summary_worker.final_done.connect(self._on_summary_final)
@@ -6872,6 +7269,12 @@ class MainWindow(QMainWindow):
         if msg.startswith("__PAUSED__:"):
             job_id = msg.split(":", 1)[1]
             self._log("INFO", f"Job paused: {job_id}")
+            self.chat_area.remove_pause_banner()
+            self._pause_banner = None
+            self._summarizing_active = False
+            self.input_bar.input.setEnabled(True)
+            self.input_bar.input.setPlaceholderText(
+                "Type a message…  (Enter = send · Shift+Enter = newline)")
             self.input_bar.set_generating(False)
             self.lbl_engine.setText("⏸  Paused — state saved")
             self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
@@ -6883,6 +7286,12 @@ class MainWindow(QMainWindow):
 
     def _on_summary_err(self, msg: str):
         self._log("ERROR", f"Summary pipeline error: {msg}")
+        self.chat_area.remove_pause_banner()
+        self._pause_banner = None
+        self._summarizing_active = False
+        self.input_bar.input.setEnabled(True)
+        self.input_bar.input.setPlaceholderText(
+            "Type a message…  (Enter = send · Shift+Enter = newline)")
         if hasattr(self, "_summary_bubble") and self._summary_bubble:
             self._summary_bubble.append_text(f"\n\n⚠️ Error: {msg}")
         self._summary_worker = None
@@ -6959,10 +7368,24 @@ class MainWindow(QMainWindow):
                 self._pipeline_worker.wait(1000)
             except Exception:
                 pass
+
+        # Cancel any pending role loaders gracefully before shutting down engines
+        for role in ("reasoning", "summarization", "coding", "secondary"):
+            ldr = getattr(self, f"_loader_{role}", None)
+            if ldr and ldr.isRunning():
+                try: ldr.finished.disconnect()
+                except Exception: pass
+                ldr.quit()
+                ldr.wait(1500)
+
         self.engine.shutdown()
         for role in ("reasoning", "summarization", "coding", "secondary"):
             eng = getattr(self, f"{role}_engine", None)
             if eng: eng.shutdown()
+
+        # Final safety net: kill ANY remaining llama-server stragglers
+        # (handles orphans from previous crashed sessions too)
+        _kill_stray_llama_servers(keep_pids=set())
         super().closeEvent(event)
 
 
