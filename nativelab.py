@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
     QTextEdit, QPushButton, QFileDialog, QLabel, QListWidget,
     QListWidgetItem, QSplitter, QTabWidget, QScrollArea, QFrame,
     QComboBox, QProgressBar, QMenu, QMessageBox, QInputDialog,
-    QSizePolicy, QLineEdit, QSlider, QCheckBox, QGroupBox, QTextBrowser
+    QSizePolicy, QLineEdit, QSlider, QCheckBox, QGroupBox, QTextBrowser, QColorDialog
 )
 from PyQt6.QtGui import (
     QFont, QColor, QTextCursor, QAction, QKeySequence, QIcon
@@ -51,6 +51,9 @@ try:
     HAS_HASH = True
 except ImportError:
     HAS_HASH = False
+
+# ── Theme ─────────────────────────────────────────────────────────────────────
+CURRENT_THEME = "light"   # "dark" | "light"  ← toggle here
 
 # ── Reference system constants ────────────────────────────────────────────────
 REFS_DIR          = Path("chat_refs")
@@ -471,194 +474,744 @@ def quant_info(quant: str) -> Tuple[str, str]:
     return "Unknown", "#7e7a9a"
 
 
-# ── colour palette ────────────────────────────────────────────────────────────
-C = {
-    "bg0":  "#07070f", "bg1":  "#0d0d1c", "bg2":  "#13132a",
-    "bg3":  "#1a1a35",
-    "acc":  "#a78bfa", "acc2": "#c4b5fd",
-    "usr":  "#12103a", "ast":  "#0b1a12",
-    "txt":  "#ede8ff", "txt2": "#7e7a9a", "bdr":  "#252340",
-    "ok":   "#34d399", "warn": "#fbbf24", "err":  "#f87171",
-    "glow": "#7c3aed",
-    "pipeline": "#22d3ee",
+# ── colour palettes ───────────────────────────────────────────────────────────
+C_DARK = {
+    "bg0":      "#09090d",
+    "bg1":      "#0f0f15",
+    "bg2":      "#141420",
+    "bg3":      "#1a1a28",
+    "surface":  "#1e1e2e",
+    "surface2": "#252538",
+    "highlight":"rgba(105,92,235,0.13)",
+    "acc":      "#695ceb",
+    "acc2":     "#9d93f5",
+    "acc_dim":  "rgba(105,92,235,0.22)",
+    "usr":      "#0e0c26",
+    "ast":      "#0c0c14",
+    "rsn":      "#090d1c",
+    "cod":      "#090c0a",
+    "txt":      "#ededf5",
+    "txt2":     "#7a7a9a",
+    "txt3":     "#48485e",
+    "bdr":      "#232335",
+    "bdr2":     "#2d2d45",
+    "ok":       "#1cb88a",
+    "warn":     "#e8971a",
+    "err":      "#e84848",
+    "glow":     "#4b3be0",
+    "pipeline": "#18b0ca",
 }
 
-QSS = f"""
+C_LIGHT = {
+    "bg0":      "#fdf6f0",
+    "bg1":      "#f8ede3",
+    "bg2":      "#f2e2d4",
+    "bg3":      "#ebd6c6",
+    "surface":  "#f2e2d4",
+    "surface2": "#ebd6c6",
+    "highlight":"rgba(194,65,12,0.07)",
+    "acc":      "#c2410c",
+    "acc2":     "#9a3412",
+    "acc_dim":  "#fde8d8",
+    "usr":      "#fdeee4",
+    "ast":      "#fdf6f0",
+    "rsn":      "#f0faf8",
+    "cod":      "#f3faf0",
+    "txt":      "#1a0f0a",
+    "txt2":     "#6b4c3b",
+    "txt3":     "#b89080",
+    "bdr":      "#e8cfc0",
+    "bdr2":     "#ddbfac",
+    "ok":       "#15803d",
+    "warn":     "#b45309",
+    "err":      "#b91c1c",
+    "glow":     "#9a3412",
+    "pipeline": "#0e7490",
+}
+
+# Active palette — driven by CURRENT_THEME set at top of file
+C = C_LIGHT if CURRENT_THEME == "light" else C_DARK
+
+# Typography constants
+FONT_UI   = "'Inter','Segoe UI','SF Pro Display',system-ui,-apple-system,sans-serif"
+FONT_MONO = "'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace"
+
+def _build_qss(c: dict) -> str:
+    """Generate a complete Qt stylesheet from a colour palette dict."""
+    _FUI = "'Inter','Segoe UI','SF Pro Display',system-ui,-apple-system,sans-serif"
+    _is_light = c["bg0"].startswith("#f") or c["bg0"].startswith("#e")
+    _acc_r, _acc_g, _acc_b = (
+        (74, 118, 82) if _is_light else (105, 92, 235)
+    )
+    def _rgba(a): return f"rgba({_acc_r},{_acc_g},{_acc_b},{a})"
+
+    return f"""
+/* ═══════════════════════════════════════════════════
+   Native Lab Pro — {"Cream & Sage Light" if _is_light else "Studio Dark"}
+   ═══════════════════════════════════════════════════ */
+
 QMainWindow, QDialog {{
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:1,
-        stop:0 {C['bg0']}, stop:0.5 #0b0b18, stop:1 #0d0a1a);
-    color:{C['txt']};
+    background:{c['bg0']};
+    color:{c['txt']};
+}}
+* {{
+    font-family:{_FUI};
+    font-size:13px;
+    color:{c['txt']};
 }}
 QWidget {{
-    background:transparent; color:{C['txt']};
-    font-family:'Segoe UI','Inter',sans-serif; font-size:13px;
+    background:{c['bg0']};
+    color:{c['txt']};
+    selection-background-color:{c['acc_dim']};
+    selection-color:{c['txt']};
 }}
-QScrollArea {{ background:transparent; border:none; }}
+/* widgets that must stay transparent */
+QFrame        {{ background:transparent; }}
+QScrollArea   {{ background:transparent; border:none; }}
+QStackedWidget{{ background:{c['bg0']}; }}
+QSplitter     {{ background:{c['bg0']}; }}
+/* log console text area */
+QTextEdit#log_te {{
+    background:{c['bg2']};
+    color:{c['acc2']};
+    border:none;
+    padding:6px;
+    font-family:Consolas,monospace;
+    font-size:11px;
+}}
+/* ref sidebar panels */
+QWidget#ref_panel_v2 {{ background:{c['bg1']}; border-left:1px solid {c['bdr']}; }}
+QWidget#ref_panel_v1 {{ background:{c['bg1']}; border-left:1px solid {c['bdr']}; }}
+/* thinking block */
+QFrame#thinking_frame {{
+    background:{c['bg2']};
+    border:1px solid {c['bdr2']};
+    border-top:none;
+    border-radius:0 0 8px 8px;
+}}
+QTextEdit#thinking_te {{
+    background:transparent;
+    color:{c['txt2']};
+    border:none;
+    padding:10px;
+    font-size:11px;
+}}
+QPushButton#thinking_toggle {{
+    background:{c['bg2']};
+    color:{c['txt2']};
+    border:1px solid {c['bdr']};
+    border-radius:8px;
+    padding:8px 16px;
+    text-align:left;
+    font-size:12px;
+    font-weight:500;
+}}
+QPushButton#thinking_toggle:hover {{
+    background:{c['bg3']};
+    color:{c['acc']};
+    border-color:{c['bdr2']};
+}}
+
+/* ── Scrollbars ──────────────────────────────────── */
 QScrollBar:vertical {{
-    background:rgba(20,18,40,0.4); width:6px; margin:0; border:none; border-radius:3px;
+    background:transparent; width:6px; margin:3px 0; border:none;
 }}
 QScrollBar::handle:vertical {{
-    background:rgba(167,139,250,0.35); border-radius:3px; min-height:18px;
+    background:{_rgba(0.30)}; border-radius:3px; min-height:32px;
 }}
-QScrollBar::handle:vertical:hover {{ background:rgba(167,139,250,0.6); }}
-QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; }}
+QScrollBar::handle:vertical:hover {{ background:{_rgba(0.58)}; }}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,  QScrollBar::sub-page:vertical {{
+    height:0; width:0; background:none;
+}}
 QScrollBar:horizontal {{
-    background:rgba(20,18,40,0.4); height:6px; border:none; border-radius:3px;
+    background:transparent; height:6px; border:none;
 }}
 QScrollBar::handle:horizontal {{
-    background:rgba(167,139,250,0.35); border-radius:3px;
+    background:{_rgba(0.30)}; border-radius:3px; min-width:32px;
 }}
-QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width:0; }}
-QTextEdit, QLineEdit {{
-    background:rgba(19,19,42,0.85);
-    color:{C['txt']};
-    border:1px solid {C['bdr']};
-    border-radius:10px;
-    padding:6px 10px;
-    selection-background-color:rgba(124,58,237,0.5);
+QScrollBar::handle:horizontal:hover {{ background:{_rgba(0.58)}; }}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal,
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+    height:0; width:0; background:none;
 }}
-QTextEdit:focus, QLineEdit:focus {{
-    border-color:{C['acc']};
-    background:rgba(26,26,53,0.95);
+
+/* ── Text inputs ─────────────────────────────────── */
+QTextEdit, QPlainTextEdit {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr']};
+    border-radius:9px;
+    padding:9px 13px;
+    font-size:13px;
+    line-height:1.6;
+    selection-background-color:{_rgba(0.28)};
 }}
-QLineEdit {{ padding:4px 10px; }}
+QTextEdit:focus, QPlainTextEdit:focus {{
+    border:1px solid {_rgba(0.55)};
+    background:{c['surface2']};
+}}
+QLineEdit {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr']};
+    border-radius:7px;
+    padding:6px 12px;
+    font-size:13px;
+    selection-background-color:{_rgba(0.28)};
+}}
+QLineEdit:focus {{
+    border:1px solid {_rgba(0.55)};
+    background:{c['surface2']};
+}}
+
+/* ── Buttons ─────────────────────────────────────── */
 QPushButton {{
-    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 rgba(37,35,64,0.9), stop:1 rgba(26,26,50,0.9));
-    color:{C['txt']};
-    border:1px solid {C['bdr']};
-    border-radius:8px;
-    padding:5px 14px;
-    min-height:26px;
+    background:{c['surface']};
+    color:{c['txt2']};
+    border:1px solid {c['bdr']};
+    border-radius:7px;
+    padding:6px 16px;
+    min-height:30px;
+    font-size:13px;
+    font-weight:500;
+    letter-spacing:0.1px;
 }}
 QPushButton:hover {{
-    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 rgba(124,58,237,0.55), stop:1 rgba(109,40,217,0.45));
-    color:#fff;
-    border-color:rgba(167,139,250,0.7);
+    background:{c['surface2']};
+    color:{c['txt']};
+    border-color:{c['bdr2']};
 }}
 QPushButton:pressed {{
-    background:rgba(109,40,217,0.7);
-    border-color:{C['acc2']};
+    background:{_rgba(0.18)};
+    border-color:{_rgba(0.45)};
+    color:{c['txt']};
 }}
-QPushButton:disabled {{ color:{C['txt2']}; background:rgba(19,19,42,0.5); border-color:{C['bdr']}; }}
+QPushButton:disabled {{
+    color:{c['txt3']};
+    background:{c['bg3']};
+    border-color:{c['bdr']};
+}}
+
+/* ── Accent buttons ──────────────────────────────── */
 QPushButton#btn_send {{
-    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 rgba(124,58,237,0.9), stop:1 rgba(109,40,217,0.8));
-    color:#fff; border:1px solid rgba(167,139,250,0.5); font-weight:600; border-radius:8px;
+    background:{c['acc']};
+    color:#ffffff;
+    border:none;
+    font-weight:600;
+    border-radius:8px;
+    font-size:13px;
+    letter-spacing:0.2px;
 }}
-QPushButton#btn_send:hover {{
-    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 rgba(167,139,250,0.95), stop:1 rgba(124,58,237,0.9));
-}}
+QPushButton#btn_send:hover  {{ background:{c['acc2']}; color:#ffffff; }}
+QPushButton#btn_send:pressed {{ background:{c['glow']}; }}
+
 QPushButton#btn_stop {{
-    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 rgba(248,113,113,0.85), stop:1 rgba(220,38,38,0.75));
-    color:#fff; border:1px solid rgba(248,113,113,0.4); font-weight:600; border-radius:8px;
+    background:{c['err']};
+    color:#ffffff;
+    border:none;
+    font-weight:600;
+    border-radius:8px;
 }}
-QPushButton#btn_stop:hover {{ background:rgba(248,113,113,0.95); }}
-QPushButton#btn_new  {{
-    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 rgba(52,211,153,0.8), stop:1 rgba(16,185,129,0.7));
-    color:#07070f; border:none; font-weight:600; border-radius:8px;
+QPushButton#btn_stop:hover {{ background:#d9413a; }}
+
+QPushButton#btn_new {{
+    background:{c['ok']};
+    color:#ffffff;
+    border:none;
+    font-weight:700;
+    border-radius:8px;
+    font-size:13px;
 }}
-QPushButton#btn_new:hover {{ background:rgba(52,211,153,0.95); }}
+QPushButton#btn_new:hover {{ background:{c['acc']}; color:#ffffff; }}
+
+/* ── List widget ─────────────────────────────────── */
 QListWidget {{
-    background:rgba(13,13,28,0.6); border:none; outline:none; border-radius:8px;
+    background:transparent;
+    border:none;
+    outline:none;
+    font-size:13px;
 }}
-QListWidget::item {{ padding:6px 10px; border-radius:6px; margin:1px 3px; }}
+QListWidget::item {{
+    padding:8px 12px;
+    border-radius:7px;
+    margin:1px 4px;
+    color:{c['txt2']};
+    font-size:13px;
+}}
 QListWidget::item:selected {{
-    background:rgba(124,58,237,0.3); color:{C['acc2']};
-    border:1px solid rgba(167,139,250,0.25);
+    background:{_rgba(0.16)};
+    color:{c['txt']};
+    border:1px solid {_rgba(0.22)};
 }}
-QListWidget::item:hover:!selected {{ background:rgba(37,35,64,0.6); }}
-QTabWidget::pane {{
-    border:1px solid {C['bdr']}; border-top:none;
-    background:rgba(7,7,15,0.95); border-radius:0 0 10px 10px;
+QListWidget::item:hover:!selected {{
+    background:{_rgba(0.07)};
+    color:{c['txt']};
 }}
+
+/* ── Tabs ────────────────────────────────────────── */
+QTabWidget::pane {{ border:none; background:{c['bg0']}; }}
+QTabBar {{ background:transparent; }}
 QTabBar::tab {{
-    background:rgba(13,13,28,0.7); color:{C['txt2']};
-    padding:9px 24px; border:none;
+    background:transparent;
+    color:{c['txt2']};
+    padding:10px 22px;
+    border:none;
     border-bottom:2px solid transparent;
-    border-radius:8px 8px 0 0;
-    margin-right:2px;
+    font-size:13px;
+    font-weight:500;
+    margin-right:1px;
 }}
 QTabBar::tab:selected {{
-    color:{C['txt']}; border-bottom:2px solid {C['acc']};
-    background:rgba(19,19,42,0.95);
+    color:{c['txt']};
+    border-bottom:2px solid {c['acc']};
+    font-weight:600;
 }}
-QTabBar::tab:hover:!selected {{ color:{C['acc2']}; background:rgba(26,26,53,0.8); }}
+QTabBar::tab:hover:!selected {{
+    color:{c['acc']};
+    background:{_rgba(0.07)};
+}}
+
+/* ── ComboBox ────────────────────────────────────── */
 QComboBox {{
-    background:rgba(19,19,42,0.85); color:{C['txt']};
-    border:1px solid {C['bdr']}; border-radius:8px; padding:4px 10px; min-height:26px;
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr']};
+    border-radius:7px;
+    padding:6px 12px;
+    min-height:30px;
+    font-size:13px;
 }}
-QComboBox:focus, QComboBox:hover {{ border-color:{C['acc']}; }}
+QComboBox:hover  {{ border-color:{c['bdr2']}; background:{c['surface2']}; }}
+QComboBox:focus  {{ border-color:{_rgba(0.55)}; }}
 QComboBox QAbstractItemView {{
-    background:rgba(13,13,28,0.97); color:{C['txt']};
-    selection-background-color:rgba(124,58,237,0.4);
-    border:1px solid {C['bdr']}; border-radius:8px; padding:2px; outline:none;
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr2']};
+    border-radius:8px;
+    padding:4px;
+    selection-background-color:{_rgba(0.20)};
+    outline:none;
+    font-size:13px;
 }}
-QComboBox::drop-down {{ border:none; width:20px; }}
-QProgressBar {{
-    background:rgba(37,35,64,0.5); border:1px solid {C['bdr']};
-    border-radius:4px; height:8px;
+QComboBox::drop-down {{ border:none; width:22px; }}
+
+/* ── Sliders ─────────────────────────────────────── */
+QSlider::groove:horizontal {{
+    height:5px; background:{c['bdr2']}; border-radius:3px;
 }}
-QProgressBar::chunk {{
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-        stop:0 {C['acc']}, stop:1 {C['acc2']});
-    border-radius:4px;
+QSlider::handle:horizontal {{
+    background:{c['acc']}; width:14px; height:14px;
+    margin:-5px 0; border-radius:7px;
+    border:2px solid {_rgba(0.40)};
 }}
-QStatusBar {{
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-        stop:0 rgba(13,13,28,0.98), stop:1 rgba(10,10,20,0.98));
-    color:{C['txt2']}; border-top:1px solid {C['bdr']}; font-size:11px; padding:2px 0;
+QSlider::handle:horizontal:hover {{ background:{c['acc2']}; }}
+QSlider::sub-page:horizontal {{
+    background:{c['acc']}; border-radius:3px;
 }}
-QMenuBar {{
-    background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-        stop:0 rgba(13,13,28,0.98), stop:1 rgba(10,10,20,0.98));
-    color:{C['txt']}; border-bottom:1px solid {C['bdr']}; padding:2px 0;
-}}
-QMenuBar::item {{ padding:4px 12px; border-radius:6px; }}
-QMenuBar::item:selected {{ background:rgba(124,58,237,0.3); color:{C['acc2']}; }}
-QMenu {{
-    background:rgba(13,13,28,0.97); color:{C['txt']};
-    border:1px solid rgba(167,139,250,0.2);
-    padding:6px; border-radius:10px;
-}}
-QMenu::item {{ padding:6px 20px; border-radius:6px; }}
-QMenu::item:selected {{ background:rgba(124,58,237,0.35); color:{C['acc2']}; }}
-QMenu::separator {{ height:1px; background:{C['bdr']}; margin:4px 8px; }}
-QSplitter::handle {{ background:{C['bdr']}; }}
-QSplitter::handle:horizontal {{ width:1px; }}
-QLabel {{ background:transparent; color:{C['txt2']}; }}
-QToolTip {{
-    background:rgba(19,19,42,0.97); color:{C['txt']};
-    border:1px solid rgba(167,139,250,0.3);
-    padding:5px 10px; border-radius:8px; font-size:11px;
-}}
-QFrame[frameShape="4"], QFrame[frameShape="5"] {{ color:{C['bdr']}; }}
-QCheckBox {{
-    color:{C['txt']}; spacing:6px;
-}}
+
+/* ── Checkboxes ──────────────────────────────────── */
+QCheckBox {{ color:{c['txt']}; spacing:8px; font-size:13px; }}
 QCheckBox::indicator {{
     width:16px; height:16px;
-    background:rgba(19,19,42,0.85);
-    border:1px solid {C['bdr']}; border-radius:4px;
+    background:{c['surface']};
+    border:1.5px solid {c['bdr2']};
+    border-radius:4px;
 }}
 QCheckBox::indicator:checked {{
-    background:rgba(124,58,237,0.7);
-    border-color:{C['acc']};
+    background:{c['acc']}; border-color:{c['acc']};
 }}
+QCheckBox::indicator:hover {{ border-color:{_rgba(0.60)}; }}
+
+/* ── Group boxes ─────────────────────────────────── */
 QGroupBox {{
-    border:1px solid {C['bdr']}; border-radius:8px;
-    margin-top:8px; padding-top:8px;
-    color:{C['txt2']}; font-size:11px;
+    border:1px solid {c['bdr']};
+    border-radius:9px;
+    margin-top:12px; padding-top:12px;
+    color:{c['txt2']};
+    font-size:11px; font-weight:600; letter-spacing:0.5px;
 }}
 QGroupBox::title {{
-    subcontrol-origin:margin; left:12px; padding:0 4px;
-    color:{C['acc2']};
+    subcontrol-origin:margin; left:14px; padding:0 6px;
+    color:{c['acc']};
+}}
+
+/* ── Progress bars ───────────────────────────────── */
+QProgressBar {{
+    background:{c['surface']};
+    border:none; border-radius:4px;
+    height:5px; color:transparent;
+}}
+QProgressBar::chunk {{ background:{c['acc']}; border-radius:3px; }}
+
+/* ── Status bar ──────────────────────────────────── */
+QStatusBar {{
+    background:{c['bg0']};
+    color:{c['txt3']};
+    border-top:1px solid {c['bdr']};
+    font-size:11px; padding:0 10px;
+}}
+
+/* ── Menu bar ────────────────────────────────────── */
+QMenuBar {{
+    background:{c['bg1']};
+    color:{c['txt2']};
+    border-bottom:1px solid {c['bdr']};
+    padding:2px 4px; font-size:13px;
+}}
+QMenuBar::item {{ padding:5px 14px; border-radius:5px; }}
+QMenuBar::item:selected {{ background:{_rgba(0.14)}; color:{c['txt']}; }}
+QMenu {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr2']};
+    padding:6px; border-radius:10px;
+}}
+QMenu::item {{ padding:7px 22px; border-radius:6px; font-size:13px; }}
+QMenu::item:selected {{ background:{_rgba(0.16)}; color:{c['txt']}; }}
+QMenu::separator {{ height:1px; background:{c['bdr']}; margin:5px 10px; }}
+
+/* ── Splitter ────────────────────────────────────── */
+QSplitter::handle {{ background:{c['bdr']}; }}
+QSplitter::handle:horizontal {{ width:1px; }}
+QSplitter::handle:vertical   {{ height:1px; }}
+
+/* ── Labels ──────────────────────────────────────── */
+QLabel {{ background:transparent; color:{c['txt2']}; font-size:13px; }}
+
+/* ── Tooltips ────────────────────────────────────── */
+QToolTip {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {_rgba(0.30)};
+    padding:6px 12px; border-radius:7px; font-size:12px;
+}}
+
+/* ── Frames / separators ─────────────────────────── */
+QFrame[frameShape="4"], QFrame[frameShape="5"] {{ color:{c['bdr']}; }}
+
+/* ── SpinBox ─────────────────────────────────────── */
+QSpinBox, QDoubleSpinBox {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr']};
+    border-radius:7px;
+    padding:5px 10px; font-size:13px;
+}}
+QSpinBox:focus, QDoubleSpinBox:focus {{ border-color:{_rgba(0.55)}; }}
+QSpinBox::up-button,   QSpinBox::down-button,
+QDoubleSpinBox::up-button, QDoubleSpinBox::down-button {{
+    background:{c['bdr']}; border:none; width:18px; border-radius:3px;
+}}
+QSpinBox::up-button:hover,   QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{
+    background:{c['bdr2']};
+}}
+
+/* ── Cards in Models / Config tabs ─────────────────────── */
+QFrame#tab_card {{
+    background:{c['surface']};
+    border:1px solid {c['bdr']};
+    border-radius:12px;
+}}
+QFrame#tab_card QLabel {{
+    background:transparent;
+    color:{c['txt2']};
+}}
+
+/* ── Code / mode toggle buttons in InputBar ────────────── */
+QPushButton#code_btn {{
+    background:{c['bg2']};
+    color:{c['txt2']};
+    border:1px solid {c['bdr']};
+    border-radius:8px;
+    padding:4px 8px;
+    font-size:12px;
+}}
+QPushButton#code_btn:checked {{
+    background:{c['acc_dim']};
+    color:{c['acc']};
+    border-color:{c['acc']};
+    font-weight:600;
+}}
+QPushButton#code_btn:hover {{
+    background:{c['bg3']};
+    color:{c['txt']};
+    border-color:{c['bdr2']};
+}}
+QComboBox#summary_combo {{
+    background:{c['bg2']};
+    color:{c['acc']};
+    border:1px solid {c['bdr']};
+    border-radius:8px;
+    padding:3px 8px;
+    font-size:10px;
+}}
+QLabel#pipeline_badge {{
+    color:{c['pipeline']};
+    font-size:10px;
+    padding:2px 7px;
+    background:{c['bg2']};
+    border-radius:4px;
+    border:1px solid {c['bdr']};
+}}
+QLabel#family_badge {{
+    color:{c['acc2']};
+    font-size:10px;
+    background:{c['bg2']};
+    border-radius:4px;
+    padding:2px 7px;
+}}
+
+/* ── Engine / model list widgets ────────────────────────── */
+QListWidget#model_list, QListWidget#engine_list {{
+    background:{c['bg1']};
+    border:none;
+    font-size:11px;
+    outline:none;
+}}
+QListWidget#model_list::item, QListWidget#engine_list::item {{
+    padding:8px 12px;
+    border-bottom:1px solid {c['bdr']};
+    color:{c['txt2']};
+}}
+QListWidget#model_list::item:selected,
+QListWidget#engine_list::item:selected {{
+    background:{c['acc_dim']};
+    color:{c['acc']};
+}}
+QListWidget#paused_list {{
+    background:{c['bg1']};
+    border:none;
+    font-size:10px;
+    outline:none;
+}}
+QListWidget#paused_list::item {{
+    padding:5px 10px;
+    border-bottom:1px solid {c['bdr']};
+    color:{c['warn']};
+}}
+
+/* ── Ref panel tab widget ───────────────────────────────── */
+QTabWidget#ref_tabs::pane {{
+    background:{c['bg1']};
+    border:1px solid {c['bdr']};
+    border-radius:6px;
+}}
+QTabWidget#ref_tabs QTabBar::tab {{
+    background:{c['bg2']};
+    color:{c['txt2']};
+    padding:5px 12px;
+    border-radius:4px 4px 0 0;
+    font-size:10px;
+    border:1px solid {c['bdr']};
+    border-bottom:none;
+}}
+QTabWidget#ref_tabs QTabBar::tab:selected {{
+    color:{c['txt']};
+    background:{c['bg1']};
+    border-bottom:2px solid {c['acc']};
+    font-weight:600;
+}}
+QTabWidget#ref_tabs QTabBar::tab:hover:!selected {{
+    background:{c['bg3']};
+    color:{c['acc']};
+}}
+
+/* ── Ref panel list widgets ─────────────────────────────── */
+QListWidget#ref_doc_list, QListWidget#ref_script_list {{
+    background:transparent;
+    border:none;
+    font-size:10px;
+    outline:none;
+}}
+QListWidget#ref_doc_list::item, QListWidget#ref_script_list::item {{
+    padding:5px 8px;
+    border-radius:5px;
+    margin:2px 0;
+    color:{c['txt2']};
+    min-height:18px;
+}}
+QListWidget#ref_doc_list::item:hover,
+QListWidget#ref_script_list::item:hover {{
+    background:{c['acc_dim']};
+}}
+QListWidget#ref_doc_list::item:selected,
+QListWidget#ref_script_list::item:selected {{
+    background:{c['acc_dim']};
+    color:{c['acc']};
+    border:1px solid {c['bdr2']};
+}}
+
+/* ── Ref panel info / detail labels ─────────────────────── */
+QLabel#ref_info_banner {{
+    color:{c['txt2']};
+    font-size:9px;
+    padding:4px 6px;
+    background:{c['bg2']};
+    border-radius:4px;
+}}
+QLabel#ref_script_detail {{
+    color:{c['txt2']};
+    font-size:9px;
+    padding:6px 8px;
+    background:{c['bg2']};
+    border:1px solid {c['bdr']};
+    border-radius:6px;
+    min-height:60px;
+}}
+QLabel#ref_ram_info {{
+    color:{c['txt2']};
+    font-size:9px;
+    padding:2px;
+}}
+QLabel#ref_hdr {{
+    color:{c['txt']};
+    font-weight:700;
+    font-size:12px;
+}}
+QLabel#ram_badge_lbl {{
+    color:{c['warn']};
+    font-size:9px;
+    padding:1px 5px;
+    background:{c['bg2']};
+    border-radius:3px;
+}}
+
+/* ── Fix white bleed on QPushButton borders in dark mode ── */
+QPushButton {{
+    outline:none;
+}}
+QTabBar {{
+    background:{c['bg1']};
+}}
+QTabBar::scroller {{
+    background:{c['bg1']};
+}}
+
+/* ── Appearance tab ─────────────────────────────────────── */
+QWidget#appearance_bar {{
+    background:{c['bg1']};
+    border-bottom:1px solid {c['bdr']};
+}}
+QLabel#appearance_hdr {{
+    color:{c['txt']};
+    font-size:13px;
+    font-weight:700;
+}}
+QLabel#appearance_group_hdr {{
+    color:{c['acc']};
+    font-size:10px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:0.8px;
+    margin-bottom:4px;
+}}
+QLabel#appearance_row_lbl {{
+    color:{c['txt2']};
+    font-size:11px;
+}}
+QLabel#appearance_sl_lbl {{
+    color:{c['txt3']};
+    font-size:9px;
+    font-weight:700;
+}}
+QLineEdit#appearance_hex {{
+    background:{c['bg2']};
+    color:{c['txt']};
+    border:1px solid {c['bdr']};
+    border-radius:5px;
+    padding:2px 6px;
+    font-size:11px;
+    font-family:Consolas,monospace;
+}}
+QLineEdit#appearance_hex:focus {{
+    border-color:{c['acc']};
+}}
+QSlider#appearance_slider::groove:horizontal {{
+    height:4px;
+    background:{c['bg3']};
+    border-radius:2px;
+}}
+QSlider#appearance_slider::handle:horizontal {{
+    background:{c['acc']};
+    width:12px;
+    height:12px;
+    margin:-4px 0;
+    border-radius:6px;
+}}
+QSlider#appearance_slider::sub-page:horizontal {{
+    background:{c['acc_dim']};
+    border-radius:2px;
+}}
+QPushButton#appearance_btn {{
+    background:{c['bg2']};
+    color:{c['txt2']};
+    border:1px solid {c['bdr']};
+    border-radius:7px;
+    padding:5px 14px;
+    font-size:11px;
+    font-weight:500;
+}}
+QPushButton#appearance_btn:hover {{
+    background:{c['bg3']};
+    color:{c['txt']};
+}}
+QPushButton#appearance_btn_acc {{
+    background:{c['acc']};
+    color:#ffffff;
+    border:none;
+    border-radius:7px;
+    padding:5px 14px;
+    font-size:11px;
+    font-weight:600;
+}}
+QPushButton#appearance_btn_acc:hover {{
+    background:{c['acc2']};
+}}
+
+/* ── Named layout containers (override inline styles) ────── */
+QScrollArea#chat_scroll         {{ background:{c['bg0']}; border:none; }}
+QWidget#chat_container          {{ background:{c['bg0']}; }}
+QWidget#input_bar               {{ background:{c['bg1']}; border-top:1px solid {c['bdr']}; }}
+QWidget#session_sidebar         {{ background:{c['bg1']}; border-right:1px solid {c['bdr']}; }}
+QWidget#ref_panel               {{ background:{c['bg1']}; border-left:1px solid {c['bdr']}; }}
+QWidget#chat_module_root        {{ background:{c['bg0']}; }}
+
+/* ── Message bubbles via object name ────────────────────── */
+QFrame#bubble_user {{
+    background:{c['usr']};
+    border:1px solid {_rgba(0.30)};
+    border-radius:14px 14px 4px 14px;
+}}
+QFrame#bubble_ast {{
+    background:{c['ast']};
+    border:1px solid {_rgba(0.14)};
+    border-radius:4px 14px 14px 14px;
+}}
+QFrame#bubble_rsn {{
+    background:{c['rsn']};
+    border:1px solid rgba(24,176,202,0.22);
+    border-radius:4px 14px 14px 14px;
+}}
+QFrame#bubble_cod {{
+    background:{c['cod']};
+    border:1px solid rgba(28,184,138,0.20);
+    border-radius:4px 14px 14px 14px;
+}}
+
+/* ── Chat text body inside bubbles ──────────────────────── */
+QTextBrowser#bubble_te {{
+    background:transparent;
+    color:{c['txt']};
+    font-size:14px;
+    border:none;
+    padding:0;
+    line-height:1.7;
 }}
 """
+
+QSS = _build_qss(C)
 class RichTextEdit(QTextBrowser):
     """
     QTextEdit subclass.
@@ -2643,39 +3196,44 @@ def _md_to_html(text: str,
                     display)
 
         # Table-based layout (Qt supports tables reliably)
+        _cb  = C["bg2"]
+        _tb  = C["bg1"]
+        _bdr = C["bdr"]
+        _ctxt = C["txt"]
+        _dim = C["txt3"]
+        _lnk = C["acc"]
+
         html = (
             f'<table width="100%" cellpadding="0" cellspacing="0" '
-            f'style="background:#0a0a18;'
-            f'border:1px solid #252340;'
+            f'style="background:{_cb};'
+            f'border:1px solid {_bdr};'
             f'border-radius:6px;margin:8px 0;">'
 
-            # ── toolbar row ──
             f'<tr>'
             f'<td style="padding:5px 12px;'
-            f'border-bottom:1px solid #252340;'
-            f'background:#0d0d1e;">'
+            f'border-bottom:1px solid {_bdr};'
+            f'background:{_tb};">'
             f'<span style="color:{LANG_COL};font-size:9px;font-weight:700;'
-            f'font-family:Consolas,monospace;background:rgba(255,255,255,0.06);'
-            f'border:1px solid rgba(255,255,255,0.09);border-radius:4px;'
+            f'font-family:Consolas,monospace;background:transparent;'
+            f'border:1px solid {_bdr};border-radius:4px;'
             f'padding:1px 6px;">{lang_up}</span>'
-            f'<span style="color:#4a4860;font-size:10px;"> &nbsp;{n_lines} lines</span>'
+            f'<span style="color:{_dim};font-size:10px;"> &nbsp;{n_lines} lines</span>'
             f'</td>'
             f'<td align="right" style="padding:5px 12px;'
-            f'border-bottom:1px solid #252340;'
-            f'background:#0d0d1e;">'
+            f'border-bottom:1px solid {_bdr};'
+            f'background:{_tb};">'
             f'<a href="copy://{bid}" '
-            f'style="color:#a78bfa;font-size:10px;'
+            f'style="color:{_lnk};font-size:10px;'
             f'text-decoration:none;font-family:Segoe UI,sans-serif;">'
             f'⧉ Copy</a>'
             f'</td>'
             f'</tr>'
 
-            # ── code body row ──
             f'<tr>'
             f'<td colspan="2" style="padding:10px 14px;">'
             f'<pre style="margin:0;'
             f'font-family:Consolas,&quot;Courier New&quot;,monospace;'
-            f'font-size:12px;color:#d4c6ff;'
+            f'font-size:12px;color:{_ctxt};'
             f'white-space:pre-wrap;line-height:1.6;">'
             f'{display}</pre>'
             f'</td>'
@@ -2687,22 +3245,25 @@ def _md_to_html(text: str,
     text = re.sub(r'```(\w*)\n?(.*?)```', _fenced, text, flags=re.DOTALL)
 
     # ── Inline code ──────────────────────────────────────────────────────────
+    _ic_bg  = C["bg2"]
+    _ic_acc = C["acc"]
+    _h_col  = C["acc"]
     text = re.sub(
         r'`([^`\n]+)`',
-        r'<code style="background:#1c1c3a;border-radius:3px;'
-        r'padding:1px 5px;font-family:Consolas,monospace;'
-        r'font-size:12px;color:#c4b5fd;">\1</code>',
+        lambda m: (f'<code style="background:{_ic_bg};border-radius:3px;'
+                   f'padding:1px 5px;font-family:Consolas,monospace;'
+                   f'font-size:12px;color:{_ic_acc};">{m.group(1)}</code>'),
         text)
 
     # ── Headers ──────────────────────────────────────────────────────────────
     text = re.sub(r'^### (.+)$',
-        r'<p style="color:#c4b5fd;font-size:13px;margin:10px 0 2px;'
+        rf'<p style="color:{_h_col};font-size:13px;margin:10px 0 2px;'
         r'font-weight:600;">\1</p>', text, flags=re.MULTILINE)
     text = re.sub(r'^## (.+)$',
-        r'<p style="color:#c4b5fd;font-size:14px;margin:12px 0 3px;'
+        rf'<p style="color:{_h_col};font-size:14px;margin:12px 0 3px;'
         r'font-weight:700;">\1</p>', text, flags=re.MULTILINE)
     text = re.sub(r'^# (.+)$',
-        r'<p style="color:#c4b5fd;font-size:15px;margin:12px 0 4px;'
+        rf'<p style="color:{_h_col};font-size:15px;margin:12px 0 4px;'
         r'font-weight:700;">\1</p>', text, flags=re.MULTILINE)
 
     # ── Bold / italic ─────────────────────────────────────────────────────────
@@ -2711,24 +3272,26 @@ def _md_to_html(text: str,
     text = re.sub(r'\*(.+?)\*',         r'<i>\1</i>',          text)
 
     # ── Horizontal rules ─────────────────────────────────────────────────────
+    _bdr_c = C["bdr"]
+    _bull  = C["acc"]
     text = re.sub(
         r'^---+$',
-        r'<table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0;">'
-        r'<tr><td style="border-top:1px solid #252340;"></td></tr></table>',
+        rf'<table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0;">'
+        rf'<tr><td style="border-top:1px solid {_bdr_c};"></td></tr></table>',
         text, flags=re.MULTILINE)
 
     # ── Bullet lists ──────────────────────────────────────────────────────────
     text = re.sub(
         r'^[ \t]*[-*•] (.+)$',
-        r'<p style="margin:2px 0;padding-left:16px;">'
-        r'<span style="color:#a78bfa;">•</span>&nbsp;\1</p>',
+        rf'<p style="margin:2px 0;padding-left:16px;">'
+        rf'<span style="color:{_bull};">•</span>&nbsp;\1</p>',
         text, flags=re.MULTILINE)
 
     # ── Numbered lists ────────────────────────────────────────────────────────
     text = re.sub(
         r'^[ \t]*(\d+)\. (.+)$',
-        r'<p style="margin:2px 0;padding-left:16px;">'
-        r'<span style="color:#a78bfa;">\1.</span>&nbsp;\2</p>',
+        rf'<p style="margin:2px 0;padding-left:16px;">'
+        rf'<span style="color:{_bull};">\1.</span>&nbsp;\2</p>',
         text, flags=re.MULTILINE)
 
     # ── Newlines → <br> (only outside block tags) ────────────────────────────
@@ -3452,20 +4015,13 @@ class MessageWidget(QWidget):
 
         self.bubble = QFrame()
         if role == "user":
-            bb = ("qlineargradient(x1:0,y1:0,x2:1,y2:1,"
-                  "stop:0 rgba(30,24,70,0.88),stop:1 rgba(18,14,58,0.92))")
-            bc = "rgba(124,58,237,0.35)"
+            self.bubble.setObjectName("bubble_user")
         elif tag == "🧠 Reasoning":
-            bb = ("qlineargradient(x1:0,y1:0,x2:1,y2:1,"
-                  "stop:0 rgba(14,22,40,0.88),stop:1 rgba(8,16,32,0.92))")
-            bc = "rgba(34,211,238,0.28)"
+            self.bubble.setObjectName("bubble_rsn")
+        elif "Coding" in (tag or ""):
+            self.bubble.setObjectName("bubble_cod")
         else:
-            bb = ("qlineargradient(x1:0,y1:0,x2:1,y2:1,"
-                  "stop:0 rgba(11,26,18,0.88),stop:1 rgba(8,20,14,0.92))")
-            bc = "rgba(52,211,153,0.22)"
-
-        self.bubble.setStyleSheet(
-            f"QFrame{{background:{bb};border:1px solid {bc};border-radius:14px;}}")
+            self.bubble.setObjectName("bubble_ast")
         self.bubble.setMaximumWidth(860)
         self.bubble.setSizePolicy(
             QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
@@ -3486,14 +4042,16 @@ class MessageWidget(QWidget):
         ts_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
 
         self._copy_btn = QPushButton("⧉")
-        self._copy_btn.setFixedSize(22, 22)
-        self._copy_btn.setToolTip("Copy whole message")
+        self._copy_btn.setFixedSize(26, 26)
+        self._copy_btn.setToolTip("Copy message")
         self._copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._copy_btn.setStyleSheet(
-            f"QPushButton{{background:rgba(167,139,250,0.08);color:{C['txt2']};"
-            f"border:1px solid rgba(167,139,250,0.15);border-radius:5px;"
-            f"font-size:11px;padding:0;}}"
-            f"QPushButton:hover{{background:rgba(167,139,250,0.22);color:{C['acc2']};}}")
+            f"QPushButton{{background:transparent;color:{C['txt3']};"
+            f"border:1px solid transparent;border-radius:6px;"
+            f"font-size:13px;padding:0;font-weight:400;}}"
+            f"QPushButton:hover{{background:rgba(105,92,235,0.16);"
+            f"color:{C['acc2']};border-color:rgba(105,92,235,0.28);}}"
+            f"QPushButton:pressed{{background:rgba(105,92,235,0.28);}}")
         self._copy_btn.clicked.connect(self._copy_all)
 
         hdr.addWidget(name_lbl)
@@ -3503,12 +4061,10 @@ class MessageWidget(QWidget):
 
         # ── body (RichTextEdit) ───────────────────────────────────────────────
         self.te = RichTextEdit()
+        self.te.setObjectName("bubble_te")
         self.te.setFrameShape(QFrame.Shape.NoFrame)
         self.te.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.te.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.te.setStyleSheet(
-            f"QTextEdit{{background:transparent;color:{C['txt']};"
-            f"font-size:13px;padding:0;border:none;line-height:1.6;}}")
         self.te.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         self.te.document().contentsChanged.connect(self._fit)
@@ -3579,13 +4135,15 @@ class MessageWidget(QWidget):
             self._render_html(raw)
 
     def append_text(self, text: str):
-        self._text += text
-        self._pending_txt += text
         try:
+            self._text += text
+            self._pending_txt += text
             if not self._flush_timer.isActive():
                 self._flush_timer.start(40)
         except RuntimeError:
-            pass  # widget destroyed mid-stream (e.g. session switched); safe to ignore
+            pass  # widget destroyed mid-stream; safe to ignore
+        except Exception as _e:
+            print(f"[append_text] {_e}")
 
     def _flush_pending(self):
         if not self._pending_txt:
@@ -3619,23 +4177,13 @@ class ThinkingBlock(QWidget):
         root.setContentsMargins(16, 4, 16, 4)
         root.setSpacing(0)
 
-        self._toggle_btn = QPushButton(f"▶  🧠 Thinking…  (0 / {total_chunks} sections)")
-        self._toggle_btn.setStyleSheet(
-            f"QPushButton{{background:rgba(124,58,237,0.12);color:{C['acc2']};"
-            f"border:1px solid rgba(167,139,250,0.25);border-radius:8px;"
-            f"padding:6px 14px;text-align:left;font-size:12px;font-weight:500;}}"
-            f"QPushButton:hover{{background:rgba(124,58,237,0.22);"
-            f"border-color:rgba(167,139,250,0.45);}}"
-        )
+        self._toggle_btn = QPushButton(f"  🧠  Reasoning…   0 / {total_chunks} steps")
+        self._toggle_btn.setObjectName("thinking_toggle")
         self._toggle_btn.clicked.connect(self._toggle)
         root.addWidget(self._toggle_btn)
 
         self._content_frame = QFrame()
-        self._content_frame.setStyleSheet(
-            f"QFrame{{background:rgba(10,10,24,0.92);"
-            f"border:1px solid rgba(167,139,250,0.18);"
-            f"border-top:none;border-radius:0 0 8px 8px;padding:4px 0;}}"
-        )
+        self._content_frame.setObjectName("thinking_frame")
         cf_layout = QVBoxLayout()
         cf_layout.setContentsMargins(0, 0, 0, 0)
         cf_layout.setSpacing(0)
@@ -3644,10 +4192,7 @@ class ThinkingBlock(QWidget):
         self._te.setReadOnly(True)
         self._te.setFont(QFont("Consolas", 10))
         self._te.setFixedHeight(180)
-        self._te.setStyleSheet(
-            f"QTextEdit{{background:transparent;color:{C['txt2']};"
-            f"border:none;padding:10px;font-size:11px;line-height:1.5;}}"
-        )
+        self._te.setObjectName("thinking_te")
         cf_layout.addWidget(self._te)
         self._content_frame.setLayout(cf_layout)
         self._content_frame.setVisible(False)
@@ -3675,14 +4220,18 @@ class ThinkingBlock(QWidget):
         self._te.append(f'<span style="color:{C["acc"]}">{msg}</span>')
 
     def mark_done(self):
-        self._toggle_btn.setText(f"▼  ✅ Thinking complete  ({self._done} / {self._total} sections)")
-        self._toggle_btn.setStyleSheet(
-            f"QPushButton{{background:rgba(52,211,153,0.1);color:{C['ok']};"
-            f"border:1px solid rgba(52,211,153,0.25);border-radius:8px;"
-            f"padding:6px 14px;text-align:left;font-size:12px;font-weight:500;}}"
-            f"QPushButton:hover{{background:rgba(52,211,153,0.18);}}"
-        )
-        self._content_frame.setVisible(True)
+        try:
+            self._toggle_btn.setText(
+                f"▼  ✅  Done  —  {self._done} / {self._total} steps")
+            self._toggle_btn.setStyleSheet(
+                f"QPushButton{{background:rgba(28,184,138,0.10);color:{C['ok']};"
+                f"border:1px solid rgba(28,184,138,0.24);border-radius:8px;"
+                f"padding:7px 16px;text-align:left;font-size:12px;font-weight:600;}}"
+                f"QPushButton:hover{{background:rgba(28,184,138,0.18);}}"
+            )
+            self._content_frame.setVisible(True)
+        except RuntimeError:
+            pass  # widget already destroyed)
 
     def _toggle(self):
         vis = not self._content_frame.isVisible()
@@ -3728,37 +4277,25 @@ class ReferencePanelV2(QWidget):
 
         self.setMaximumWidth(300)
         self.setMinimumWidth(240)
-        self.setStyleSheet(
-            f"background:rgba(10,10,22,0.97);"
-            f"border-left:1px solid {C['bdr']};")
-
+        self.setObjectName("ref_panel_v2")
         root = QVBoxLayout()
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(7)
+        root.setContentsMargins(18, 12, 18, 14)
+        root.setSpacing(9)
 
         # ── Header ───────────────────────────────────────────────────────────
         hdr_row = QHBoxLayout(); hdr_row.setSpacing(6)
         hdr = QLabel("📎  References")
-        hdr.setStyleSheet(
-            f"color:{C['txt']};font-weight:700;font-size:12px;")
+        hdr.setObjectName("ref_hdr")
         hdr_row.addWidget(hdr)
         hdr_row.addStretch()
         self.ram_badge = QLabel("")
-        self.ram_badge.setStyleSheet(
-            f"color:{C['warn']};font-size:9px;padding:1px 5px;"
-            f"background:rgba(251,191,36,0.1);border-radius:3px;")
+        self.ram_badge.setObjectName("ram_badge_lbl")
         hdr_row.addWidget(self.ram_badge)
         root.addLayout(hdr_row)
 
         # ── Tab widget (Docs / Scripts) ───────────────────────────────────────
         self.tab_widget = QTabWidget()
-        self.tab_widget.setStyleSheet(
-            f"QTabWidget::pane{{background:{C['bg1']};border:none;border-radius:6px;}}"
-            f"QTabBar::tab{{background:{C['bg2']};color:{C['txt2']};"
-            f"padding:5px 12px;border-radius:4px 4px 0 0;font-size:10px;}}"
-            f"QTabBar::tab:selected{{color:{C['txt']};background:{C['bg1']};"
-            f"border-bottom:2px solid {C['acc']};font-weight:600;}}"
-        )
+        self.tab_widget.setObjectName("ref_tabs")
         root.addWidget(self.tab_widget, 1)
 
         # ── Docs tab ─────────────────────────────────────────────────────────
@@ -3788,11 +4325,10 @@ class ReferencePanelV2(QWidget):
         docs_l.addWidget(self.multi_pdf_btn)
 
         sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
-        sep1.setStyleSheet(f"border:none;border-top:1px solid {C['bdr']};")
         docs_l.addWidget(sep1)
 
         self.doc_list = QListWidget()
-        self.doc_list.setStyleSheet(self._list_style())
+        self.doc_list.setObjectName("ref_doc_list")
         self.doc_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
         self.doc_list.customContextMenuRequested.connect(
@@ -3821,17 +4357,14 @@ class ReferencePanelV2(QWidget):
             "Functions, classes, imports & types are extracted\n"
             "and injected as rich context for coding prompts.")
         info.setWordWrap(True)
-        info.setStyleSheet(
-            f"color:{C['txt2']};font-size:9px;padding:4px 6px;"
-            f"background:{C['bg2']};border-radius:4px;")
+        info.setObjectName("ref_info_banner")
         scripts_l.addWidget(info)
 
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet(f"border:none;border-top:1px solid {C['bdr']};")
         scripts_l.addWidget(sep2)
 
         self.script_list = QListWidget()
-        self.script_list.setStyleSheet(self._list_style())
+        self.script_list.setObjectName("ref_script_list")
         self.script_list.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
         self.script_list.customContextMenuRequested.connect(
@@ -3842,13 +4375,10 @@ class ReferencePanelV2(QWidget):
 
         # Script detail pane
         self.script_detail = QLabel("")
-        self.script_detail.setWordWrap(True)
+        self.script_detail.setWordWrap(True)    
         self.script_detail.setTextFormat(Qt.TextFormat.RichText)
         self.script_detail.setAlignment(Qt.AlignmentFlag.AlignTop)
-        self.script_detail.setStyleSheet(
-            f"color:{C['txt2']};font-size:9px;padding:6px 8px;"
-            f"background:{C['bg2']};border:1px solid {C['bdr']};"
-            f"border-radius:6px;min-height:60px;")
+        self.script_detail.setObjectName("ref_script_detail")
         scripts_l.addWidget(self.script_detail)
 
         scripts_widget.setLayout(scripts_l)
@@ -3857,8 +4387,7 @@ class ReferencePanelV2(QWidget):
         # ── RAM info ─────────────────────────────────────────────────────────
         self.ram_info = QLabel("")
         self.ram_info.setWordWrap(True)
-        self.ram_info.setStyleSheet(
-            f"color:{C['txt2']};font-size:9px;padding:2px;")
+        self.ram_info.setObjectName("ref_ram_info")
         root.addWidget(self.ram_info)
 
         self.setLayout(root)
@@ -4089,10 +4618,7 @@ class ReferencePanel(QWidget):
         self._building  = False
         self.setMaximumWidth(280)
         self.setMinimumWidth(220)
-        self.setStyleSheet(
-            f"background:rgba(10,10,22,0.97);"
-            f"border-left:1px solid {C['bdr']};"
-        )
+        self.setObjectName("ref_panel_v1")
         root = QVBoxLayout()
         root.setContentsMargins(10, 10, 10, 10)
         root.setSpacing(7)
@@ -4276,15 +4802,9 @@ class ChatArea(QScrollArea):
         super().__init__()
         self.setWidgetResizable(True)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.setStyleSheet(
-            f"QScrollArea{{background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            f"stop:0 {C['bg0']},stop:1 #090914);border:none;}}"
-        )
+        self.setObjectName("chat_scroll")
         self._container = QWidget()
-        self._container.setStyleSheet(
-            f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            f"stop:0 {C['bg0']},stop:1 #090914);"
-        )
+        self._container.setObjectName("chat_container")
         self._vbox = QVBoxLayout()
         self._vbox.setContentsMargins(0, 12, 0, 12)
         self._vbox.setSpacing(2)
@@ -4326,7 +4846,14 @@ class ChatArea(QScrollArea):
         self._widgets.clear()
 
     def _scroll_bottom(self):
-        self.verticalScrollBar().setValue(self.verticalScrollBar().maximum())
+        try:
+            sb = self.verticalScrollBar()
+            if sb is not None:
+                sb.setValue(sb.maximum())
+        except RuntimeError:
+            pass  # widget destroyed during teardown
+        except Exception:
+            pass
 
     def add_pause_banner(self, on_pause_cb, on_abort_cb) -> QWidget:
         """Add a live pause/abort control bar during summarization."""
@@ -4413,16 +4940,16 @@ class ChatModule(QWidget):
         topbar.setSpacing(6)
         topbar.addStretch()
         self.ref_toggle_btn = QPushButton("📎  References  (0)")
-        self.ref_toggle_btn.setFixedHeight(26)
+        self.ref_toggle_btn.setFixedHeight(28)
         self.ref_toggle_btn.setCheckable(True)
         self.ref_toggle_btn.setStyleSheet(
-            f"QPushButton{{background:rgba(124,58,237,0.1);color:{C['txt2']};"
-            f"border:1px solid rgba(167,139,250,0.2);border-radius:6px;"
-            f"font-size:10px;padding:0 10px;}}"
-            f"QPushButton:checked{{background:rgba(124,58,237,0.25);color:{C['acc']};"
-            f"border-color:rgba(167,139,250,0.5);font-weight:600;}}"
-            f"QPushButton:hover{{color:{C['acc2']};}}"
-        )
+            f"QPushButton{{background:transparent;color:{C['txt3']};"
+            f"border:1px solid {C['bdr']};border-radius:6px;"
+            f"font-size:11px;padding:0 13px;font-weight:500;letter-spacing:0.1px;}}"
+            f"QPushButton:checked{{background:rgba(105,92,235,0.14);color:{C['acc2']};"
+            f"border-color:rgba(105,92,235,0.36);font-weight:600;}}"
+            f"QPushButton:hover{{color:{C['txt']};border-color:{C['bdr2']};}}"
+        ) 
         self.ref_toggle_btn.clicked.connect(self._toggle_refs)
         topbar.addWidget(self.ref_toggle_btn)
         root.addLayout(topbar)
@@ -4507,14 +5034,10 @@ class InputBar(QWidget):
 
     def __init__(self):
         super().__init__()
-        self.setStyleSheet(
-            f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            f"stop:0 rgba(13,13,28,0.98),stop:1 rgba(10,10,22,0.99));"
-            f"border-top:1px solid {C['bdr']};"
-        )
+        self.setObjectName("input_bar")
         root = QVBoxLayout()
-        root.setContentsMargins(14, 8, 14, 10)
-        root.setSpacing(7)
+        root.setContentsMargins(18, 12, 18, 14)
+        root.setSpacing(9)
 
         toolbar = QHBoxLayout(); toolbar.setSpacing(8)
         model_lbl = QLabel("Model:")
@@ -4527,10 +5050,7 @@ class InputBar(QWidget):
 
         # Family info badge
         self.family_badge = QLabel("")
-        self.family_badge.setStyleSheet(
-            f"color:{C['acc2']};font-size:10px;"
-            f"background:{C['bg2']};border-radius:4px;padding:2px 7px;"
-        )
+        self.family_badge.setObjectName("family_badge")
         toolbar.addWidget(self.family_badge)
         self.model_combo.currentIndexChanged.connect(self._update_family_badge)
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
@@ -4548,22 +5068,16 @@ class InputBar(QWidget):
         self.code_btn = QPushButton("💻  Code")
         self.code_btn.setFixedSize(80, 30)
         self.code_btn.setCheckable(True)
+        self.code_btn.setObjectName("code_btn")
         self.code_btn.setToolTip(
             "Force coding engine for this message\n"
             "(auto-detects code keywords even when off)")
-        self.code_btn.setStyleSheet(
-            f"QPushButton{{background:rgba(19,19,42,0.8);color:{C['txt2']};"
-            f"border:1px solid {C['bdr']};border-radius:8px;padding:4px 8px;}}"
-            f"QPushButton:checked{{background:rgba(124,58,237,0.25);color:{C['acc2']};"
-            f"border-color:rgba(167,139,250,0.5);font-weight:600;}}"
-            f"QPushButton:hover{{background:rgba(124,58,237,0.18);color:{C['acc']};"
-            f"border-color:rgba(167,139,250,0.3);}}"
-        )
         toolbar.addWidget(self.code_btn)
         # Summary mode selector
         self.summary_mode_combo = QComboBox()
         self.summary_mode_combo.setFixedHeight(30)
         self.summary_mode_combo.setFixedWidth(110)
+        self.summary_mode_combo.setObjectName("summary_combo")
         self.summary_mode_combo.addItem("📋 Summary", "summary")
         self.summary_mode_combo.addItem("🔬 Logical", "logical")
         self.summary_mode_combo.addItem("💡 Advice", "advice")
@@ -4571,21 +5085,10 @@ class InputBar(QWidget):
             "Summary: standard summary\n"
             "Logical: mechanism/logic explained with structured points\n"
             "Advice: actionable advice based on the document")
-        self.summary_mode_combo.setStyleSheet(
-            f"QComboBox{{background:rgba(19,19,42,0.85);color:{C['acc2']};"
-            f"border:1px solid rgba(167,139,250,0.3);border-radius:8px;"
-            f"padding:3px 8px;font-size:10px;}}"
-            f"QComboBox QAbstractItemView{{background:rgba(13,13,28,0.97);"
-            f"color:{C['txt']};selection-background-color:rgba(124,58,237,0.4);}}"
-        )
         toolbar.addWidget(self.summary_mode_combo)
         # Pipeline mode indicator
         self.pipeline_badge = QLabel("")
-        self.pipeline_badge.setStyleSheet(
-            f"color:{C['pipeline']};font-size:10px;padding:2px 7px;"
-            f"background:rgba(34,211,238,0.1);border-radius:4px;"
-            f"border:1px solid rgba(34,211,238,0.2);"
-        )
+        self.pipeline_badge.setObjectName("pipeline_badge")
         self.pipeline_badge.setVisible(False)
         toolbar.addWidget(self.pipeline_badge)
 
@@ -4593,16 +5096,9 @@ class InputBar(QWidget):
 
         row = QHBoxLayout(); row.setSpacing(10)
         self.input = QTextEdit()
-        self.input.setPlaceholderText("Type a message…  (Enter = send · Shift+Enter = newline)")
-        self.input.setMaximumHeight(108)
-        self.input.setMinimumHeight(52)
-        self.input.setStyleSheet(
-            f"QTextEdit{{background:rgba(19,19,42,0.85);color:{C['txt']};"
-            f"border:1px solid {C['bdr']};border-radius:12px;"
-            f"padding:10px 12px;font-size:13px;line-height:1.5;}}"
-            f"QTextEdit:focus{{border-color:rgba(167,139,250,0.55);"
-            f"background:rgba(26,26,53,0.95);}}"
-        )
+        self.input.setPlaceholderText("Ask anything…   ↵ send   ⇧↵ newline")
+        self.input.setMaximumHeight(120)
+        self.input.setMinimumHeight(58)
         self.input.installEventFilter(self)
 
         self.send_btn = QPushButton("Send ➤")
@@ -4698,22 +5194,21 @@ class SessionSidebar(QWidget):
         super().__init__()
         self.setMinimumWidth(180)
         self.setMaximumWidth(300)
-        self.setStyleSheet(
-            f"background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
-            f"stop:0 rgba(10,10,20,0.99),stop:1 rgba(13,13,26,0.97));"
-            f"border-right:1px solid {C['bdr']};"
-        )
+        self.setObjectName("session_sidebar")
         root = QVBoxLayout()
-        root.setContentsMargins(10, 12, 10, 10)
-        root.setSpacing(8)
+        root.setContentsMargins(12, 18, 12, 12)
+        root.setSpacing(10)
 
-        hdr = QLabel("💬  Chats")
-        hdr.setStyleSheet(f"color:{C['txt']};font-size:14px;font-weight:700;"
-                          f"letter-spacing:0.3px;padding:2px 4px;")
+        hdr = QLabel("CONVERSATIONS")
+        hdr.setStyleSheet(
+            f"color:{C['txt3']};font-size:10px;font-weight:700;"
+            f"letter-spacing:1.4px;padding:4px 6px 2px;")
         root.addWidget(hdr)
 
         self.new_btn = QPushButton("＋  New Chat")
         self.new_btn.setObjectName("btn_new")
+        self.new_btn.setStyleSheet(
+            f"color:#ffffff;font-size:10px;font-weight:700;")
         self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.new_btn.clicked.connect(self.new_session)
         root.addWidget(self.new_btn)
@@ -4812,8 +5307,7 @@ class LogConsole(QWidget):
         self.te = QTextEdit()
         self.te.setReadOnly(True)
         self.te.setFont(QFont("Consolas", 10))
-        self.te.setStyleSheet(
-            f"background:rgba(7,7,15,0.98);color:#b8a8ff;border:none;padding:6px;")
+        self.te.setObjectName("log_te")
         root.addLayout(toolbar)
         root.addWidget(self.te)
         self.setLayout(root)
@@ -5003,11 +5497,10 @@ class ConfigTab(QWidget):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet(
-            f"QScrollArea{{background:{C['bg0']};border:none;}}")
+        scroll.setObjectName("chat_scroll")
 
         inner = QWidget()
-        inner.setStyleSheet(f"background:{C['bg0']};")
+        inner.setObjectName("chat_container")
         root = QVBoxLayout()
         root.setContentsMargins(22, 18, 22, 22); root.setSpacing(0)
         inner.setLayout(root); scroll.setWidget(inner); outer.addWidget(scroll)
@@ -5043,9 +5536,7 @@ class ConfigTab(QWidget):
             root.addWidget(cat_lbl)
 
             card = QFrame()
-            card.setStyleSheet(
-                f"QFrame{{background:rgba(19,19,42,0.85);"
-                f"border:1px solid {C['bdr']};border-radius:12px;}}")
+            card.setObjectName("tab_card")
             card_l = QVBoxLayout()
             card_l.setContentsMargins(18, 12, 18, 14); card_l.setSpacing(10)
             card.setLayout(card_l)
@@ -5066,9 +5557,7 @@ class ConfigTab(QWidget):
         root.addWidget(pj_lbl)
 
         pj_card = QFrame()
-        pj_card.setStyleSheet(
-            f"QFrame{{background:rgba(19,19,42,0.85);"
-            f"border:1px solid {C['bdr']};border-radius:12px;}}")
+        pj_card.setObjectName("tab_card")
         pj_l = QVBoxLayout()
         pj_l.setContentsMargins(14, 10, 14, 12); pj_l.setSpacing(8)
         pj_card.setLayout(pj_l)
@@ -5082,10 +5571,7 @@ class ConfigTab(QWidget):
 
         self.paused_jobs_list = QListWidget()
         self.paused_jobs_list.setFixedHeight(110)
-        self.paused_jobs_list.setStyleSheet(
-            f"QListWidget{{background:{C['bg1']};border:none;font-size:10px;outline:none;}}"
-            f"QListWidget::item{{padding:5px 10px;border-bottom:1px solid {C['bdr']};}}"
-            f"QListWidget::item:selected{{background:rgba(124,58,237,0.25);color:{C['acc2']};}}")
+        self.paused_jobs_list.setObjectName("paused_list")
         pj_l.addWidget(self.paused_jobs_list)
 
         pj_btn_row = QHBoxLayout(); pj_btn_row.setSpacing(8)
@@ -5390,6 +5876,264 @@ class ParallelLoadingDialog(QWidget):
     def prefs(self) -> ParallelPrefs:
         return self._prefs
 
+class AppearanceTab(QWidget):
+    """Live theme colour editor — sliders + colour picker per token."""
+
+    theme_changed = pyqtSignal(dict)   # emits updated C_LIGHT dict
+
+    _GROUPS = [
+        ("Backgrounds", ["bg0","bg1","bg2","bg3","surface","surface2"]),
+        ("Text",        ["txt","txt2","txt3"]),
+        ("Accent",      ["acc","acc2","acc_dim","highlight","glow"]),
+        ("Bubbles",     ["usr","ast","rsn","cod"]),
+        ("Borders",     ["bdr","bdr2"]),
+        ("Semantic",    ["ok","warn","err","pipeline"]),
+    ]
+
+    _LABELS = {
+        "bg0":"Canvas","bg1":"Sidebar/Panel","bg2":"Input Surface",
+        "bg3":"Hover/Selection","surface":"Card Surface","surface2":"Focused Input",
+        "txt":"Primary Text","txt2":"Secondary Text","txt3":"Muted/Disabled",
+        "acc":"Accent Primary","acc2":"Accent Hover","acc_dim":"Accent Tint BG",
+        "highlight":"Highlight Tint","glow":"Glow",
+        "usr":"User Bubble","ast":"Assistant Bubble","rsn":"Reasoning Bubble","cod":"Code Bubble",
+        "bdr":"Border Light","bdr2":"Border Medium",
+        "ok":"Success","warn":"Warning","err":"Error","pipeline":"Pipeline Badge",
+    }
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._palette = dict(C_LIGHT)   # working copy
+        self._rows: dict[str, tuple] = {}  # key → (swatch_btn, hex_edit, h, s, l)
+        self._building = False
+        self._build()
+
+    # ── Build ─────────────────────────────────────────────────────────────────
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ── Top toolbar ──────────────────────────────────────────────────────
+        bar = QWidget(); bar.setObjectName("appearance_bar")
+        bar_row = QHBoxLayout(bar)
+        bar_row.setContentsMargins(16, 10, 16, 10)
+        bar_row.setSpacing(8)
+
+        lbl = QLabel("🎨  Theme Editor")
+        lbl.setObjectName("appearance_hdr")
+        bar_row.addWidget(lbl)
+        bar_row.addStretch()
+
+        self.btn_reset = QPushButton("↺  Reset")
+        self.btn_reset.setObjectName("appearance_btn")
+        self.btn_reset.setToolTip("Reset to current built-in palette")
+        self.btn_reset.clicked.connect(self._reset)
+
+        self.btn_save = QPushButton("💾  Save")
+        self.btn_save.setObjectName("appearance_btn_acc")
+        self.btn_save.setToolTip("Save palette to config (persists across restarts)")
+        self.btn_save.clicked.connect(self._save)
+
+        bar_row.addWidget(self.btn_reset)
+        bar_row.addWidget(self.btn_save)
+        root.addWidget(bar)
+
+        # ── Scroll area ───────────────────────────────────────────────────────
+        scroll = QScrollArea()
+        scroll.setObjectName("chat_scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        inner = QWidget(); inner.setObjectName("chat_container")
+        inner_layout = QVBoxLayout(inner)
+        inner_layout.setContentsMargins(16, 12, 16, 20)
+        inner_layout.setSpacing(16)
+
+        for group_name, keys in self._GROUPS:
+            grp = self._make_group(group_name, keys)
+            inner_layout.addWidget(grp)
+
+        inner_layout.addStretch()
+        scroll.setWidget(inner)
+        root.addWidget(scroll)
+
+    def _make_group(self, title: str, keys: list) -> QWidget:
+        frame = QFrame(); frame.setObjectName("tab_card")
+        lay = QVBoxLayout(frame)
+        lay.setContentsMargins(14, 10, 14, 14)
+        lay.setSpacing(6)
+
+        hdr = QLabel(title)
+        hdr.setObjectName("appearance_group_hdr")
+        lay.addWidget(hdr)
+
+        for key in keys:
+            row = self._make_row(key)
+            lay.addLayout(row)
+
+        return frame
+
+    def _make_row(self, key: str) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(8)
+
+        # Label
+        name_lbl = QLabel(self._LABELS.get(key, key))
+        name_lbl.setObjectName("appearance_row_lbl")
+        name_lbl.setFixedWidth(130)
+        row.addWidget(name_lbl)
+
+        # Colour swatch button
+        swatch = QPushButton()
+        swatch.setObjectName("appearance_swatch")
+        swatch.setFixedSize(32, 24)
+        swatch.setToolTip("Click to pick colour")
+        swatch.clicked.connect(lambda _, k=key: self._pick_color(k))
+        self._apply_swatch_color(swatch, self._palette.get(key, "#ffffff"))
+        row.addWidget(swatch)
+
+        # Hex field
+        hex_edit = QLineEdit(self._resolve_hex(self._palette.get(key, "#ffffff")))
+        hex_edit.setObjectName("appearance_hex")
+        hex_edit.setFixedWidth(80)
+        hex_edit.setMaxLength(9)
+        hex_edit.editingFinished.connect(lambda k=key, e=hex_edit: self._on_hex_edit(k, e))
+        row.addWidget(hex_edit)
+
+        # HSL sliders
+        slider_box = QHBoxLayout(); slider_box.setSpacing(4)
+        sliders = []
+        for label, rng in [("H", 360), ("S", 100), ("L", 100)]:
+            col_box = QVBoxLayout(); col_box.setSpacing(1)
+            sl_lbl = QLabel(label); sl_lbl.setObjectName("appearance_sl_lbl")
+            sl_lbl.setFixedWidth(10)
+            sl = QSlider(Qt.Orientation.Horizontal)
+            sl.setObjectName("appearance_slider")
+            sl.setRange(0, rng)
+            sl.setFixedWidth(72)
+            col_box.addWidget(sl_lbl)
+            col_box.addWidget(sl)
+            slider_box.addLayout(col_box)
+            sliders.append(sl)
+
+        self._set_sliders_from_hex(sliders, self._palette.get(key, "#ffffff"))
+
+        for i, sl in enumerate(sliders):
+            sl.valueChanged.connect(lambda _, k=key, ss=sliders: self._on_slider(k, ss))
+
+        row.addLayout(slider_box)
+        row.addStretch()
+
+        self._rows[key] = (swatch, hex_edit, sliders)
+        return row
+
+    # ── Colour helpers ────────────────────────────────────────────────────────
+    @staticmethod
+    def _resolve_hex(val: str) -> str:
+        """Return #rrggbb for solid values; for rgba keep as-is."""
+        if val.startswith("rgba"): return val
+        if val.startswith("#"):    return val
+        return "#ffffff"
+
+    @staticmethod
+    def _apply_swatch_color(btn: QPushButton, val: str):
+        if val.startswith("rgba"):
+            # parse rgba → solid for swatch display
+            try:
+                parts = val.replace("rgba(","").replace(")","").split(",")
+                r,g,b = int(parts[0]),int(parts[1]),int(parts[2])
+                hex_c = f"#{r:02x}{g:02x}{b:02x}"
+            except Exception:
+                hex_c = "#aaaaaa"
+        else:
+            hex_c = val
+        btn.setStyleSheet(
+            f"QPushButton{{background:{hex_c};border:1px solid #00000033;"
+            f"border-radius:4px;}}"
+            f"QPushButton:hover{{border:2px solid #000000aa;}}")
+
+    @staticmethod
+    def _hex_to_hsl(hex_c: str):
+        hex_c = hex_c.lstrip("#")
+        if len(hex_c) == 3:
+            hex_c = "".join(c*2 for c in hex_c)
+        r,g,b = int(hex_c[0:2],16)/255, int(hex_c[2:4],16)/255, int(hex_c[4:6],16)/255
+        import colorsys
+        h,l,s = colorsys.rgb_to_hls(r,g,b)
+        return int(h*360), int(s*100), int(l*100)
+
+    @staticmethod
+    def _hsl_to_hex(h: int, s: int, l: int) -> str:
+        import colorsys
+        r,g,b = colorsys.hls_to_rgb(h/360, l/100, s/100)
+        return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+
+    def _set_sliders_from_hex(self, sliders, val: str):
+        if val.startswith("rgba"): return
+        try:
+            h,s,l = self._hex_to_hsl(self._resolve_hex(val))
+            for sl, v in zip(sliders, [h,s,l]):
+                sl.blockSignals(True); sl.setValue(v); sl.blockSignals(False)
+        except Exception:
+            pass
+
+    # ── Event handlers ────────────────────────────────────────────────────────
+    def _pick_color(self, key: str):
+        current = self._resolve_hex(self._palette.get(key, "#ffffff"))
+        init = QColor(current) if current.startswith("#") else QColor("#ffffff")
+        color = QColorDialog.getColor(init, self, f"Pick colour — {self._LABELS.get(key,key)}")
+        if color.isValid():
+            hex_c = color.name()
+            self._apply_key(key, hex_c)
+
+    def _on_hex_edit(self, key: str, edit: QLineEdit):
+        val = edit.text().strip()
+        if not val.startswith("#") and not val.startswith("rgba"):
+            val = "#" + val
+        self._apply_key(key, val)
+
+    def _on_slider(self, key: str, sliders):
+        h,s,l = sliders[0].value(), sliders[1].value(), sliders[2].value()
+        hex_c = self._hsl_to_hex(h, s, l)
+        self._apply_key(key, hex_c, skip_sliders=True)
+
+    def _apply_key(self, key: str, val: str, skip_sliders=False):
+        self._palette[key] = val
+        if key in self._rows:
+            swatch, hex_edit, sliders = self._rows[key]
+            self._apply_swatch_color(swatch, val)
+            hex_edit.blockSignals(True)
+            hex_edit.setText(self._resolve_hex(val))
+            hex_edit.blockSignals(False)
+            if not skip_sliders and not val.startswith("rgba"):
+                self._set_sliders_from_hex(sliders, val)
+        self.theme_changed.emit(dict(self._palette))
+
+    # ── Toolbar actions ───────────────────────────────────────────────────────
+    def _reset(self):
+        self._palette = dict(C_LIGHT)
+        self._rebuild_rows()
+        self.theme_changed.emit(dict(self._palette))
+
+    def _save(self):
+        key = "custom_light_palette" if CURRENT_THEME == "light" else "custom_dark_palette"
+        APP_CONFIG[key] = dict(self._palette)
+        _save_app_config(APP_CONFIG)
+
+    def _rebuild_rows(self):
+        """Refresh all swatches/hex/sliders after bulk palette change."""
+        for key, (swatch, hex_edit, sliders) in self._rows.items():
+            val = self._palette.get(key, "#ffffff")
+            self._apply_swatch_color(swatch, val)
+            hex_edit.blockSignals(True)
+            hex_edit.setText(self._resolve_hex(val))
+            hex_edit.blockSignals(False)
+            self._set_sliders_from_hex(sliders, val)
+
+    def load_palette(self, palette: dict):
+        self._palette = dict(palette)
+        self._rebuild_rows()
 
 # ═════════════════════════════ MAIN WINDOW ══════════════════════════════════
 
@@ -5437,13 +6181,30 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu()
         self._build_status_bar()
-        QApplication.instance().setStyleSheet(QSS)
+        # Load saved custom palettes before applying stylesheet
+        global C_LIGHT, C_DARK, C, QSS
+        if "custom_light_palette" in APP_CONFIG:
+            C_LIGHT = {**C_LIGHT, **APP_CONFIG["custom_light_palette"]}
+        if "custom_dark_palette" in APP_CONFIG:
+            C_DARK = {**C_DARK, **APP_CONFIG["custom_dark_palette"]}
+        if "custom_light_palette" in APP_CONFIG or "custom_dark_palette" in APP_CONFIG:
+            C   = dict(C_LIGHT) if CURRENT_THEME == "light" else dict(C_DARK)
+            QSS = _build_qss(C)
+        _qss = _build_qss(C)
+        self.setStyleSheet(_qss)
+        self.appearance_tab.load_palette(C_LIGHT if CURRENT_THEME == "light" else C_DARK)
 
         if self.sessions:
             last = max(self.sessions.values(), key=lambda s: s.id)
             self._switch_session(last.id)
         else:
             self._new_session()
+
+        # ── Restore saved theme preference ────────────────────────────────────
+        _saved_theme = APP_CONFIG.get("theme", CURRENT_THEME)
+        if _saved_theme != CURRENT_THEME:
+            self._toggle_theme()   # silently apply saved theme
+        self._update_theme_action_label()
 
         QTimer.singleShot(300, self._start_model_load)
 
@@ -5624,6 +6385,9 @@ class MainWindow(QMainWindow):
         # ── Logs tab ──
         self.log_console = LogConsole()
         self.tabs.addTab(self.log_console, "🐞  Logs")
+        self.appearance_tab = AppearanceTab()
+        self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
+        self.tabs.addTab(self.appearance_tab, "🎨  Appearance")
 
         self.splitter.addWidget(self.tabs)
         self.splitter.setSizes([220, 1080])
@@ -5643,14 +6407,10 @@ class MainWindow(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setStyleSheet(
-            f"QScrollArea{{background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-            f"stop:0 {C['bg0']},stop:1 #090914);border:none;}}"
-        )
+        scroll.setObjectName("chat_scroll")
 
         w = QWidget()
-        w.setStyleSheet(f"background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-                        f"stop:0 {C['bg0']},stop:1 #090914);")
+        w.setObjectName("chat_container")
         root = QVBoxLayout()
         root.setContentsMargins(20, 18, 20, 18); root.setSpacing(0)
         w.setLayout(root); scroll.setWidget(w); outer_l.addWidget(scroll)
@@ -5663,11 +6423,7 @@ class MainWindow(QMainWindow):
 
         def _card(layout) -> QFrame:
             card = QFrame()
-            card.setStyleSheet(
-                f"QFrame{{background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
-                f"stop:0 rgba(19,19,42,0.85),stop:1 rgba(13,13,28,0.9));"
-                f"border:1px solid {C['bdr']};border-radius:12px;}}"
-            )
+            card.setObjectName("tab_card")
             card.setLayout(layout); return card
 
         # ── header ───────────────────────────────────────────────────────────
@@ -5696,13 +6452,7 @@ class MainWindow(QMainWindow):
         list_card_l.addLayout(legend_row)
 
         self.model_list = QListWidget()
-        self.model_list.setStyleSheet(
-            f"QListWidget{{background:{C['bg1']};border:none;"
-            f"border-top:1px solid {C['bdr']};font-size:11px;outline:none;}}"
-            f"QListWidget::item{{padding:8px 12px;border-bottom:1px solid {C['bdr']};}}"
-            f"QListWidget::item:selected{{background:{C['bg2']};color:{C['acc']};}}"
-            f"QListWidget::item:hover:!selected{{background:{C['bg2']};}}"
-        )
+        self.model_list.setObjectName("model_list")
         self.model_list.setMinimumHeight(150)
         self.model_list.setMaximumHeight(240)
         self.model_list.currentItemChanged.connect(self._on_model_list_select)
@@ -5836,12 +6586,7 @@ class MainWindow(QMainWindow):
         eng_card_l.setContentsMargins(0, 0, 0, 0); eng_card_l.setSpacing(0)
         self.engine_status_list = QListWidget()
         self.engine_status_list.setFixedHeight(130)
-        self.engine_status_list.setStyleSheet(
-            f"QListWidget{{background:{C['bg1']};border:none;"
-            f"font-size:11px;font-family:'Consolas','Courier New',monospace;outline:none;}}"
-            f"QListWidget::item{{padding:6px 14px;border-bottom:1px solid {C['bdr']};}}"
-            f"QListWidget::item:hover{{background:{C['bg2']};}}"
-        )
+        self.engine_status_list.setObjectName("engine_list")
         eng_card_l.addWidget(self.engine_status_list)
         eng_btn_strip = QHBoxLayout()
         eng_btn_strip.setContentsMargins(10, 8, 10, 8); eng_btn_strip.setSpacing(8)
@@ -6209,6 +6954,13 @@ class MainWindow(QMainWindow):
         vm.addAction(QAction("Toggle Sidebar\tCtrl+B", self, triggered=self._toggle_sidebar))
         vm.addAction(QAction("Go to Logs\tCtrl+L",    self, triggered=self._goto_logs))
         vm.addAction(QAction("Go to Models\tCtrl+M",  self, triggered=self._goto_models_tab))
+        vm.addSeparator()
+        # ── Theme toggle ──────────────────────────────────────────────────────
+        self._theme_action = QAction("☀  Switch to Dark Theme", self)
+        self._theme_action.setCheckable(False)
+        self._theme_action.triggered.connect(self._toggle_theme)
+        vm.addAction(self._theme_action)
+        self._update_theme_action_label()
         mm = mb.addMenu("Model")
         mm.addAction(QAction("Reload Model", self, triggered=self._reload_model))
 
@@ -7348,6 +8100,71 @@ class MainWindow(QMainWindow):
     def _toggle_sidebar(self):
         self.sidebar.setVisible(not self.sidebar.isVisible())
 
+    # ── Theme switching ───────────────────────────────────────────────────────
+
+    def _update_theme_action_label(self):
+        if not hasattr(self, "_theme_action"):
+            return
+        if CURRENT_THEME == "light":
+            self._theme_action.setText("🌙  Switch to Dark Theme")
+        else:
+            self._theme_action.setText("☀  Switch to Light Theme")
+
+    def _on_appearance_changed(self, new_palette: dict):
+        global C_LIGHT, C_DARK, C, QSS
+        if CURRENT_THEME == "light":
+            C_LIGHT = dict(new_palette)
+            C = dict(C_LIGHT)
+        else:
+            C_DARK = dict(new_palette)
+            C = dict(C_DARK)
+        QSS = _build_qss(C)
+        self.setStyleSheet(QSS)
+        if self.active:
+            self._switch_session(self.active.id)
+
+    def _toggle_theme(self):
+        global CURRENT_THEME, C, QSS
+        CURRENT_THEME = "dark" if CURRENT_THEME == "light" else "light"
+        C   = C_LIGHT if CURRENT_THEME == "light" else C_DARK
+        QSS = _build_qss(C)
+        self.setStyleSheet(QSS)
+        APP_CONFIG["theme"] = CURRENT_THEME
+        _save_app_config(APP_CONFIG)
+        self._update_theme_action_label()
+        self._log("INFO", f"Theme switched to: {CURRENT_THEME}")
+
+        # Rebuild Models tab (has baked dark card gradients)
+        mt_idx = self.tabs.indexOf(self.models_tab)
+        self.models_tab.setParent(None)
+        self.models_tab.deleteLater()
+        self.models_tab = self._build_models_tab()
+        self.tabs.insertTab(mt_idx, self.models_tab, "🗂  Models")
+
+        # Rebuild Config tab (has baked dark card backgrounds)
+        ct_idx = self.tabs.indexOf(self.config_tab)
+        self.config_tab.setParent(None)
+        self.config_tab.deleteLater()
+        self.config_tab = ConfigTab()
+        self.config_tab.config_changed.connect(self._on_config_changed)
+        self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
+        self.tabs.insertTab(ct_idx, self.config_tab, "⚙️  Config")
+
+        # Rebuild Logs tab
+        log_idx = self.tabs.indexOf(self.log_console)
+        self.log_console.setParent(None)
+        self.log_console.deleteLater()
+        self.log_console = LogConsole()
+        self.tabs.insertTab(log_idx, self.log_console, "🐞  Logs")
+
+        # Refresh Appearance tab palette to match active theme
+        self.appearance_tab.load_palette(C_LIGHT if CURRENT_THEME == "light" else C_DARK)
+
+        # Rebuild chat bubbles + status bar colours
+        self._on_model_loaded(self.engine.is_loaded, self.engine.status_text)
+        if self.active:
+            self._switch_session(self.active.id)
+
     def _goto_logs(self):
         self.tabs.setCurrentWidget(self.log_console)
 
@@ -7395,7 +8212,11 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("Native Lab Pro")
     app.setWindowIcon(QIcon('icon.png'))
-    app.setFont(QFont("Segoe UI", 11))
+    _fnt = QFont("Inter")
+    if not _fnt.exactMatch():
+        _fnt = QFont("Segoe UI")
+    _fnt.setPointSize(10)
+    app.setFont(_fnt)
     signal.signal(signal.SIGINT, lambda *_: app.quit())
     win = MainWindow()
     win.setWindowTitle("✦  Native Lab Pro  v2")
