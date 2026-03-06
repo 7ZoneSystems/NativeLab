@@ -28,13 +28,14 @@ from PyQt6.QtWidgets import (
     QTextEdit, QPushButton, QFileDialog, QLabel, QListWidget,
     QListWidgetItem, QSplitter, QTabWidget, QScrollArea, QFrame,
     QComboBox, QProgressBar, QMenu, QMessageBox, QInputDialog,
-    QSizePolicy, QLineEdit, QSlider, QCheckBox, QGroupBox, QTextBrowser, QColorDialog
+    QSizePolicy, QLineEdit, QSlider, QCheckBox, QGroupBox, QTextBrowser, QColorDialog,
+    QSpinBox
 )
 from PyQt6.QtGui import (
     QFont, QColor, QTextCursor, QAction, QKeySequence, QIcon, QPainter, QPen, QBrush, QColor, QPainterPath, QPolygonF, QLinearGradient
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QRect, QPointF, QPropertyAnimation, QEasingCurve, pyqtProperty
-from PyQt6.QtWidgets import QGraphicsOpacityEffect
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QRect, QPointF, QPropertyAnimation, QEasingCurve, pyqtProperty, QDataStream, QIODevice, QVariant
+from PyQt6.QtWidgets import QGraphicsOpacityEffect, QDialog, QAbstractItemView
 
 # ── optional deps ─────────────────────────────────────────────────────────────
 try:
@@ -1566,6 +1567,11 @@ class ServerConfig:
     port_range_hi: int = 8700
     extra_cli_args:    str = ""
     extra_server_args: str = ""
+    # GPU settings
+    enable_gpu:   bool = False
+    ngl:          int  = -1      # -1 = offload all layers
+    main_gpu:     int  = 0       # primary GPU device index
+    tensor_split: str  = ""      # e.g. "0.6,0.4" for two GPUs
 
     def save(self):
         SERVER_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -1577,6 +1583,10 @@ class ServerConfig:
             "port_range_hi":     self.port_range_hi,
             "extra_cli_args":    self.extra_cli_args,
             "extra_server_args": self.extra_server_args,
+            "enable_gpu":        self.enable_gpu,
+            "ngl":               self.ngl,
+            "main_gpu":          self.main_gpu,
+            "tensor_split":      self.tensor_split,
         }, indent=2))
 
     @classmethod
@@ -1605,6 +1615,64 @@ class ServerConfig:
 
 
 SERVER_CONFIG = ServerConfig.load()
+
+
+def _detect_gpus() -> list:
+    """
+    Detect available GPUs. Returns list of dicts:
+      { idx, name, vram_mb, type }   type = 'cuda' | 'metal' | 'vulkan'
+    """
+    gpus = []
+    # ── NVIDIA / AMD via nvidia-smi ───────────────────────────────────────────
+    try:
+        out = subprocess.check_output(
+            ["nvidia-smi", "--query-gpu=name,memory.total",
+             "--format=csv,noheader,nounits"],
+            timeout=5, stderr=subprocess.DEVNULL).decode().strip()
+        for i, line in enumerate(out.splitlines()):
+            parts = [p.strip() for p in line.split(",")]
+            vram  = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else 0
+            gpus.append({"idx": i, "name": parts[0] if parts else f"GPU {i}",
+                         "vram_mb": vram, "type": "cuda"})
+    except Exception:
+        pass
+    # ── Apple Metal (macOS) ───────────────────────────────────────────────────
+    if not gpus and _platform.system() == "Darwin":
+        try:
+            out = subprocess.check_output(
+                ["system_profiler", "SPDisplaysDataType"],
+                timeout=6, stderr=subprocess.DEVNULL).decode()
+            for line in out.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("Chipset Model:") or stripped.startswith("Model:"):
+                    name = stripped.split(":", 1)[-1].strip()
+                    if name:
+                        gpus.append({"idx": 0, "name": name,
+                                     "vram_mb": 0, "type": "metal"})
+                        break
+        except Exception:
+            pass
+        if not gpus:
+            gpus.append({"idx": 0, "name": "Apple GPU (Metal)",
+                         "vram_mb": 0, "type": "metal"})
+    # ── Vulkan fallback probe ─────────────────────────────────────────────────
+    if not gpus:
+        try:
+            out = subprocess.check_output(
+                ["vulkaninfo", "--summary"], timeout=5,
+                stderr=subprocess.DEVNULL).decode()
+            for line in out.splitlines():
+                if "deviceName" in line:
+                    name = line.split("=", 1)[-1].strip()
+                    gpus.append({"idx": len(gpus), "name": name,
+                                 "vram_mb": 0, "type": "vulkan"})
+        except Exception:
+            pass
+    return gpus
+
+
+# MCP config file path
+MCP_CONFIG_FILE = Path("./localllm/mcp_config.json")
 
 
 def _resolve_binary(cfg_path: str, fallback: str) -> str:
@@ -4875,8 +4943,7 @@ class ReferencePanelV2(QWidget):
         self.script_list.addItem(item)
 
     # ── Context menu (remove) ─────────────────────────────────────────────────
-    def _ctx_menu(self, pos, list_widget: QListWidget):
-        from PyQt6.QtWidgets import QMenu
+    def _ctx_menu(self, pos, list_widget: QListWidget):        
         item = list_widget.itemAt(pos)
         if not item:
             return
@@ -4979,8 +5046,7 @@ class ReferencePanelV2(QWidget):
         if not self._has_pdf:
             QMessageBox.warning(
                 self, "Missing Dep", "Install PyPDF2: pip install PyPDF2")
-            return
-        from PyQt6.QtWidgets import QFileDialog
+            return        
         paths, _ = QFileDialog.getOpenFileNames(
             self, "Select Multiple PDFs",
             str(Path.home()), "PDF Files (*.pdf)")
@@ -5181,8 +5247,7 @@ class ReferencePanel(QWidget):
         if not HAS_PDF:
             QMessageBox.warning(self, "Missing Dep", "Install PyPDF2: pip install PyPDF2")
             return
-        # Use a custom dialog to pick multiple PDFs
-        from PyQt6.QtWidgets import QFileDialog
+        # Use a custom dialog to pick multiple PDFs        
         paths, _ = QFileDialog.getOpenFileNames(
             self, "Select Multiple PDFs for Bulk Summarization",
             str(Path.home()), "PDF Files (*.pdf)")
@@ -6808,6 +6873,120 @@ class ServerTab(QWidget):
         root.addWidget(srv_card)
         root.addSpacing(14)
 
+        # ── GPU Acceleration card ─────────────────────────────────────────────
+        root.addWidget(self._section("GPU ACCELERATION"))
+        gpu_card = self._card()
+        gpu_l = QVBoxLayout(gpu_card)
+        gpu_l.setContentsMargins(16, 14, 16, 14)
+        gpu_l.setSpacing(10)
+
+        # Detect GPUs once at build time
+        self._detected_gpus = _detect_gpus()
+        gpu_type = self._detected_gpus[0]["type"] if self._detected_gpus else "none"
+        n_gpus   = len(self._detected_gpus)
+
+        # Backend badge
+        if gpu_type == "cuda":
+            badge_txt = f"🟢  NVIDIA CUDA detected  ·  {n_gpus} GPU(s)"
+            badge_col = C["ok"]
+        elif gpu_type == "metal":
+            badge_txt = f"🟢  Apple Metal detected  ·  {self._detected_gpus[0]['name']}"
+            badge_col = C["ok"]
+        elif gpu_type == "vulkan":
+            badge_txt = f"🟡  Vulkan GPU detected  ·  {n_gpus} device(s)"
+            badge_col = C["warn"]
+        else:
+            badge_txt = "⚪  No GPU detected — CPU-only mode"
+            badge_col = C["txt2"]
+        gpu_badge = QLabel(badge_txt)
+        gpu_badge.setStyleSheet(
+            f"color:{badge_col};font-size:11px;"
+            f"background:{C['bg2']};border-radius:5px;padding:5px 10px;")
+        gpu_l.addWidget(gpu_badge)
+
+        # GPU list (NVIDIA only shows VRAM)
+        if self._detected_gpus:
+            for g in self._detected_gpus:
+                vram_s = f"  —  {g['vram_mb']} MB VRAM" if g["vram_mb"] else ""
+                gl = QLabel(f"  [{g['idx']}]  {g['name']}{vram_s}")
+                gl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+                gpu_l.addWidget(gl)
+
+        sep_gpu = QFrame(); sep_gpu.setFrameShape(QFrame.Shape.HLine)
+        sep_gpu.setStyleSheet(
+            f"border:none;border-top:1px solid {C['bdr']};margin:2px 0;")
+        gpu_l.addWidget(sep_gpu)
+
+        # Enable GPU checkbox
+        enable_row = QHBoxLayout(); enable_row.setSpacing(10)
+        self.chk_gpu = QCheckBox("Enable GPU offloading  (--ngl flag)")
+        self.chk_gpu.setStyleSheet(f"color:{C['txt']};font-weight:600;font-size:12px;")
+        self.chk_gpu.setChecked(self._cfg.enable_gpu)
+        self.chk_gpu.setEnabled(bool(self._detected_gpus))
+        enable_row.addWidget(self.chk_gpu); enable_row.addStretch()
+        gpu_l.addLayout(enable_row)
+
+        # n_gpu_layers row
+        ngl_row = QHBoxLayout(); ngl_row.setSpacing(8)
+        ngl_lbl = QLabel("GPU layers  (--ngl):")
+        ngl_lbl.setFixedWidth(160)
+        ngl_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.spin_ngl = QSpinBox()
+        self.spin_ngl.setRange(-1, 999); self.spin_ngl.setValue(self._cfg.ngl)
+        self.spin_ngl.setFixedWidth(80); self.spin_ngl.setFixedHeight(28)
+        self.spin_ngl.setSpecialValueText("All  (-1)")
+        self.spin_ngl.setToolTip(
+            "-1 = offload all layers to GPU (fastest)\n"
+            "0  = CPU only\n"
+            "N  = offload first N transformer layers")
+        ngl_row.addWidget(ngl_lbl); ngl_row.addWidget(self.spin_ngl)
+        ngl_row.addWidget(self._hint(
+            "Set to -1 to offload all layers.  Lower if VRAM is limited."))
+        ngl_row.addStretch()
+        gpu_l.addLayout(ngl_row)
+
+        # Main GPU row (multi-GPU NVIDIA only)
+        mgpu_row = QHBoxLayout(); mgpu_row.setSpacing(8)
+        mgpu_lbl = QLabel("Main GPU  (--main-gpu):")
+        mgpu_lbl.setFixedWidth(160)
+        mgpu_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.combo_main_gpu = QComboBox()
+        self.combo_main_gpu.setFixedHeight(28); self.combo_main_gpu.setFixedWidth(220)
+        if self._detected_gpus:
+            for g in self._detected_gpus:
+                self.combo_main_gpu.addItem(
+                    f"[{g['idx']}]  {g['name']}", g["idx"])
+            idx = self.combo_main_gpu.findData(self._cfg.main_gpu)
+            self.combo_main_gpu.setCurrentIndex(max(idx, 0))
+        else:
+            self.combo_main_gpu.addItem("No GPU detected", 0)
+        mgpu_row.addWidget(mgpu_lbl); mgpu_row.addWidget(self.combo_main_gpu)
+        mgpu_row.addStretch()
+        gpu_l.addLayout(mgpu_row)
+
+        # Tensor split row (multi-GPU)
+        ts_row = QHBoxLayout(); ts_row.setSpacing(8)
+        ts_lbl = QLabel("Tensor split  (--ts):")
+        ts_lbl.setFixedWidth(160)
+        ts_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.ts_edit = QLineEdit(self._cfg.tensor_split)
+        self.ts_edit.setFixedHeight(28)
+        self.ts_edit.setPlaceholderText(
+            "e.g. 0.6,0.4 for two GPUs  (leave blank for single GPU)")
+        self.ts_edit.setToolTip(
+            "Comma-separated fractions summing to 1.0.\n"
+            "Used with multi-GPU NVIDIA setups only.\n"
+            "Example: '0.5,0.5' splits evenly across 2 GPUs.")
+        ts_row.addWidget(ts_lbl); ts_row.addWidget(self.ts_edit, 1)
+        gpu_l.addLayout(ts_row)
+
+        if n_gpus <= 1:
+            self.ts_edit.setEnabled(False)
+            self.ts_edit.setPlaceholderText("Multi-GPU only")
+
+        root.addWidget(gpu_card)
+        root.addSpacing(14)
+
         # ── Extra flags card ──────────────────────────────────────────────────
         root.addWidget(self._section("EXTRA LAUNCH FLAGS"))
         flag_card = self._card()
@@ -7011,7 +7190,26 @@ class ServerTab(QWidget):
         self._cfg.port_range_lo     = lo
         self._cfg.port_range_hi     = hi
         self._cfg.extra_cli_args    = self.extra_cli_edit.text().strip()
-        self._cfg.extra_server_args = self.extra_srv_edit.text().strip()
+        # ── GPU settings ──────────────────────────────────────────────────────
+        self._cfg.enable_gpu   = self.chk_gpu.isChecked()
+        self._cfg.ngl          = self.spin_ngl.value()
+        self._cfg.main_gpu     = self.combo_main_gpu.currentData() or 0
+        self._cfg.tensor_split = self.ts_edit.text().strip()
+        # Build GPU flags and prepend to extra_server_args
+        _base_srv = self.extra_srv_edit.text().strip()
+        # Strip any previously auto-injected GPU flags
+        import re as _re
+        _base_srv = _re.sub(
+            r'\s*(?:--ngl\s+-?\d+|--main-gpu\s+\d+|--tensor-split\s+\S+)',
+            "", _base_srv).strip()
+        if self._cfg.enable_gpu and self._cfg.ngl != 0:
+            _gpu_flags = f"--ngl {self._cfg.ngl}"
+            if self._cfg.main_gpu:
+                _gpu_flags += f" --main-gpu {self._cfg.main_gpu}"
+            if self._cfg.tensor_split:
+                _gpu_flags += f" --tensor-split {self._cfg.tensor_split}"
+            _base_srv = (_gpu_flags + ("  " + _base_srv if _base_srv else "")).strip()
+        self._cfg.extra_server_args = _base_srv
         self._cfg.save()
         _refresh_binary_paths()
         self._refresh_resolved()
@@ -7041,11 +7239,607 @@ class ServerTab(QWidget):
         self._cfg.port_range_hi = 8700
         self._cfg.extra_cli_args = ""
         self._cfg.extra_server_args = ""
+        self._cfg.enable_gpu   = False
+        self._cfg.ngl          = -1
+        self._cfg.main_gpu     = 0
+        self._cfg.tensor_split = ""
+        self.chk_gpu.setChecked(False)
+        self.spin_ngl.setValue(-1)
+        self.combo_main_gpu.setCurrentIndex(0)
+        self.ts_edit.setText("")
         self._cfg.save()
         _refresh_binary_paths()
         self._refresh_resolved()
         self._update_cli_status()
         self._update_srv_status()
+
+
+# ═════════════════════════════ HF DOWNLOAD WORKERS ═══════════════════════════
+
+class HfSearchWorker(QThread):
+    """Queries the HuggingFace API for GGUF siblings in a repo."""
+    results_ready = pyqtSignal(list)
+    err           = pyqtSignal(str)
+
+    def __init__(self, repo_id: str):
+        super().__init__()
+        self._repo = repo_id.strip().strip("/")
+
+    def run(self):
+        import urllib.request as _ur, json as _j
+        url = f"https://huggingface.co/api/models/{self._repo}"
+        try:
+            req = _ur.Request(url, headers={"User-Agent": "NativeLabPro/2"})
+            with _ur.urlopen(req, timeout=15) as r:
+                data = _j.loads(r.read())
+            siblings = data.get("siblings", [])
+            gguf = [s for s in siblings
+                    if s.get("rfilename", "").lower().endswith(".gguf")]
+            self.results_ready.emit(gguf)
+        except Exception as e:
+            self.err.emit(str(e))
+
+
+class HfDownloadWorker(QThread):
+    """Downloads a single GGUF file from HuggingFace."""
+    progress = pyqtSignal(int, int)   # bytes_done, bytes_total
+    done     = pyqtSignal(str)        # final save path
+    err      = pyqtSignal(str)
+
+    def __init__(self, repo_id: str, filename: str, dest_dir: Path):
+        super().__init__()
+        self._repo     = repo_id.strip().strip("/")
+        self._filename = filename
+        self._dest_dir = dest_dir
+        self._abort    = False
+
+    def abort(self):
+        self._abort = True
+
+    def run(self):
+        import urllib.request as _ur
+        url  = f"https://huggingface.co/{self._repo}/resolve/main/{self._filename}"
+        dest = self._dest_dir / self._filename
+        self._dest_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            req = _ur.Request(url, headers={"User-Agent": "NativeLabPro/2"})
+            with _ur.urlopen(req, timeout=60) as r:
+                total = int(r.headers.get("Content-Length", 0))
+                done  = 0
+                CHUNK = 262144   # 256 KB
+                with open(dest, "wb") as f:
+                    while True:
+                        if self._abort:
+                            try: dest.unlink()
+                            except Exception: pass
+                            return
+                        chunk = r.read(CHUNK)
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        done += len(chunk)
+                        self.progress.emit(done, total)
+            self.done.emit(str(dest))
+        except Exception as e:
+            try: dest.unlink()
+            except Exception: pass
+            self.err.emit(str(e))
+
+
+# ═════════════════════════════ MODEL DOWNLOAD TAB ════════════════════════════
+
+class ModelDownloadTab(QWidget):
+    """HuggingFace GGUF Model Downloader tab."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._search_worker: Optional[HfSearchWorker] = None
+        self._dl_worker:     Optional[HfDownloadWorker] = None
+        self._files: list = []
+        self._build()
+
+    # ── build ─────────────────────────────────────────────────────────────────
+    def _build(self):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("chat_scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setObjectName("chat_container")
+        root  = QVBoxLayout(inner)
+        root.setContentsMargins(22, 18, 22, 22); root.setSpacing(0)
+        scroll.setWidget(inner); outer.addWidget(scroll)
+
+        # Header
+        hdr = QLabel("⬇️  HuggingFace GGUF Downloader")
+        hdr.setStyleSheet(
+            f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
+        root.addWidget(hdr)
+        sub = QLabel(
+            "Enter any HuggingFace repo ID to browse its GGUF files and download "
+            "them straight to your models folder.  Network access required.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet(
+            f"color:{C['txt2']};font-size:11px;margin-bottom:14px;")
+        root.addWidget(sub)
+
+        # ── SEARCH ───────────────────────────────────────────────────────────
+        root.addWidget(self._section("SEARCH REPOSITORY"))
+        sc = self._card(); sl = QVBoxLayout(sc)
+        sl.setContentsMargins(16, 14, 16, 14); sl.setSpacing(10)
+
+        hint = QLabel(
+            "Examples:  TheBloke/Mistral-7B-Instruct-v0.2-GGUF  ·  "
+            "bartowski/Llama-3.2-3B-Instruct-GGUF  ·  "
+            "lmstudio-community/DeepSeek-R1-Distill-Qwen-7B-GGUF")
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        sl.addWidget(hint)
+
+        row1 = QHBoxLayout(); row1.setSpacing(8)
+        self.repo_edit = QLineEdit()
+        self.repo_edit.setPlaceholderText(
+            "Enter HuggingFace repo ID  (e.g. TheBloke/Mistral-7B-Instruct-v0.2-GGUF)")
+        self.repo_edit.setFixedHeight(30)
+        self.btn_search = QPushButton("🔍  Search")
+        self.btn_search.setObjectName("btn_send")
+        self.btn_search.setFixedHeight(30); self.btn_search.setFixedWidth(100)
+        self.btn_search.clicked.connect(self._do_search)
+        self.repo_edit.returnPressed.connect(self._do_search)
+        row1.addWidget(self.repo_edit, 1); row1.addWidget(self.btn_search)
+        sl.addLayout(row1)
+
+        self.search_status = QLabel("")
+        self.search_status.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        sl.addWidget(self.search_status)
+        root.addWidget(sc); root.addSpacing(14)
+
+        # ── RESULTS ──────────────────────────────────────────────────────────
+        root.addWidget(self._section("AVAILABLE FILES"))
+        rc = self._card(); rl = QVBoxLayout(rc)
+        rl.setContentsMargins(16, 14, 16, 14); rl.setSpacing(10)
+
+        self.results_list = QListWidget()
+        self.results_list.setObjectName("model_list")
+        self.results_list.setMinimumHeight(200)
+        self.results_list.currentItemChanged.connect(self._on_file_selected)
+        rl.addWidget(self.results_list)
+
+        self.file_info = QLabel("Select a file above to see details.")
+        self.file_info.setWordWrap(True)
+        self.file_info.setStyleSheet(
+            f"color:{C['txt2']};font-size:10px;"
+            f"background:{C['bg2']};border-radius:5px;padding:6px 8px;")
+        rl.addWidget(self.file_info)
+        root.addWidget(rc); root.addSpacing(14)
+
+        # ── DOWNLOAD ─────────────────────────────────────────────────────────
+        root.addWidget(self._section("DOWNLOAD"))
+        dc = self._card(); dl_l = QVBoxLayout(dc)
+        dl_l.setContentsMargins(16, 14, 16, 14); dl_l.setSpacing(10)
+
+        dest_row = QHBoxLayout(); dest_row.setSpacing(8)
+        dest_lbl = QLabel("Save to:")
+        dest_lbl.setFixedWidth(60)
+        dest_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.dest_edit = QLineEdit(str(MODELS_DIR.resolve()))
+        self.dest_edit.setReadOnly(True)
+        btn_dest = QPushButton("Browse…")
+        btn_dest.setFixedHeight(28); btn_dest.setFixedWidth(80)
+        btn_dest.clicked.connect(self._browse_dest)
+        dest_row.addWidget(dest_lbl)
+        dest_row.addWidget(self.dest_edit, 1)
+        dest_row.addWidget(btn_dest)
+        dl_l.addLayout(dest_row)
+
+        self.dl_progress = QProgressBar()
+        self.dl_progress.setRange(0, 100); self.dl_progress.setValue(0)
+        self.dl_progress.setFixedHeight(10); self.dl_progress.setTextVisible(False)
+        self.dl_progress.setStyleSheet(
+            f"QProgressBar{{background:{C['bg2']};border:1px solid {C['bdr']};"
+            f"border-radius:4px;}}"
+            f"QProgressBar::chunk{{background:{C['acc']};border-radius:4px;}}")
+        dl_l.addWidget(self.dl_progress)
+
+        self.dl_status = QLabel("No download in progress.")
+        self.dl_status.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        dl_l.addWidget(self.dl_status)
+
+        btn_row = QHBoxLayout(); btn_row.setSpacing(8)
+        self.btn_download = QPushButton("⬇️  Download Selected")
+        self.btn_download.setObjectName("btn_send")
+        self.btn_download.setFixedHeight(32); self.btn_download.setEnabled(False)
+        self.btn_download.clicked.connect(self._start_download)
+        self.btn_abort = QPushButton("⏹  Cancel")
+        self.btn_abort.setObjectName("btn_stop")
+        self.btn_abort.setFixedHeight(32); self.btn_abort.setVisible(False)
+        self.btn_abort.clicked.connect(self._abort_download)
+        btn_row.addWidget(self.btn_download); btn_row.addWidget(self.btn_abort)
+        btn_row.addStretch()
+        dl_l.addLayout(btn_row)
+        root.addWidget(dc); root.addStretch()
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+    @staticmethod
+    def _section(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(
+            f"color:{C['txt']};font-size:12px;font-weight:bold;"
+            f"letter-spacing:0.5px;padding:0;margin-bottom:2px;")
+        return lbl
+
+    @staticmethod
+    def _card() -> QFrame:
+        f = QFrame(); f.setObjectName("tab_card"); return f
+
+    # ── actions ───────────────────────────────────────────────────────────────
+    def _do_search(self):
+        repo = self.repo_edit.text().strip()
+        if not repo:
+            self.search_status.setText("⚠️  Enter a repo ID first."); return
+        self.search_status.setText("🔍  Querying HuggingFace API…")
+        self.btn_search.setEnabled(False)
+        self.results_list.clear(); self._files = []
+        self.btn_download.setEnabled(False)
+        if self._search_worker:
+            try: self._search_worker.quit()
+            except Exception: pass
+        self._search_worker = HfSearchWorker(repo)
+        self._search_worker.results_ready.connect(self._on_results)
+        self._search_worker.err.connect(self._on_search_err)
+        self._search_worker.start()
+
+    def _on_results(self, files: list):
+        self.btn_search.setEnabled(True)
+        self._files = files
+        self.results_list.clear()
+        if not files:
+            self.search_status.setText("⚠️  No GGUF files found in this repo."); return
+        self.search_status.setText(f"✅  Found {len(files)} GGUF file(s).")
+        for fdata in files:
+            fname  = fdata.get("rfilename", "?")
+            size   = fdata.get("size", 0)
+            size_s = (f"{size/1e9:.2f} GB" if size > 1e9 else
+                      f"{size/1e6:.0f} MB"  if size      else "")
+            quant  = detect_quant_type(fname)
+            ql, qc = quant_info(quant)
+            item   = QListWidgetItem(
+                f"  {fname}   [{quant} · {ql}]  {size_s}")
+            item.setData(Qt.ItemDataRole.UserRole, fdata)
+            item.setForeground(QColor(qc))
+            self.results_list.addItem(item)
+
+    def _on_search_err(self, msg: str):
+        self.btn_search.setEnabled(True)
+        self.search_status.setText(f"❌  Error: {msg}")
+
+    def _on_file_selected(self, item, _=None):
+        if not item:
+            self.btn_download.setEnabled(False); return
+        fdata = item.data(Qt.ItemDataRole.UserRole)
+        if not fdata:
+            self.btn_download.setEnabled(False); return
+        fname  = fdata.get("rfilename", "?")
+        size   = fdata.get("size", 0)
+        size_s = (f"{size/1e9:.2f} GB" if size > 1e9 else
+                  f"{size/1e6:.0f} MB"  if size      else "unknown size")
+        quant  = detect_quant_type(fname)
+        ql, _  = quant_info(quant)
+        fam    = detect_model_family(fname)
+        self.file_info.setText(
+            f"File: {fname}\n"
+            f"Size: {size_s}   ·   Quant: {quant} ({ql})\n"
+            f"Detected Family: {fam.name}   ·   Template: {fam.template}")
+        self.btn_download.setEnabled(True)
+
+    def _browse_dest(self):
+        p = QFileDialog.getExistingDirectory(
+            self, "Select Download Folder", self.dest_edit.text())
+        if p: self.dest_edit.setText(p)
+
+    def _start_download(self):
+        item = self.results_list.currentItem()
+        if not item: return
+        fdata = item.data(Qt.ItemDataRole.UserRole)
+        if not fdata: return
+        fname = fdata.get("rfilename", "")
+        repo  = self.repo_edit.text().strip()
+        dest  = Path(self.dest_edit.text())
+        self.btn_download.setVisible(False)
+        self.btn_abort.setVisible(True)
+        self.dl_progress.setValue(0)
+        self.dl_status.setText(f"Downloading  {fname}…")
+        self._dl_worker = HfDownloadWorker(repo, fname, dest)
+        self._dl_worker.progress.connect(self._on_dl_progress)
+        self._dl_worker.done.connect(self._on_dl_done)
+        self._dl_worker.err.connect(self._on_dl_err)
+        self._dl_worker.start()
+
+    def _abort_download(self):
+        if self._dl_worker:
+            self._dl_worker.abort()
+        self.btn_download.setVisible(True); self.btn_abort.setVisible(False)
+        self.dl_status.setText("Download cancelled."); self.dl_progress.setValue(0)
+
+    def _on_dl_progress(self, done: int, total: int):
+        if total > 0:
+            pct = int(done * 100 / total)
+            self.dl_progress.setValue(pct)
+            self.dl_status.setText(
+                f"⬇️  {done/1e6:.1f} / {total/1e6:.1f} MB  ({pct}%)")
+        else:
+            self.dl_status.setText(f"⬇️  {done/1e6:.1f} MB downloaded…")
+
+    def _on_dl_done(self, path: str):
+        self.btn_download.setVisible(True); self.btn_abort.setVisible(False)
+        self.dl_progress.setValue(100)
+        self.dl_status.setText(f"✅  Saved to:  {path}")
+        MODEL_REGISTRY.add(path)
+        QMessageBox.information(
+            self, "Download Complete",
+            f"Model saved to:\n{path}\n\n"
+            "It has been added to your model library.")
+
+    def _on_dl_err(self, msg: str):
+        self.btn_download.setVisible(True); self.btn_abort.setVisible(False)
+        self.dl_progress.setValue(0)
+        self.dl_status.setText(f"❌  Error: {msg}")
+
+
+# ═════════════════════════════ MCP TAB ═══════════════════════════════════════
+
+class McpTab(QWidget):
+    """
+    MCP (Model Context Protocol) server management.
+    Configure and launch stdio / SSE MCP servers.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._servers: list = self._load_servers()
+        self._procs:   dict = {}   # name → subprocess.Popen
+        self._build()
+
+    # ── persistence ───────────────────────────────────────────────────────────
+    def _load_servers(self) -> list:
+        if MCP_CONFIG_FILE.exists():
+            try:
+                return json.loads(MCP_CONFIG_FILE.read_text()).get("servers", [])
+            except Exception:
+                pass
+        return []
+
+    def _save_servers(self):
+        MCP_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        MCP_CONFIG_FILE.write_text(
+            json.dumps({"servers": self._servers}, indent=2))
+
+    # ── build ─────────────────────────────────────────────────────────────────
+    def _build(self):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("chat_scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        inner = QWidget(); inner.setObjectName("chat_container")
+        root  = QVBoxLayout(inner)
+        root.setContentsMargins(22, 18, 22, 22); root.setSpacing(0)
+        scroll.setWidget(inner); outer.addWidget(scroll)
+
+        # Header
+        hdr = QLabel("🔌  MCP — Model Context Protocol")
+        hdr.setStyleSheet(
+            f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
+        root.addWidget(hdr)
+        sub = QLabel(
+            "MCP connects your LLM to external tools and data sources "
+            "(filesystem, web search, databases, APIs…) via standardised servers. "
+            "Add stdio or SSE transports below. Stdio servers launch as child processes.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet(f"color:{C['txt2']};font-size:11px;margin-bottom:14px;")
+        root.addWidget(sub)
+
+        # ── SERVER LIST ───────────────────────────────────────────────────────
+        root.addWidget(self._section("CONFIGURED SERVERS"))
+        lc = self._card(); ll = QVBoxLayout(lc)
+        ll.setContentsMargins(16, 14, 16, 14); ll.setSpacing(8)
+
+        self.server_list = QListWidget()
+        self.server_list.setObjectName("model_list")
+        self.server_list.setMinimumHeight(160)
+        self.server_list.currentItemChanged.connect(self._on_srv_selected)
+        ll.addWidget(self.server_list)
+
+        lb_row = QHBoxLayout(); lb_row.setSpacing(8)
+        self.btn_start = QPushButton("▶  Start")
+        self.btn_start.setObjectName("btn_send"); self.btn_start.setFixedHeight(28)
+        self.btn_start.setEnabled(False); self.btn_start.clicked.connect(self._start_server)
+        self.btn_stop = QPushButton("⏹  Stop")
+        self.btn_stop.setObjectName("btn_stop"); self.btn_stop.setFixedHeight(28)
+        self.btn_stop.setEnabled(False); self.btn_stop.clicked.connect(self._stop_server)
+        self.btn_del_srv = QPushButton("🗑  Remove")
+        self.btn_del_srv.setFixedHeight(28); self.btn_del_srv.setEnabled(False)
+        self.btn_del_srv.clicked.connect(self._remove_server)
+        for b in (self.btn_start, self.btn_stop, self.btn_del_srv):
+            lb_row.addWidget(b)
+        lb_row.addStretch()
+        ll.addLayout(lb_row)
+        root.addWidget(lc); root.addSpacing(14)
+
+        # ── ADD SERVER ────────────────────────────────────────────────────────
+        root.addWidget(self._section("ADD SERVER"))
+        ac = self._card(); al = QVBoxLayout(ac)
+        al.setContentsMargins(16, 14, 16, 14); al.setSpacing(10)
+
+        help_txt = QLabel(
+            "stdio example:  npx -y @modelcontextprotocol/server-filesystem  ~/Documents\n"
+            "SSE example:    http://localhost:8080/sse")
+        help_txt.setWordWrap(True)
+        help_txt.setStyleSheet(f"color:{C['txt2']};font-size:10px;"
+                               f"background:{C['bg2']};border-radius:5px;padding:6px 8px;")
+        al.addWidget(help_txt)
+
+        def _lrow(label: str, widget, width=100):
+            r = QHBoxLayout(); r.setSpacing(8)
+            l = QLabel(label); l.setFixedWidth(width)
+            l.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+            r.addWidget(l); r.addWidget(widget, 1); return r
+
+        self.add_name = QLineEdit()
+        self.add_name.setPlaceholderText("Display name")
+        self.add_name.setFixedHeight(28)
+        al.addLayout(_lrow("Name:", self.add_name))
+
+        self.add_transport = QComboBox()
+        self.add_transport.addItem("stdio  (local process)", "stdio")
+        self.add_transport.addItem("sse    (HTTP SSE endpoint)", "sse")
+        self.add_transport.setFixedHeight(28)
+        al.addLayout(_lrow("Transport:", self.add_transport))
+
+        self.add_cmd = QLineEdit()
+        self.add_cmd.setPlaceholderText(
+            "Command or URL — e.g.  npx -y @mcp/server-filesystem /path")
+        self.add_cmd.setFixedHeight(28)
+        al.addLayout(_lrow("Command / URL:", self.add_cmd))
+
+        self.add_desc = QLineEdit()
+        self.add_desc.setPlaceholderText("Optional description")
+        self.add_desc.setFixedHeight(28)
+        al.addLayout(_lrow("Description:", self.add_desc))
+
+        btn_add = QPushButton("＋  Add Server")
+        btn_add.setObjectName("btn_send"); btn_add.setFixedHeight(30)
+        btn_add.clicked.connect(self._add_server)
+        al.addWidget(btn_add)
+        root.addWidget(ac); root.addSpacing(14)
+
+        # ── SERVER LOG ────────────────────────────────────────────────────────
+        root.addWidget(self._section("SERVER LOG"))
+        log_c = self._card(); log_l = QVBoxLayout(log_c)
+        log_l.setContentsMargins(16, 14, 16, 14)
+        self.mcp_log = QTextEdit()
+        self.mcp_log.setReadOnly(True)
+        self.mcp_log.setObjectName("log_te")
+        self.mcp_log.setFixedHeight(130)
+        self.mcp_log.setFont(QFont("Consolas", 10))
+        log_l.addWidget(self.mcp_log)
+        root.addWidget(log_c); root.addStretch()
+
+        self._refresh_list()
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+    @staticmethod
+    def _section(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(
+            f"color:{C['txt']};font-size:12px;font-weight:bold;"
+            f"letter-spacing:0.5px;padding:0;margin-bottom:2px;")
+        return lbl
+
+    @staticmethod
+    def _card() -> QFrame:
+        f = QFrame(); f.setObjectName("tab_card"); return f
+
+    def _mcp_log_msg(self, msg: str):
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.mcp_log.append(f"[{ts}]  {msg}")
+
+    def _refresh_list(self):
+        self.server_list.clear()
+        for s in self._servers:
+            running = (s["name"] in self._procs and
+                       self._procs[s["name"]].poll() is None)
+            icon = "🟢" if running else "⚪"
+            label = (f"  {icon}  {s['name']}"
+                     f"   [{s['transport']}]"
+                     f"   {s.get('desc', '') or s['cmd'][:50]}")
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, s["name"])
+            item.setForeground(QColor(C["ok"] if running else C["txt"]))
+            self.server_list.addItem(item)
+
+    def _on_srv_selected(self, item, _=None):
+        ok = item is not None
+        self.btn_del_srv.setEnabled(ok)
+        if ok:
+            name    = item.data(Qt.ItemDataRole.UserRole)
+            running = (name in self._procs and
+                       self._procs[name].poll() is None)
+            self.btn_start.setEnabled(not running)
+            self.btn_stop.setEnabled(running)
+        else:
+            self.btn_start.setEnabled(False)
+            self.btn_stop.setEnabled(False)
+
+    def _add_server(self):
+        name = self.add_name.text().strip()
+        cmd  = self.add_cmd.text().strip()
+        if not name or not cmd:
+            QMessageBox.warning(self, "Missing Fields",
+                                "Name and Command/URL are required."); return
+        if any(s["name"] == name for s in self._servers):
+            QMessageBox.warning(self, "Duplicate",
+                                f'A server named "{name}" already exists.'); return
+        self._servers.append({
+            "name":      name,
+            "transport": self.add_transport.currentData(),
+            "cmd":       cmd,
+            "desc":      self.add_desc.text().strip(),
+        })
+        self._save_servers()
+        self.add_name.clear(); self.add_cmd.clear(); self.add_desc.clear()
+        self._refresh_list()
+        self._mcp_log_msg(f"Added server: {name}")
+
+    def _remove_server(self):
+        item = self.server_list.currentItem()
+        if not item: return
+        name = item.data(Qt.ItemDataRole.UserRole)
+        self._stop_by_name(name)
+        self._servers = [s for s in self._servers if s["name"] != name]
+        self._save_servers(); self._refresh_list()
+
+    def _start_server(self):
+        item = self.server_list.currentItem()
+        if not item: return
+        name = item.data(Qt.ItemDataRole.UserRole)
+        srv  = next((s for s in self._servers if s["name"] == name), None)
+        if not srv: return
+        if srv["transport"] == "sse":
+            self._mcp_log_msg(
+                f"SSE server '{name}' — connect at: {srv['cmd']}")
+            self._refresh_list(); return
+        try:
+            proc = subprocess.Popen(
+                srv["cmd"], shell=True,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            self._procs[name] = proc
+            self._mcp_log_msg(f"✅  Started '{name}'  (PID {proc.pid})")
+        except Exception as e:
+            self._mcp_log_msg(f"❌  Failed to start '{name}': {e}")
+        self._refresh_list(); self._on_srv_selected(item)
+
+    def _stop_server(self):
+        item = self.server_list.currentItem()
+        if not item: return
+        name = item.data(Qt.ItemDataRole.UserRole)
+        self._stop_by_name(name)
+        self._refresh_list(); self._on_srv_selected(item)
+
+    def _stop_by_name(self, name: str):
+        proc = self._procs.get(name)
+        if proc:
+            try: proc.terminate(); proc.wait(3)
+            except Exception:
+                try: proc.kill()
+                except Exception: pass
+            del self._procs[name]
+            self._mcp_log_msg(f"⏹  Stopped '{name}'")
 
 
 # ═════════════════════════════ PIPELINE BUILDER ══════════════════════════════
@@ -7060,6 +7854,20 @@ class PipelineBlockType:
     REFERENCE    = "reference"    # injects a reference text snippet before context
     KNOWLEDGE    = "knowledge"    # prepends a knowledge-base chunk before context
     PDF_SUMMARY  = "pdf_summary"  # extracts / summarises a PDF and prepends it
+    # ── Logic blocks ─────────────────────────────────────────────────────────
+    IF_ELSE      = "if_else"      # condition → True port or False port
+    SWITCH       = "switch"       # match value → one of N labelled ports
+    FILTER       = "filter"       # pass-through or drop based on condition
+    TRANSFORM    = "transform"    # deterministic text transform (prefix/suffix/regex)
+    MERGE        = "merge"        # combine multiple incoming contexts into one
+    SPLIT        = "split"        # broadcast same text to all outgoing connections
+    CUSTOM_CODE  = "custom_code"  # user-written Python executed at runtime
+    # ── LLM Logic blocks — conditions evaluated by an attached LLM ───────────
+    LLM_IF       = "llm_if"       # LLM answers YES/NO → TRUE/FALSE routing
+    LLM_SWITCH   = "llm_switch"   # LLM classifies into one of N user-defined labels
+    LLM_FILTER   = "llm_filter"   # LLM decides pass/drop in plain English
+    LLM_TRANSFORM= "llm_transform"# LLM rewrites/transforms text per instruction
+    LLM_SCORE    = "llm_score"    # LLM scores 1–10 → routes to low/mid/high port
 
 # Runtime PyPDF2 guard — PDF blocks show a friendly error if not installed
 try:
@@ -7227,6 +8035,7 @@ class PipelineCanvas(QWidget):
         self.setMinimumSize(1400, 900)
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.setAcceptDrops(True)   # accept drags from model list
 
         self.blocks:      List[PipelineBlock]      = []
         self.connections: List[PipelineConnection] = []
@@ -7238,9 +8047,70 @@ class PipelineCanvas(QWidget):
         self._hover_block:    Optional[PipelineBlock] = None
         self._hover_port:     Optional[str]           = None
         self._selected:       Optional[PipelineBlock] = None
+        self._drop_preview:   Optional[tuple]         = None  # (x, y) ghost position
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._ctx_menu)
+
+    # ── drag-and-drop from sidebar ────────────────────────────────────────────
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasFormat("application/x-qabstractitemmodeldatalist"):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasFormat("application/x-qabstractitemmodeldatalist"):
+            px = int(event.position().x())
+            py = int(event.position().y())
+            self._drop_preview = (self._snap(px), self._snap(py))
+            self.update()
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self._drop_preview = None
+        self.update()
+
+    def dropEvent(self, event):
+        self._drop_preview = None
+        if not event.mimeData().hasFormat("application/x-qabstractitemmodeldatalist"):
+            event.ignore()
+            return
+        px = int(event.position().x())
+        py = int(event.position().y())
+        # Decode the QListWidget MIME data to get model path + role
+        _data = event.mimeData().data("application/x-qabstractitemmodeldatalist")
+        _stream = QDataStream(_data, QIODevice.OpenModeFlag.ReadOnly)
+        model_path = ""
+        role = "general"
+        try:
+            while not _stream.atEnd():
+                _row = _stream.readInt32()
+                _col = _stream.readInt32()
+                _n   = _stream.readInt32()
+                for _ in range(_n):
+                    _role_key = _stream.readInt32()
+                    _var = QVariant()
+                    _stream >> _var
+                    if _role_key == Qt.ItemDataRole.UserRole:
+                        model_path = str(_var.value()) if _var.isValid() else ""
+                    elif _role_key == Qt.ItemDataRole.UserRole + 1:
+                        role = str(_var.value()) if _var.isValid() else "general"
+        except Exception:
+            pass  # fallback: no path decoded — block will show unconfigured
+
+        drop_x = self._snap(px - 80)
+        drop_y = self._snap(py - 30)
+        b = self.add_block(PipelineBlockType.MODEL, x=drop_x, y=drop_y,
+                           model_path=model_path, role=role or "general")
+        if model_path:
+            b.label = Path(model_path).stem[:18]
+        self._selected = b
+        self.update()
+        event.acceptProposedAction()
 
     # ── block management ──────────────────────────────────────────────────────
 
@@ -7320,6 +8190,9 @@ class PipelineCanvas(QWidget):
             p.drawPath(self._make_path(sx, sy, ex, ey, "E", "W"))
 
         # ── blocks ────────────────────────────────────────────────────────────
+        self._draw_drop_ghost(p)
+
+        # ── blocks ────────────────────────────────────────────────────────────
         for b in self.blocks:
             self._draw_block(p, b)
 
@@ -7334,6 +8207,20 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.REFERENCE:    lambda: (C["acc"],      C["bg2"]),
         PipelineBlockType.KNOWLEDGE:    lambda: (C["acc2"],     C["bg2"]),
         PipelineBlockType.PDF_SUMMARY:  lambda: (C["pipeline"], C["bg2"]),
+        # Logic blocks — distinct colour family
+        PipelineBlockType.IF_ELSE:      lambda: ("#f59e0b",     C["bg2"]),
+        PipelineBlockType.SWITCH:       lambda: ("#f97316",     C["bg2"]),
+        PipelineBlockType.FILTER:       lambda: ("#84cc16",     C["bg2"]),
+        PipelineBlockType.TRANSFORM:    lambda: ("#06b6d4",     C["bg2"]),
+        PipelineBlockType.MERGE:        lambda: ("#8b5cf6",     C["bg2"]),
+        PipelineBlockType.SPLIT:        lambda: ("#ec4899",     C["bg2"]),
+        PipelineBlockType.CUSTOM_CODE:  lambda: ("#10b981",     C["bg1"]),
+        # LLM logic blocks — warmer violet family to distinguish from code logic
+        PipelineBlockType.LLM_IF:        lambda: ("#a855f7",    C["bg1"]),
+        PipelineBlockType.LLM_SWITCH:    lambda: ("#7c3aed",    C["bg1"]),
+        PipelineBlockType.LLM_FILTER:    lambda: ("#6366f1",    C["bg1"]),
+        PipelineBlockType.LLM_TRANSFORM: lambda: ("#0ea5e9",    C["bg1"]),
+        PipelineBlockType.LLM_SCORE:     lambda: ("#d946ef",    C["bg1"]),
     }
     _BLOCK_ICONS = {
         PipelineBlockType.INPUT:        "▶ INPUT",
@@ -7343,6 +8230,18 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.REFERENCE:    "📎 REF.",
         PipelineBlockType.KNOWLEDGE:    "💡 KNOW.",
         PipelineBlockType.PDF_SUMMARY:  "📄 PDF",
+        PipelineBlockType.IF_ELSE:      "⑂ IF/ELSE",
+        PipelineBlockType.SWITCH:       "⑃ SWITCH",
+        PipelineBlockType.FILTER:       "⊘ FILTER",
+        PipelineBlockType.TRANSFORM:    "⟲ TRANSFORM",
+        PipelineBlockType.MERGE:        "⊕ MERGE",
+        PipelineBlockType.SPLIT:        "⑁ SPLIT",
+        PipelineBlockType.CUSTOM_CODE:  "⌥ CODE",
+        PipelineBlockType.LLM_IF:        "🧠 LLM-IF",
+        PipelineBlockType.LLM_SWITCH:    "🧠 LLM-SW",
+        PipelineBlockType.LLM_FILTER:    "🧠 LLM-FL",
+        PipelineBlockType.LLM_TRANSFORM: "🧠 LLM-TX",
+        PipelineBlockType.LLM_SCORE:     "🧠 LLM-SC",
     }
 
     def _draw_block(self, p, b: PipelineBlock):      
@@ -7433,6 +8332,21 @@ class PipelineCanvas(QWidget):
         path.cubicTo(QPointF(c1x, c1y), QPointF(c2x, c2y), QPointF(ex, ey))
         return path
 
+    def _draw_drop_ghost(self, p):
+        """Draw a translucent ghost block at the current drag-over position."""
+        if not self._drop_preview:
+            return
+        gx, gy = self._drop_preview
+        gw, gh = 140, 48
+        ghost_bg = QColor(C["acc"]); ghost_bg.setAlpha(40)
+        ghost_bd = QColor(C["acc"]); ghost_bd.setAlpha(160)
+        p.setBrush(QBrush(ghost_bg))
+        p.setPen(QPen(ghost_bd, 2, Qt.PenStyle.DashLine))
+        p.drawRoundedRect(gx, gy, gw, gh, 8, 8)
+        p.setPen(QColor(C["acc"]))
+        p.setFont(QFont("Inter", 9))
+        p.drawText(gx, gy, gw, gh, Qt.AlignmentFlag.AlignCenter, "⚡ Drop here")
+
     def _draw_arrow(self, p, fb, fport, tb, tport, is_loop, loop_times):        
         sx, sy = fb.port_pos(fport)
         ex, ey = tb.port_pos(tport)
@@ -7474,6 +8388,31 @@ class PipelineCanvas(QWidget):
             p.setFont(QFont("Inter", 8, QFont.Weight.Bold))
             p.drawText(int(mid.x()) - 14, int(mid.y()) - 10, 28, 20,
                        Qt.AlignmentFlag.AlignCenter, f"×{loop_times}")
+
+        # branch label badge (IF_ELSE / SWITCH fan-out arms)
+        branch = getattr(self.connections[0] if self.connections else object(),
+                         "branch_label", None)
+        # Retrieve the actual connection object for this specific arrow
+        _conn_obj = next(
+            (c for c in self.connections
+             if c.from_block_id == fb.bid and c.from_port == fport
+             and c.to_block_id == tb.bid),
+            None)
+        branch = getattr(_conn_obj, "branch_label", "") if _conn_obj else ""
+        if branch:
+            mid = path.pointAtPercent(0.35)
+            branch_col = {"TRUE": "#22c55e", "FALSE": "#ef4444"}.get(
+                branch, C["pipeline"])
+            badge_bg2 = QColor(branch_col); badge_bg2.setAlpha(200)
+            w_b = max(len(branch) * 7 + 10, 36)
+            p.setBrush(QBrush(badge_bg2))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawRoundedRect(
+                int(mid.x()) - w_b // 2, int(mid.y()) - 9, w_b, 18, 5, 5)
+            p.setPen(QColor("#ffffff"))
+            p.setFont(QFont("Inter", 7, QFont.Weight.Bold))
+            p.drawText(int(mid.x()) - w_b // 2, int(mid.y()) - 9, w_b, 18,
+                       Qt.AlignmentFlag.AlignCenter, branch)
 
     # ── mouse events ──────────────────────────────────────────────────────────
 
@@ -7558,16 +8497,46 @@ class PipelineCanvas(QWidget):
                     return
             self.update()
 
+    # Logic block types that may fan-out to multiple targets
+    _LOGIC_BTYPES = {
+        PipelineBlockType.IF_ELSE,
+        PipelineBlockType.SWITCH,
+        PipelineBlockType.SPLIT,
+        PipelineBlockType.MERGE,
+        PipelineBlockType.FILTER,
+        PipelineBlockType.TRANSFORM,
+        PipelineBlockType.CUSTOM_CODE,
+        PipelineBlockType.LLM_IF,
+        PipelineBlockType.LLM_SWITCH,
+        PipelineBlockType.LLM_FILTER,
+        PipelineBlockType.LLM_TRANSFORM,
+        PipelineBlockType.LLM_SCORE,
+    }
+
     def _try_connect(self, fb: PipelineBlock, fport: str,
                      tb: PipelineBlock, tport: str):
+        # Prevent self-loop via single click
+        if fb.bid == tb.bid:
+            return
+
         # Rule: model → model requires an intermediate in between
+        # (except when source is a logic block)
         if (fb.btype == PipelineBlockType.MODEL and
-                tb.btype == PipelineBlockType.MODEL):
+                tb.btype == PipelineBlockType.MODEL and
+                fb.btype not in self._LOGIC_BTYPES):
             QMessageBox.warning(
                 self, "Connection Not Allowed",
                 "Direct model-to-model connections are not allowed.\n\n"
                 "You must place an ◈ Intermediate Output block between two model blocks.\n"
                 "This enforces explicit output capture between pipeline stages.")
+            return
+
+        # Prevent exact duplicate connections (same from_bid, same from_port, same to_bid)
+        already = any(
+            c.from_block_id == fb.bid and c.from_port == fport
+            and c.to_block_id == tb.bid
+            for c in self.connections)
+        if already:
             return
 
         is_loop    = self._would_form_loop(fb.bid, tb.bid)
@@ -7582,17 +8551,177 @@ class PipelineCanvas(QWidget):
                 return
             loop_times = val
 
-        # Remove any existing connection from the same source port
-        self.connections = [
-            c for c in self.connections
-            if not (c.from_block_id == fb.bid and c.from_port == fport)]
+        # For non-logic source blocks: enforce single outgoing connection per port
+        # For logic blocks: allow fan-out (multiple arrows from same port)
+        if fb.btype not in self._LOGIC_BTYPES:
+            self.connections = [
+                c for c in self.connections
+                if not (c.from_block_id == fb.bid and c.from_port == fport)]
 
-        self.connections.append(PipelineConnection(
+        # For IF_ELSE — label the port so we know which branch this is
+        branch_label = ""
+        if fb.btype == PipelineBlockType.IF_ELSE:
+            # E port = True branch, W port = False branch, S = either
+            branch_map = {"E": "TRUE", "W": "FALSE", "S": "ELSE", "N": "PASS"}
+            branch_label = branch_map.get(fport, fport)
+            # Store branch on connection metadata via a subclass attr we'll inject
+        elif fb.btype == PipelineBlockType.SWITCH:
+            branch_label, ok = QInputDialog.getText(
+                self, "Switch Branch Label",
+                f"Label for this output arm of SWITCH '{fb.label}':\n"
+                "(e.g. 'case_a', 'default')")
+            if not ok:
+                branch_label = fport
+
+        conn = PipelineConnection(
             from_block_id=fb.bid, from_port=fport,
             to_block_id=tb.bid,   to_port=tport,
-            is_loop=is_loop, loop_times=loop_times))
+            is_loop=is_loop, loop_times=loop_times)
+        conn.branch_label = branch_label   # dynamic attribute — stored at runtime
+        self.connections.append(conn)
         self.update()
         self.blocks_changed.emit()
+
+    def _configure_logic_block(self, b: "PipelineBlock"):
+        """Open configuration dialog for logic / code blocks."""
+        _LOGIC_BTYPES = {
+            PipelineBlockType.IF_ELSE, PipelineBlockType.SWITCH,
+            PipelineBlockType.FILTER,  PipelineBlockType.TRANSFORM,
+            PipelineBlockType.MERGE,   PipelineBlockType.SPLIT,
+            PipelineBlockType.CUSTOM_CODE,
+        }
+        if b.btype not in _LOGIC_BTYPES:
+            return
+
+        if b.btype == PipelineBlockType.IF_ELSE:
+            cur = b.metadata.get("condition", "")
+            cond, ok = QInputDialog.getText(
+                self, f"IF / ELSE — '{b.label}'",
+                "Python condition evaluated on the incoming text.\n"
+                "Variable  'text'  is the incoming string.\n\n"
+                "Examples:\n"
+                "  len(text) > 500\n"
+                "  'error' in text.lower()\n"
+                "  text.startswith('FAIL')\n\n"
+                "TRUE result → E port    FALSE result → W port",
+                text=cur)
+            if ok:
+                b.metadata["condition"] = cond.strip()
+                b.label = f"⑂ {cond.strip()[:18]}" if cond.strip() else "IF/ELSE"
+
+        elif b.btype == PipelineBlockType.SWITCH:
+            cur = b.metadata.get("switch_expr", "")
+            expr, ok = QInputDialog.getText(
+                self, f"SWITCH — '{b.label}'",
+                "Python expression returning a string key.\n"
+                "Variable  'text'  is the incoming string.\n\n"
+                "Example:  'long' if len(text) > 300 else 'short'\n\n"
+                "Connect outgoing arrows and label them with matching keys.",
+                text=cur)
+            if ok:
+                b.metadata["switch_expr"] = expr.strip()
+                b.label = f"⑃ {expr.strip()[:18]}" if expr.strip() else "SWITCH"
+
+        elif b.btype == PipelineBlockType.FILTER:
+            cur_cond  = b.metadata.get("filter_cond", "True")
+            cur_mode  = b.metadata.get("filter_mode", "pass")
+            cond, ok = QInputDialog.getText(
+                self, f"FILTER — '{b.label}'",
+                "Python condition. 'text' = incoming string.\n"
+                "If TRUE → text passes to next block.\n"
+                "If FALSE → pipeline stops (text is dropped).\n\n"
+                "Example:  len(text.strip()) > 10",
+                text=cur_cond)
+            if ok:
+                b.metadata["filter_cond"] = cond.strip() or "True"
+                b.label = f"⊘ {cond.strip()[:18]}" if cond.strip() else "FILTER"
+
+        elif b.btype == PipelineBlockType.TRANSFORM:
+            items = [
+                "prefix    — prepend fixed text",
+                "suffix    — append fixed text",
+                "replace   — find & replace substring",
+                "upper     — convert to uppercase",
+                "lower     — convert to lowercase",
+                "strip     — strip leading/trailing whitespace",
+                "truncate  — limit to N characters",
+            ]
+            cur_type = b.metadata.get("transform_type", "prefix")
+            cur_idx  = next((i for i, s in enumerate(items) if cur_type in s), 0)
+            ttype, ok = QInputDialog.getItem(
+                self, f"TRANSFORM type — '{b.label}'",
+                "Choose the transformation:", items, cur_idx, False)
+            if not ok:
+                return
+            key = ttype.split()[0]
+            b.metadata["transform_type"] = key
+            if key in ("prefix", "suffix"):
+                val, ok2 = QInputDialog.getMultiLineText(
+                    self, f"TRANSFORM — {key}",
+                    "Text to prepend/append:", b.metadata.get("transform_val", ""))
+                if ok2: b.metadata["transform_val"] = val
+            elif key == "replace":
+                find_s, ok2 = QInputDialog.getText(
+                    self, "TRANSFORM — find",
+                    "Find this text:", text=b.metadata.get("transform_find", ""))
+                if ok2: b.metadata["transform_find"] = find_s
+                repl_s, ok3 = QInputDialog.getText(
+                    self, "TRANSFORM — replace with",
+                    "Replace with:", text=b.metadata.get("transform_repl", ""))
+                if ok3: b.metadata["transform_repl"] = repl_s
+            elif key == "truncate":
+                n, ok2 = QInputDialog.getInt(
+                    self, "TRANSFORM — truncate",
+                    "Maximum characters:", value=int(b.metadata.get("transform_val", 500)),
+                    min=1, max=999999)
+                if ok2: b.metadata["transform_val"] = n
+            b.label = f"⟲ {key.capitalize()}"
+
+        elif b.btype == PipelineBlockType.MERGE:
+            items = ["concat  — join with separator", "prepend  — put newest first",
+                     "append  — put newest last", "json    — wrap all as JSON array"]
+            cur  = b.metadata.get("merge_mode", "concat")
+            mode, ok = QInputDialog.getItem(
+                self, f"MERGE mode — '{b.label}'", "How to merge inputs:", items,
+                next((i for i, s in enumerate(items) if cur in s), 0), False)
+            if ok:
+                b.metadata["merge_mode"] = mode.split()[0]
+                if mode.split()[0] == "concat":
+                    sep, ok2 = QInputDialog.getText(
+                        self, "MERGE — separator",
+                        "Separator between merged texts:", text=b.metadata.get("merge_sep", "\n\n---\n\n"))
+                    if ok2: b.metadata["merge_sep"] = sep
+                b.label = f"⊕ Merge/{mode.split()[0]}"
+
+        elif b.btype == PipelineBlockType.SPLIT:
+            n, ok = QInputDialog.getInt(
+                self, f"SPLIT — '{b.label}'",
+                "SPLIT broadcasts the same text to ALL outgoing connections.\n"
+                "No configuration needed — just draw multiple output arrows.\n\n"
+                "Confirm / view outgoing port count:", value=1, min=1, max=20)
+            # No actual setting needed — split just fans out
+            b.label = "⑁ Split"
+
+        elif b.btype == PipelineBlockType.CUSTOM_CODE:
+            dlg = _CodeEditorDialog(b, parent=self)
+            dlg.exec()
+
+        self.update()
+
+    def _configure_llm_logic_block(self, b: "PipelineBlock"):
+        """Open the LLM-Logic configuration dialog."""
+        _LLM_TYPES = {
+            PipelineBlockType.LLM_IF,
+            PipelineBlockType.LLM_SWITCH,
+            PipelineBlockType.LLM_FILTER,
+            PipelineBlockType.LLM_TRANSFORM,
+            PipelineBlockType.LLM_SCORE,
+        }
+        if b.btype not in _LLM_TYPES:
+            return
+        dlg = _LlmLogicEditorDialog(b, parent=self)
+        dlg.exec()
+        self.update()
 
     def _configure_context_block(self, b: "PipelineBlock"):
         """Configure a reference / knowledge / PDF block inline."""
@@ -7733,10 +8862,18 @@ class PipelineCanvas(QWidget):
             act_cfg  = None
             if target.btype == PipelineBlockType.MODEL:
                 act_role = menu.addAction("🔧  Change Role")
-            if target.btype in (PipelineBlockType.REFERENCE,
-                                PipelineBlockType.KNOWLEDGE,
-                                PipelineBlockType.PDF_SUMMARY,
-                                PipelineBlockType.INTERMEDIATE):
+            _CONFIGURABLE = {
+                PipelineBlockType.REFERENCE, PipelineBlockType.KNOWLEDGE,
+                PipelineBlockType.PDF_SUMMARY, PipelineBlockType.INTERMEDIATE,
+                PipelineBlockType.IF_ELSE, PipelineBlockType.SWITCH,
+                PipelineBlockType.FILTER, PipelineBlockType.TRANSFORM,
+                PipelineBlockType.MERGE, PipelineBlockType.SPLIT,
+                PipelineBlockType.CUSTOM_CODE,
+                PipelineBlockType.LLM_IF, PipelineBlockType.LLM_SWITCH,
+                PipelineBlockType.LLM_FILTER, PipelineBlockType.LLM_TRANSFORM,
+                PipelineBlockType.LLM_SCORE,
+            }
+            if target.btype in _CONFIGURABLE:
                 act_cfg = menu.addAction("⚙️  Configure block…")
             menu.addSeparator()
 
@@ -7764,7 +8901,23 @@ class PipelineCanvas(QWidget):
                     self.update()
                 return
             elif act_cfg and chosen == act_cfg:
-                self._configure_context_block(target)
+                _LOGIC_TYPES = {
+                    PipelineBlockType.IF_ELSE, PipelineBlockType.SWITCH,
+                    PipelineBlockType.FILTER, PipelineBlockType.TRANSFORM,
+                    PipelineBlockType.MERGE, PipelineBlockType.SPLIT,
+                    PipelineBlockType.CUSTOM_CODE,
+                }
+                _LLM_LOGIC_TYPES = {
+                    PipelineBlockType.LLM_IF, PipelineBlockType.LLM_SWITCH,
+                    PipelineBlockType.LLM_FILTER, PipelineBlockType.LLM_TRANSFORM,
+                    PipelineBlockType.LLM_SCORE,
+                }
+                if target.btype in _LLM_LOGIC_TYPES:
+                    self._configure_llm_logic_block(target)
+                elif target.btype in _LOGIC_TYPES:
+                    self._configure_logic_block(target)
+                else:
+                    self._configure_context_block(target)
                 return
 
         if chosen == act_clr:
@@ -7907,6 +9060,445 @@ class PipelineExecutionWorker(QThread):
                 current_text = result
                 self.step_done.emit(bid, result)
 
+            # ── Logic block execution ─────────────────────────────────────────
+            elif b.btype == PipelineBlockType.IF_ELSE:
+                self.step_started.emit(bid, b.label)
+                cond = b.metadata.get("condition", "True")
+                _log_lines: list = []
+                _safe_ns = {
+                    "text": context,
+                    "log": lambda m, _ll=_log_lines: _ll.append(str(m)),
+                    "__builtins__": {
+                        "len": len, "str": str, "int": int, "float": float,
+                        "bool": bool, "list": list, "dict": dict, "any": any,
+                        "all": all, "min": min, "max": max, "abs": abs,
+                        "True": True, "False": False, "None": None,
+                        "isinstance": isinstance,
+                    },
+                }
+                try:
+                    _result = eval(compile(cond, "<if_else>", "eval"), _safe_ns)
+                    branch_taken = "TRUE" if _result else "FALSE"
+                except Exception as _e:
+                    self.log_msg.emit(
+                        f"⚠️  IF/ELSE '{b.label}' condition error: {_e} → defaulting FALSE")
+                    branch_taken = "FALSE"
+                self.log_msg.emit(
+                    f"⑂  IF/ELSE '{b.label}': condition='{cond[:40]}' → {branch_taken}")
+                current_text = context
+                self.step_done.emit(bid, current_text)
+                # Only enqueue the arm matching branch_taken
+                for conn in adj.get(bid, []):
+                    bl = getattr(conn, "branch_label", "")
+                    # E=TRUE, W=FALSE; if no label treat all as pass-through
+                    take = (not bl) or (bl == branch_taken) or (
+                        bl == "TRUE" and branch_taken == "TRUE") or (
+                        bl == "FALSE" and branch_taken == "FALSE")
+                    if take:
+                        key = f"{conn.from_block_id}->{conn.to_block_id}"
+                        visits = visit_counts.get(key, 0)
+                        limit  = conn.loop_times if conn.is_loop else 1
+                        if visits < limit:
+                            visit_counts[key] = visits + 1
+                            queue.append((conn.to_block_id, current_text))
+                continue   # skip generic enqueue below
+
+            elif b.btype == PipelineBlockType.SWITCH:
+                self.step_started.emit(bid, b.label)
+                expr = b.metadata.get("switch_expr", "''")
+                _safe_ns = {
+                    "text": context,
+                    "__builtins__": {
+                        "len": len, "str": str, "int": int, "float": float,
+                        "bool": bool, "True": True, "False": False, "None": None,
+                    },
+                }
+                try:
+                    switch_key = str(eval(compile(expr, "<switch>", "eval"), _safe_ns))
+                except Exception as _e:
+                    self.log_msg.emit(f"⚠️  SWITCH '{b.label}' expr error: {_e}")
+                    switch_key = "__error__"
+                self.log_msg.emit(
+                    f"⑃  SWITCH '{b.label}': key='{switch_key}'")
+                current_text = context
+                self.step_done.emit(bid, current_text)
+                _matched = False
+                for conn in adj.get(bid, []):
+                    bl = getattr(conn, "branch_label", "")
+                    if bl == switch_key or bl == "default" or not bl:
+                        _matched = True
+                        key = f"{conn.from_block_id}->{conn.to_block_id}"
+                        visits = visit_counts.get(key, 0)
+                        limit  = conn.loop_times if conn.is_loop else 1
+                        if visits < limit:
+                            visit_counts[key] = visits + 1
+                            queue.append((conn.to_block_id, current_text))
+                if not _matched:
+                    self.log_msg.emit(
+                        f"⚠️  SWITCH '{b.label}': no arm matched key '{switch_key}' — dropped.")
+                continue
+
+            elif b.btype == PipelineBlockType.FILTER:
+                self.step_started.emit(bid, b.label)
+                cond = b.metadata.get("filter_cond", "True")
+                _safe_ns = {
+                    "text": context,
+                    "__builtins__": {
+                        "len": len, "str": str, "int": int, "bool": bool,
+                        "any": any, "all": all, "True": True, "False": False,
+                        "None": None, "isinstance": isinstance,
+                    },
+                }
+                try:
+                    _pass = bool(eval(compile(cond, "<filter>", "eval"), _safe_ns))
+                except Exception as _e:
+                    self.log_msg.emit(f"⚠️  FILTER error: {_e} → dropping")
+                    _pass = False
+                if _pass:
+                    self.log_msg.emit(f"⊘  FILTER '{b.label}': PASSED")
+                    current_text = context
+                    self.step_done.emit(bid, current_text)
+                else:
+                    self.log_msg.emit(f"⊘  FILTER '{b.label}': DROPPED — pipeline stopped here.")
+                    self.pipeline_done.emit(
+                        __import__("json").dumps(
+                            {"text": f"[FILTER DROPPED]\n\nCondition '{cond}' was False.\nOriginal text:\n{context}",
+                             "sender": b.label}))
+                    return
+
+            elif b.btype == PipelineBlockType.TRANSFORM:
+                self.step_started.emit(bid, b.label)
+                ttype = b.metadata.get("transform_type", "prefix")
+                val   = b.metadata.get("transform_val", "")
+                try:
+                    if ttype == "prefix":
+                        current_text = f"{val}\n{context}"
+                    elif ttype == "suffix":
+                        current_text = f"{context}\n{val}"
+                    elif ttype == "replace":
+                        find_s = b.metadata.get("transform_find", "")
+                        repl_s = b.metadata.get("transform_repl", "")
+                        current_text = context.replace(find_s, repl_s) if find_s else context
+                    elif ttype == "upper":
+                        current_text = context.upper()
+                    elif ttype == "lower":
+                        current_text = context.lower()
+                    elif ttype == "strip":
+                        current_text = context.strip()
+                    elif ttype == "truncate":
+                        n = int(val) if val else 500
+                        current_text = context[:n]
+                    else:
+                        current_text = context
+                except Exception as _e:
+                    self.log_msg.emit(f"⚠️  TRANSFORM error: {_e} — passing unchanged")
+                    current_text = context
+                self.log_msg.emit(
+                    f"⟲  TRANSFORM '{b.label}': {ttype} → {len(current_text):,} chars")
+                self.step_done.emit(bid, current_text)
+
+            elif b.btype == PipelineBlockType.MERGE:
+                # Collect all contexts that arrived at this block this pass
+                self.step_started.emit(bid, b.label)
+                # The queue may have multiple entries for this bid; drain them
+                _extras = [context]
+                _new_queue = []
+                for _qbid, _qctx in queue:
+                    if _qbid == bid:
+                        _extras.append(_qctx)
+                    else:
+                        _new_queue.append((_qbid, _qctx))
+                queue = _new_queue
+                mode = b.metadata.get("merge_mode", "concat")
+                sep  = b.metadata.get("merge_sep", "\n\n---\n\n")
+                try:
+                    if mode == "concat":
+                        current_text = sep.join(_extras)
+                    elif mode == "prepend":
+                        current_text = sep.join(reversed(_extras))
+                    elif mode == "append":
+                        current_text = sep.join(_extras)
+                    elif mode == "json":
+                        current_text = __import__("json").dumps(_extras, indent=2)
+                    else:
+                        current_text = sep.join(_extras)
+                except Exception as _e:
+                    current_text = sep.join(_extras)
+                self.log_msg.emit(
+                    f"⊕  MERGE '{b.label}': {len(_extras)} inputs → {len(current_text):,} chars")
+                self.step_done.emit(bid, current_text)
+
+            elif b.btype == PipelineBlockType.SPLIT:
+                self.step_started.emit(bid, b.label)
+                current_text = context
+                self.log_msg.emit(
+                    f"⑁  SPLIT '{b.label}': broadcasting to {len(adj.get(bid,[]))} outputs")
+                self.step_done.emit(bid, current_text)
+                # Enqueue ALL outgoing connections (fan-out)
+                for conn in adj.get(bid, []):
+                    key = f"{conn.from_block_id}->{conn.to_block_id}"
+                    visits = visit_counts.get(key, 0)
+                    limit  = conn.loop_times if conn.is_loop else 1
+                    if visits < limit:
+                        visit_counts[key] = visits + 1
+                        queue.append((conn.to_block_id, current_text))
+                continue
+
+            # ── LLM Logic blocks ──────────────────────────────────────────────
+            elif b.btype == PipelineBlockType.LLM_IF:
+                self.step_started.emit(bid, b.label)
+                instr = b.metadata.get("llm_instruction", "Does this text seem positive?")
+                system = (
+                    "You are a strict decision-making assistant. "
+                    "Read the user's text and the condition carefully. "
+                    "Respond with ONLY one word: YES or NO. "
+                    "Do not add any explanation, punctuation, or extra words."
+                )
+                user_prompt = (
+                    f"CONDITION: {instr}\n\n"
+                    f"TEXT TO EVALUATE:\n{context[:3000]}\n\n"
+                    f"Answer YES or NO:"
+                )
+                raw = self._llm_block_call(b, context, system, user_prompt)
+                if raw is None:
+                    return
+                # Parse YES/NO robustly
+                _answer_up = raw.strip().upper().split()[0] if raw.strip() else "NO"
+                branch_taken = "TRUE" if _answer_up in ("YES", "Y", "TRUE", "1", "PASS", "POSITIVE") else "FALSE"
+                self.log_msg.emit(
+                    f"🧠  LLM-IF '{b.label}': raw='{raw[:60]}' → {branch_taken}")
+                current_text = context
+                self.step_done.emit(bid, current_text)
+                for conn in adj.get(bid, []):
+                    bl = getattr(conn, "branch_label", "")
+                    take = (not bl) or (bl == branch_taken) or (
+                        bl == "TRUE" and branch_taken == "TRUE") or (
+                        bl == "FALSE" and branch_taken == "FALSE")
+                    if take:
+                        key = f"{conn.from_block_id}->{conn.to_block_id}"
+                        visits = visit_counts.get(key, 0)
+                        limit  = conn.loop_times if conn.is_loop else 1
+                        if visits < limit:
+                            visit_counts[key] = visits + 1
+                            queue.append((conn.to_block_id, current_text))
+                continue
+
+            elif b.btype == PipelineBlockType.LLM_SWITCH:
+                self.step_started.emit(bid, b.label)
+                instr = b.metadata.get("llm_instruction", "")
+                # Collect arm labels from outgoing connections
+                arm_labels = list({
+                    getattr(c, "branch_label", "")
+                    for c in adj.get(bid, [])
+                    if getattr(c, "branch_label", "")
+                })
+                arms_str = ", ".join(arm_labels) if arm_labels else "(no labels set)"
+                system = (
+                    "You are a strict classification assistant. "
+                    "Read the user's text and task, then respond with ONLY the "
+                    "exact category label from the provided list. "
+                    "Do not add punctuation, explanation, or any other text. "
+                    "If no category fits, respond with: other"
+                )
+                user_prompt = (
+                    f"CLASSIFICATION TASK: {instr}\n"
+                    f"VALID CATEGORIES (respond with exactly one): {arms_str}\n\n"
+                    f"TEXT TO CLASSIFY:\n{context[:3000]}\n\n"
+                    f"Your answer (one word/phrase only):"
+                )
+                raw = self._llm_block_call(b, context, system, user_prompt)
+                if raw is None:
+                    return
+                switch_key = raw.strip().split("\n")[0].strip().lower()
+                # Normalise to closest arm label (case-insensitive)
+                _match = next(
+                    (lbl for lbl in arm_labels if lbl.lower() == switch_key),
+                    None)
+                if _match is None:
+                    # Fuzzy: substring match
+                    _match = next(
+                        (lbl for lbl in arm_labels if lbl.lower() in switch_key
+                         or switch_key in lbl.lower()), "default")
+                self.log_msg.emit(
+                    f"🧠  LLM-SWITCH '{b.label}': classified as '{_match}' (raw: '{raw[:60]}')")
+                current_text = context
+                self.step_done.emit(bid, current_text)
+                _matched_any = False
+                for conn in adj.get(bid, []):
+                    bl = getattr(conn, "branch_label", "")
+                    if bl.lower() == _match.lower() or bl == "default" or not bl:
+                        _matched_any = True
+                        key = f"{conn.from_block_id}->{conn.to_block_id}"
+                        visits = visit_counts.get(key, 0)
+                        limit  = conn.loop_times if conn.is_loop else 1
+                        if visits < limit:
+                            visit_counts[key] = visits + 1
+                            queue.append((conn.to_block_id, current_text))
+                if not _matched_any:
+                    self.log_msg.emit(
+                        f"⚠️  LLM-SWITCH '{b.label}': no arm matched '{_match}' — dropped")
+                continue
+
+            elif b.btype == PipelineBlockType.LLM_FILTER:
+                self.step_started.emit(bid, b.label)
+                instr = b.metadata.get("llm_instruction", "Pass all text")
+                system = (
+                    "You are a strict content filter. "
+                    "Read the condition and the text. "
+                    "Respond with ONLY: PASS or STOP. "
+                    "If the condition is met and the text should continue, say PASS. "
+                    "If the condition is NOT met and the text should be dropped, say STOP. "
+                    "Do not add any explanation."
+                )
+                user_prompt = (
+                    f"PASS CONDITION: {instr}\n\n"
+                    f"TEXT:\n{context[:3000]}\n\n"
+                    f"Should this text pass? Answer PASS or STOP:"
+                )
+                raw = self._llm_block_call(b, context, system, user_prompt)
+                if raw is None:
+                    return
+                _ans = raw.strip().upper().split()[0] if raw.strip() else "STOP"
+                _pass = _ans in ("PASS", "YES", "Y", "TRUE", "1", "ALLOW", "OK")
+                if _pass:
+                    self.log_msg.emit(f"🧠  LLM-FILTER '{b.label}': PASSED")
+                    current_text = context
+                    self.step_done.emit(bid, current_text)
+                else:
+                    self.log_msg.emit(
+                        f"🧠  LLM-FILTER '{b.label}': STOPPED — model said: {raw[:80]}")
+                    self.pipeline_done.emit(
+                        __import__("json").dumps({
+                            "text": (
+                                f"[LLM FILTER STOPPED]\n\n"
+                                f"Block: {b.label}\n"
+                                f"Condition: {instr}\n"
+                                f"Model decision: {raw[:200]}\n\n"
+                                f"Original text:\n{context}"
+                            ),
+                            "sender": b.label,
+                        }))
+                    return
+
+            elif b.btype == PipelineBlockType.LLM_TRANSFORM:
+                self.step_started.emit(bid, b.label)
+                instr = b.metadata.get("llm_instruction", "Pass the text through unchanged.")
+                max_tok = int(b.metadata.get("llm_max_tokens", 512))
+                system = (
+                    "You are a precise text transformation assistant. "
+                    "Follow the user's instruction exactly. "
+                    "Output ONLY the transformed text — no preamble, no explanation, "
+                    "no 'Here is the result:', just the transformed content itself."
+                )
+                user_prompt = (
+                    f"INSTRUCTION: {instr}\n\n"
+                    f"TEXT TO TRANSFORM:\n{context}"
+                )
+                raw = self._llm_block_call(b, context, system, user_prompt)
+                if raw is None:
+                    return
+                # Strip common preamble patterns the model might add
+                for _strip in ("Here is", "Here's", "Result:", "Output:", "Transformed:"):
+                    if raw.lower().startswith(_strip.lower()):
+                        raw = raw[len(_strip):].lstrip(": \n")
+                        break
+                current_text = raw
+                self.log_msg.emit(
+                    f"🧠  LLM-TRANSFORM '{b.label}': {len(context):,} → {len(current_text):,} chars")
+                self.step_done.emit(bid, current_text)
+
+            elif b.btype == PipelineBlockType.LLM_SCORE:
+                self.step_started.emit(bid, b.label)
+                instr = b.metadata.get("llm_instruction",
+                                       "Rate the quality of this text (1=poor, 10=excellent)")
+                system = (
+                    "You are a precise scoring assistant. "
+                    "Read the criterion and the text. "
+                    "Respond with ONLY a single integer from 1 to 10. "
+                    "No explanation, no punctuation, just the number."
+                )
+                user_prompt = (
+                    f"SCORING CRITERION: {instr}\n\n"
+                    f"TEXT TO SCORE:\n{context[:3000]}\n\n"
+                    f"Score (1–10, integer only):"
+                )
+                raw = self._llm_block_call(b, context, system, user_prompt)
+                if raw is None:
+                    return
+                # Parse score robustly
+                try:
+                    import re as _re2
+                    _nums = _re2.findall(r'\b([1-9]|10)\b', raw)
+                    score = int(_nums[0]) if _nums else 5
+                except Exception:
+                    score = 5
+                score = max(1, min(10, score))
+                if score <= 3:
+                    band = "LOW"; arm_target = "E"
+                elif score <= 7:
+                    band = "MID"; arm_target = "S"
+                else:
+                    band = "HIGH"; arm_target = "W"
+                self.log_msg.emit(
+                    f"🧠  LLM-SCORE '{b.label}': score={score}/10 → {band} (model: '{raw[:40]}')")
+                current_text = context
+                self.step_done.emit(bid, current_text)
+                # Route by band or 'score' label (raw score string)
+                for conn in adj.get(bid, []):
+                    bl = getattr(conn, "branch_label", "")
+                    take = (
+                        not bl                               # unlabelled → always
+                        or bl.upper() == band                # LOW / MID / HIGH
+                        or bl == arm_target                  # E / S / W
+                        or bl.lower() == "score"             # raw score as text
+                    )
+                    if take:
+                        key = f"{conn.from_block_id}->{conn.to_block_id}"
+                        visits = visit_counts.get(key, 0)
+                        limit  = conn.loop_times if conn.is_loop else 1
+                        if visits < limit:
+                            visit_counts[key] = visits + 1
+                            # 'score' label receives the numeric string
+                            out_txt = str(score) if bl.lower() == "score" else current_text
+                            queue.append((conn.to_block_id, out_txt))
+                continue
+
+            elif b.btype == PipelineBlockType.CUSTOM_CODE:
+                self.step_started.emit(bid, b.label)
+                code = b.metadata.get("custom_code", "result = text")
+                _log_lines: list = []
+                _safe_builtins = {
+                    "len": len, "str": str, "int": int, "float": float,
+                    "bool": bool, "list": list, "dict": dict, "tuple": tuple,
+                    "range": range, "enumerate": enumerate, "zip": zip,
+                    "map": map, "filter": filter, "sorted": sorted,
+                    "min": min, "max": max, "sum": sum, "abs": abs,
+                    "round": round, "isinstance": isinstance, "hasattr": hasattr,
+                    "getattr": getattr, "repr": repr, "type": type,
+                    "print": lambda *a: _log_lines.append(" ".join(str(x) for x in a)),
+                    "True": True, "False": False, "None": None,
+                }
+                _ns = {
+                    "text":     context,
+                    "result":   context,      # default: pass-through
+                    "metadata": dict(b.metadata),
+                    "log":      lambda m, _ll=_log_lines: _ll.append(str(m)),
+                    "__builtins__": _safe_builtins,
+                }
+                try:
+                    exec(compile(code, "<custom_code>", "exec"), _ns)
+                    current_text = str(_ns.get("result", context))
+                    for _line in _log_lines:
+                        self.log_msg.emit(f"  ⌥  {_line}")
+                    self.log_msg.emit(
+                        f"⌥  CUSTOM_CODE '{b.label}': → {len(current_text):,} chars")
+                except Exception as _e:
+                    self.log_msg.emit(f"❌  CUSTOM_CODE '{b.label}' runtime error: {_e}")
+                    self.err.emit(
+                        f"Custom Code block '{b.label}' raised an exception:\n\n{_e}")
+                    return
+                self.step_done.emit(bid, current_text)
+
             # Enqueue outgoing edges
             for conn in adj.get(bid, []):
                 key    = f"{conn.from_block_id}->{conn.to_block_id}"
@@ -8037,6 +9629,88 @@ class PipelineExecutionWorker(QThread):
             self.err.emit(f"Server error during model block: {e}"); return None
 
         return "".join(tokens).strip()
+
+    # ── LLM query helper (synchronous, short answer) ──────────────────────────
+
+    def _llm_query_sync(self, model_path: str, system_prompt: str,
+                        user_prompt: str, max_tokens: int = 64,
+                        temperature: float = 0.1) -> Optional[str]:
+        """
+        Call llama-server synchronously and return the full response text.
+        Ensures the server is running for model_path before calling.
+        Returns None on failure (error already logged to log_msg).
+        """
+        eng = self.primary_engine
+        if not eng:
+            self.log_msg.emit("❌  No primary engine available for LLM logic block.")
+            return None
+        if not self._ensure_server(eng, model_path):
+            return None
+
+        fam = detect_model_family(model_path)
+        prompt = (
+            fam.bos
+            + fam.system_prefix + system_prompt + fam.system_suffix
+            + fam.user_prefix   + user_prompt   + fam.user_suffix
+            + fam.assistant_prefix
+        )
+
+        import http.client as _hc
+        try:
+            ch = _hc.HTTPConnection("127.0.0.1", eng.server_port, timeout=120)
+            body = json.dumps({
+                "prompt":        prompt,
+                "n_predict":     max_tokens,
+                "stream":        False,
+                "temperature":   temperature,
+                "stop":          fam.stop_tokens,
+            })
+            ch.request("POST", "/completion", body,
+                       {"Content-Type": "application/json"})
+            resp = ch.getresponse()
+            if resp.status != 200:
+                self.log_msg.emit(f"❌  LLM query HTTP {resp.status}")
+                return None
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            return data.get("content", "").strip()
+        except Exception as _e:
+            self.log_msg.emit(f"❌  LLM query error: {_e}")
+            return None
+
+    def _llm_block_call(self, b: "PipelineBlock", context: str,
+                        system: str, user_prompt: str) -> Optional[str]:
+        """Wrapper around _llm_query_sync that reads block metadata for settings."""
+        meta       = b.metadata
+        model_path = b.model_path or meta.get("llm_model_path", "")
+        max_tok    = int(meta.get("llm_max_tokens", 64))
+        temp       = float(meta.get("llm_temp", 0.1))
+        show_r     = bool(meta.get("llm_show_reasoning", True))
+        passthru   = bool(meta.get("llm_passthrough_on_err", False))
+
+        if not model_path or not Path(model_path).exists():
+            msg = f"❌  LLM block '{b.label}': model not found — {model_path}"
+            self.log_msg.emit(msg)
+            if passthru:
+                self.log_msg.emit(f"⚠️  '{b.label}': passthrough-on-error → continuing unchanged")
+                return context
+            self.err.emit(msg)
+            return None
+
+        result = self._llm_query_sync(model_path, system, user_prompt, max_tok, temp)
+
+        if result is None:
+            if passthru:
+                self.log_msg.emit(
+                    f"⚠️  '{b.label}': LLM call failed, passthrough-on-error → continuing unchanged")
+                return context
+            self.err.emit(
+                f"LLM logic block '{b.label}' failed to get a response from the model.\n"
+                f"Check that the model is valid and the server can start.")
+            return None
+
+        if show_r:
+            self.log_msg.emit(f"  🧠  [{b.label}] model said: {result[:120]}")
+        return result
 
     # ── context injection blocks ──────────────────────────────────────────────
 
@@ -8319,6 +9993,921 @@ class PipelineOutputRenderer(QTextEdit):
             + "</body></html>"
         )
 
+# ═════════════════════════════ LLM LOGIC EDITOR DIALOG ═══════════════════════
+
+class _LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
+    """
+    Configuration dialog for LLM-backed logic blocks.
+    The user writes conditions and instructions in plain English.
+    The attached model evaluates them at runtime against the incoming text.
+    """
+
+    # Per-type documentation shown in the dialog
+    _TYPE_INFO = {
+        "llm_if": {
+            "icon":  "🧠 LLM IF / ELSE",
+            "about": (
+                "The model reads the incoming text and your condition, then answers "
+                "YES or NO. YES routes to the TRUE (E) port, NO to the FALSE (W) port.\n\n"
+                "Write your condition as a plain English question or statement.\n"
+                "The model will always respond with a single word: YES or NO."
+            ),
+            "label":       "Condition (plain English):",
+            "placeholder": "e.g.  Does this text contain a complaint or negative sentiment?\n"
+                           "e.g.  Is the answer longer than a short paragraph?\n"
+                           "e.g.  Does the user seem confused or ask a follow-up question?",
+            "branch_hint": "TRUE (E port) → YES    FALSE (W port) → NO",
+        },
+        "llm_switch": {
+            "icon":  "🧠 LLM SWITCH",
+            "about": (
+                "The model classifies the incoming text into one of your defined categories. "
+                "Draw outgoing arrows and label each with the exact category name. "
+                "The model picks the best match and only that arm is followed."
+            ),
+            "label":       "Classification task + categories:",
+            "placeholder": "e.g.  Classify this text as one of: positive, negative, neutral\n"
+                           "e.g.  What language is this in? english, french, spanish, other\n"
+                           "e.g.  Is this a question, a complaint, a compliment, or other?",
+            "branch_hint": "Connect outgoing arrows labelled with each category name.",
+        },
+        "llm_filter": {
+            "icon":  "🧠 LLM FILTER",
+            "about": (
+                "The model decides whether the incoming text should continue through "
+                "the pipeline (PASS) or be dropped (STOP). "
+                "If dropped, the pipeline ends with a clear reason message."
+            ),
+            "label":       "Pass condition (plain English):",
+            "placeholder": "e.g.  Only pass if this is a genuine technical question\n"
+                           "e.g.  Pass only if the text contains a clear action item\n"
+                           "e.g.  Allow through only if the topic is related to software",
+            "branch_hint": "PASS → continues    STOP → pipeline ends with reason",
+        },
+        "llm_transform": {
+            "icon":  "🧠 LLM TRANSFORM",
+            "about": (
+                "The model rewrites or transforms the incoming text according to your "
+                "instruction. The result replaces the context for all downstream blocks. "
+                "Be specific — the model will follow your instruction precisely."
+            ),
+            "label":       "Transformation instruction:",
+            "placeholder": "e.g.  Summarise this in three bullet points\n"
+                           "e.g.  Rewrite in a formal professional tone\n"
+                           "e.g.  Extract only the action items as a numbered list\n"
+                           "e.g.  Translate to Spanish",
+            "branch_hint": "Single output — transformed text flows to all connected blocks.",
+        },
+        "llm_score": {
+            "icon":  "🧠 LLM SCORE",
+            "about": (
+                "The model scores the incoming text from 1 to 10 on your criterion. "
+                "Route the result by score band:\n"
+                "  LOW  (1–3)   → E port\n"
+                "  MID  (4–7)   → S port\n"
+                "  HIGH (8–10)  → W port\n"
+                "You can also connect a 'score' label to receive the raw score as text."
+            ),
+            "label":       "Scoring criterion:",
+            "placeholder": "e.g.  Rate the clarity of this explanation (1=very unclear, 10=crystal clear)\n"
+                           "e.g.  Score the sentiment positivity (1=very negative, 10=very positive)\n"
+                           "e.g.  Rate the technical complexity (1=very simple, 10=expert-level)",
+            "branch_hint": "LOW (E) 1–3    MID (S) 4–7    HIGH (W) 8–10    score label = raw number",
+        },
+    }
+
+    def __init__(self, block: "PipelineBlock", parent=None):
+        try:
+            from PyQt6.QtWidgets import QDialog
+            super().__init__(parent)
+        except Exception:
+            return
+        self._block = block
+        info = self._TYPE_INFO.get(block.btype, {})
+        self.setWindowTitle(f"{info.get('icon','🧠')} — {block.label}")
+        self.setMinimumSize(640, 480)
+        self.resize(700, 530)
+        self._build(info)
+
+    def _build(self, info: dict):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(12)
+
+        # ── Header ───────────────────────────────────────────────────────────
+        hdr = QLabel(info.get("icon", "🧠  LLM Logic Block"))
+        hdr.setStyleSheet(
+            f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        root.addWidget(hdr)
+
+        about = QLabel(info.get("about", ""))
+        about.setWordWrap(True)
+        about.setStyleSheet(
+            f"color:{C['txt2']};font-size:11px;"
+            f"background:{C['bg2']};border-radius:6px;padding:10px 12px;"
+            f"border-left:3px solid {C['acc']};")
+        root.addWidget(about)
+
+        # ── Branch routing hint ───────────────────────────────────────────────
+        hint_lbl = QLabel(f"📌  {info.get('branch_hint','')}")
+        hint_lbl.setStyleSheet(
+            f"color:{C['ok']};font-size:10px;font-weight:600;"
+            f"padding:4px 8px;background:{C['bg2']};border-radius:4px;")
+        hint_lbl.setWordWrap(True)
+        root.addWidget(hint_lbl)
+
+        # ── Model selector ────────────────────────────────────────────────────
+        model_lbl = QLabel("MODEL  (required — evaluated at runtime):")
+        model_lbl.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1px;")
+        root.addWidget(model_lbl)
+
+        model_row = QHBoxLayout(); model_row.setSpacing(8)
+        self.model_combo = QComboBox()
+        self.model_combo.setFixedHeight(30)
+        # Populate from registry
+        _models = MODEL_REGISTRY.all_models()
+        _cur_path = self._block.model_path or self._block.metadata.get("llm_model_path", "")
+        _sel_idx = 0
+        for _i, _m in enumerate(_models):
+            self.model_combo.addItem(
+                f"{ROLE_ICONS.get(_m.get('role','general'),'💬')}  {_m['name']}",
+                _m["path"])
+            if _m["path"] == _cur_path:
+                _sel_idx = _i
+        if _models:
+            self.model_combo.setCurrentIndex(_sel_idx)
+        else:
+            self.model_combo.addItem("⚠️  No models registered — add one in Models tab", "")
+
+        btn_browse_model = QPushButton("Browse…")
+        btn_browse_model.setFixedHeight(30); btn_browse_model.setFixedWidth(80)
+        btn_browse_model.clicked.connect(self._browse_model)
+
+        self.model_status = QLabel("")
+        self.model_status.setFixedWidth(18)
+        self.model_combo.currentIndexChanged.connect(self._update_model_status)
+        model_row.addWidget(self.model_combo, 1)
+        model_row.addWidget(self.model_status)
+        model_row.addWidget(btn_browse_model)
+        root.addLayout(model_row)
+        self._update_model_status()
+
+        # ── Condition / instruction editor ────────────────────────────────────
+        instr_lbl = QLabel(info.get("label", "Instruction:"))
+        instr_lbl.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1px;")
+        root.addWidget(instr_lbl)
+
+        self.instr_edit = QTextEdit()
+        self.instr_edit.setFont(QFont("Inter", 12))
+        self.instr_edit.setMaximumHeight(130)
+        self.instr_edit.setPlaceholderText(
+            info.get("placeholder", "Enter your instruction in plain English…"))
+        self.instr_edit.setPlainText(
+            self._block.metadata.get("llm_instruction", ""))
+        root.addWidget(self.instr_edit)
+
+        # ── Advanced settings (collapsible) ───────────────────────────────────
+        adv_hdr = QLabel("▸  ADVANCED SETTINGS  (click to expand)")
+        adv_hdr.setStyleSheet(
+            f"color:{C['txt2']};font-size:10px;font-weight:600;"
+            f"padding:4px 2px;")
+        adv_hdr.setCursor(Qt.CursorShape.PointingHandCursor)
+        root.addWidget(adv_hdr)
+
+        self._adv_frame = QFrame()
+        self._adv_frame.setObjectName("tab_card")
+        self._adv_frame.setVisible(False)
+        adv_l = QVBoxLayout(self._adv_frame)
+        adv_l.setContentsMargins(12, 8, 12, 10); adv_l.setSpacing(8)
+
+        def _adv_row(lbl_text, widget):
+            r = QHBoxLayout(); r.setSpacing(8)
+            l = QLabel(lbl_text); l.setFixedWidth(180)
+            l.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+            r.addWidget(l); r.addWidget(widget); r.addStretch()
+            adv_l.addLayout(r)
+
+        self.spin_max_tokens = QSpinBox()
+        self.spin_max_tokens.setRange(8, 512)
+        self.spin_max_tokens.setValue(int(self._block.metadata.get("llm_max_tokens", 64)))
+        self.spin_max_tokens.setFixedHeight(26); self.spin_max_tokens.setFixedWidth(80)
+        self.spin_max_tokens.setToolTip(
+            "Max tokens the model generates for its answer.\n"
+            "Keep small for routing blocks (16–64), larger for transform (128–512).")
+        _adv_row("Max response tokens:", self.spin_max_tokens)
+
+        self.spin_temp = QSpinBox()
+        self.spin_temp.setRange(0, 100)
+        self.spin_temp.setValue(int(float(self._block.metadata.get("llm_temp", 0.1)) * 100))
+        self.spin_temp.setFixedHeight(26); self.spin_temp.setFixedWidth(80)
+        self.spin_temp.setSuffix("  (÷100)")
+        self.spin_temp.setToolTip(
+            "Temperature for the LLM response (0–100 maps to 0.00–1.00).\n"
+            "Use 0–15 for routing decisions, 30–60 for creative transforms.")
+        _adv_row("Temperature (×100):", self.spin_temp)
+
+        self.check_show_reasoning = QCheckBox("Show model reasoning in log")
+        self.check_show_reasoning.setChecked(
+            bool(self._block.metadata.get("llm_show_reasoning", True)))
+        self.check_show_reasoning.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        adv_l.addWidget(self.check_show_reasoning)
+
+        self.check_passthrough_on_err = QCheckBox(
+            "Pass text through unchanged if model call fails (instead of stopping pipeline)")
+        self.check_passthrough_on_err.setChecked(
+            bool(self._block.metadata.get("llm_passthrough_on_err", False)))
+        self.check_passthrough_on_err.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        adv_l.addWidget(self.check_passthrough_on_err)
+
+        root.addWidget(self._adv_frame)
+        adv_hdr.mousePressEvent = lambda _: self._toggle_adv(adv_hdr)
+
+        # ── Buttons ───────────────────────────────────────────────────────────
+        btn_row = QHBoxLayout(); btn_row.setSpacing(10)
+        btn_save = QPushButton("💾  Save & Close")
+        btn_save.setObjectName("btn_send"); btn_save.setFixedHeight(32)
+        btn_save.clicked.connect(self._save_and_close)
+        btn_cancel = QPushButton("✕  Cancel")
+        btn_cancel.setFixedHeight(32)
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_save)
+        root.addLayout(btn_row)
+
+    def _toggle_adv(self, hdr_lbl: QLabel):
+        vis = not self._adv_frame.isVisible()
+        self._adv_frame.setVisible(vis)
+        hdr_lbl.setText(
+            ("▾  ADVANCED SETTINGS  (click to collapse)"
+             if vis else "▸  ADVANCED SETTINGS  (click to expand)"))
+
+    def _update_model_status(self):
+        path = self.model_combo.currentData() or ""
+        ok = bool(path) and Path(path).exists()
+        self.model_status.setText("✅" if ok else "❌")
+        self.model_status.setToolTip(path if path else "No model selected")
+
+    def _browse_model(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select GGUF Model", str(Path.home()),
+            "GGUF Models (*.gguf);;All Files (*)")
+        if path:
+            # Add to registry if not already there
+            MODEL_REGISTRY.add(path)
+            # Refresh combo
+            already = self.model_combo.findData(path)
+            if already == -1:
+                fam = detect_model_family(path)
+                self.model_combo.addItem(f"💬  {Path(path).name}", path)
+                already = self.model_combo.count() - 1
+            self.model_combo.setCurrentIndex(already)
+
+    def _save_and_close(self):
+        instr = self.instr_edit.toPlainText().strip()
+        if not instr:
+            QMessageBox.warning(self, "Missing Instruction",
+                                "Please enter a condition or instruction."); return
+        model_path = self.model_combo.currentData() or ""
+        if not model_path or not Path(model_path).exists():
+            ans = QMessageBox.question(
+                self, "No Model Selected",
+                "No valid model is selected. The block will fail at runtime.\n\n"
+                "Save anyway?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if ans != QMessageBox.StandardButton.Yes:
+                return
+
+        self._block.model_path = model_path
+        self._block.metadata["llm_instruction"]      = instr
+        self._block.metadata["llm_model_path"]       = model_path
+        self._block.metadata["llm_max_tokens"]       = self.spin_max_tokens.value()
+        self._block.metadata["llm_temp"]             = round(self.spin_temp.value() / 100, 2)
+        self._block.metadata["llm_show_reasoning"]   = self.check_show_reasoning.isChecked()
+        self._block.metadata["llm_passthrough_on_err"] = self.check_passthrough_on_err.isChecked()
+
+        # Build a readable label from the instruction
+        _preview = instr.replace("\n", " ").strip()[:22]
+        _icon_map = {
+            "llm_if": "🧠⑂", "llm_switch": "🧠⑃",
+            "llm_filter": "🧠⊘", "llm_transform": "🧠⟲", "llm_score": "🧠★",
+        }
+        _icon = _icon_map.get(self._block.btype, "🧠")
+        self._block.label = f"{_icon} {_preview}"
+        self.accept()
+
+
+# ═════════════════════════════ CODE EDITOR DIALOG ════════════════════════════
+
+class _CodeEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
+    """
+    Full code editor for CUSTOM_CODE pipeline blocks.
+    Shows available variables, validates syntax live, saves to block.metadata.
+    """
+
+    # Available variable documentation shown to user
+    _VAR_DOCS = [
+        ("text",    "str",  "The incoming context string from the previous block."),
+        ("result",  "str",  "Write your output here — the pipeline continues with this."),
+        ("metadata","dict", "Block metadata dict (read/write — persists across runs)."),
+        ("log",     "fn",   "log('message') — writes to the pipeline execution log."),
+    ]
+
+    _TEMPLATE = """\
+# CUSTOM_CODE block
+# Variables available:
+#   text     → incoming context string (read-only)
+#   result   → set this to your output (default: text unchanged)
+#   metadata → block metadata dict (persists across runs)
+#   log(msg) → write to pipeline log
+#
+# Example: count words
+result = text   # default: pass through unchanged
+
+word_count = len(text.split())
+log(f"Word count: {word_count}")
+
+# You can also modify result:
+# result = text.upper()
+# result = f"[Processed]\\n{text}"
+"""
+
+    def __init__(self, block: "PipelineBlock", parent=None):
+        try:            
+            super().__init__(parent)
+        except Exception:
+            return
+        self._block = block
+        self.setWindowTitle(f"⌥ Code Editor — {block.label}")
+        self.setMinimumSize(760, 560)
+        self.resize(820, 620)
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 14, 16, 14)
+        root.setSpacing(10)
+
+        # ── Header ───────────────────────────────────────────────────────────
+        hdr = QLabel("⌥  Custom Code Block Editor")
+        hdr.setStyleSheet(
+            f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        root.addWidget(hdr)
+        desc = QLabel(
+            "Write Python that runs inline during pipeline execution. "
+            "Your code receives <b>text</b> (incoming context) and must set "
+            "<b>result</b> (output sent to next block). "
+            "Code runs in a sandboxed exec() with no network or disk access.")
+        desc.setWordWrap(True)
+        desc.setTextFormat(Qt.TextFormat.RichText)
+        desc.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        root.addWidget(desc)
+
+        # ── Available variables table ─────────────────────────────────────────
+        vars_hdr = QLabel("AVAILABLE VARIABLES")
+        vars_hdr.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1px;")
+        root.addWidget(vars_hdr)
+
+        vars_frame = QFrame(); vars_frame.setObjectName("tab_card")
+        vars_l = QHBoxLayout(vars_frame)
+        vars_l.setContentsMargins(10, 8, 10, 8); vars_l.setSpacing(16)
+        for name, typ, doc in self._VAR_DOCS:
+            col = QVBoxLayout(); col.setSpacing(2)
+            n_lbl = QLabel(f"<b>{name}</b>  <span style='color:{C['txt3']}'>{typ}</span>")
+            n_lbl.setTextFormat(Qt.TextFormat.RichText)
+            n_lbl.setStyleSheet(
+                f"font-family:Consolas,monospace;font-size:12px;color:{C['acc2']};")
+            d_lbl = QLabel(doc)
+            d_lbl.setWordWrap(True)
+            d_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+            col.addWidget(n_lbl); col.addWidget(d_lbl)
+            vars_l.addLayout(col, 1)
+        root.addWidget(vars_frame)
+
+        # ── Code editor ───────────────────────────────────────────────────────
+        code_hdr = QLabel("PYTHON CODE")
+        code_hdr.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1px;")
+        root.addWidget(code_hdr)
+
+        self.editor = QTextEdit()
+        _code_font = QFont("Consolas", 11)
+        _code_font.setPointSize(max(1, _code_font.pointSize()))
+        self.editor.setFont(_code_font)
+        self.editor.setObjectName("log_te")
+        try:
+            self.editor.setTabStopDistance(28.0)
+        except Exception:
+            pass
+        self.editor.setPlaceholderText(
+            "# Write Python here. Set 'result' to your output string.")
+        saved_code = self._block.metadata.get("custom_code", "")
+        self.editor.setPlainText(saved_code if saved_code else self._TEMPLATE)
+        self.editor.textChanged.connect(self._on_edit)
+        root.addWidget(self.editor, 1)
+
+        # ── Syntax status ─────────────────────────────────────────────────────
+        self.syntax_lbl = QLabel("✅  Syntax OK")
+        self.syntax_lbl.setStyleSheet(f"color:{C['ok']};font-size:11px;")
+        root.addWidget(self.syntax_lbl)
+
+        # ── Buttons ───────────────────────────────────────────────────────────
+        btn_row = QHBoxLayout(); btn_row.setSpacing(10)
+        self.btn_test = QPushButton("🧪  Test with sample text…")
+        self.btn_test.setFixedHeight(30)
+        self.btn_test.clicked.connect(self._run_test)
+        btn_ok = QPushButton("💾  Save & Close")
+        btn_ok.setObjectName("btn_send")
+        btn_ok.setFixedHeight(30)
+        btn_ok.clicked.connect(self._save_and_close)
+        btn_cancel = QPushButton("✕  Cancel")
+        btn_cancel.setFixedHeight(30)
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addWidget(self.btn_test)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_ok)
+        root.addLayout(btn_row)
+
+        # Run initial syntax check
+        self._on_edit()
+
+    def _on_edit(self):
+        code = self.editor.toPlainText()
+        try:
+            compile(code, "<custom_code>", "exec")
+            self.syntax_lbl.setText("✅  Syntax OK")
+            self.syntax_lbl.setStyleSheet(f"color:{C['ok']};font-size:11px;")
+        except SyntaxError as e:
+            self.syntax_lbl.setText(
+                f"❌  Syntax error  line {e.lineno}: {e.msg}")
+            self.syntax_lbl.setStyleSheet(f"color:{C['err']};font-size:11px;")
+
+    def _run_test(self):
+        code = self.editor.toPlainText()
+        sample, ok = QInputDialog.getMultiLineText(
+            self, "Test Code",
+            "Enter sample text to pass as 'text':",
+            "Hello from the pipeline test runner.")
+        if not ok:
+            return
+        log_lines = []
+        ns = {
+            "text": sample,
+            "result": sample,
+            "metadata": dict(self._block.metadata),
+            "log": lambda m: log_lines.append(str(m)),
+            "__builtins__": {"len": len, "str": str, "int": int, "float": float,
+                             "bool": bool, "list": list, "dict": dict, "tuple": tuple,
+                             "range": range, "enumerate": enumerate, "zip": zip,
+                             "map": map, "filter": filter, "sorted": sorted,
+                             "min": min, "max": max, "sum": sum,
+                             "abs": abs, "round": round, "print": lambda *a: log_lines.append(" ".join(str(x) for x in a)),
+                             "isinstance": isinstance, "hasattr": hasattr,
+                             "getattr": getattr, "setattr": setattr,
+                             "repr": repr, "type": type,
+                             "True": True, "False": False, "None": None},
+        }
+        try:
+            exec(compile(code, "<custom_code>", "exec"), ns)
+            out = str(ns.get("result", sample))
+            log_s = "\n".join(log_lines) if log_lines else "(no log output)"
+            QMessageBox.information(
+                self, "✅  Test Result",
+                f"Log output:\n{log_s}\n\n"
+                f"result  ({len(out)} chars):\n{out[:600]}"
+                + ("…" if len(out) > 600 else ""))
+        except Exception as e:
+            QMessageBox.critical(self, "❌  Runtime Error", str(e))
+
+    def _save_and_close(self):
+        code = self.editor.toPlainText()
+        try:
+            compile(code, "<custom_code>", "exec")
+        except SyntaxError as e:
+            QMessageBox.warning(
+                self, "Syntax Error",
+                f"Fix the syntax error before saving:\n\nLine {e.lineno}: {e.msg}")
+            return
+        self._block.metadata["custom_code"] = code
+        preview = code.strip().splitlines()[0] if code.strip() else "code"
+        # Strip comment lines for label
+        for ln in code.strip().splitlines():
+            stripped = ln.strip()
+            if stripped and not stripped.startswith("#"):
+                preview = stripped[:20]
+                break
+        self._block.label = f"⌥ {preview}"
+        self.accept()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pipeline Manual — rendered inside _show_manual dialog
+# ─────────────────────────────────────────────────────────────────────────────
+def _make_manual_html() -> str:
+    BG   = C.get("bg0","#1e1e2e"); TXT  = C.get("txt","#cdd6f4")
+    TXT2 = C.get("txt2","#a6adc8"); ACC  = C.get("acc","#cba6f7")
+    ACC2 = C.get("acc2","#a6e3a1"); WARN = C.get("warn","#f9e2af")
+    BG2  = C.get("bg2","#313244"); ERR  = C.get("err","#f38ba8")
+    OK   = C.get("ok","#a6e3a1");  PL   = C.get("pipeline","#89b4fa")
+
+    def h1(t): return (f'<h1 style="color:{TXT};font-size:17px;font-weight:800;'
+                       f'margin:0 0 4px;letter-spacing:0.5px;">{t}</h1>')
+    def h2(t): return (f'<h2 style="color:{ACC};font-size:13px;font-weight:700;'
+                       f'margin:22px 0 6px;border-bottom:1px solid {BG2};'
+                       f'padding-bottom:5px;">{t}</h2>')
+    def h3(t): return (f'<h3 style="color:{ACC2};font-size:12px;font-weight:700;'
+                       f'margin:12px 0 3px;">{t}</h3>')
+    def p(t):  return (f'<p style="color:{TXT2};font-size:11px;margin:3px 0 9px;'
+                       f'line-height:1.7;">{t}</p>')
+    def note(t): return (f'<p style="color:{WARN};font-size:10.5px;margin:4px 0 10px;'
+                         f'background:{BG2};border-left:3px solid {WARN};'
+                         f'padding:6px 10px;border-radius:0 5px 5px 0;">'
+                         f'⚠️&nbsp; {t}</p>')
+    def tip(t):  return (f'<p style="color:{OK};font-size:10.5px;margin:4px 0 10px;'
+                         f'background:{BG2};border-left:3px solid {OK};'
+                         f'padding:6px 10px;border-radius:0 5px 5px 0;">'
+                         f'💡&nbsp; {t}</p>')
+    def code(t): return (f'<code style="font-family:Consolas,monospace;font-size:10.5px;'
+                         f'color:{ACC2};background:{BG2};padding:1px 5px;'
+                         f'border-radius:3px;">{t}</code>')
+    def badge(label, col): return (
+        f'<span style="background:transparent;color:{col};border:1px solid {col};'
+        f'border-radius:9px;padding:2px 8px;font-size:10px;font-weight:700;'
+        f'white-space:nowrap;">{label}</span> ')
+    def kbd(k): return (f'<span style="background:{BG2};color:{TXT};border:1px solid {ACC};'
+                        f'border-radius:3px;padding:1px 6px;font-size:10px;'
+                        f'font-family:Consolas,monospace;">{k}</span>')
+
+    def port_table(*rows):
+        hdr = (f'<tr><th style="color:{TXT};font-size:10px;font-weight:700;'
+               f'padding:0 12px 5px 0;text-align:left;border-bottom:1px solid {BG2};">Port</th>'
+               f'<th style="color:{TXT};font-size:10px;font-weight:700;'
+               f'padding:0 12px 5px 0;text-align:left;border-bottom:1px solid {BG2};">Direction</th>'
+               f'<th style="color:{TXT};font-size:10px;font-weight:700;'
+               f'padding:0 0 5px;text-align:left;border-bottom:1px solid {BG2};">Notes</th></tr>')
+        body = "".join(
+            f'<tr><td style="color:{ACC2};font-size:11px;padding:4px 12px 4px 0;'
+            f'font-family:Consolas,monospace;font-weight:700;">{r[0]}</td>'
+            f'<td style="color:{OK if "in" in r[1].lower() else ERR};font-size:11px;'
+            f'padding:4px 12px 4px 0;">{r[1]}</td>'
+            f'<td style="color:{TXT2};font-size:11px;padding:4px 0;">{r[2]}</td></tr>'
+            for r in rows)
+        return (f'<table cellspacing="0" cellpadding="0" '
+                f'style="width:100%;margin:8px 0 14px;">{hdr}{body}</table>')
+
+    def example_box(title, body_html):
+        return (f'<div style="background:{BG2};border-radius:6px;'
+                f'padding:10px 14px;margin:6px 0 14px;">'
+                f'<p style="color:{ACC};font-size:10px;font-weight:700;'
+                f'margin:0 0 6px;letter-spacing:0.8px;">{title}</p>'
+                f'{body_html}</div>')
+
+    return f"""<html><body style="background:{BG};color:{TXT};
+font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
+
+{h1("🔗  NativeLab Pipeline Builder — Full Manual")}
+{p(f'Version 2 &nbsp;·&nbsp; All pipeline data stored in {code("./localllm/pipelines/")} as JSON')}
+
+<hr style="border:none;border-top:1px solid {BG2};margin:14px 0 6px;">
+
+{h2("📌  Quick Start — 5 Steps to First Run")}
+{p(f'1. <b>Add an ▶ Input block</b> — sidebar left, section <i>Flow Blocks</i>.<br>'
+   f'2. <b>Add a ⚡ Model block</b> — drag a model from the sidebar list onto the canvas (ghost appears while hovering) or double-click it.<br>'
+   f'3. <b>Add an ■ Output block</b> — same sidebar section.<br>'
+   f'4. <b>Draw connections</b> — click a port dot on one block and drag to a port dot on another.<br>'
+   f'5. Type text in <i>Input text</i> on the right panel and press <b>▶ Run Pipeline</b>.')}
+{tip("Start simple: Input → Model → Output. Add logic blocks only after you confirm the basic run works.")}
+
+{h2("🎨  Canvas Controls")}
+{p(f'{kbd("Drag block")} Move any block freely — it snaps to the grid automatically.<br>'
+   f'{kbd("Click port dot")} Start drawing a connection arrow.<br>'
+   f'{kbd("Drag to port dot")} Complete a connection — creates a curved Bezier arrow.<br>'
+   f'{kbd("Right-click block")} Context menu: Delete, Rename, Change Role, Configure.<br>'
+   f'{kbd("Right-click canvas")} Clear all blocks and connections.<br>'
+   f'{kbd("Pill bar")} The horizontal strip above the canvas shows all model/logic blocks as clickable pills — click one to select it on canvas.')}
+{tip("The canvas is larger than the visible area. Use the scrollbars to pan around. Make big pipelines by spreading blocks far apart.")}
+
+{h2("🔵  Port Dots  ( N · S · E · W )")}
+{p("Every block has four port dots sitting on its four edges — North (top), South (bottom), East (right), West (left). "
+   "Click any dot and drag to any dot on another block to create an arrow. "
+   "The arrow curves automatically and adapts its control handles to the port direction.")}
+{port_table(
+    ("E  →", "Output (default)", "Text leaves the block here — connect to the next block's input"),
+    ("W  ←", "Input (default)",  "Text arrives at the block here — connect from the previous block's output"),
+    ("N  ↑", "Alt input/output", "Use for branch merges or alternate exits on logic blocks"),
+    ("S  ↓", "Alt input/output", "Use for mid-score routing (LLM SCORE) or alternate splits"),
+)}
+{note("For normal flow blocks (Input, Model, Output, Intermediate) only one arrow per port is allowed. "
+     "For all logic blocks and LLM logic blocks multiple arrows can fan out from the same port — this is how branching works.")}
+{tip("You can draw arrows in any direction. Input → E is just a convention. The execution engine follows the arrows regardless of port direction.")}
+
+{h2("🟦  Flow Blocks")}
+
+{h3(badge("▶ INPUT", OK) + " Input Block")}
+{p("The mandatory starting point. The text you type in the <i>Input text</i> box on the right panel is injected here as the initial context. "
+   "You only ever need one. Every pipeline must have exactly one Input block.")}
+{port_table(
+    ("E  →", "Output", "Sends the raw input text to the first connected block"),
+    ("S  ↓", "Output", "Alternative output — use when fanning out to multiple first blocks"),
+)}
+{example_box("EXAMPLE PIPELINE: Summarise + translate",
+    p(f'▶ Input → ⚡ Summariser model → ◈ Intermediate ("Now translate the above to French") → ⚡ Translator model → ■ Output'))}
+
+{h3(badge("◈ INTERMEDIATE", WARN) + " Intermediate Block")}
+{p("A pure prompt-injection node — no model is called. It takes the arriving context and wraps your custom instruction around it before passing it on. "
+   "Useful for steering the next model without breaking the data flow.")}
+{p(f'<b>Right-click → Configure block…</b> to set:<br>'
+   f'&nbsp;&nbsp;• <b>Prompt position</b>: above (prompt → model output) or below (model output → prompt)<br>'
+   f'&nbsp;&nbsp;• <b>Prompt text</b>: any instruction, e.g. <i>"Now rewrite the above more concisely."</i>')}
+{port_table(
+    ("W  ←", "Input",  "Receives context from the previous block"),
+    ("E  →", "Output", "Sends the wrapped context to the next block"),
+)}
+{tip("During execution each Intermediate block gets its own live tab in the right panel output area — you can watch the injected context build up in real time.")}
+{note("Leaving the prompt blank makes the Intermediate block a transparent pass-through — context flows through unchanged. Useful as a visual separator.")}
+
+{h3(badge("■ OUTPUT", ERR) + " Output Block")}
+{p("The terminal node. Whatever context arrives here is shown in the <b>■ Output</b> tab on the right panel. "
+   "The pipeline stops when it reaches an Output block. You can have multiple Output blocks — each one terminates its own branch independently.")}
+{port_table(
+    ("W  ←", "Input",  "Receives the final context — this becomes the displayed output"),
+    ("N  ←", "Input",  "Alternative input port for pipelines where the final arrow comes from above"),
+)}
+
+{h2("⚡  Model Block")}
+{p("Represents a loaded GGUF model. When the pipeline reaches a Model block, NativeLab starts the model in server mode (or reuses it if already running) and sends the current context as a prompt. The response becomes the new context.")}
+{p(f'<b>How to add:</b><br>'
+   f'&nbsp;&nbsp;• <b>Drag</b> a model from the sidebar list onto the canvas — a ghost block shows the drop position.<br>'
+   f'&nbsp;&nbsp;• <b>Double-click</b> a model in the sidebar list to add it at a default position.')}
+{p(f'<b>Right-click options:</b><br>'
+   f'&nbsp;&nbsp;• <b>Change Role</b> — sets the system prompt used for this block:<br>'
+   f'&nbsp;&nbsp;&nbsp;&nbsp;{code("general")} You are a helpful assistant.<br>'
+   f'&nbsp;&nbsp;&nbsp;&nbsp;{code("reasoning")} Think step by step.<br>'
+   f'&nbsp;&nbsp;&nbsp;&nbsp;{code("summarization")} Be clear and concise.<br>'
+   f'&nbsp;&nbsp;&nbsp;&nbsp;{code("coding")} Write clean, well-commented code.<br>'
+   f'&nbsp;&nbsp;• <b>Rename block</b> — give it a human-readable name.<br>'
+   f'&nbsp;&nbsp;• <b>Delete</b> — removes the block and all its connections.')}
+{port_table(
+    ("W  ←", "Input",  "Receives the context to use as the prompt"),
+    ("E  →", "Output", "Sends the model response to the next block"),
+    ("N  ←", "Input",  "Alternate input — use when connecting from above"),
+    ("S  →", "Output", "Alternate output — use when chaining downward"),
+)}
+{note("Direct Model → Model connections are blocked. You must place an ◈ Intermediate block between two models. "
+     "This forces you to explicitly define what the second model should do with the first model's output.")}
+{tip("Use different roles on different model blocks in the same pipeline. A 'reasoning' model can analyse, then an 'summarization' model can compress the result.")}
+
+{h2("📎  Context Blocks")}
+{p("Context blocks inject fixed text into the pipeline without calling a model. They read configuration you set at design time, not at runtime.")}
+
+{h3(badge("📎 REFERENCE", ACC) + " Reference Block")}
+{p("Pastes a fixed reference text <b>before</b> the incoming context. Good for injecting background documents, company info, templates, or examples a model should work with.")}
+{p(f'<b>Right-click → Configure block…</b> then choose:<br>'
+   f'&nbsp;&nbsp;• <b>Type / paste text</b> — opens a multiline input dialog.<br>'
+   f'&nbsp;&nbsp;• <b>Load from file</b> — reads any .txt, .md, .py, .json, .yaml file. '
+   f'Content is truncated to 4,000 characters with a [truncated] marker if longer.')}
+{tip("Name your reference block descriptively (e.g. 'Company FAQ'). The injected text is wrapped in [REFERENCE: name] tags so the model can distinguish it from the user content.")}
+
+{h3(badge("💡 KNOWLEDGE", ACC2) + " Knowledge Block")}
+{p("Identical to Reference but labelled as a <i>knowledge base chunk</i> — the injected section is prefixed with <i>Knowledge Base:</i> instead of REFERENCE. "
+   "Useful when you want to semantically distinguish instructional reference docs from factual knowledge.")}
+{p(f'<b>Right-click → Configure block…</b> — opens a multiline text input. Truncated to 3,000 characters.')}
+
+{h3(badge("📄 PDF SUMMARY", PL) + " PDF Summary Block")}
+{p("Loads a PDF file, extracts text from all pages, and injects it. If the PDF exceeds 4,500 characters it is automatically chunk-summarised by the primary engine model before injection.")}
+{p(f'<b>Right-click → Configure block…</b> to:<br>'
+   f'&nbsp;&nbsp;1. Select the PDF file.<br>'
+   f'&nbsp;&nbsp;2. Set the <b>role</b> of the PDF:<br>'
+   f'&nbsp;&nbsp;&nbsp;&nbsp;• <b>reference</b> — prior context is MAIN, PDF is supporting reference.<br>'
+   f'&nbsp;&nbsp;&nbsp;&nbsp;• <b>main</b> — PDF is the MAIN content, prior context is supporting reference.')}
+{note("PyPDF2 must be installed: pip install PyPDF2. If it is missing the block will show a warning when you try to configure it.")}
+
+{h2("⑂  Logic Blocks  ( Python conditions )")}
+{p(f'Logic blocks evaluate Python expressions or perform text operations at runtime. '
+   f'The variable {code("text")} always holds the incoming context string. '
+   f'These run instantly with no model call — use them for fast deterministic branching.')}
+
+{h3(badge("⑂ IF / ELSE", "#f59e0b") + " IF / ELSE")}
+{p("Evaluates a Python boolean expression against the incoming text and routes to one of two output arms.")}
+{port_table(
+    ("E  →", "Output — TRUE branch",  "Followed when the condition evaluates to True / YES"),
+    ("W  →", "Output — FALSE branch", "Followed when the condition evaluates to False / NO"),
+    ("W  ←", "Input",                 "Receives incoming context"),
+)}
+{p(f'<b>Configure:</b> Right-click → Configure block… and type a Python expression.<br>'
+   f'<b>Draw two arrows</b> from this block, then label each one {code("TRUE")} and {code("FALSE")} when prompted.')}
+{example_box("CONDITION EXAMPLES",
+    p(f'{code("len(text) > 500")} — route long responses to a summariser<br>'
+      f'{code("\'error\' in text.lower()")} — catch error messages<br>'
+      f'{code("text.strip().startswith(\'```\'")} — detect code output<br>'
+      f'{code("len(text.split()) < 20")} — detect very short answers<br>'
+      f'{code("\'yes\' in text.lower()[:50]")} — check if model said yes'))}
+{note("The expression has access to: len, str, int, float, bool, list, dict, any, all, min, max, abs, isinstance. No file or network access.")}
+
+{h3(badge("⑃ SWITCH", "#f97316") + " SWITCH")}
+{p("Evaluates a Python expression that returns a string key, then follows the outgoing arrow whose label matches that key.")}
+{port_table(
+    ("E/S/W  →", "Output arms", "One per case — label each arrow with the matching key string"),
+    ("W  ←",     "Input",       "Receives incoming context"),
+)}
+{p(f'<b>Configure:</b> Right-click → Configure block… and type an expression that returns a string.<br>'
+   f'When drawing each outgoing arrow you will be asked to type the <b>branch label</b> — this must exactly match what the expression can return (case-insensitive).<br>'
+   f'Add a {code("default")} labelled arrow to catch unmatched keys.')}
+{example_box("EXPRESSION EXAMPLES",
+    p(f'{code("\'long\' if len(text) > 400 else \'short\'")} — length-based routing<br>'
+      f'{code("\'code\' if text.strip().startswith(\'```\') else \'prose\'")} — format detection<br>'
+      f'{code("text.split(\':\')[0].strip().lower()")} — route on first word / prefix<br>'
+      f'{code("\'positive\' if text.count(\'!\') > 2 else \'neutral\'")} — punctuation heuristic'))}
+
+{h3(badge("⊘ FILTER", "#84cc16") + " FILTER")}
+{p("A gate. If the condition is TRUE the text continues through the pipeline unchanged. If FALSE the pipeline terminates immediately with a [FILTER DROPPED] message.")}
+{port_table(
+    ("E  →", "Output — PASS", "Followed only when condition is True"),
+    ("W  ←", "Input",         "Receives incoming context"),
+)}
+{example_box("USE CASES",
+    p('• Drop empty or whitespace-only responses before they reach the next model.<br>'
+      '• Stop the pipeline if a safety keyword is detected.<br>'
+      '• Gate on minimum length to avoid feeding junk to expensive models.'))}
+{note("When FILTER drops text it emits a pipeline_done signal with the original text and a reason — this appears in the Output tab so you can debug why it was dropped.")}
+
+{h3(badge("⟲ TRANSFORM", "#06b6d4") + " TRANSFORM")}
+{p("Deterministic text operation — no model involved, instant execution. Modifies the context in a fixed, predictable way.")}
+{p(f'<b>Available transforms:</b><br>'
+   f'&nbsp;&nbsp;• {code("prefix")} — prepend fixed text before the context<br>'
+   f'&nbsp;&nbsp;• {code("suffix")} — append fixed text after the context<br>'
+   f'&nbsp;&nbsp;• {code("replace")} — find a substring and replace it<br>'
+   f'&nbsp;&nbsp;• {code("upper")} / {code("lower")} — change case<br>'
+   f'&nbsp;&nbsp;• {code("strip")} — remove leading/trailing whitespace and blank lines<br>'
+   f'&nbsp;&nbsp;• {code("truncate")} — cut text to a maximum number of characters')}
+{tip("Chain multiple TRANSFORM blocks together to build a text preprocessing pipeline before it hits a model — e.g. strip → truncate → prefix.")}
+
+{h3(badge("⊕ MERGE", "#8b5cf6") + " MERGE")}
+{p("Waits for all incoming arrows to deliver their context, then joins them all into a single string that flows to the next block. "
+   "Essential after a SPLIT or any fan-out pattern.")}
+{p(f'<b>Merge modes:</b><br>'
+   f'&nbsp;&nbsp;• {code("concat")} — join with a separator string (default: two newlines + ---)<br>'
+   f'&nbsp;&nbsp;• {code("prepend")} — newest first, oldest last<br>'
+   f'&nbsp;&nbsp;• {code("append")} — oldest first, newest last<br>'
+   f'&nbsp;&nbsp;• {code("json")} — wrap all inputs as a JSON array string')}
+{note("MERGE collects all contexts queued for its block ID in the current execution pass. If only one arrow arrives the block still works — it just returns that single input.")}
+
+{h3(badge("⑁ SPLIT", "#ec4899") + " SPLIT")}
+{p("Broadcasts the exact same text to every single outgoing arrow simultaneously. Useful for running the same context through multiple models in parallel (they execute sequentially internally).")}
+{port_table(
+    ("E/S/W  →", "Output × N", "All outgoing arrows fire with identical text"),
+    ("W  ←",     "Input",      "Receives one context, fans it to all outputs"),
+)}
+{tip("SPLIT + MERGE is the classic parallel-processing pattern: split into N model branches, each model processes the same input, MERGE collects all responses.")}
+{example_box("PARALLEL REVIEW PATTERN",
+    p('▶ Input → ⑁ SPLIT → ⚡ Reviewer A → ⊕ MERGE → ◈ Intermediate ("Combine the two reviews") → ⚡ Model → ■ Output<br>'
+      '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↘ ⚡ Reviewer B ↗'))}
+
+{h3(badge("⌥ CUSTOM CODE", "#10b981") + " Custom Code")}
+{p("Write arbitrary Python that runs inline during pipeline execution. Full code editor with live syntax checking and a test runner.")}
+{p(f'<b>Available variables:</b><br>'
+   f'&nbsp;&nbsp;• {code("text")} — incoming context string (read-only)<br>'
+   f'&nbsp;&nbsp;• {code("result")} — set this to your output string (defaults to {code("text")} if not set)<br>'
+   f'&nbsp;&nbsp;• {code("metadata")} — block metadata dict, persists across pipeline runs<br>'
+   f'&nbsp;&nbsp;• {code("log(msg)")} — writes a message to the Pipeline Log tab')}
+{p(f'<b>Safe builtins available:</b> {code("len str int float bool list dict tuple range enumerate zip map filter sorted min max sum abs round isinstance hasattr getattr repr type print")}')}
+{note("No file I/O, no network access, no os/subprocess. The exec() is sandboxed. If your code raises an exception the pipeline stops with the error message shown in the Log tab.")}
+{example_box("CODE EXAMPLES",
+    p(f'{code("result = text.upper()")} — uppercase<br>'
+      f'{code("result = \'\\n\'.join(sorted(text.split(\'\\n\')))")} — sort lines<br>'
+      f'{code("result = str(len(text.split())) + \' words: \' + text")} — prepend word count<br>'
+      f'{code("import_count = metadata.get(\'runs\', 0) + 1; metadata[\'runs\'] = import_count; log(f\'Run #{import_count}\')")} — stateful counter'))}
+
+{h2("🧠  LLM Logic Blocks  ( plain English conditions )")}
+{p("LLM logic blocks work identically to their Python counterparts except the condition or instruction is written in <b>plain English</b> and the attached model evaluates it. "
+   "The model is called with a tight system prompt that demands a specific answer format (YES/NO, a category name, PASS/STOP, etc.).")}
+{p(f'<b>Each LLM logic block requires:</b><br>'
+   f'&nbsp;&nbsp;1. A <b>GGUF model</b> selected in the config dialog (can be any registered model).<br>'
+   f'&nbsp;&nbsp;2. A <b>plain English instruction</b> written by you.')}
+{p(f'<b>Advanced settings</b> (expand in the config dialog):<br>'
+   f'&nbsp;&nbsp;• <b>Max response tokens</b> — keep small (16–64) for routing, larger (128–512) for transforms.<br>'
+   f'&nbsp;&nbsp;• <b>Temperature</b> — use 0–15 for deterministic routing, 30–60 for creative transforms.<br>'
+   f'&nbsp;&nbsp;• <b>Show model reasoning in log</b> — logs the raw model response before it is parsed.<br>'
+   f'&nbsp;&nbsp;• <b>Passthrough on error</b> — if the model call fails, pass text through unchanged instead of stopping.')}
+{tip("Use a small fast model (e.g. Qwen2.5-0.5B or TinyLlama) for LLM routing blocks. They only need to say YES/NO — you do not need a 7B model for that.")}
+
+{h3(badge("🧠 LLM IF / ELSE", "#a855f7") + " LLM IF / ELSE")}
+{p("The model reads your condition and the incoming text, then answers with a single word: YES or NO.")}
+{port_table(
+    ("E  →", "Output — TRUE / YES",  "Followed when model answers YES"),
+    ("W  →", "Output — FALSE / NO",  "Followed when model answers NO"),
+)}
+{example_box("CONDITION EXAMPLES",
+    p('• Does this text contain a complaint or expression of frustration?<br>'
+      '• Is the answer longer than a brief paragraph?<br>'
+      '• Does the user seem confused or are they asking a follow-up question?<br>'
+      '• Is this response in English?<br>'
+      '• Does this text contain any personally identifiable information?'))}
+{note("The parser accepts: YES Y TRUE 1 PASS POSITIVE as truthy. Everything else is FALSE. Enable 'Show model reasoning' to debug unexpected routing.")}
+
+{h3(badge("🧠 LLM SWITCH", "#7c3aed") + " LLM SWITCH")}
+{p("The model classifies the text into one of the categories you define. The category names are automatically read from the labels you put on the outgoing arrows.")}
+{port_table(
+    ("E/S/W  →", "Output arms", "One per category — label each arrow with the exact category name"),
+)}
+{example_box("INSTRUCTION EXAMPLES",
+    p('• Classify this text as one of: positive, negative, neutral<br>'
+      '• What language is this written in? english, french, spanish, german, other<br>'
+      '• Is this a question, a complaint, a compliment, or a general statement?<br>'
+      '• Route by topic: technical, billing, account, other<br>'
+      '• What kind of content is this: code, prose, data, mixed?'))}
+{tip("Always include a 'default' or 'other' labelled arrow to catch cases where the model returns something unexpected. The fallback prevents silent drops.")}
+
+{h3(badge("🧠 LLM FILTER", "#6366f1") + " LLM FILTER")}
+{p("The model decides whether the text should continue (PASS) or be dropped (STOP). When dropped the pipeline ends with a structured message explaining which filter stopped it and the model's reason.")}
+{example_box("CONDITION EXAMPLES",
+    p('• Only pass if this is a genuine technical support question<br>'
+      '• Pass only if the response contains a concrete action item<br>'
+      '• Allow through only if the content is safe and not harmful<br>'
+      '• Pass only if the answer is at least two sentences long<br>'
+      '• Block any response that mentions competitor products by name'))}
+{note("The FILTER stop message is displayed in the Output tab with the filter name, condition, model decision, and the original text — so you can inspect exactly what was dropped and why.")}
+
+{h3(badge("🧠 LLM TRANSFORM", "#0ea5e9") + " LLM TRANSFORM")}
+{p("The model rewrites, reformats, or transforms the incoming text according to your instruction. The result replaces the context for all downstream blocks. "
+   "Increase Max response tokens to 256–512 for this block type.")}
+{example_box("INSTRUCTION EXAMPLES",
+    p('• Summarise this in exactly three bullet points, each one sentence<br>'
+      '• Rewrite in a formal professional business tone<br>'
+      '• Extract only the action items as a numbered list<br>'
+      '• Translate to Spanish keeping all technical terms in English<br>'
+      '• Convert this prose into a structured JSON object with keys: title, summary, keywords<br>'
+      '• Remove all filler words and redundant phrases, keep only the core meaning'))}
+{tip("The transform block automatically strips common preamble phrases the model might add (Here is..., Result:, Output:) before passing the result downstream.")}
+
+{h3(badge("🧠 LLM SCORE", "#d946ef") + " LLM SCORE")}
+{p("The model rates the incoming text on your criterion from 1 to 10. The score is parsed from the response and used to route to one of three band arms.")}
+{port_table(
+    ("E  →", "Output — LOW (1–3)",   "Route to escalation, retry, or human review"),
+    ("S  →", "Output — MID (4–7)",   "Route to standard processing"),
+    ("W  →", "Output — HIGH (8–10)", "Route to fast-track or direct output"),
+)}
+{p(f'Label an outgoing arrow {code("score")} to receive the raw numeric score as text instead of the original context — useful for feeding the score into a TRANSFORM or OUTPUT.')}
+{example_box("CRITERION EXAMPLES",
+    p('• Rate the clarity and readability of this explanation (1=very unclear, 10=crystal clear)<br>'
+      '• Score the sentiment positivity (1=very negative, 10=very positive)<br>'
+      '• Rate the technical complexity (1=trivial, 10=expert-level)<br>'
+      '• How complete and thorough is this answer? (1=missing key info, 10=comprehensive)<br>'
+      '• Score the urgency of this message (1=low priority, 10=critical/immediate action needed)'))}
+
+{h2("🔄  Loops")}
+{p("Draw an arrow <b>backwards</b> — from a downstream block to an upstream block. NativeLab detects the cycle and asks how many times the loop should iterate (min 2, max 999). "
+   "Loop arrows are shown as <b>dashed dash-dot lines</b> with a ×N badge at the midpoint.")}
+{p(f'<b>How execution works:</b><br>'
+   f'Each time the pipeline reaches the source block of a loop edge it checks how many times that specific edge has already been followed. '
+   f'Once the limit is reached the edge is skipped and execution continues to the next non-loop outgoing connection.')}
+{example_box("REFINEMENT LOOP PATTERN",
+    p('▶ Input → ⚡ Model → ◈ Intermediate ("Critique the above and list improvements") → ⚡ Model<br>'
+      '(draw a backwards arrow from the second Model back to the first Intermediate, set ×3)<br>'
+      '→ ■ Output'))}
+{tip("Connect a non-loop arrow from the loop body to an Output block to capture the final result after all iterations complete.")}
+
+{h2("💾  Save & Load Pipelines")}
+{p(f'Click <b>💾 Save Pipeline…</b> in the sidebar. Type a name — existing names are overwritten without warning.<br>'
+   f'Click <b>📂 Load Pipeline…</b> to restore a saved pipeline. If the canvas has blocks you will be asked to confirm replacement.<br>'
+   f'Pipelines are stored as JSON in {code("./localllm/pipelines/name.json")}.<br>'
+   f'To delete: Load dialog → select <i>🗑 Delete a pipeline…</i> option.')}
+{p(f'<b>What is saved per block:</b> type, position, size, model path, role, label, all metadata (prompt text, code, conditions, PDF path, etc.).<br>'
+   f'<b>What is saved per connection:</b> from/to block IDs, ports, is_loop flag, loop_times, branch label.')}
+{note("Model files are saved as absolute paths. If you move a .gguf file the pipeline will load but the model block will show 'no valid file' and validation will fail until you re-attach the model.")}
+
+{h2("🐛  Debugging & Troubleshooting")}
+{p(f'<b>📋 Log tab</b> — shows every step: block started, chars processed, decisions made, errors. Always check this first.<br>'
+   f'<b>◈ Intermediate tabs</b> — each intermediate block gets a live tab showing exactly what text arrived at it.<br>'
+   f'<b>■ Output tab</b> — shows the final rendered output with markdown, code highlighting, and bold.')}
+{p(f'<b>Common errors:</b>')}
+{p(f'• <i>No INPUT block</i> — add ▶ Input and connect it to something.<br>'
+   f'• <i>No OUTPUT block</i> — add ■ Output and connect the last block to it.<br>'
+   f'• <i>No connections drawn</i> — you must draw at least one arrow between blocks.<br>'
+   f'• <i>Model block has no valid file</i> — double-click a model in the sidebar or check the file still exists.<br>'
+   f'• <i>Reference / Knowledge has no text</i> — right-click → Configure before running.<br>'
+   f'• <i>IF/ELSE has no condition</i> — right-click → Configure and type a Python expression.<br>'
+   f'• <i>LLM logic block: no model</i> — open config dialog and select a GGUF model.<br>'
+   f'• <i>LLM logic block: model not found</i> — the model file was moved; reconfigure the block.<br>'
+   f'• <i>Engine Not Ready</i> — wait for the primary model to finish loading in the Server tab.<br>'
+   f'• <i>Server HTTP 500</i> — the model is loaded but errored; check the Logs tab in the Server tab for details.<br>'
+   f'• <i>FILTER DROPPED</i> in output — the filter condition was FALSE; check the condition logic or increase tolerance.')}
+{tip("Press ⏹ Stop Execution at any time. The pipeline will finish its current HTTP request and then halt cleanly.")}
+
+{h2("⚡  Performance Tips")}
+{p(f'• Keep context short between models — truncate with a TRANSFORM block before expensive model calls.<br>'
+   f'• Use small models (0.5B–1.5B) for all LLM logic routing blocks. Reserve big models for the actual generation steps.<br>'
+   f'• PDF blocks auto-summarise large documents — but this adds extra model calls. Pre-summarise large PDFs offline if speed matters.<br>'
+   f'• Loop iterations multiply model calls: 3 models × 5 loops = 15 server requests. Plan accordingly.<br>'
+   f'• Set Max response tokens conservatively on routing blocks (16 is enough for YES/NO decisions).')}
+
+</body></html>"""
+
+_PIPELINE_MANUAL_HTML = _make_manual_html()
+
 class PipelineBuilderTab(QWidget):
     """
     Full-featured pipeline builder tab.
@@ -8388,6 +10977,38 @@ class PipelineBuilderTab(QWidget):
         sb_l.addWidget(_block_btn("💡  Knowledge",   PipelineBlockType.KNOWLEDGE,   C["acc2"]))
         sb_l.addWidget(_block_btn("📄  PDF Summary", PipelineBlockType.PDF_SUMMARY, C["pipeline"]))
 
+        sep_logic = QFrame(); sep_logic.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep_logic)
+        sb_l.addWidget(_sec("LOGIC BLOCKS"))
+        sb_l.addWidget(_block_btn("⑂  IF / ELSE",   PipelineBlockType.IF_ELSE,     "#f59e0b"))
+        sb_l.addWidget(_block_btn("⑃  SWITCH",      PipelineBlockType.SWITCH,      "#f97316"))
+        sb_l.addWidget(_block_btn("⊘  FILTER",      PipelineBlockType.FILTER,      "#84cc16"))
+        sb_l.addWidget(_block_btn("⟲  TRANSFORM",   PipelineBlockType.TRANSFORM,   "#06b6d4"))
+        sb_l.addWidget(_block_btn("⊕  MERGE",       PipelineBlockType.MERGE,       "#8b5cf6"))
+        sb_l.addWidget(_block_btn("⑁  SPLIT",       PipelineBlockType.SPLIT,       "#ec4899"))
+
+        sep_code = QFrame(); sep_code.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep_code)
+        sb_l.addWidget(_sec("CUSTOM CODE"))
+        sb_l.addWidget(_block_btn("⌥  Custom Code", PipelineBlockType.CUSTOM_CODE, "#10b981"))
+
+        sep_llm = QFrame(); sep_llm.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep_llm)
+        sb_l.addWidget(_sec("LLM LOGIC  (natural language)"))
+        _llm_note = QLabel(
+            "Conditions & instructions written\n"
+            "in plain English — evaluated by\n"
+            "the block's attached LLM model.")
+        _llm_note.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;"
+            f"padding:4px 2px;line-height:1.5;")
+        sb_l.addWidget(_llm_note)
+        sb_l.addWidget(_block_btn("🧠  LLM IF / ELSE",   PipelineBlockType.LLM_IF,        "#a855f7"))
+        sb_l.addWidget(_block_btn("🧠  LLM SWITCH",      PipelineBlockType.LLM_SWITCH,     "#7c3aed"))
+        sb_l.addWidget(_block_btn("🧠  LLM FILTER",      PipelineBlockType.LLM_FILTER,     "#6366f1"))
+        sb_l.addWidget(_block_btn("🧠  LLM TRANSFORM",   PipelineBlockType.LLM_TRANSFORM,  "#0ea5e9"))
+        sb_l.addWidget(_block_btn("🧠  LLM SCORE",       PipelineBlockType.LLM_SCORE,      "#d946ef"))
+
         sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep1)
 
@@ -8395,6 +11016,10 @@ class PipelineBuilderTab(QWidget):
         self.model_list = QListWidget()
         self.model_list.setObjectName("model_list")
         self.model_list.itemDoubleClicked.connect(self._add_model_from_list)
+        self.model_list.setDragEnabled(True)
+        self.model_list.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
+        self.model_list.setToolTip(
+            "Double-click OR drag onto the canvas to add a model block.")
         sb_l.addWidget(self.model_list, 1)
 
         self.btn_refresh = QPushButton("↻  Refresh")
@@ -8467,8 +11092,17 @@ class PipelineBuilderTab(QWidget):
             (C["warn"],     "◈ Intermediate"),
             (C["err"],      "■ Output"),
             (C["acc"],      "⚡ Model"),
-            (C["pipeline"], "⤵ Loop arrow"),
-            (C["acc2"],     "→ Forward arrow"),
+            ("#f59e0b",     "⑂ IF/ELSE"),
+            ("#06b6d4",     "⟲ Transform"),
+            ("#10b981",     "⌥ Code"),
+            ("#8b5cf6",     "⊕ Merge"),
+            ("#ec4899",     "⑁ Split"),
+            ("#a855f7",     "🧠 LLM-IF"),
+            ("#7c3aed",     "🧠 LLM-SW"),
+            ("#0ea5e9",     "🧠 LLM-TX"),
+            ("#d946ef",     "🧠 LLM-SC"),
+            (C["pipeline"], "⤵ Loop"),
+            (C["acc2"],     "→ Forward"),
         ]
         for col, txt in legend_items:
             lbl = QLabel(txt)
@@ -8478,6 +11112,38 @@ class PipelineBuilderTab(QWidget):
                 f"background:{C['bg2']};border-radius:4px;")
             tb_l.addWidget(lbl)
         centre_l.addWidget(toolbar)
+
+        pill_outer = QWidget()
+        pill_outer.setObjectName("appearance_bar")
+        pill_outer.setFixedHeight(36)
+        pill_outer_l = QHBoxLayout(pill_outer)
+        pill_outer_l.setContentsMargins(8, 3, 8, 3)
+        pill_outer_l.setSpacing(0)
+
+        _pill_icon = QLabel("⚡")
+        _pill_icon.setStyleSheet(f"color:{C['txt3']};font-size:10px;padding-right:4px;")
+        pill_outer_l.addWidget(_pill_icon)
+
+        self._pill_scroll = QScrollArea()
+        self._pill_scroll.setWidgetResizable(True)
+        self._pill_scroll.setFixedHeight(30)
+        self._pill_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._pill_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._pill_scroll.setStyleSheet(
+            "QScrollArea { border:none; background:transparent; }"
+            "QScrollBar:horizontal { height:4px; }")
+
+        self._pill_container = QWidget()
+        self._pill_container.setStyleSheet("background:transparent;")
+        self._pill_layout = QHBoxLayout(self._pill_container)
+        self._pill_layout.setContentsMargins(0, 0, 0, 0)
+        self._pill_layout.setSpacing(5)
+        self._pill_layout.addStretch()
+        self._pill_scroll.setWidget(self._pill_container)
+        pill_outer_l.addWidget(self._pill_scroll, 1)
+        centre_l.addWidget(pill_outer)
 
         canvas_scroll = QScrollArea()
         canvas_scroll.setWidgetResizable(False)
@@ -8497,10 +11163,21 @@ class PipelineBuilderTab(QWidget):
         rp_l.setContentsMargins(12, 14, 12, 14)
         rp_l.setSpacing(7)
 
+        exec_hdr_row = QHBoxLayout(); exec_hdr_row.setSpacing(6)
         exec_hdr = QLabel("▶  Execute Pipeline")
         exec_hdr.setStyleSheet(
             f"color:{C['txt']};font-size:12px;font-weight:700;")
-        rp_l.addWidget(exec_hdr)
+        exec_hdr_row.addWidget(exec_hdr, 1)
+        btn_manual = QPushButton("📖 Manual")
+        btn_manual.setFixedHeight(24)
+        btn_manual.setStyleSheet(
+            f"QPushButton{{background:transparent;color:{C['acc']};"
+            f"border:1px solid {C['acc']};border-radius:5px;"
+            f"font-size:10px;font-weight:600;padding:0 8px;}}"
+            f"QPushButton:hover{{background:{C['acc']};color:#fff;}}")
+        btn_manual.clicked.connect(self._show_manual)
+        exec_hdr_row.addWidget(btn_manual)
+        rp_l.addLayout(exec_hdr_row)
 
         # Server status badge (auto-refreshed every 2.5 s)
         self.server_badge = QLabel("⚪  Engine status unknown")
@@ -8566,6 +11243,55 @@ class PipelineBuilderTab(QWidget):
         self._refresh_models()
 
     # ── helpers ───────────────────────────────────────────────────────────────
+
+    def _refresh_models(self):
+        """Show the pipeline builder manual in a scrollable dialog."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("📖  Pipeline Builder Manual")
+        dlg.setMinimumSize(680, 580)
+        dlg.resize(740, 640)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(0, 0, 0, 0)
+
+        te = QTextEdit()
+        te.setReadOnly(True)
+        te.setFont(QFont("Inter", 11))
+        te.setObjectName("chat_te")
+        te.setHtml(_PIPELINE_MANUAL_HTML)
+        lay.addWidget(te, 1)
+
+        btn_close = QPushButton("✕  Close")
+        btn_close.setFixedHeight(32)
+        btn_close.clicked.connect(dlg.accept)
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(12, 8, 12, 12)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_close)
+        lay.addLayout(btn_row)
+        dlg.exec()
+
+    def _show_manual(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("📖  Pipeline Builder Manual")
+        dlg.setMinimumSize(680, 580)
+        dlg.resize(740, 640)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(0, 0, 0, 0)
+        te = QTextEdit()
+        te.setReadOnly(True)
+        te.setFont(QFont("Inter", 11))
+        te.setObjectName("chat_te")
+        te.setHtml(_make_manual_html())
+        lay.addWidget(te, 1)
+        btn_close = QPushButton("✕  Close")
+        btn_close.setFixedHeight(32)
+        btn_close.clicked.connect(dlg.accept)
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(12, 8, 12, 12)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_close)
+        lay.addLayout(btn_row)
+        dlg.exec()
 
     def _refresh_models(self):
         self.model_list.clear()
@@ -8680,6 +11406,22 @@ class PipelineBuilderTab(QWidget):
                      PipelineBlockType.KNOWLEDGE,
                      PipelineBlockType.PDF_SUMMARY):
             self.canvas._configure_context_block(b)
+        # Immediately prompt configuration for logic blocks
+        _LOGIC_BTYPES = {
+            PipelineBlockType.IF_ELSE, PipelineBlockType.SWITCH,
+            PipelineBlockType.FILTER,  PipelineBlockType.TRANSFORM,
+            PipelineBlockType.MERGE,   PipelineBlockType.CUSTOM_CODE,
+        }
+        if btype in _LOGIC_BTYPES:
+            self.canvas._configure_logic_block(b)
+        # Immediately open LLM logic editor
+        _LLM_BTYPES = {
+            PipelineBlockType.LLM_IF, PipelineBlockType.LLM_SWITCH,
+            PipelineBlockType.LLM_FILTER, PipelineBlockType.LLM_TRANSFORM,
+            PipelineBlockType.LLM_SCORE,
+        }
+        if btype in _LLM_BTYPES:
+            self.canvas._configure_llm_logic_block(b)
 
     def _add_model_from_list(self, item: QListWidgetItem):
         path = item.data(Qt.ItemDataRole.UserRole)
@@ -8709,7 +11451,61 @@ class PipelineBuilderTab(QWidget):
             self.output_edit.clear()
 
     def _on_blocks_changed(self):
-        """Sync intermediate live-output tabs with current canvas blocks."""
+        """Sync intermediate live-output tabs and pill bar with current canvas blocks."""
+        # ── Refresh pill bar ──────────────────────────────────────────────────
+        _PILL_BTYPES = {
+            PipelineBlockType.MODEL,
+            PipelineBlockType.LLM_IF, PipelineBlockType.LLM_SWITCH,
+            PipelineBlockType.LLM_FILTER, PipelineBlockType.LLM_TRANSFORM,
+            PipelineBlockType.LLM_SCORE,
+            PipelineBlockType.IF_ELSE, PipelineBlockType.SWITCH,
+            PipelineBlockType.FILTER, PipelineBlockType.TRANSFORM,
+            PipelineBlockType.CUSTOM_CODE,
+        }
+        _PILL_COLORS = {
+            PipelineBlockType.MODEL:        C["acc"],
+            PipelineBlockType.IF_ELSE:      "#f59e0b",
+            PipelineBlockType.SWITCH:       "#f97316",
+            PipelineBlockType.FILTER:       "#84cc16",
+            PipelineBlockType.TRANSFORM:    "#06b6d4",
+            PipelineBlockType.CUSTOM_CODE:  "#10b981",
+            PipelineBlockType.LLM_IF:       "#a855f7",
+            PipelineBlockType.LLM_SWITCH:   "#7c3aed",
+            PipelineBlockType.LLM_FILTER:   "#6366f1",
+            PipelineBlockType.LLM_TRANSFORM:"#0ea5e9",
+            PipelineBlockType.LLM_SCORE:    "#d946ef",
+        }
+        # Clear old pills
+        while self._pill_layout.count() > 1:  # keep final stretch
+            item = self._pill_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        # Add one pill per relevant block
+        _pill_blocks = [b for b in self.canvas.blocks if b.btype in _PILL_BTYPES]
+        if not _pill_blocks:
+            _empty = QLabel("No model or logic blocks yet — drag from sidebar or click buttons")
+            _empty.setStyleSheet(f"color:{C['txt3']};font-size:9px;padding:2px 6px;")
+            self._pill_layout.insertWidget(0, _empty)
+        else:
+            for _pb in _pill_blocks:
+                _col = _PILL_COLORS.get(_pb.btype, C["acc"])
+                _pill = QPushButton(_pb.label)
+                _pill.setFixedHeight(22)
+                _pill.setStyleSheet(
+                    f"QPushButton{{background:transparent;color:{_col};"
+                    f"border:1px solid {_col};border-radius:10px;"
+                    f"font-size:10px;font-weight:600;padding:0 8px;}}"
+                    f"QPushButton:hover{{background:{_col};color:#fff;}}")
+                # Clicking the pill selects + centres the block on canvas
+                def _make_jump(blk):
+                    def _jump():
+                        self.canvas._selected = blk
+                        self.canvas.update()
+                    return _jump
+                _pill.clicked.connect(_make_jump(_pb))
+                self._pill_layout.insertWidget(self._pill_layout.count() - 1, _pill)
+
+        # ── Existing: sync intermediate live-output tabs ──────────────────────
         existing_inter_ids = {b.bid for b in self.canvas.blocks
                               if b.btype == PipelineBlockType.INTERMEDIATE}
         # Remove tabs for deleted intermediate blocks
@@ -8761,6 +11557,36 @@ class PipelineBuilderTab(QWidget):
             if b.btype == PipelineBlockType.PDF_SUMMARY and not meta.get("pdf_path"):
                 return (f"PDF block '{b.label}' has no PDF selected.\n"
                         f"Right-click it → Configure block…")
+            # Logic blocks
+            if b.btype == PipelineBlockType.IF_ELSE and not meta.get("condition"):
+                return (f"IF/ELSE block '{b.label}' has no condition set.\n"
+                        f"Right-click it → Configure block…")
+            if b.btype == PipelineBlockType.SWITCH and not meta.get("switch_expr"):
+                return (f"SWITCH block '{b.label}' has no expression set.\n"
+                        f"Right-click it → Configure block…")
+            if b.btype == PipelineBlockType.FILTER and not meta.get("filter_cond"):
+                return (f"FILTER block '{b.label}' has no condition set.\n"
+                        f"Right-click it → Configure block…")
+            if b.btype == PipelineBlockType.TRANSFORM and not meta.get("transform_type"):
+                return (f"TRANSFORM block '{b.label}' has no transform type set.\n"
+                        f"Right-click it → Configure block…")
+            if b.btype == PipelineBlockType.CUSTOM_CODE and not meta.get("custom_code","").strip():
+                return (f"Custom Code block '{b.label}' has no code.\n"
+                        f"Right-click it → Configure block…")
+            # LLM logic blocks
+            _LLM_BTYPES_V = {
+                PipelineBlockType.LLM_IF, PipelineBlockType.LLM_SWITCH,
+                PipelineBlockType.LLM_FILTER, PipelineBlockType.LLM_TRANSFORM,
+                PipelineBlockType.LLM_SCORE,
+            }
+            if b.btype in _LLM_BTYPES_V:
+                if not meta.get("llm_instruction", "").strip():
+                    return (f"LLM logic block '{b.label}' has no instruction.\n"
+                            f"Right-click it → Configure block…")
+                mp = b.model_path or meta.get("llm_model_path", "")
+                if not mp or not Path(mp).exists():
+                    return (f"LLM logic block '{b.label}' has no valid model attached.\n"
+                            f"Right-click it → Configure block… and select a model.")
         # Model blocks must have a valid file
         for b in blocks:
             if b.btype == PipelineBlockType.MODEL:
@@ -9579,6 +12405,14 @@ class MainWindow(QMainWindow):
         self.api_tab = ApiModelsTab()
         self.api_tab.api_model_loaded.connect(self._on_api_model_loaded)
         self.tabs.addTab(self.api_tab, "🌐  API Models")
+
+        # ── Model Download tab ──
+        self.download_tab = ModelDownloadTab()
+        self.tabs.addTab(self.download_tab, "⬇️  Download")
+
+        # ── MCP tab ──
+        self.mcp_tab = McpTab()
+        self.tabs.addTab(self.mcp_tab, "🔌  MCP")
 
         # ── Logs tab ──
         self.log_console = LogConsole()
@@ -11486,6 +14320,20 @@ class MainWindow(QMainWindow):
         self.server_tab.config_changed.connect(
             lambda: self._log("INFO", "Server config updated."))
         self.tabs.insertTab(srv_idx, self.server_tab, "🖥️  Server")
+
+        # Rebuild Download tab
+        dl_idx = self.tabs.indexOf(self.download_tab)
+        self.download_tab.setParent(None)
+        self.download_tab.deleteLater()
+        self.download_tab = ModelDownloadTab()
+        self.tabs.insertTab(dl_idx, self.download_tab, "⬇️  Download")
+
+        # Rebuild MCP tab
+        mcp_idx = self.tabs.indexOf(self.mcp_tab)
+        self.mcp_tab.setParent(None)
+        self.mcp_tab.deleteLater()
+        self.mcp_tab = McpTab()
+        self.tabs.insertTab(mcp_idx, self.mcp_tab, "🔌  MCP")
 
         # Rebuild Logs tab
         log_idx = self.tabs.indexOf(self.log_console)
