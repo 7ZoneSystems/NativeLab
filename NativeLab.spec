@@ -11,9 +11,8 @@ a = Analysis(
     ['nativelab.py'],           # ← rename to your actual .py filename
     pathex=['.'],
     binaries=[
-        # ── llama.cpp binaries (Linux) ─────────────────────────────────────
-        ('llama/bin/llama-cli',    'llama-bin'),
-        ('llama/bin/llama-server', 'llama-bin'),
+        ('llama/bin/llama-cli.exe',    'llama-bin'),
+        ('llama/bin/llama-server.exe', 'llama-bin'),
     ],
     datas=[
         # ── Icons ──────────────────────────────────────────────────────────
