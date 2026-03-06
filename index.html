@@ -84,7 +84,7 @@
     /* ── HERO ── */
     #hero {
       min-height: 100vh;
-      display: flex; flex-direction: column; justify-content: center;
+      display: flex; align-items: center;
       padding: 120px 5vw 80px;
       position: relative;
       overflow: hidden;
@@ -95,7 +95,12 @@
         radial-gradient(ellipse 70% 60% at 80% 30%, rgba(61,90,71,0.06) 0%, transparent 60%),
         radial-gradient(ellipse 50% 40% at 20% 80%, rgba(201,168,76,0.05) 0%, transparent 55%);
     }
-    .hero-inner { position: relative; z-index: 1; max-width: 780px; }
+    .hero-inner {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; gap: 4rem;
+      width: 100%; max-width: 1200px; margin: 0 auto;
+    }
+    .hero-copy { flex: 1 1 480px; min-width: 0; }
     .hero-icon-wrap { margin-bottom: 1.6rem; }
     .hero-icon {
       width: 72px; height: 72px;
@@ -157,10 +162,9 @@
     .btn-secondary:hover { border-color: var(--ink); }
 
     .hero-fig {
-      position: absolute; right: 4vw; top: 50%; transform: translateY(-50%);
-      width: min(420px, 40vw);
+      flex: 0 0 auto;
+      width: min(420px, 38vw);
       opacity: 0.9;
-      display: flex; flex-direction: column; gap: 0.5rem;
       pointer-events: none;
     }
     @media (max-width: 900px) { .hero-fig { display: none; } }
