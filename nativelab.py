@@ -31,9 +31,10 @@ from PyQt6.QtWidgets import (
     QSizePolicy, QLineEdit, QSlider, QCheckBox, QGroupBox, QTextBrowser, QColorDialog
 )
 from PyQt6.QtGui import (
-    QFont, QColor, QTextCursor, QAction, QKeySequence, QIcon
+    QFont, QColor, QTextCursor, QAction, QKeySequence, QIcon, QPainter, QPen, QBrush, QColor, QPainterPath, QPolygonF, QLinearGradient
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QRect, QPointF, QPropertyAnimation, QEasingCurve, pyqtProperty
+from PyQt6.QtWidgets import QGraphicsOpacityEffect
 
 # ── optional deps ─────────────────────────────────────────────────────────────
 try:
@@ -146,6 +147,7 @@ CUSTOM_MODELS_FILE  = Path("./localllm/custom_models.json")
 MODEL_CONFIGS_FILE  = Path("./localllm/model_configs.json")
 PARALLEL_PREFS_FILE  = Path("./localllm/parallel_prefs.json")
 SERVER_CONFIG_FILE   = Path("./localllm/server_config.json")
+API_MODELS_FILE      = Path("./localllm/api_models.json")
 
 # ── model roles ───────────────────────────────────────────────────────────────
 MODEL_ROLES = ["general", "reasoning", "summarization", "coding", "secondary"]
@@ -1399,6 +1401,126 @@ class ModelRegistry:
 
 MODEL_REGISTRY = ModelRegistry()
 
+# ═════════════════════════════ API MODEL REGISTRY ════════════════════════════
+
+API_PROVIDERS: Dict[str, Dict] = {
+    "OpenAI":     {"base_url": "https://api.openai.com/v1",          "format": "openai",
+                   "models": ["gpt-4o","gpt-4o-mini","o1","o1-mini","o3-mini","gpt-4-turbo","gpt-3.5-turbo"]},
+    "Anthropic":  {"base_url": "https://api.anthropic.com",           "format": "anthropic",
+                   "models": ["claude-opus-4-5","claude-sonnet-4-5","claude-haiku-4-5",
+                               "claude-3-5-sonnet-20241022","claude-3-haiku-20240307"]},
+    "Groq":       {"base_url": "https://api.groq.com/openai/v1",      "format": "openai",
+                   "models": ["llama-3.3-70b-versatile","llama-3.1-70b-versatile",
+                               "llama-3.1-8b-instant","mixtral-8x7b-32768","gemma2-9b-it"]},
+    "Mistral":    {"base_url": "https://api.mistral.ai/v1",           "format": "openai",
+                   "models": ["mistral-large-latest","mistral-medium-latest",
+                               "mistral-small-latest","codestral-latest"]},
+    "Together AI":{"base_url": "https://api.together.xyz/v1",         "format": "openai",
+                   "models": ["meta-llama/Llama-3.3-70B-Instruct-Turbo",
+                               "meta-llama/Llama-3.1-8B-Instruct-Turbo",
+                               "mistralai/Mixtral-8x7B-Instruct-v0.1",
+                               "Qwen/Qwen2.5-72B-Instruct-Turbo"]},
+    "OpenRouter": {"base_url": "https://openrouter.ai/api/v1",        "format": "openai",
+                   "models": ["openai/gpt-4o","anthropic/claude-3.5-sonnet",
+                               "meta-llama/llama-3.3-70b-instruct",
+                               "google/gemini-pro-1.5","deepseek/deepseek-r1"]},
+    "Ollama":     {"base_url": "http://localhost:11434/v1",            "format": "openai",
+                   "models": ["llama3.2","llama3.1","qwen2.5","phi4","mistral","deepseek-r1"]},
+    "Custom":     {"base_url": "",                                     "format": "openai",
+                   "models": []},
+}
+
+
+PROMPT_TEMPLATES: Dict[str, Dict] = {
+    "default":   {"label": "Default (provider handles it)",
+                  "system": "", "user_prefix": "", "user_suffix": "",
+                  "assistant_prefix": ""},
+    "chatml":    {"label": "ChatML  (OpenHermes, Qwen, etc.)",
+                  "system": "You are a helpful assistant.",
+                  "user_prefix": "<|im_start|>user\n", "user_suffix": "<|im_end|>\n",
+                  "assistant_prefix": "<|im_start|>assistant\n"},
+    "llama2":    {"label": "Llama-2 Chat",
+                  "system": "You are a helpful assistant.",
+                  "user_prefix": "[INST] ", "user_suffix": " [/INST]",
+                  "assistant_prefix": ""},
+    "alpaca":    {"label": "Alpaca / Vicuna",
+                  "system": "Below is an instruction that describes a task. Write a response.",
+                  "user_prefix": "### Instruction:\n", "user_suffix": "\n### Response:\n",
+                  "assistant_prefix": ""},
+    "gemma":     {"label": "Gemma",
+                  "system": "",
+                  "user_prefix": "<start_of_turn>user\n", "user_suffix": "<end_of_turn>\n",
+                  "assistant_prefix": "<start_of_turn>model\n"},
+    "phi3":      {"label": "Phi-3",
+                  "system": "",
+                  "user_prefix": "<|user|>\n", "user_suffix": "<|end|>\n",
+                  "assistant_prefix": "<|assistant|>\n"},
+    "custom":    {"label": "Custom (fill in below)",
+                  "system": "", "user_prefix": "", "user_suffix": "",
+                  "assistant_prefix": ""},
+}
+
+
+@dataclass
+class ApiConfig:
+    name:        str   = ""
+    provider:    str   = "OpenAI"
+    model_id:    str   = ""
+    api_key:     str   = ""
+    base_url:    str   = ""
+    api_format:  str   = "openai"
+    max_tokens:  int   = 2048
+    temperature: float = 0.7
+    # ── custom prompt format ─────────────────────────────────────────────────
+    use_custom_prompt:   bool = False
+    system_prompt:       str  = ""
+    user_prefix:         str  = ""
+    user_suffix:         str  = ""
+    assistant_prefix:    str  = ""
+    prompt_template:     str  = "default"   # "default"|"chatml"|"llama2"|"alpaca"|"custom"
+    # ── custom provider display ──────────────────────────────────────────────
+    custom_provider_name: str = ""
+
+    def to_dict(self) -> Dict:
+        return {k: getattr(self, k) for k in self.__dataclass_fields__}
+
+    @classmethod
+    def from_dict(cls, d: Dict) -> "ApiConfig":
+        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+
+
+class ApiRegistry:
+    def __init__(self):
+        self._configs: List[ApiConfig] = []
+        self._load()
+
+    def _load(self):
+        if API_MODELS_FILE.exists():
+            try:
+                self._configs = [ApiConfig.from_dict(d)
+                                 for d in json.loads(API_MODELS_FILE.read_text())]
+            except Exception:
+                self._configs = []
+
+    def save(self):
+        API_MODELS_FILE.write_text(
+            json.dumps([c.to_dict() for c in self._configs], indent=2))
+
+    def add(self, cfg: ApiConfig):
+        self._configs = [c for c in self._configs if c.name != cfg.name]
+        self._configs.append(cfg)
+        self.save()
+
+    def remove(self, name: str):
+        self._configs = [c for c in self._configs if c.name != name]
+        self.save()
+
+    def all(self) -> List[ApiConfig]:
+        return list(self._configs)
+
+
+API_REGISTRY = ApiRegistry()
+
 # ═════════════════════════════ PARALLEL LOADING PREFS ═══════════════════════
 
 @dataclass
@@ -1759,6 +1881,116 @@ class CliStreamWorker(QThread):
         if self.proc:
             try: self.proc.terminate()
             except OSError: pass
+
+
+class ApiStreamWorker(QThread):
+    """Streams tokens from any OpenAI-compatible or Anthropic API endpoint."""
+    token = pyqtSignal(str)
+    done  = pyqtSignal(float)
+    err   = pyqtSignal(str)
+
+    def __init__(self, messages: list, api_key: str, base_url: str,
+                 model_id: str, api_format: str = "openai",
+                 max_tokens: int = 1024, temperature: float = 0.7):
+        super().__init__()
+        self.messages    = messages
+        self.api_key     = api_key
+        self.base_url    = base_url.rstrip("/")
+        self.model_id    = model_id
+        self.api_format  = api_format
+        self.max_tokens  = max_tokens
+        self.temperature = temperature
+        self._abort      = False
+
+    def run(self):
+        import urllib.request, urllib.error
+        t0 = time.time()
+        n  = 0
+        try:
+            # Apply custom prompt wrapping when requested
+            if getattr(self, "use_custom_prompt", False) and self.messages:
+                up  = getattr(self, "user_prefix", "")
+                us  = getattr(self, "user_suffix", "")
+                ap  = getattr(self, "assistant_prefix", "")
+                sys = getattr(self, "system_prompt", "")
+                wrapped = []
+                if sys:
+                    wrapped.append({"role": "system", "content": sys})
+                for m in self.messages:
+                    if m["role"] == "user":
+                        wrapped.append({"role": "user",
+                                        "content": f"{up}{m['content']}{us}"})
+                    elif m["role"] == "assistant":
+                        wrapped.append({"role": "assistant",
+                                        "content": f"{ap}{m['content']}"})
+                    else:
+                        wrapped.append(m)
+                self.messages = wrapped
+
+            if self.api_format == "anthropic":
+                # ── Anthropic streaming ───────────────────────────────────────
+                sys_msg = next((m["content"] for m in self.messages
+                                if m["role"] == "system"), "")
+                msgs    = [m for m in self.messages if m["role"] != "system"]
+                body    = json.dumps({
+                    "model":      self.model_id,
+                    "messages":   msgs,
+                    "stream":     True,
+                    "max_tokens": self.max_tokens,
+                    **({"system": sys_msg} if sys_msg else {}),
+                }).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{self.base_url}/v1/messages", data=body,
+                    headers={"Content-Type": "application/json",
+                             "x-api-key": self.api_key,
+                             "anthropic-version": "2023-06-01"})
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    for raw in resp:
+                        if self._abort: break
+                        line = raw.decode("utf-8", errors="replace").strip()
+                        if not line.startswith("data: "): continue
+                        try:
+                            obj = json.loads(line[6:])
+                            tok = obj.get("delta", {}).get("text", "")
+                            if tok:
+                                n += 1; self.token.emit(tok)
+                        except Exception:
+                            pass
+            else:
+                # ── OpenAI-compatible streaming ───────────────────────────────
+                body = json.dumps({
+                    "model":       self.model_id,
+                    "messages":    self.messages,
+                    "stream":      True,
+                    "max_tokens":  self.max_tokens,
+                    "temperature": self.temperature,
+                }).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{self.base_url}/chat/completions", data=body,
+                    headers={"Content-Type": "application/json",
+                             "Authorization": f"Bearer {self.api_key}"})
+                with urllib.request.urlopen(req, timeout=120) as resp:
+                    for raw in resp:
+                        if self._abort: break
+                        line = raw.decode("utf-8", errors="replace").strip()
+                        if not line.startswith("data: "): continue
+                        data = line[6:]
+                        if data == "[DONE]": break
+                        try:
+                            obj = json.loads(data)
+                            tok = (obj.get("choices", [{}])[0]
+                                      .get("delta", {}).get("content") or "")
+                            if tok:
+                                n += 1; self.token.emit(tok)
+                        except Exception:
+                            pass
+            elapsed = time.time() - t0
+            self.done.emit(n / elapsed if elapsed > 0 else 0.0)
+        except Exception as e:
+            self.err.emit(str(e))
+
+    def abort(self):
+        self._abort = True
 
 
 # ── Pipeline Worker: Reasoning → Coding chain ─────────────────────────────────
@@ -2523,6 +2755,102 @@ class LlamaEngine:
         except Exception: pass
         self.server_proc = None
         return False
+
+
+class ApiEngine:
+    """Drop-in replacement for LlamaEngine that routes inference to a cloud/local API."""
+
+    def __init__(self):
+        self.model_path:           str               = ""
+        self.mode:                 str               = "unloaded"
+        self.ctx_value:            int               = 8192
+        self._config:    Optional[ApiConfig]         = None
+        self._pending_messages: List[Dict]           = []
+        self._log = lambda m: None
+
+    def set_messages(self, messages: List[Dict]):
+        """Store structured messages to be used by the next create_worker call."""
+        self._pending_messages = list(messages)
+
+    def load(self, config: ApiConfig, log_cb=None) -> bool:
+        self._config  = config
+        self._log     = log_cb or (lambda m: None)
+        self.model_path = f"@api/{config.provider.lower().replace(' ', '_')}/{config.model_id}"
+        self.ctx_value  = config.max_tokens * 6
+        try:
+            import urllib.request, urllib.error
+            msgs = [{"role": "user", "content": "hi"}]
+            if config.api_format == "anthropic":
+                body = json.dumps({"model": config.model_id, "messages": msgs,
+                                   "max_tokens": 1, "stream": False}).encode()
+                req  = urllib.request.Request(
+                    f"{config.base_url.rstrip('/')}/v1/messages", data=body,
+                    headers={"Content-Type": "application/json",
+                             "x-api-key": config.api_key,
+                             "anthropic-version": "2023-06-01"})
+            else:
+                body = json.dumps({"model": config.model_id, "messages": msgs,
+                                   "max_tokens": 1, "stream": False}).encode()
+                req  = urllib.request.Request(
+                    f"{config.base_url.rstrip('/')}/chat/completions", data=body,
+                    headers={"Content-Type": "application/json",
+                             "Authorization": f"Bearer {config.api_key}"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                r.read()
+            self.mode = "api"
+            self._log(f"[INFO] API model verified: {config.model_id}")
+            return True
+        except Exception as e:
+            self._log(f"[ERROR] API test failed: {e}")
+            self.mode = "unloaded"
+            return False
+
+    def create_worker(self, prompt: str, n_predict: int = DEFAULT_N_PRED,
+                      model_path: str = "") -> QThread:
+        cfg  = self._config
+        if self._pending_messages:
+            msgs = list(self._pending_messages)
+            self._pending_messages = []
+        else:
+            msgs = [{"role": "user", "content": prompt}]
+        w = ApiStreamWorker(
+            messages    = msgs,
+            api_key     = cfg.api_key,
+            base_url    = cfg.base_url,
+            model_id    = cfg.model_id,
+            api_format  = cfg.api_format,
+            max_tokens  = min(n_predict, cfg.max_tokens),
+            temperature = cfg.temperature,
+        )
+        if cfg.use_custom_prompt:
+            w.use_custom_prompt  = True
+            w.system_prompt      = cfg.system_prompt
+            w.user_prefix        = cfg.user_prefix
+            w.user_suffix        = cfg.user_suffix
+            w.assistant_prefix   = cfg.assistant_prefix
+        return w
+
+    def ensure_server(self, log_cb=None) -> bool:
+        return self.is_loaded
+
+    def ensure_server_or_reload(self, log_cb=None) -> bool:
+        return self.is_loaded
+
+    def shutdown(self):
+        self.mode             = "unloaded"
+        self._config          = None
+        self._pending_messages = []
+
+    @property
+    def is_loaded(self) -> bool:
+        return self.mode == "api"
+
+    @property
+    def status_text(self) -> str:
+        if self._config:
+            return f"🌐 {self._config.provider}  ·  {self._config.model_id}"
+        return "⚪ API Not Connected"
+
 
 # ═════════════════════════════ REFERENCE ENGINE ══════════════════════════════
 
@@ -4093,6 +4421,10 @@ class MessageWidget(QWidget):
         self.bubble = QFrame()
         if role == "user":
             self.bubble.setObjectName("bubble_user")
+        elif role == "system_note":
+            self.bubble.setObjectName("bubble_ast")
+        elif role == "pipeline_intermediate":
+            self.bubble.setObjectName("bubble_rsn")
         elif tag == "🧠 Reasoning":
             self.bubble.setObjectName("bubble_rsn")
         elif "Coding" in (tag or ""):
@@ -4109,9 +4441,14 @@ class MessageWidget(QWidget):
 
         # ── header row ───────────────────────────────────────────────────────
         hdr = QHBoxLayout(); hdr.setSpacing(8)
-        name_text  = "You" if role == "user" else (tag or "Assistant")
+        name_text  = "You" if role == "user" else (
+                     "⚡ System" if role == "system_note" else (
+                     "◈ Intermediate" if role == "pipeline_intermediate" else (
+                     tag or "Assistant")))
         name_color = (C["acc"] if role == "user" else
-                      (C["pipeline"] if tag == "🧠 Reasoning" else C["ok"]))
+                      (C["txt2"] if role == "system_note" else
+                       (C["warn"] if role == "pipeline_intermediate" else
+                        (C["pipeline"] if tag == "🧠 Reasoning" else C["ok"]))))
         name_lbl   = QLabel(name_text)
         name_lbl.setStyleSheet(
             f"color:{name_color};font-weight:700;font-size:11px;letter-spacing:0.3px;")
@@ -4874,6 +5211,49 @@ class ReferencePanel(QWidget):
     def get_context_for(self, query: str) -> str:
         return self._store.build_context_block(query)
 
+def _fade_in(widget: QWidget, duration: int = 180):
+    """Fade a widget in. Skipped if widget has its own paintEvent (avoids QPainter conflicts)."""
+    # PipelineCanvas and other custom-painted widgets must not get opacity effects
+    if type(widget).__name__ in ("PipelineCanvas", "ThinkingBlock"):
+        return
+    try:
+        effect = QGraphicsOpacityEffect(widget)
+        widget.setGraphicsEffect(effect)
+        anim = QPropertyAnimation(effect, b"opacity", widget)
+        anim.setDuration(duration)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+    except Exception:
+        pass
+
+
+class _FadeOverlay(QWidget):
+    """Full-size overlay for tab-switch fade.
+    Uses its own paintEvent — never touches QGraphicsOpacityEffect,
+    so no QPainter conflicts with PipelineCanvas or other custom painters."""
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self._alpha = 0
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.hide()
+
+    def _get_alpha(self): return self._alpha
+    def _set_alpha(self, v: int):
+        self._alpha = max(0, min(255, v))
+        self.update()
+    alpha = pyqtProperty(int, _get_alpha, _set_alpha)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        col = QColor(C["bg0"])
+        col.setAlpha(self._alpha)
+        p.fillRect(self.rect(), col)
+        p.end()
+
+
 class ChatArea(QScrollArea):
     def __init__(self):
         super().__init__()
@@ -4885,16 +5265,33 @@ class ChatArea(QScrollArea):
         self._vbox = QVBoxLayout()
         self._vbox.setContentsMargins(0, 12, 0, 12)
         self._vbox.setSpacing(2)
+
+        # ── empty-state placeholder ───────────────────────────────────────────
+        self._placeholder = QLabel("Hi, message me up\nwhen you are ready.")
+        self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._placeholder.setStyleSheet(
+            f"color:{C['txt3']};font-size:22px;font-weight:300;"
+            f"letter-spacing:0.4px;padding:60px 40px;")
         self._vbox.addStretch()
+        self._vbox.addWidget(self._placeholder, 0, Qt.AlignmentFlag.AlignCenter)
+        self._vbox.addStretch()
+
         self._container.setLayout(self._vbox)
         self.setWidget(self._container)
         self._widgets: List[QWidget] = []
+
+    def _show_placeholder(self, visible: bool):
+        self._placeholder.setVisible(visible)
+        if visible:
+            _fade_in(self._placeholder, 300)
 
     def add_message(self, role: str, content: str, timestamp: str,
                     tag: str = "") -> MessageWidget:
         w = MessageWidget(role, content, timestamp, tag=tag)
         self._vbox.insertWidget(self._vbox.count() - 1, w)
         self._widgets.append(w)
+        _fade_in(w, 220)
+        self._show_placeholder(False)
         QTimer.singleShot(30, self._scroll_bottom)
         return w
 
@@ -4921,6 +5318,7 @@ class ChatArea(QScrollArea):
             self._vbox.removeWidget(w)
             w.deleteLater()
         self._widgets.clear()
+        self._show_placeholder(True)
 
     def _scroll_bottom(self):
         try:
@@ -5070,11 +5468,30 @@ class ChatModule(QWidget):
 
     def _toggle_refs(self, checked: bool):
         self._refs_visible = checked
-        self.ref_panel.setVisible(checked)
+        TARGET_W = 260
         if checked:
-            self.main_splitter.setSizes([800, 260])
+            self.ref_panel.setVisible(True)
+            self.ref_panel.setMaximumWidth(0)
+            self.main_splitter.setSizes([800, TARGET_W])
+            anim = QPropertyAnimation(self.ref_panel, b"maximumWidth", self)
+            anim.setDuration(240)
+            anim.setStartValue(0)
+            anim.setEndValue(TARGET_W)
+            anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+            anim.finished.connect(lambda: self.ref_panel.setMaximumWidth(16777215))
+            anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
         else:
-            self.main_splitter.setSizes([1, 0])
+            anim = QPropertyAnimation(self.ref_panel, b"maximumWidth", self)
+            anim.setDuration(200)
+            anim.setStartValue(self.ref_panel.width())
+            anim.setEndValue(0)
+            anim.setEasingCurve(QEasingCurve.Type.InCubic)
+            anim.finished.connect(lambda: (
+                self.ref_panel.setVisible(False),
+                self.ref_panel.setMaximumWidth(16777215),
+                self.main_splitter.setSizes([1, 0])
+            ))
+            anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
 
     def _on_send(self, text: str):
         ref_ctx = self.ref_panel.get_context_for(text)
@@ -5104,10 +5521,11 @@ class ChatModule(QWidget):
         self.input_bar.set_pipeline_mode(active)
 
 class InputBar(QWidget):
-    send_requested  = pyqtSignal(str)
-    stop_requested  = pyqtSignal()
-    pdf_requested   = pyqtSignal()
-    clear_requested = pyqtSignal()
+    send_requested       = pyqtSignal(str)
+    stop_requested       = pyqtSignal()
+    pdf_requested        = pyqtSignal()
+    clear_requested      = pyqtSignal()
+    pipeline_run_requested = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -5184,6 +5602,17 @@ class InputBar(QWidget):
         self.send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.send_btn.clicked.connect(self._emit_send)
 
+        self.btn_pipeline_run = QPushButton("🔗  Pipeline")
+        self.btn_pipeline_run.setObjectName("btn_pipeline")
+        self.btn_pipeline_run.setFixedHeight(36)
+        self.btn_pipeline_run.setToolTip("Run a saved pipeline on your current input")
+        self.btn_pipeline_run.clicked.connect(self.pipeline_run_requested)
+        self.btn_pipeline_run.setStyleSheet(
+            f"QPushButton{{background:transparent;"
+            f"color:{C['pipeline']};border:1px solid {C['pipeline']};"
+            f"border-radius:6px;font-size:11px;font-weight:600;}}"
+            f"QPushButton:hover{{background:{C['pipeline']};color:#fff;}}")
+
         self.stop_btn = QPushButton("⏹  Stop")
         self.stop_btn.setObjectName("btn_stop")
         self.stop_btn.setFixedSize(90, 52)
@@ -5193,6 +5622,7 @@ class InputBar(QWidget):
 
         row.addWidget(self.input, 1)
         row.addWidget(self.send_btn)
+        row.addWidget(self.btn_pipeline_run)
         row.addWidget(self.stop_btn)
         root.addLayout(row)
         self.setLayout(root)
@@ -6618,6 +7048,2271 @@ class ServerTab(QWidget):
         self._update_srv_status()
 
 
+# ═════════════════════════════ PIPELINE BUILDER ══════════════════════════════
+
+import math as _math
+
+class PipelineBlockType:
+    INPUT        = "input"
+    OUTPUT       = "output"
+    MODEL        = "model"
+    INTERMEDIATE = "intermediate"
+    REFERENCE    = "reference"    # injects a reference text snippet before context
+    KNOWLEDGE    = "knowledge"    # prepends a knowledge-base chunk before context
+    PDF_SUMMARY  = "pdf_summary"  # extracts / summarises a PDF and prepends it
+
+# Runtime PyPDF2 guard — PDF blocks show a friendly error if not installed
+try:
+    import PyPDF2 as _pypdf2_check
+    HAS_PDF = True
+except ImportError:
+    HAS_PDF = False
+
+
+@dataclass
+class PipelineConnection:
+    from_block_id: int
+    from_port:     str   # "N" | "S" | "E" | "W"
+    to_block_id:   int
+    to_port:       str
+    is_loop:       bool = False
+    loop_times:    int  = 1
+
+
+class PipelineBlock:
+    _id_counter = 0
+
+    def __init__(self, btype: str, x: int, y: int,
+                 model_path: str = "", role: str = "general", label: str = ""):
+        PipelineBlock._id_counter += 1
+        self.bid        = PipelineBlock._id_counter
+        self.btype      = btype
+        self.x          = x
+        self.y          = y
+        self.w          = 148
+        self.h          = 76
+        self.model_path = model_path
+        self.role       = role
+        self.label      = label or self._default_label()
+        self.selected   = False
+        self.metadata:  dict = {}   # stores ref_text / knowledge_text / pdf_path
+
+    def _default_label(self) -> str:
+        if self.btype == PipelineBlockType.INPUT:        return "Input"
+        if self.btype == PipelineBlockType.OUTPUT:       return "Output"
+        if self.btype == PipelineBlockType.INTERMEDIATE: return "Intermediate"
+        if self.btype == PipelineBlockType.REFERENCE:    return "Reference"
+        if self.btype == PipelineBlockType.KNOWLEDGE:    return "Knowledge"
+        if self.btype == PipelineBlockType.PDF_SUMMARY:  return "PDF"
+        if self.model_path:
+            return Path(self.model_path).stem[:18]
+        return "Model"
+
+    def rect(self):
+        return QRect(self.x, self.y, self.w, self.h)
+
+    def port_pos(self, port: str) -> tuple:
+        cx = self.x + self.w // 2
+        cy = self.y + self.h // 2
+        return {
+            "N": (cx, self.y),
+            "S": (cx, self.y + self.h),
+            "W": (self.x, cy),
+            "E": (self.x + self.w, cy),
+        }.get(port, (cx, cy))
+
+    def port_at(self, px: int, py: int, radius: int = 11) -> Optional[str]:
+        for port in ("N", "S", "E", "W"):
+            bx, by = self.port_pos(port)
+            if abs(px - bx) <= radius and abs(py - by) <= radius:
+                return port
+        return None
+
+    def contains(self, px: int, py: int) -> bool:
+        return self.rect().contains(px, py)
+
+
+# ── Pipeline persistence helpers ──────────────────────────────────────────────
+
+PIPELINES_DIR = Path.home() / ".native_lab" / "pipelines"
+PIPELINES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _pipeline_to_dict(blocks: list, connections: list) -> dict:
+    """Serialise a pipeline to a JSON-safe dict."""
+    return {
+        "version": 2,
+        "blocks": [
+            {
+                "bid":        b.bid,
+                "btype":      b.btype,
+                "x":          b.x,
+                "y":          b.y,
+                "w":          b.w,
+                "h":          b.h,
+                "model_path": b.model_path,
+                "role":       b.role,
+                "label":      b.label,
+                "metadata":   b.metadata,
+            }
+            for b in blocks
+        ],
+        "connections": [
+            {
+                "from_block_id": c.from_block_id,
+                "from_port":     c.from_port,
+                "to_block_id":   c.to_block_id,
+                "to_port":       c.to_port,
+                "is_loop":       c.is_loop,
+                "loop_times":    c.loop_times,
+            }
+            for c in connections
+        ],
+    }
+
+
+def _pipeline_from_dict(data: dict):
+    """Deserialise blocks + connections from a saved dict. Returns (blocks, connections)."""
+    blocks = []
+    id_map: Dict[int, int] = {}   # old bid → new bid (counter is global)
+    for bd in data.get("blocks", []):
+        b            = PipelineBlock(bd["btype"], bd["x"], bd["y"],
+                                     bd.get("model_path", ""),
+                                     bd.get("role", "general"),
+                                     bd.get("label", ""))
+        b.metadata   = bd.get("metadata", {})
+        id_map[bd["bid"]] = b.bid
+        blocks.append(b)
+
+    connections = []
+    for cd in data.get("connections", []):
+        connections.append(PipelineConnection(
+            from_block_id=id_map.get(cd["from_block_id"], cd["from_block_id"]),
+            from_port=cd["from_port"],
+            to_block_id=id_map.get(cd["to_block_id"],   cd["to_block_id"]),
+            to_port=cd["to_port"],
+            is_loop=cd.get("is_loop", False),
+            loop_times=cd.get("loop_times", 1),
+        ))
+    return blocks, connections
+
+
+def list_saved_pipelines() -> List[str]:
+    """Return sorted list of saved pipeline names (without .json)."""
+    return sorted(p.stem for p in PIPELINES_DIR.glob("*.json"))
+
+
+def save_pipeline(name: str, blocks: list, connections: list):
+    path = PIPELINES_DIR / f"{name}.json"
+    path.write_text(
+        json.dumps(_pipeline_to_dict(blocks, connections), indent=2),
+        encoding="utf-8")
+
+
+def load_pipeline(name: str):
+    path = PIPELINES_DIR / f"{name}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return _pipeline_from_dict(data)
+
+
+class PipelineCanvas(QWidget):
+    """Interactive drag-and-drop pipeline canvas with curved arrows."""
+
+    blocks_changed = pyqtSignal()
+    PORT_R = 6
+    GRID   = 20
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMinimumSize(1400, 900)
+        self.setMouseTracking(True)
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+
+        self.blocks:      List[PipelineBlock]      = []
+        self.connections: List[PipelineConnection] = []
+
+        self._drag_block:     Optional[PipelineBlock] = None
+        self._drag_offset:    tuple = (0, 0)
+        self._connect_from:   Optional[tuple] = None   # (block, port)
+        self._connect_preview:Optional[tuple] = None
+        self._hover_block:    Optional[PipelineBlock] = None
+        self._hover_port:     Optional[str]           = None
+        self._selected:       Optional[PipelineBlock] = None
+
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._ctx_menu)
+
+    # ── block management ──────────────────────────────────────────────────────
+
+    def add_block(self, btype: str, x: int = 100, y: int = 100,
+                  model_path: str = "", role: str = "general") -> PipelineBlock:
+        b = PipelineBlock(btype, x, y, model_path, role)
+        self.blocks.append(b)
+        self.update()
+        self.blocks_changed.emit()
+        return b
+
+    def remove_block(self, b: PipelineBlock):
+        bid = b.bid
+        self.blocks      = [bl for bl in self.blocks      if bl.bid != bid]
+        self.connections = [c  for c  in self.connections
+                            if c.from_block_id != bid and c.to_block_id != bid]
+        if self._selected is b:
+            self._selected = None
+        self.update()
+        self.blocks_changed.emit()
+
+    def clear_all(self):
+        self.blocks.clear()
+        self.connections.clear()
+        self._selected     = None
+        self._drag_block   = None
+        self._connect_from = None
+        PipelineBlock._id_counter = 0
+        self.update()
+        self.blocks_changed.emit()
+
+    def _snap(self, v: int) -> int:
+        return round(v / self.GRID) * self.GRID
+
+    def _block_by_id(self, bid: int) -> Optional[PipelineBlock]:
+        for b in self.blocks:
+            if b.bid == bid:
+                return b
+        return None
+
+    # ── painting ──────────────────────────────────────────────────────────────
+
+    def paintEvent(self, _event):
+
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # ── background ───────────────────────────────────────────────────────
+        p.fillRect(self.rect(), QColor(C["bg0"]))
+
+        # ── grid dots ────────────────────────────────────────────────────────
+        grid_c = QColor(C["bdr"])
+        grid_c.setAlpha(80)
+        p.setPen(QPen(grid_c, 1))
+        for gx in range(0, self.width(), self.GRID):
+            p.drawLine(gx, 0, gx, self.height())
+        for gy in range(0, self.height(), self.GRID):
+            p.drawLine(0, gy, self.width(), gy)
+
+        # ── connections ───────────────────────────────────────────────────────
+        for conn in self.connections:
+            fb = self._block_by_id(conn.from_block_id)
+            tb = self._block_by_id(conn.to_block_id)
+            if fb and tb:
+                self._draw_arrow(p, fb, conn.from_port,
+                                 tb, conn.to_port,
+                                 conn.is_loop, conn.loop_times)
+
+        # ── preview arrow ─────────────────────────────────────────────────────
+        if self._connect_from and self._connect_preview:
+            b, port = self._connect_from
+            sx, sy  = b.port_pos(port)
+            ex, ey  = self._connect_preview
+            pen = QPen(QColor(C["acc"]), 2, Qt.PenStyle.DashLine)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawPath(self._make_path(sx, sy, ex, ey, "E", "W"))
+
+        # ── blocks ────────────────────────────────────────────────────────────
+        for b in self.blocks:
+            self._draw_block(p, b)
+
+        p.end()
+
+    # ─ colour table ────────────────────────────────────────────────────────────
+    _BLOCK_COLORS = {
+        PipelineBlockType.INPUT:        lambda: (C["ok"],       C["bg2"]),
+        PipelineBlockType.OUTPUT:       lambda: (C["err"],      C["bg2"]),
+        PipelineBlockType.INTERMEDIATE: lambda: (C["warn"],     C["bg2"]),
+        PipelineBlockType.MODEL:        lambda: (C["acc"],      C["bg1"]),
+        PipelineBlockType.REFERENCE:    lambda: (C["acc"],      C["bg2"]),
+        PipelineBlockType.KNOWLEDGE:    lambda: (C["acc2"],     C["bg2"]),
+        PipelineBlockType.PDF_SUMMARY:  lambda: (C["pipeline"], C["bg2"]),
+    }
+    _BLOCK_ICONS = {
+        PipelineBlockType.INPUT:        "▶ INPUT",
+        PipelineBlockType.OUTPUT:       "■ OUTPUT",
+        PipelineBlockType.INTERMEDIATE: "◈ INTER.",
+        PipelineBlockType.MODEL:        None,          # filled dynamically
+        PipelineBlockType.REFERENCE:    "📎 REF.",
+        PipelineBlockType.KNOWLEDGE:    "💡 KNOW.",
+        PipelineBlockType.PDF_SUMMARY:  "📄 PDF",
+    }
+
+    def _draw_block(self, p, b: PipelineBlock):      
+
+        fn = self._BLOCK_COLORS.get(b.btype, self._BLOCK_COLORS[PipelineBlockType.MODEL])
+        border_c, fill_c = fn()
+
+        border = QColor(border_c)
+        fill   = QColor(fill_c)
+        sel    = b is self._selected
+
+        # shadow
+        shadow = QColor(0, 0, 0, 50)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(shadow))
+        p.drawRoundedRect(b.x + 4, b.y + 4, b.w, b.h, 10, 10)
+
+        # body
+        p.setBrush(QBrush(fill))
+        p.setPen(QPen(border, 2.5 if sel else 1.5))
+        p.drawRoundedRect(b.x, b.y, b.w, b.h, 10, 10)
+
+        # header strip
+        hdr_c = QColor(border_c); hdr_c.setAlpha(55)
+        p.setBrush(QBrush(hdr_c))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.drawRoundedRect(b.x + 1, b.y + 1, b.w - 2, 20, 9, 9)
+        p.drawRect(b.x + 1, b.y + 10, b.w - 2, 11)
+
+        # header text
+        p.setPen(QColor(border_c))
+        p.setFont(QFont("Inter", 7, QFont.Weight.Bold))
+        if b.btype == PipelineBlockType.MODEL:
+            tag = f"⚡ {b.role.upper()}"
+        else:
+            tag = self._BLOCK_ICONS.get(b.btype, "BLOCK")
+        p.drawText(b.x, b.y + 1, b.w, 20,
+                   Qt.AlignmentFlag.AlignCenter, tag)
+
+        # name label
+        p.setPen(QColor(C["txt"]))
+        p.setFont(QFont("Inter", 9))
+        p.drawText(b.x + 4, b.y + 24, b.w - 8, b.h - 38,
+                   Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignTop,
+                   b.label)
+
+        # model badge (quant + family)
+        if b.btype == PipelineBlockType.MODEL and b.model_path:
+            fam   = detect_model_family(b.model_path)
+            quant = detect_quant_type(b.model_path)
+            badge = f"{fam.name[:8]}·{quant}"
+            p.setPen(QColor(C["txt3"]))
+            p.setFont(QFont("Consolas", 7))
+            p.drawText(b.x, b.y + b.h - 17, b.w, 15,
+                       Qt.AlignmentFlag.AlignCenter, badge)
+
+        # port dots
+        for port in ("N", "S", "E", "W"):
+            px, py     = b.port_pos(port)
+            is_hovered = (b is self._hover_block and port == self._hover_port)
+            dot_c      = QColor(border_c)
+            r          = self.PORT_R + 3 if is_hovered else self.PORT_R
+            p.setBrush(QBrush(QColor(C["bg0"])))
+            p.setPen(QPen(dot_c, 2))
+            p.drawEllipse(px - r, py - r, r * 2, r * 2)
+            if is_hovered:
+                p.setBrush(QBrush(dot_c))
+                p.setPen(Qt.PenStyle.NoPen)
+                inner = r - 3
+                p.drawEllipse(px - inner, py - inner, inner * 2, inner * 2)
+
+    def _make_path(self, sx, sy, ex, ey, fport="E", tport="W"):
+        """Cubic bezier path that adapts control handles to port orientation."""
+        path = QPainterPath(QPointF(sx, sy))
+        dx   = abs(ex - sx)
+        dy   = abs(ey - sy)
+        off  = max(60, dx // 2, dy // 2, 40)
+
+        PORT_VEC = {"N": (0, -1), "S": (0, 1), "E": (1, 0), "W": (-1, 0)}
+        fx, fy = PORT_VEC.get(fport, (1, 0))
+        tx, ty = PORT_VEC.get(tport, (-1, 0))
+
+        c1x = sx + fx * off
+        c1y = sy + fy * off
+        c2x = ex + tx * off
+        c2y = ey + ty * off
+
+        path.cubicTo(QPointF(c1x, c1y), QPointF(c2x, c2y), QPointF(ex, ey))
+        return path
+
+    def _draw_arrow(self, p, fb, fport, tb, tport, is_loop, loop_times):        
+        sx, sy = fb.port_pos(fport)
+        ex, ey = tb.port_pos(tport)
+
+        color = QColor(C["pipeline"] if is_loop else C["acc2"])
+        pen   = QPen(color, 2)
+        if is_loop:
+            pen.setStyle(Qt.PenStyle.DashDotLine)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+
+        path = self._make_path(sx, sy, ex, ey, fport, tport)
+        p.drawPath(path)
+
+        # arrowhead
+        t1 = path.pointAtPercent(0.97)
+        t2 = path.pointAtPercent(1.0)
+        adx = t2.x() - t1.x(); ady = t2.y() - t1.y()
+        length = (adx ** 2 + ady ** 2) ** 0.5
+        if length > 0.001:
+            adx /= length; ady /= length
+            sz = 10
+            p1 = QPointF(t2.x() - sz * adx + sz * 0.5 * ady,
+                         t2.y() - sz * ady - sz * 0.5 * adx)
+            p2 = QPointF(t2.x() - sz * adx - sz * 0.5 * ady,
+                         t2.y() - sz * ady + sz * 0.5 * adx)
+            p.setBrush(QBrush(color))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawPolygon(QPolygonF([t2, p1, p2]))
+
+        # loop badge
+        if is_loop and loop_times > 1:
+            mid = path.pointAtPercent(0.5)
+            badge_bg = QColor(C["warn"]); badge_bg.setAlpha(180)
+            p.setBrush(QBrush(badge_bg))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.drawRoundedRect(int(mid.x()) - 14, int(mid.y()) - 10, 28, 20, 5, 5)
+            p.setPen(QColor(C["bg0"]))
+            p.setFont(QFont("Inter", 8, QFont.Weight.Bold))
+            p.drawText(int(mid.x()) - 14, int(mid.y()) - 10, 28, 20,
+                       Qt.AlignmentFlag.AlignCenter, f"×{loop_times}")
+
+    # ── mouse events ──────────────────────────────────────────────────────────
+
+    def mousePressEvent(self, event):
+        px = int(event.position().x())
+        py = int(event.position().y())
+
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Port hit? → start arrow draw
+            for b in reversed(self.blocks):
+                port = b.port_at(px, py)
+                if port:
+                    self._connect_from    = (b, port)
+                    self._connect_preview = (px, py)
+                    return
+            # Block hit? → select + drag
+            for b in reversed(self.blocks):
+                if b.contains(px, py):
+                    self._drag_block  = b
+                    self._drag_offset = (px - b.x, py - b.y)
+                    self._selected    = b
+                    self.update()
+                    return
+            self._selected = None
+            self.update()
+
+    def mouseMoveEvent(self, event):
+        px = int(event.position().x())
+        py = int(event.position().y())
+
+        if self._drag_block:
+            ox, oy = self._drag_offset
+            self._drag_block.x = self._snap(px - ox)
+            self._drag_block.y = self._snap(py - oy)
+            self.update()
+            return
+
+        if self._connect_from:
+            self._connect_preview = (px, py)
+            self.update()
+            return
+
+        # Hover
+        self._hover_block = None
+        self._hover_port  = None
+        for b in reversed(self.blocks):
+            port = b.port_at(px, py)
+            if port:
+                self._hover_block = b
+                self._hover_port  = port
+                self.setCursor(Qt.CursorShape.CrossCursor)
+                self.update()
+                return
+            if b.contains(px, py):
+                self.setCursor(Qt.CursorShape.SizeAllCursor)
+                self.update()
+                return
+        self.setCursor(Qt.CursorShape.ArrowCursor)
+        self.update()
+
+    def mouseReleaseEvent(self, event):
+        px = int(event.position().x())
+        py = int(event.position().y())
+
+        if self._drag_block:
+            self._drag_block = None
+            self.blocks_changed.emit()
+            self.update()
+            return
+
+        if self._connect_from and event.button() == Qt.MouseButton.LeftButton:
+            from_b, from_port   = self._connect_from
+            self._connect_from    = None
+            self._connect_preview = None
+            for b in reversed(self.blocks):
+                if b is from_b:
+                    continue
+                port = b.port_at(px, py)
+                if port:
+                    self._try_connect(from_b, from_port, b, port)
+                    self.update()
+                    return
+            self.update()
+
+    def _try_connect(self, fb: PipelineBlock, fport: str,
+                     tb: PipelineBlock, tport: str):
+        # Rule: model → model requires an intermediate in between
+        if (fb.btype == PipelineBlockType.MODEL and
+                tb.btype == PipelineBlockType.MODEL):
+            QMessageBox.warning(
+                self, "Connection Not Allowed",
+                "Direct model-to-model connections are not allowed.\n\n"
+                "You must place an ◈ Intermediate Output block between two model blocks.\n"
+                "This enforces explicit output capture between pipeline stages.")
+            return
+
+        is_loop    = self._would_form_loop(fb.bid, tb.bid)
+        loop_times = 1
+        if is_loop:
+            val, ok = QInputDialog.getInt(
+                self, "Loop Configuration",
+                f"How many times should this edge loop?\n"
+                f"(The output of '{tb.label}' feeds back into '{fb.label}')",
+                value=3, min=2, max=999)
+            if not ok:
+                return
+            loop_times = val
+
+        # Remove any existing connection from the same source port
+        self.connections = [
+            c for c in self.connections
+            if not (c.from_block_id == fb.bid and c.from_port == fport)]
+
+        self.connections.append(PipelineConnection(
+            from_block_id=fb.bid, from_port=fport,
+            to_block_id=tb.bid,   to_port=tport,
+            is_loop=is_loop, loop_times=loop_times))
+        self.update()
+        self.blocks_changed.emit()
+
+    def _configure_context_block(self, b: "PipelineBlock"):
+        """Configure a reference / knowledge / PDF block inline."""
+        if b.btype == PipelineBlockType.REFERENCE:
+            choice, ok = QInputDialog.getItem(
+                self, f"Configure '{b.label}'", "Source:",
+                ["Type / paste text", "Load from file"], 0, False)
+            if not ok:
+                return
+            if choice.startswith("Type"):
+                text, ok2 = QInputDialog.getMultiLineText(
+                    self, "Reference Text", "Paste the reference text:")
+                if ok2 and text.strip():
+                    b.metadata["ref_text"] = text.strip()
+                    name, ok3 = QInputDialog.getText(
+                        self, "Name", "Short name:", text=b.label)
+                    if ok3 and name.strip():
+                        b.metadata["ref_name"] = name.strip()
+                        b.label = name.strip()[:22]
+            else:
+                path, _ = QFileDialog.getOpenFileName(
+                    self, "Select File", str(Path.home()),
+                    "Text/Code (*.txt *.md *.py *.js *.ts *.json *.yaml *.rst *.html);;All (*)")
+                if path:
+                    try:
+                        text = Path(path).read_text(encoding="utf-8", errors="replace")
+                        b.metadata["ref_text"] = text
+                        b.metadata["ref_name"] = Path(path).name
+                        b.label = Path(path).name[:22]
+                    except Exception as e:
+                        QMessageBox.warning(self, "Read Error", str(e))
+            self.update()
+
+        elif b.btype == PipelineBlockType.KNOWLEDGE:
+            text, ok = QInputDialog.getMultiLineText(
+                self, "Knowledge Base", f"Enter knowledge text for '{b.label}':")
+            if ok and text.strip():
+                b.metadata["knowledge_text"] = text.strip()
+                name, ok2 = QInputDialog.getText(
+                    self, "Name", "Short name:", text=b.label)
+                if ok2 and name.strip():
+                    b.label = name.strip()[:22]
+            self.update()
+
+        elif b.btype == PipelineBlockType.PDF_SUMMARY:
+            if not HAS_PDF:
+                QMessageBox.warning(
+                    self, "Missing Dependency",
+                    "PyPDF2 is required.\n\n  pip install PyPDF2")
+                return
+            path, _ = QFileDialog.getOpenFileName(
+                self, "Select PDF", str(Path.home()), "PDF (*.pdf)")
+            if path:
+                b.metadata["pdf_path"] = path
+                b.label = Path(path).name[:22]
+
+            # Role of this PDF relative to whatever arrived before it
+            current_role = b.metadata.get("pdf_role", "reference")
+            role, ok = QInputDialog.getItem(
+                self,
+                f"PDF Role — '{b.label}'",
+                "How should this PDF relate to the prior block's output?\n\n"
+                "  reference  →  prior output = MAIN,  PDF = REFERENCE\n"
+                "  main       →  PDF = MAIN,  prior output = REFERENCE\n"
+                "  (if there is no prior block, that side is simply omitted)",
+                ["reference  —  prior is main, PDF is supporting context",
+                 "main       —  PDF is primary, prior output is supporting context"],
+                0 if current_role == "reference" else 1,
+                False)
+            if ok:
+                b.metadata["pdf_role"] = "reference" if role.startswith("reference") else "main"
+            self.update()
+
+        elif b.btype == PipelineBlockType.INTERMEDIATE:
+            # Show current settings as defaults
+            current_prompt   = b.metadata.get("inter_prompt", "")
+            current_position = b.metadata.get("inter_position", "above")
+
+            # Step 1 — position choice
+            position, ok = QInputDialog.getItem(
+                self,
+                f"Configure ◈ '{b.label}'",
+                "Place your custom prompt:",
+                ["Above incoming text  (prompt → model output)",
+                 "Below incoming text  (model output → prompt)"],
+                0 if current_position == "above" else 1,
+                False)
+            if not ok:
+                return
+            b.metadata["inter_position"] = (
+                "above" if position.startswith("Above") else "below")
+
+            # Step 2 — prompt text
+            prompt_text, ok2 = QInputDialog.getMultiLineText(
+                self,
+                f"Configure ◈ '{b.label}'",
+                "Custom prompt / instruction to inject at this stage:\n"
+                "(Leave blank to clear and pass context through unchanged.)",
+                current_prompt)
+            if not ok2:
+                return
+            b.metadata["inter_prompt"] = prompt_text.strip()
+
+            # Update block label so it's obvious it's configured
+            if prompt_text.strip():
+                preview = prompt_text.strip()[:16].replace("\n", " ")
+                b.label = f"◈ {preview}…" if len(prompt_text.strip()) > 16 else f"◈ {preview}"
+            else:
+                b.label = "Intermediate"
+            self.update()
+
+    def _would_form_loop(self, from_bid: int, to_bid: int) -> bool:
+        """Return True if to_bid can already reach from_bid (i.e. adding this edge creates a cycle)."""
+        visited: set = set()
+        queue = [to_bid]
+        while queue:
+            cur = queue.pop()
+            if cur == from_bid:
+                return True
+            if cur in visited:
+                continue
+            visited.add(cur)
+            for c in self.connections:
+                if c.from_block_id == cur:
+                    queue.append(c.to_block_id)
+        return False
+
+    def _ctx_menu(self, pos):
+        px, py = pos.x(), pos.y()
+        menu   = QMenu(self)
+        target = next((b for b in reversed(self.blocks)
+                       if b.contains(px, py)), None)
+
+        if target:
+            act_del = menu.addAction(f"🗑  Delete '{target.label}'")
+            act_ren = menu.addAction("✏️  Rename block")
+            act_role = None
+            act_cfg  = None
+            if target.btype == PipelineBlockType.MODEL:
+                act_role = menu.addAction("🔧  Change Role")
+            if target.btype in (PipelineBlockType.REFERENCE,
+                                PipelineBlockType.KNOWLEDGE,
+                                PipelineBlockType.PDF_SUMMARY,
+                                PipelineBlockType.INTERMEDIATE):
+                act_cfg = menu.addAction("⚙️  Configure block…")
+            menu.addSeparator()
+
+        act_clr = menu.addAction("🗑  Clear All Blocks & Connections")
+        chosen  = menu.exec(self.mapToGlobal(pos))
+        if not chosen:
+            return
+
+        if target:
+            if chosen == act_del:
+                self.remove_block(target)
+                return
+            elif chosen == act_ren:
+                name, ok = QInputDialog.getText(
+                    self, "Rename Block", "New label:", text=target.label)
+                if ok and name.strip():
+                    target.label = name.strip()
+                    self.update()
+                return
+            elif act_role and chosen == act_role:
+                r, ok = QInputDialog.getItem(
+                    self, "Select Role", "Role:", MODEL_ROLES, 0, False)
+                if ok:
+                    target.role = r
+                    self.update()
+                return
+            elif act_cfg and chosen == act_cfg:
+                self._configure_context_block(target)
+                return
+
+        if chosen == act_clr:
+            if QMessageBox.question(
+                self, "Clear Pipeline",
+                "Remove ALL blocks and connections?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            ) == QMessageBox.StandardButton.Yes:
+                self.clear_all()
+
+
+class PipelineExecutionWorker(QThread):
+    """
+    Sequentially executes a validated pipeline graph.
+    SERVER MODE ONLY — refuses to run if model cannot be started as a server.
+    Retries server startup up to _SERVER_RETRIES times before aborting.
+    """
+    step_started      = pyqtSignal(int, str)     # (block_id, label)
+    step_token        = pyqtSignal(int, str)     # (block_id, token)
+    step_done         = pyqtSignal(int, str)     # (block_id, full_text)
+    intermediate_live = pyqtSignal(int, str, str)# (block_id, label, text)
+    pipeline_done     = pyqtSignal(str)
+    err               = pyqtSignal(str)
+    log_msg           = pyqtSignal(str)
+
+    _SERVER_RETRIES   = 3
+    _SERVER_RETRY_S   = 6
+
+    def __init__(self, blocks: List[PipelineBlock],
+                 connections: List[PipelineConnection],
+                 input_text: str,
+                 primary_engine: "LlamaEngine"):
+        super().__init__()
+        self.blocks         = {b.bid: b for b in blocks}
+        self.connections    = connections
+        self.input_text     = input_text
+        self.primary_engine = primary_engine
+        self._abort         = False
+
+    def abort(self):
+        self._abort = True
+
+    # ── adjacency helpers ─────────────────────────────────────────────────────
+
+    def _adjacency(self) -> Dict[int, List[PipelineConnection]]:
+        adj: Dict[int, List[PipelineConnection]] = {}
+        for c in self.connections:
+            adj.setdefault(c.from_block_id, []).append(c)
+        return adj
+
+    def run(self):
+        adj = self._adjacency()
+        inp = next((b for b in self.blocks.values()
+                    if b.btype == PipelineBlockType.INPUT), None)
+        if not inp:
+            self.err.emit("No INPUT block found."); return
+
+        current_text = self.input_text
+        visit_counts: Dict[str, int] = {}
+        queue = [(inp.bid, self.input_text)]
+
+        while queue and not self._abort:
+            bid, context = queue.pop(0)
+            b = self.blocks.get(bid)
+            if not b:
+                continue
+
+            if b.btype == PipelineBlockType.INPUT:
+                current_text = context
+
+            elif b.btype == PipelineBlockType.INTERMEDIATE:
+                self.step_started.emit(bid, b.label)
+                inter_prompt   = b.metadata.get("inter_prompt", "").strip()
+                inter_position = b.metadata.get("inter_position", "above")
+
+                if inter_prompt:
+                    if inter_position == "above":
+                        current_text = f"{inter_prompt}\n\n{context}"
+                    else:
+                        current_text = f"{context}\n\n{inter_prompt}"
+                    self.log_msg.emit(
+                        f"◈  '{b.label}' injected prompt "
+                        f"({'above' if inter_position == 'above' else 'below'} output) "
+                        f"— {len(current_text):,} chars total")
+                else:
+                    current_text = context
+
+                self.intermediate_live.emit(bid, b.label, current_text)
+                self.step_done.emit(bid, current_text)
+
+            elif b.btype == PipelineBlockType.OUTPUT:
+                # Find which block sent us this context so we can label it
+                sender_label = ""
+                for conn in self.connections:
+                    if conn.to_block_id == bid:
+                        sender = self.blocks.get(conn.from_block_id)
+                        if sender:
+                            sender_label = sender.label
+                        break
+
+                current_text = context
+                # Emit step_done with the raw context (no intermediate noise)
+                self.step_done.emit(bid, context)
+                # pipeline_done carries (final_text, sender_label) encoded together
+                # We encode as JSON so the tab can split them cleanly
+                import json as _json
+                self.pipeline_done.emit(_json.dumps({
+                    "text":   context,
+                    "sender": sender_label,
+                }))
+                return
+
+            elif b.btype == PipelineBlockType.MODEL:
+                self.step_started.emit(bid, b.label)
+                result = self._run_model(b, context)
+                if result is None:
+                    if not self._abort:
+                        self.err.emit(f"Model block '{b.label}' returned no output.")
+                    return
+                current_text = result
+                self.step_done.emit(bid, result)
+
+            elif b.btype == PipelineBlockType.REFERENCE:
+                self.step_started.emit(bid, b.label)
+                current_text = self._run_reference(b, context)
+                self.step_done.emit(bid, current_text)
+
+            elif b.btype == PipelineBlockType.KNOWLEDGE:
+                self.step_started.emit(bid, b.label)
+                current_text = self._run_knowledge(b, context)
+                self.step_done.emit(bid, current_text)
+
+            elif b.btype == PipelineBlockType.PDF_SUMMARY:
+                self.step_started.emit(bid, b.label)
+                result = self._run_pdf(b, context)
+                if result is None:
+                    if not self._abort:
+                        self.err.emit(f"PDF block '{b.label}' failed.")
+                    return
+                current_text = result
+                self.step_done.emit(bid, result)
+
+            # Enqueue outgoing edges
+            for conn in adj.get(bid, []):
+                key    = f"{conn.from_block_id}->{conn.to_block_id}"
+                visits = visit_counts.get(key, 0)
+                limit  = conn.loop_times if conn.is_loop else 1
+                if visits < limit:
+                    visit_counts[key] = visits + 1
+                    queue.append((conn.to_block_id, current_text))
+
+        if not self._abort:
+            self.pipeline_done.emit(current_text)
+
+    # ── server-mode guarantee with retries ────────────────────────────────────
+
+    def _ensure_server(self, eng: "LlamaEngine", target: str) -> bool:
+        """
+        Ensure eng is running in server mode for target.
+        Loads the model if necessary, then retries server startup up to
+        _SERVER_RETRIES times. Returns True only when confirmed server mode.
+        """
+        if not eng.is_loaded or eng.model_path != target:
+            self.log_msg.emit(f"🔄  Loading model: {Path(target).name}")
+            if eng.is_loaded:
+                eng.shutdown()
+            ok = eng.load(target, log_cb=lambda m: self.log_msg.emit(m))
+            if not ok:
+                self.err.emit(f"❌  Could not load model: {Path(target).name}")
+                return False
+            self.log_msg.emit(f"✅  Model loaded.")
+
+        if eng.mode == "server":
+            self.log_msg.emit(f"🟢  Server already running on port {eng.server_port}")
+            return True
+
+        for attempt in range(1, self._SERVER_RETRIES + 1):
+            self.log_msg.emit(
+                f"⚡  Starting server (attempt {attempt}/{self._SERVER_RETRIES})…")
+            ok = eng.ensure_server(log_cb=lambda m: self.log_msg.emit(m))
+            if ok and eng.mode == "server":
+                self.log_msg.emit(
+                    f"🟢  Server mode confirmed — port {eng.server_port}")
+                return True
+            if attempt < self._SERVER_RETRIES:
+                self.log_msg.emit(
+                    f"⏳  Not ready — waiting {self._SERVER_RETRY_S}s before retry…")
+                for _ in range(self._SERVER_RETRY_S * 10):
+                    if self._abort:
+                        return False
+                    time.sleep(0.1)
+
+        self.err.emit(
+            f"❌  '{Path(target).name}' could not start in SERVER mode "
+            f"after {self._SERVER_RETRIES} attempts.\n\n"
+            f"Pipeline requires llama-server (not llama-cli).\n"
+            f"Check that llama-server binary is present and the model path is valid.\n"
+            f"See the Logs tab for details.")
+        return False
+    
+    def _run_model(self, b: PipelineBlock, context: str) -> Optional[str]:
+        target = b.model_path
+        if not target or not Path(target).exists():
+            self.err.emit(f"Model file not found: {target}"); return None
+
+        eng = self.primary_engine
+        if not eng:
+            self.err.emit("No engine available."); return None
+
+        # ── enforce server mode (with retries) ──────────────────────────────
+        if not self._ensure_server(eng, target):
+            return None   # error already emitted by _ensure_server
+
+        fam = detect_model_family(target)
+        cfg = MODEL_REGISTRY.get_config(target)
+
+        ROLE_SYSTEM = {
+            "general":       "You are a helpful assistant.",
+            "reasoning":     "You are a careful analytical reasoning assistant. Think step by step.",
+            "summarization": "You are an expert summarization assistant. Be clear and concise.",
+            "coding":        "You are an expert software engineer. Write clean, well-commented code.",
+            "secondary":     "You are a versatile general-purpose assistant.",
+        }
+        sys_msg = ROLE_SYSTEM.get(b.role, ROLE_SYSTEM["general"])
+
+        prompt = (
+            fam.bos
+            + fam.system_prefix + sys_msg + fam.system_suffix
+            + fam.user_prefix + context + fam.user_suffix
+            + fam.assistant_prefix
+        )
+
+        import http.client
+        tokens: List[str] = []
+        try:
+            conn_h = http.client.HTTPConnection(
+                "127.0.0.1", eng.server_port, timeout=600)
+            body = json.dumps({
+                "prompt": prompt, "n_predict": cfg.n_predict,
+                "stream": True, "temperature": cfg.temperature,
+                "top_p": cfg.top_p, "repeat_penalty": cfg.repeat_penalty,
+                "stop": fam.stop_tokens,
+            })
+            conn_h.request("POST", "/completion", body,
+                           {"Content-Type": "application/json"})
+            r = conn_h.getresponse()
+            if r.status != 200:
+                self.err.emit(f"Server HTTP {r.status}"); return None
+            buf = b""
+            while not self._abort:
+                byte = r.read(1)
+                if not byte:
+                    break
+                buf += byte
+                if byte == b"\n":
+                    line = buf.decode("utf-8", errors="replace").strip()
+                    buf  = b""
+                    if line.startswith("data: "):
+                        try:
+                            d = json.loads(line[6:])
+                            if d.get("stop"):
+                                break
+                            tok = d.get("content", "")
+                            if tok:
+                                tokens.append(tok)
+                                self.step_token.emit(b.bid, tok)
+                        except json.JSONDecodeError:
+                            pass
+        except Exception as e:
+            self.err.emit(f"Server error during model block: {e}"); return None
+
+        return "".join(tokens).strip()
+
+    # ── context injection blocks ──────────────────────────────────────────────
+
+    def _run_reference(self, b: PipelineBlock, context: str) -> str:
+        text = b.metadata.get("ref_text", "")
+        if not text:
+            self.log_msg.emit(f"⚠️  Reference '{b.label}' has no text — passing unchanged.")
+            return context
+        name = b.metadata.get("ref_name", b.label)
+        self.log_msg.emit(f"📎  Injecting reference '{name}' ({len(text):,} chars)")
+        return (
+            f"[REFERENCE: {name}]\n"
+            f"{text[:4000]}"
+            + ("…\n[truncated]" if len(text) > 4000 else "")
+            + f"\n[/REFERENCE]\n\n{context}"
+        )
+
+    def _run_knowledge(self, b: PipelineBlock, context: str) -> str:
+        text = b.metadata.get("knowledge_text", "")
+        if not text:
+            self.log_msg.emit(f"⚠️  Knowledge '{b.label}' has no text — passing unchanged.")
+            return context
+        self.log_msg.emit(f"💡  Injecting knowledge ({len(text):,} chars)")
+        return (
+            f"Knowledge Base:\n"
+            f"{text[:3000]}"
+            + ("…\n[truncated]" if len(text) > 3000 else "")
+            + f"\n\n---\n\n{context}"
+        )
+
+    def _run_pdf(self, b: PipelineBlock, context: str) -> Optional[str]:
+        pdf_path = b.metadata.get("pdf_path", "")
+        if not pdf_path or not Path(pdf_path).exists():
+            self.err.emit(f"PDF block '{b.label}': file not found → {pdf_path}")
+            return None
+        if not HAS_PDF:
+            self.err.emit("PyPDF2 not installed. Run: pip install PyPDF2")
+            return None
+        try:
+            from PyPDF2 import PdfReader
+            reader   = PdfReader(pdf_path)
+            pdf_text = "\n".join(pg.extract_text() or "" for pg in reader.pages)
+        except Exception as e:
+            self.err.emit(f"PDF read error: {e}"); return None
+        if not pdf_text.strip():
+            self.err.emit(f"PDF block '{b.label}': no text extracted."); return None
+
+        fname    = Path(pdf_path).name
+        pdf_role = b.metadata.get("pdf_role", "reference")   # "reference" | "main"
+        self.log_msg.emit(
+            f"📄  PDF loaded: {fname} ({len(pdf_text):,} chars) "
+            f"— role: {pdf_role.upper()}")
+
+        # ── Summarise large PDFs ──────────────────────────────────────────────
+        LIMIT = 4500
+        if len(pdf_text) > LIMIT:
+            pdf_text = self._summarise_pdf(b, fname, pdf_text)
+            if pdf_text is None:
+                return None
+
+        # ── Compose output based on role ──────────────────────────────────────
+        #
+        #  pdf_role == "reference":
+        #    prior context  → MAIN TEXT
+        #    pdf_text       → REFERENCE (appended below)
+        #
+        #  pdf_role == "main":
+        #    pdf_text       → MAIN TEXT
+        #    prior context  → REFERENCE (appended below)
+        #
+        #  If either side is empty/None, it is simply omitted.
+
+        prior = context.strip() if context else ""
+        pdf   = pdf_text.strip()
+
+        if pdf_role == "reference":
+            main_text = prior
+            ref_label = f"[PDF REFERENCE: {fname}]"
+            ref_text  = pdf
+        else:  # "main"
+            main_text = pdf
+            ref_label = "[PRIOR CONTEXT REFERENCE]"
+            ref_text  = prior
+
+        parts = []
+        if main_text:
+            parts.append(main_text)
+        if ref_text:
+            parts.append(f"{ref_label}\n{ref_text}\n[/REFERENCE]")
+
+        result = "\n\n".join(parts)
+        self.log_msg.emit(
+            f"✅  PDF block assembled: {len(result):,} chars "
+            f"({'PDF=main, prior=ref' if pdf_role == 'main' else 'prior=main, PDF=ref'})")
+        return result
+
+    def _summarise_pdf(self, b: "PipelineBlock", fname: str,
+                       pdf_text: str) -> Optional[str]:
+        """Chunk-summarise a large PDF via the server. Returns summary string or None."""
+        eng   = self.primary_engine
+        CHUNK = 3000
+        chunks, text = [], pdf_text
+        while text:
+            if len(text) <= CHUNK:
+                chunks.append(text.strip()); break
+            cut = text.rfind("\n\n", 0, CHUNK)
+            if cut < 200: cut = CHUNK
+            chunks.append(text[:cut].strip())
+            text = text[cut:].lstrip()
+
+        fam       = detect_model_family(getattr(eng, "model_path", ""))
+        summaries = []
+        for i, chunk in enumerate(chunks):
+            if self._abort:
+                return None
+            self.log_msg.emit(f"  📄  Summarising chunk {i+1}/{len(chunks)}…")
+            prompt = (
+                fam.bos + fam.user_prefix +
+                f"Summarise this document section concisely. "
+                f"File: '{fname}' — Section {i+1}/{len(chunks)}\n\n{chunk}" +
+                fam.user_suffix + fam.assistant_prefix
+            )
+            if eng and eng.mode == "server":
+                import http.client
+                try:
+                    ch = http.client.HTTPConnection(
+                        "127.0.0.1", eng.server_port, timeout=300)
+                    ch.request("POST", "/completion",
+                               json.dumps({"prompt": prompt, "n_predict": 400,
+                                           "stream": False, "temperature": 0.3,
+                                           "stop": fam.stop_tokens}),
+                               {"Content-Type": "application/json"})
+                    resp = ch.getresponse()
+                    if resp.status == 200:
+                        d = json.loads(resp.read().decode("utf-8", errors="replace"))
+                        summaries.append(f"[§{i+1}] {d.get('content','').strip()}")
+                        continue
+                except Exception:
+                    pass
+            summaries.append(f"[§{i+1}] {chunk[:600]}…")
+
+        summary = "\n\n".join(summaries)
+        self.log_msg.emit(f"✅  PDF summarised: {len(summary):,} chars")
+        return summary
+    
+class PipelineOutputRenderer(QTextEdit):
+    """
+    Read-only rich output pane used for pipeline intermediate and final output.
+    Parses the same tokens as the main chat window:
+      - ```lang ... ```  → syntax-highlighted code block (Consolas, bg panel)
+      - **bold**         → bold
+      - `inline code`    → monospace highlighted span
+      - Plain text lines → normal paragraph
+    Accepts either streaming token-by-token calls (append_token) or
+    a full set_content(text) replacement.
+    """
+
+    def __init__(self, placeholder: str = "", parent=None):
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setObjectName("chat_te")
+        self._raw = ""          # accumulated raw text
+        self._placeholder_text = placeholder
+        self._render_timer = QTimer(self)
+        self._render_timer.setSingleShot(True)
+        self._render_timer.setInterval(120)   # debounce re-renders during streaming
+        self._render_timer.timeout.connect(self._render)
+        if placeholder:
+            self.setPlaceholderText(placeholder)
+
+    # ── public API ────────────────────────────────────────────────────────────
+
+    def append_token(self, token: str):
+        self._raw += token
+        self._render_timer.start()   # debounce
+
+    def set_content(self, text: str):
+        self._raw = text
+        self._render()
+
+    def clear_content(self):
+        self._raw = ""
+        self.clear()
+
+    def raw_text(self) -> str:
+        return self._raw
+
+    # ── renderer ──────────────────────────────────────────────────────────────
+
+    def _render(self):
+        html  = self._to_html(self._raw)
+        cur   = self.verticalScrollBar().value()
+        at_bt = cur >= self.verticalScrollBar().maximum() - 40
+        self.setHtml(html)
+        if at_bt:
+            self.verticalScrollBar().setValue(
+                self.verticalScrollBar().maximum())
+        else:
+            self.verticalScrollBar().setValue(cur)
+
+    def _to_html(self, text: str) -> str:
+        """Convert raw pipeline text to HTML using the same rules as the chat window."""
+        CODE_BG   = C.get("bg1", "#1e1e2e")
+        CODE_FG   = C.get("acc2", "#a6e3a1")
+        INLINE_BG = C.get("bg2", "#313244")
+        INLINE_FG = C.get("acc",  "#cba6f7")
+        TXT       = C.get("txt",  "#cdd6f4")
+        TXT2      = C.get("txt2", "#a6adc8")
+
+        body_css = (
+            f"font-family:'Inter',sans-serif;font-size:12px;"
+            f"color:{TXT};background:transparent;"
+            f"margin:0;padding:4px 8px;line-height:1.65;"
+        )
+        code_css = (
+            f"font-family:'Consolas','Fira Code',monospace;font-size:11px;"
+            f"color:{CODE_FG};background:{CODE_BG};"
+            f"display:block;padding:10px 14px;margin:6px 0;"
+            f"border-radius:6px;border-left:3px solid {CODE_FG};"
+            f"white-space:pre;"
+        )
+        inline_css = (
+            f"font-family:'Consolas','Fira Code',monospace;font-size:11px;"
+            f"color:{INLINE_FG};background:{INLINE_BG};"
+            f"padding:1px 4px;border-radius:3px;"
+        )
+
+        import re, html as _html
+
+        # Split into code-block segments and normal text segments
+        segments   = re.split(r'(```(?:[a-zA-Z0-9+\-]*)\n[\s\S]*?```)', text)
+        html_parts = []
+
+        for seg in segments:
+            cb = re.match(r'```([a-zA-Z0-9+\-]*)\n([\s\S]*?)```', seg)
+            if cb:
+                lang  = cb.group(1) or "text"
+                code  = _html.escape(cb.group(2).rstrip())
+                html_parts.append(
+                    f'<div style="{code_css}">'
+                    f'<span style="font-size:9px;color:{TXT2};'
+                    f'font-family:Inter,sans-serif;">{lang}</span><br>'
+                    f'{code}</div>')
+            else:
+                # Process inline elements line-by-line
+                lines = seg.split("\n")
+                para_lines = []
+                for line in lines:
+                    # Escape HTML first
+                    safe = _html.escape(line)
+                    # **bold**
+                    safe = re.sub(
+                        r'\*\*(.+?)\*\*',
+                        r'<b>\1</b>', safe)
+                    # `inline code`
+                    safe = re.sub(
+                        r'`([^`]+)`',
+                        f'<span style="{inline_css}">\\1</span>', safe)
+                    # Headers: ### ## #
+                    hm = re.match(r'^(#{1,3})\s+(.*)', safe)
+                    if hm:
+                        lvl  = len(hm.group(1))
+                        size = {1: "16px", 2: "14px", 3: "13px"}.get(lvl, "13px")
+                        safe = (f'<span style="font-size:{size};font-weight:700;'
+                                f'color:{TXT};">{hm.group(2)}</span>')
+                    # Bullet lists: - or *
+                    elif re.match(r'^[\-\*]\s+', safe):
+                        safe = "• " + safe[2:].lstrip()
+                    para_lines.append(safe)
+
+                # Group into paragraphs separated by blank lines
+                combined = "<br>".join(para_lines)
+                if combined.strip():
+                    html_parts.append(
+                        f'<p style="margin:2px 0;color:{TXT};">{combined}</p>')
+
+        return (
+            f'<html><body style="{body_css}">'
+            + "".join(html_parts)
+            + "</body></html>"
+        )
+
+class PipelineBuilderTab(QWidget):
+    """
+    Full-featured pipeline builder tab.
+    Left sidebar : block adders (flow + context) + model list.
+    Centre       : interactive canvas.
+    Right        : execution controls + per-intermediate live panes + final output.
+    """
+
+    def __init__(self, engine: "LlamaEngine", parent=None):
+        super().__init__(parent)
+        self._engine                = engine
+        self._exec_worker: Optional[PipelineExecutionWorker] = None
+        self._inter_tabs:  Dict[int, int] = {}   # block_id → tab index
+        self._current_pipeline_name: str = ""
+        self._build()
+
+    def update_engine(self, engine: "LlamaEngine"):
+        self._engine = engine
+
+    def _build(self):
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ══════ LEFT SIDEBAR ══════════════════════════════════════════════════
+        sb = QWidget()
+        sb.setObjectName("session_sidebar")
+        sb_l = QVBoxLayout(sb)
+        sb_l.setContentsMargins(10, 14, 10, 14)
+        sb_l.setSpacing(7)
+
+        def _sec(text: str) -> QLabel:
+            lbl = QLabel(text)
+            lbl.setStyleSheet(
+                f"color:{C['txt3']};font-size:9px;"
+                f"font-weight:700;letter-spacing:1.1px;")
+            return lbl
+
+        def _block_btn(icon_label: str, btype: str, color: str) -> QPushButton:
+            btn = QPushButton(icon_label)
+            btn.setFixedHeight(30)
+            btn.setStyleSheet(
+                f"QPushButton{{background:transparent;"
+                f"color:{color};border:1px solid {color};"
+                f"border-radius:6px;font-size:11px;font-weight:600;}}"
+                f"QPushButton:hover{{background:{color};color:#fff;}}")
+            btn.clicked.connect(lambda _, bt=btype: self._add_block(bt))
+            return btn
+
+        hdr = QLabel("🔗  Pipeline Builder")
+        hdr.setStyleSheet(
+            f"color:{C['txt']};font-size:12px;font-weight:700;")
+        sb_l.addWidget(hdr)
+
+        sep0 = QFrame(); sep0.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep0)
+
+        sb_l.addWidget(_sec("FLOW BLOCKS"))
+        sb_l.addWidget(_block_btn("▶  Input Block",          PipelineBlockType.INPUT,        C["ok"]))
+        sb_l.addWidget(_block_btn("◈  Intermediate Block",   PipelineBlockType.INTERMEDIATE, C["warn"]))
+        sb_l.addWidget(_block_btn("■  Output Block",         PipelineBlockType.OUTPUT,       C["err"]))
+
+        sep_ctx = QFrame(); sep_ctx.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep_ctx)
+        sb_l.addWidget(_sec("CONTEXT BLOCKS"))
+        sb_l.addWidget(_block_btn("📎  Reference",   PipelineBlockType.REFERENCE,   C["acc"]))
+        sb_l.addWidget(_block_btn("💡  Knowledge",   PipelineBlockType.KNOWLEDGE,   C["acc2"]))
+        sb_l.addWidget(_block_btn("📄  PDF Summary", PipelineBlockType.PDF_SUMMARY, C["pipeline"]))
+
+        sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep1)
+
+        sb_l.addWidget(_sec("MODELS  (dbl-click to add)"))
+        self.model_list = QListWidget()
+        self.model_list.setObjectName("model_list")
+        self.model_list.itemDoubleClicked.connect(self._add_model_from_list)
+        sb_l.addWidget(self.model_list, 1)
+
+        self.btn_refresh = QPushButton("↻  Refresh")
+        self.btn_refresh.setFixedHeight(26)
+        self.btn_refresh.clicked.connect(self._refresh_models)
+        sb_l.addWidget(self.btn_refresh)
+
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep2)
+
+        sb_l.addWidget(_sec("CANVAS CONTROLS"))
+        self.btn_clear_canvas = QPushButton("🗑  Clear All")
+        self.btn_clear_canvas.setFixedHeight(28)
+        self.btn_clear_canvas.clicked.connect(self._clear_canvas)
+        sb_l.addWidget(self.btn_clear_canvas)
+
+        self.btn_save_pipeline = QPushButton("💾  Save Pipeline…")
+        self.btn_save_pipeline.setFixedHeight(28)
+        self.btn_save_pipeline.clicked.connect(self._save_pipeline)
+        sb_l.addWidget(self.btn_save_pipeline)
+
+        self.btn_load_pipeline = QPushButton("📂  Load Pipeline…")
+        self.btn_load_pipeline.setFixedHeight(28)
+        self.btn_load_pipeline.clicked.connect(self._load_pipeline)
+        sb_l.addWidget(self.btn_load_pipeline)
+
+        hint = QLabel(
+            "Tip: draw a connection from a\n"
+            "port dot (N·S·E·W) on one block\n"
+            "to a port dot on another block.\n\n"
+            "Model→Model requires an\n"
+            "Intermediate block in between.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;"
+            f"padding:6px 4px;line-height:1.6;")
+        sb_l.addWidget(hint)
+
+        sb_l.addStretch()
+
+        sb_scroll = QScrollArea()
+        sb_scroll.setWidget(sb)
+        sb_scroll.setWidgetResizable(True)
+        sb_scroll.setFixedWidth(214)
+        sb_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        sb_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        sb_scroll.setObjectName("session_sidebar")
+        sb_scroll.setStyleSheet("QScrollArea#session_sidebar { border: none; }")
+        root.addWidget(sb_scroll)
+
+        # ══════ CENTRE: CANVAS ════════════════════════════════════════════════
+        centre = QWidget()
+        centre_l = QVBoxLayout(centre)
+        centre_l.setContentsMargins(0, 0, 0, 0)
+        centre_l.setSpacing(0)
+
+        # toolbar
+        toolbar = QWidget()
+        toolbar.setObjectName("appearance_bar")
+        toolbar.setFixedHeight(40)
+        tb_l = QHBoxLayout(toolbar)
+        tb_l.setContentsMargins(12, 4, 12, 4)
+        tb_l.setSpacing(8)
+        tb_title = QLabel("🔗  Pipeline Canvas")
+        tb_title.setObjectName("appearance_hdr")
+        tb_l.addWidget(tb_title)
+        tb_l.addStretch()
+        legend_items = [
+            (C["ok"],       "▶ Input"),
+            (C["warn"],     "◈ Intermediate"),
+            (C["err"],      "■ Output"),
+            (C["acc"],      "⚡ Model"),
+            (C["pipeline"], "⤵ Loop arrow"),
+            (C["acc2"],     "→ Forward arrow"),
+        ]
+        for col, txt in legend_items:
+            lbl = QLabel(txt)
+            lbl.setStyleSheet(
+                f"color:{col};font-size:10px;font-weight:600;"
+                f"padding:1px 6px;"
+                f"background:{C['bg2']};border-radius:4px;")
+            tb_l.addWidget(lbl)
+        centre_l.addWidget(toolbar)
+
+        canvas_scroll = QScrollArea()
+        canvas_scroll.setWidgetResizable(False)
+        canvas_scroll.setObjectName("chat_scroll")
+        self.canvas = PipelineCanvas()
+        self.canvas.blocks_changed.connect(self._on_blocks_changed)
+        canvas_scroll.setWidget(self.canvas)
+        centre_l.addWidget(canvas_scroll, 1)
+
+        root.addWidget(centre, 1)
+
+        # ══════ RIGHT: EXECUTION PANEL ════════════════════════════════════════
+        rp = QWidget()
+        rp.setFixedWidth(282)
+        rp.setObjectName("ref_panel")
+        rp_l = QVBoxLayout(rp)
+        rp_l.setContentsMargins(12, 14, 12, 14)
+        rp_l.setSpacing(7)
+
+        exec_hdr = QLabel("▶  Execute Pipeline")
+        exec_hdr.setStyleSheet(
+            f"color:{C['txt']};font-size:12px;font-weight:700;")
+        rp_l.addWidget(exec_hdr)
+
+        # Server status badge (auto-refreshed every 2.5 s)
+        self.server_badge = QLabel("⚪  Engine status unknown")
+        self.server_badge.setStyleSheet(
+            f"color:{C['txt3']};font-size:10px;padding:2px 7px;"
+            f"background:{C['bg2']};border-radius:4px;")
+        rp_l.addWidget(self.server_badge)
+        self._badge_timer = QTimer(self)
+        self._badge_timer.timeout.connect(self._update_server_badge)
+        self._badge_timer.start(2500)
+
+        input_lbl = QLabel("Input text:")
+        input_lbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        rp_l.addWidget(input_lbl)
+
+        self.input_edit = QTextEdit()
+        self.input_edit.setPlaceholderText(
+            "Enter the prompt or text to feed\n"
+            "into the first INPUT block…")
+        self.input_edit.setMaximumHeight(100)
+        rp_l.addWidget(self.input_edit)
+
+        self.btn_run = QPushButton("▶  Run Pipeline")
+        self.btn_run.setObjectName("btn_send")
+        self.btn_run.setFixedHeight(34)
+        self.btn_run.clicked.connect(self._run_pipeline)
+        rp_l.addWidget(self.btn_run)
+
+        self.btn_stop = QPushButton("⏹  Stop Execution")
+        self.btn_stop.setObjectName("btn_stop")
+        self.btn_stop.setFixedHeight(34)
+        self.btn_stop.setVisible(False)
+        self.btn_stop.clicked.connect(self._stop_pipeline)
+        rp_l.addWidget(self.btn_stop)
+
+        sep3 = QFrame(); sep3.setFrameShape(QFrame.Shape.HLine)
+        rp_l.addWidget(sep3)
+
+        # Tabbed output: 📋 Log | ■ Output | one ◈ tab per intermediate block
+        self.output_tabs = QTabWidget()
+        self.output_tabs.setObjectName("ref_tabs")
+
+        self.exec_log = QTextEdit()
+        self.exec_log.setReadOnly(True)
+        self.exec_log.setFont(QFont("Consolas", 9))
+        self.exec_log.setObjectName("log_te")
+        self.output_tabs.addTab(self.exec_log, "📋 Log")
+
+        self.output_edit = PipelineOutputRenderer(
+            placeholder="Final pipeline output appears here…")
+        self.output_tabs.addTab(self.output_edit, "■ Output")
+        rp_l.addWidget(self.output_tabs, 1)
+
+        copy_btn = QPushButton("⧉  Copy Final Output")
+        copy_btn.setFixedHeight(28)
+        copy_btn.clicked.connect(
+            lambda: QApplication.clipboard().setText(
+                self.output_edit.raw_text()))
+        rp_l.addWidget(copy_btn)
+
+        root.addWidget(rp)
+
+        self._refresh_models()
+
+    # ── helpers ───────────────────────────────────────────────────────────────
+
+    def _refresh_models(self):
+        self.model_list.clear()
+        for m in MODEL_REGISTRY.all_models():
+            ri   = ROLE_ICONS.get(m.get("role", "general"), "💬")
+            qt   = m.get("quant", "?")
+            fam  = m.get("family", "?")
+            item = QListWidgetItem(f"{ri}  {m['name']}\n    {fam} · {qt}")
+            item.setData(Qt.ItemDataRole.UserRole,     m["path"])
+            item.setData(Qt.ItemDataRole.UserRole + 1, m.get("role", "general"))
+            self.model_list.addItem(item)
+
+    # ── pipeline save / load ──────────────────────────────────────────────────
+
+    def _save_pipeline(self):
+        if not self.canvas.blocks:
+            QMessageBox.warning(self, "Empty Pipeline",
+                                "Add blocks before saving."); return
+        saved = list_saved_pipelines()
+        name, ok = QInputDialog.getText(
+            self, "Save Pipeline",
+            "Pipeline name:\n(Existing names will be overwritten)",
+            text=self._current_pipeline_name or "")
+        if not ok or not name.strip():
+            return
+        name = name.strip().replace("/", "-").replace("\\", "-")
+        save_pipeline(name, self.canvas.blocks, self.canvas.connections)
+        self._current_pipeline_name = name
+        self._log(f"💾  Pipeline saved as '{name}'")
+        QMessageBox.information(self, "Saved",
+                                f"Pipeline '{name}' saved successfully.")
+
+    def _load_pipeline(self):
+        saved = list_saved_pipelines()
+        if not saved:
+            QMessageBox.information(self, "No Pipelines",
+                                    "No saved pipelines found.\n"
+                                    f"Pipelines are stored in:\n{PIPELINES_DIR}")
+            return
+        # Offer saved names + a delete option
+        items = saved + ["─────────────", "🗑  Delete a pipeline…"]
+        choice, ok = QInputDialog.getItem(
+            self, "Load Pipeline", "Select a pipeline:", items, 0, False)
+        if not ok:
+            return
+        if choice == "🗑  Delete a pipeline…":
+            self._delete_pipeline_dialog(saved); return
+        if choice.startswith("─"):
+            return
+        if self.canvas.blocks:
+            ans = QMessageBox.question(
+                self, "Replace Canvas",
+                f"Load '{choice}' and replace the current canvas?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if ans != QMessageBox.StandardButton.Yes:
+                return
+        try:
+            blocks, conns = load_pipeline(choice)
+        except Exception as e:
+            QMessageBox.critical(self, "Load Error", str(e)); return
+        self.canvas.clear_all()
+        while self.output_tabs.count() > 2:
+            self.output_tabs.removeTab(2)
+        self._inter_tabs.clear()
+        for b in blocks:
+            self.canvas.blocks.append(b)
+        self.canvas.connections = conns
+        self.canvas.update()
+        self.canvas.blocks_changed.emit()
+        self._current_pipeline_name = choice
+        self._log(f"📂  Pipeline '{choice}' loaded "
+                  f"({len(blocks)} blocks, {len(conns)} connections)")
+
+    def _delete_pipeline_dialog(self, saved: list):
+        choice, ok = QInputDialog.getItem(
+            self, "Delete Pipeline", "Pipeline to delete:", saved, 0, False)
+        if not ok:
+            return
+        ans = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Permanently delete '{choice}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if ans == QMessageBox.StandardButton.Yes:
+            (PIPELINES_DIR / f"{choice}.json").unlink(missing_ok=True)
+            self._log(f"🗑  Pipeline '{choice}' deleted.")
+
+    def _update_server_badge(self):
+        eng = self._engine
+        if not eng or not eng.is_loaded:
+            self.server_badge.setText("⚪  No model loaded")
+            self.server_badge.setStyleSheet(
+                f"color:{C['txt3']};font-size:10px;padding:2px 7px;"
+                f"background:{C['bg2']};border-radius:4px;")
+        elif eng.mode == "server":
+            self.server_badge.setText(f"🟢  Server · port {eng.server_port}")
+            self.server_badge.setStyleSheet(
+                f"color:{C['ok']};font-size:10px;padding:2px 7px;"
+                f"background:{C['bg2']};border-radius:4px;")
+        else:
+            self.server_badge.setText("🟡  CLI mode — will switch on run")
+            self.server_badge.setStyleSheet(
+                f"color:{C['warn']};font-size:10px;padding:2px 7px;"
+                f"background:{C['bg2']};border-radius:4px;")
+
+    def _add_block(self, btype: str):
+        count = sum(1 for b in self.canvas.blocks if b.btype == btype)
+        x = 100 + count * 30
+        y = 160 + (len(self.canvas.blocks) % 4) * 100
+        b = self.canvas.add_block(btype, x=x, y=y)
+        # Immediately prompt configuration for context blocks
+        if btype in (PipelineBlockType.REFERENCE,
+                     PipelineBlockType.KNOWLEDGE,
+                     PipelineBlockType.PDF_SUMMARY):
+            self.canvas._configure_context_block(b)
+
+    def _add_model_from_list(self, item: QListWidgetItem):
+        path = item.data(Qt.ItemDataRole.UserRole)
+        role = item.data(Qt.ItemDataRole.UserRole + 1) or "general"
+        if not path:
+            return
+        model_blocks = [b for b in self.canvas.blocks
+                        if b.btype == PipelineBlockType.MODEL]
+        x = 220 + len(model_blocks) * 180
+        y = 260
+        b = self.canvas.add_block(PipelineBlockType.MODEL, x=x, y=y,
+                                   model_path=path, role=role)
+        self._log(f"Added model: {b.label}  [{role}]")
+
+    def _clear_canvas(self):
+        if QMessageBox.question(
+            self, "Clear Canvas",
+            "Remove all blocks and connections from the pipeline?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) == QMessageBox.StandardButton.Yes:
+            self.canvas.clear_all()
+            # Remove intermediate pane tabs (keep Log [0] and Output [1])
+            while self.output_tabs.count() > 2:
+                self.output_tabs.removeTab(2)
+            self._inter_tabs.clear()
+            self.exec_log.clear()
+            self.output_edit.clear()
+
+    def _on_blocks_changed(self):
+        """Sync intermediate live-output tabs with current canvas blocks."""
+        existing_inter_ids = {b.bid for b in self.canvas.blocks
+                              if b.btype == PipelineBlockType.INTERMEDIATE}
+        # Remove tabs for deleted intermediate blocks
+        for bid in list(self._inter_tabs.keys()):
+            if bid not in existing_inter_ids:
+                idx = self._inter_tabs.pop(bid)
+                if idx < self.output_tabs.count():
+                    self.output_tabs.removeTab(idx)
+                # Re-index remaining entries
+                self._inter_tabs = {
+                    b2: (i2 if i2 < idx else i2 - 1)
+                    for b2, i2 in self._inter_tabs.items()
+                }
+        # Add tabs for new intermediate blocks
+        for b in self.canvas.blocks:
+            if b.btype == PipelineBlockType.INTERMEDIATE and b.bid not in self._inter_tabs:
+                te = PipelineOutputRenderer(
+                    placeholder=f"Live context arriving at ◈ '{b.label}' will appear here…")
+                idx = self.output_tabs.addTab(te, f"◈ {b.label[:14]}")
+                self._inter_tabs[b.bid] = idx
+
+    def _log(self, msg: str):
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.exec_log.append(
+            f'<span style="color:{C["txt2"]}">[{ts}]</span> '
+            f'<span style="color:{C["txt"]}">{msg}</span>')
+
+    # ── execution ─────────────────────────────────────────────────────────────
+
+    def _validate(self) -> Optional[str]:
+        blocks = self.canvas.blocks
+        if not blocks:
+            return "Canvas is empty — add blocks first."
+        if not any(b.btype == PipelineBlockType.INPUT for b in blocks):
+            return "Pipeline needs at least one ▶ INPUT block."
+        if not any(b.btype == PipelineBlockType.OUTPUT for b in blocks):
+            return "Pipeline needs at least one ■ OUTPUT block."
+        if not self.canvas.connections:
+            return "No connections drawn. Connect the blocks with arrows."
+        # Context blocks must be configured before running
+        for b in blocks:
+            meta = getattr(b, "metadata", {})
+            if b.btype == PipelineBlockType.REFERENCE and not meta.get("ref_text"):
+                return (f"Reference block '{b.label}' has no text.\n"
+                        f"Right-click it → Configure block…")
+            if b.btype == PipelineBlockType.KNOWLEDGE and not meta.get("knowledge_text"):
+                return (f"Knowledge block '{b.label}' has no text.\n"
+                        f"Right-click it → Configure block…")
+            if b.btype == PipelineBlockType.PDF_SUMMARY and not meta.get("pdf_path"):
+                return (f"PDF block '{b.label}' has no PDF selected.\n"
+                        f"Right-click it → Configure block…")
+        # Model blocks must have a valid file
+        for b in blocks:
+            if b.btype == PipelineBlockType.MODEL:
+                if not b.model_path or not Path(b.model_path).exists():
+                    return (f"Model block '{b.label}' has no valid model file.\n"
+                            f"Double-click a model in the sidebar to add it.")
+        return None
+
+    def _run_pipeline(self):
+        err = self._validate()
+        if err:
+            QMessageBox.warning(self, "Invalid Pipeline", err); return
+
+        text = self.input_edit.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "No Input",
+                                "Enter text in the Input field on the right."); return
+
+        if not self._engine.is_loaded:
+            QMessageBox.warning(self, "Engine Not Ready",
+                                "Wait for the model to finish loading."); return
+
+        self.exec_log.clear()
+        self.output_edit.clear()
+        # Reset intermediate live panes
+        for bid, idx in self._inter_tabs.items():
+            w = self.output_tabs.widget(idx)
+            if isinstance(w, PipelineOutputRenderer):
+                w.clear_content()
+            b = self.canvas._block_by_id(bid)
+            if b:
+                self.output_tabs.setTabText(idx, f"◈ {b.label[:14]}")
+        self.output_edit.clear_content()
+        self.output_tabs.setCurrentIndex(0)
+        self._log("▶  Pipeline execution started…")
+
+        self.btn_run.setVisible(False)
+        self.btn_stop.setVisible(True)
+
+        self._exec_worker = PipelineExecutionWorker(
+            list(self.canvas.blocks),
+            list(self.canvas.connections),
+            text,
+            self._engine)
+        self._exec_worker.step_started.connect(self._on_step_started)
+        self._exec_worker.step_token.connect(self._on_step_token)
+        self._exec_worker.step_done.connect(self._on_step_done)
+        self._exec_worker.intermediate_live.connect(self._on_intermediate_live)
+        self._exec_worker.pipeline_done.connect(self._on_pipeline_done)
+        self._exec_worker.err.connect(self._on_exec_err)
+        self._exec_worker.log_msg.connect(self._log)
+        self._exec_worker.start()
+
+    def _stop_pipeline(self):
+        if self._exec_worker:
+            self._exec_worker.abort()
+            self._exec_worker.wait(2000)
+            self._exec_worker = None
+        self._log("⏹  Stopped by user.")
+        self.btn_run.setVisible(True)
+        self.btn_stop.setVisible(False)
+
+    def _on_step_started(self, bid: int, label: str):
+        self._log(f"⚡  Block: {label}")
+        for b in self.canvas.blocks:
+            b.selected = (b.bid == bid)
+        self.canvas.update()
+
+    def _on_step_token(self, _bid: int, token: str):
+        self.output_edit.append_token(token)
+
+    def _on_intermediate_live(self, bid: int, label: str, text: str):
+        """Populate this intermediate block's dedicated output tab."""
+        if bid in self._inter_tabs:
+            idx    = self._inter_tabs[bid]
+            widget = self.output_tabs.widget(idx)
+            if isinstance(widget, PipelineOutputRenderer):
+                widget.set_content(text)
+                self.output_tabs.setTabText(idx, f"◈ {label[:12]} ✅")
+                self.output_tabs.setCurrentIndex(idx)
+
+    def _on_step_done(self, bid: int, text: str):
+        b = self.canvas._block_by_id(bid)
+        lbl = b.label if b else str(bid)
+        self._log(f"✅  '{lbl}' → {len(text):,} chars")
+        for blk in self.canvas.blocks:
+            blk.selected = False
+        self.canvas.update()
+
+    def _on_pipeline_done(self, payload: str):
+        import json as _json
+        try:
+            data   = _json.loads(payload)
+            final  = data.get("text", payload)
+            sender = data.get("sender", "")
+        except Exception:
+            final  = payload
+            sender = ""
+
+        header = (f"**Output from: {sender}**\n\n" if sender else "")
+        self._log(f"🏁  Done! {len(final):,} chars from '{sender or 'pipeline'}'.")
+        self.output_edit.set_content(header + final)
+        self.output_tabs.setCurrentIndex(1)
+        self.btn_run.setVisible(True)
+        self.btn_stop.setVisible(False)
+        self._exec_worker = None
+        for b in self.canvas.blocks:
+            b.selected = False
+        self.canvas.update()
+
+    def _on_exec_err(self, msg: str):
+        self._log(f"❌  {msg}")
+        self.btn_run.setVisible(True)
+        self.btn_stop.setVisible(False)
+        self._exec_worker = None
+        for b in self.canvas.blocks:
+            b.selected = False
+        self.canvas.update()
+
+
+# ═════════════════════════════ API MODELS TAB ════════════════════════════════
+
+class ApiModelsTab(QWidget):
+    """Tab for connecting to cloud/local API models. Once verified, treated as a normal engine."""
+    api_model_loaded = pyqtSignal(object)   # emits ApiEngine
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._tester = None
+        self._build()
+        self._refresh_saved()
+
+    @staticmethod
+    def _sec_lbl(text: str) -> QLabel:
+        lb = QLabel(text)
+        lb.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1.2px;")
+        return lb
+
+    @staticmethod
+    def _inp(placeholder: str = "", pw: bool = False) -> QLineEdit:
+        e = QLineEdit()
+        e.setPlaceholderText(placeholder)
+        e.setFixedHeight(32)
+        if pw:
+            e.setEchoMode(QLineEdit.EchoMode.Password)
+        e.setStyleSheet(
+            f"QLineEdit{{background:{C['bg1']};border:1px solid {C['bdr']};"
+            f"border-radius:6px;color:{C['txt']};padding:0 10px;font-size:12px;}}"
+            f"QLineEdit:focus{{border-color:{C['acc']};}}")
+        return e
+
+    @staticmethod
+    def _combo_style() -> str:
+        return (f"QComboBox{{background:{C['bg1']};border:1px solid {C['bdr']};"
+                f"border-radius:6px;color:{C['txt']};padding:0 10px;font-size:12px;}}"
+                f"QComboBox::drop-down{{border:none;width:22px;}}"
+                f"QComboBox QAbstractItemView{{background:{C['bg2']};color:{C['txt']};"
+                f"selection-background-color:{C['acc']};}}")
+
+    @staticmethod
+    def _action_btn(label: str, color: str) -> QPushButton:
+        b = QPushButton(label)
+        b.setFixedHeight(34)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setStyleSheet(
+            f"QPushButton{{background:transparent;color:{color};"
+            f"border:1px solid {color};border-radius:7px;"
+            f"font-size:11px;font-weight:600;padding:0 16px;}}"
+            f"QPushButton:hover{{background:{color};color:#fff;}}"
+            f"QPushButton:disabled{{color:{C['txt3']};border-color:{C['bdr']};}}")
+        return b
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 18, 24, 18)
+        root.setSpacing(14)
+
+        hdr = QLabel("🌐  API Models")
+        hdr.setStyleSheet(f"color:{C['txt']};font-size:15px;font-weight:700;")
+        root.addWidget(hdr)
+
+        sub = QLabel("Connect to any OpenAI-compatible or Anthropic endpoint. "
+                     "Once verified, the API model is treated exactly like a local model.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        root.addWidget(sub)
+
+        # ── Connection card (scrollable so custom-format fields never overlap) ─
+        card_scroll = QScrollArea()
+        card_scroll.setWidgetResizable(True)
+        card_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        card_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        card_scroll.setStyleSheet(
+            f"QScrollArea{{background:{C['bg2']};border:1px solid {C['bdr']};"
+            f"border-radius:10px;}}"
+            f"QScrollBar:vertical{{background:{C['bg1']};width:6px;border-radius:3px;}}"
+            f"QScrollBar::handle:vertical{{background:{C['bdr2']};border-radius:3px;}}"
+            f"QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0px;}}")
+        card = QWidget()
+        card.setStyleSheet(f"QWidget{{background:{C['bg2']};border:none;}}")
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(18, 16, 18, 16)
+        cl.setSpacing(12)
+        cl.addWidget(self._sec_lbl("NEW CONNECTION"))
+
+        # Provider + Model row
+        r1 = QHBoxLayout(); r1.setSpacing(12)
+
+        lp = QVBoxLayout(); lp.setSpacing(4)
+        lp.addWidget(QLabel("Provider"))
+        self.combo_provider = QComboBox()
+        self.combo_provider.setFixedHeight(32)
+        self.combo_provider.setStyleSheet(self._combo_style())
+        for p in API_PROVIDERS:
+            self.combo_provider.addItem(p)
+        self.combo_provider.currentTextChanged.connect(self._on_provider_changed)
+        lp.addWidget(self.combo_provider)
+        r1.addLayout(lp, 1)
+
+        lm = QVBoxLayout(); lm.setSpacing(4)
+        lm.addWidget(QLabel("Model"))
+        self.combo_model = QComboBox()
+        self.combo_model.setFixedHeight(32)
+        self.combo_model.setEditable(True)
+        self.combo_model.setStyleSheet(self._combo_style())
+        lm.addWidget(self.combo_model)
+        r1.addLayout(lm, 2)
+        cl.addLayout(r1)
+
+        # API Key
+        kl = QVBoxLayout(); kl.setSpacing(4)
+        kl.addWidget(QLabel("API Key"))
+        self.inp_key = self._inp("sk-…  (leave blank for Ollama / no-auth endpoints)", pw=True)
+        kl.addWidget(self.inp_key)
+        cl.addLayout(kl)
+
+        # Base URL + Max Tokens row
+        r3 = QHBoxLayout(); r3.setSpacing(12)
+        ul = QVBoxLayout(); ul.setSpacing(4)
+        ul.addWidget(QLabel("Base URL"))
+        self.inp_url = self._inp("https://api.openai.com/v1")
+        ul.addWidget(self.inp_url)
+        r3.addLayout(ul, 3)
+        tl = QVBoxLayout(); tl.setSpacing(4)
+        tl.addWidget(QLabel("Max Tokens"))
+        self.inp_tokens = self._inp("2048")
+        self.inp_tokens.setFixedWidth(96)
+        tl.addWidget(self.inp_tokens)
+        r3.addLayout(tl)
+        cl.addLayout(r3)
+
+        # Config name + custom provider name
+        r4 = QHBoxLayout(); r4.setSpacing(12)
+        nl = QVBoxLayout(); nl.setSpacing(4)
+        nl.addWidget(QLabel("Config Name  (for saving)"))
+        self.inp_name = self._inp("e.g. My GPT-4o")
+        nl.addWidget(self.inp_name)
+        r4.addLayout(nl, 2)
+        pnl = QVBoxLayout(); pnl.setSpacing(4)
+        pnl.addWidget(QLabel("Custom Provider Label  (optional)"))
+        self.inp_custom_provider = self._inp("e.g. My Company API")
+        pnl.addWidget(self.inp_custom_provider)
+        r4.addLayout(pnl, 2)
+        cl.addLayout(r4)
+
+        # ── Prompt format section ─────────────────────────────────────────────
+        sep_pf = QFrame(); sep_pf.setFrameShape(QFrame.Shape.HLine)
+        sep_pf.setStyleSheet(f"color:{C['bdr']};")
+        cl.addWidget(sep_pf)
+
+        pf_hdr = QHBoxLayout()
+        pf_lbl = self._sec_lbl("PROMPT FORMAT")
+        self.chk_custom_prompt = QCheckBox("Use custom format")
+        self.chk_custom_prompt.setStyleSheet(
+            f"QCheckBox{{color:{C['txt2']};font-size:11px;}}"
+            f"QCheckBox::indicator{{width:14px;height:14px;border:1px solid {C['bdr']};"
+            f"border-radius:3px;background:{C['bg1']};}}"
+            f"QCheckBox::indicator:checked{{background:{C['acc']};border-color:{C['acc']};}}")
+        self.chk_custom_prompt.toggled.connect(self._toggle_prompt_format)
+        pf_hdr.addWidget(pf_lbl)
+        pf_hdr.addStretch()
+        pf_hdr.addWidget(self.chk_custom_prompt)
+        cl.addLayout(pf_hdr)
+
+        # Template picker row
+        self.prompt_format_widget = QWidget()
+        pfw = QVBoxLayout(self.prompt_format_widget)
+        pfw.setContentsMargins(0, 0, 0, 0)
+        pfw.setSpacing(10)
+
+        tr = QHBoxLayout(); tr.setSpacing(12)
+        tl2 = QVBoxLayout(); tl2.setSpacing(4)
+        tl2.addWidget(QLabel("Template Preset"))
+        self.combo_template = QComboBox()
+        self.combo_template.setFixedHeight(32)
+        self.combo_template.setStyleSheet(self._combo_style())
+        for key, val in PROMPT_TEMPLATES.items():
+            self.combo_template.addItem(val["label"], key)
+        self.combo_template.currentIndexChanged.connect(self._on_template_changed)
+        tl2.addWidget(self.combo_template)
+        tr.addLayout(tl2, 1)
+        pfw.addLayout(tr)
+
+        # System prompt
+        spl = QVBoxLayout(); spl.setSpacing(4)
+        spl.addWidget(QLabel("System Prompt"))
+        self.inp_system = QTextEdit()
+        self.inp_system.setFixedHeight(64)
+        self.inp_system.setPlaceholderText("System prompt / instruction prefix (optional)")
+        self.inp_system.setStyleSheet(
+            f"QTextEdit{{background:{C['bg1']};border:1px solid {C['bdr']};"
+            f"border-radius:6px;color:{C['txt']};padding:6px 10px;font-size:11px;}}"
+            f"QTextEdit:focus{{border-color:{C['acc']};}}")
+        spl.addWidget(self.inp_system)
+        pfw.addLayout(spl)
+
+        # Prefix / suffix rows
+        pfx_row = QHBoxLayout(); pfx_row.setSpacing(12)
+        upl = QVBoxLayout(); upl.setSpacing(4)
+        upl.addWidget(QLabel("User Prefix"))
+        self.inp_user_prefix = self._inp(r"e.g. [INST] ")
+        upl.addWidget(self.inp_user_prefix)
+        pfx_row.addLayout(upl)
+        usl = QVBoxLayout(); usl.setSpacing(4)
+        usl.addWidget(QLabel("User Suffix"))
+        self.inp_user_suffix = self._inp(r"e.g.  [/INST]")
+        usl.addWidget(self.inp_user_suffix)
+        pfx_row.addLayout(usl)
+        apl = QVBoxLayout(); apl.setSpacing(4)
+        apl.addWidget(QLabel("Assistant Prefix"))
+        self.inp_asst_prefix = self._inp(r"e.g. <|assistant|>\n")
+        apl.addWidget(self.inp_asst_prefix)
+        pfx_row.addLayout(apl)
+        pfw.addLayout(pfx_row)
+
+        self.prompt_format_widget.setVisible(False)
+        cl.addWidget(self.prompt_format_widget)
+        cl.addStretch()
+
+        card_scroll.setWidget(card)
+
+        # Buttons + status
+        br = QHBoxLayout(); br.setSpacing(10)
+        self.btn_test = self._action_btn("⚡  Test & Load", C["ok"])
+        self.btn_save = self._action_btn("💾  Save Config",  C["acc"])
+        self.btn_test.clicked.connect(self._test_and_load)
+        self.btn_save.clicked.connect(self._save_config)
+        br.addWidget(self.btn_test)
+        br.addWidget(self.btn_save)
+        br.addStretch()
+        cl.addLayout(br)
+
+        self.lbl_status = QLabel("● Not connected")
+        self.lbl_status.setStyleSheet(f"color:{C['txt3']};font-size:11px;")
+        cl.addWidget(self.lbl_status)
+        root.addWidget(card_scroll, 2)
+
+        # ── Saved configs ─────────────────────────────────────────────────────
+        root.addWidget(self._sec_lbl("SAVED CONFIGS"))
+
+        saved_scroll = QScrollArea()
+        saved_scroll.setWidgetResizable(True)
+        saved_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        saved_scroll.setStyleSheet("QScrollArea{border:none;background:transparent;}")
+        self.saved_container = QWidget()
+        self.saved_vbox = QVBoxLayout(self.saved_container)
+        self.saved_vbox.setContentsMargins(0, 4, 0, 4)
+        self.saved_vbox.setSpacing(6)
+        self.saved_vbox.addStretch()
+        saved_scroll.setWidget(self.saved_container)
+        root.addWidget(saved_scroll, 1)
+
+        self._on_provider_changed(self.combo_provider.currentText())
+
+    def _toggle_prompt_format(self, checked: bool):
+        self.prompt_format_widget.setVisible(checked)
+        if checked:
+            _fade_in(self.prompt_format_widget, 180)
+
+    def _on_template_changed(self, _idx: int):
+        key = self.combo_template.currentData()
+        if not key or key == "custom":
+            return
+        t = PROMPT_TEMPLATES[key]
+        self.inp_system.setPlainText(t["system"])
+        self.inp_user_prefix.setText(t["user_prefix"])
+        self.inp_user_suffix.setText(t["user_suffix"])
+        self.inp_asst_prefix.setText(t["assistant_prefix"])
+
+    def _on_provider_changed(self, provider: str):
+        info = API_PROVIDERS.get(provider, {})
+        self.combo_model.clear()
+        for m in info.get("models", []):
+            self.combo_model.addItem(m)
+        self.inp_url.setText(info.get("base_url", ""))
+
+    def _collect_config(self) -> ApiConfig:
+        provider   = self.combo_provider.currentText()
+        model_id   = self.combo_model.currentText().strip()
+        api_key    = self.inp_key.text().strip()
+        base_url   = self.inp_url.text().strip()
+        api_format = API_PROVIDERS.get(provider, {}).get("format", "openai")
+        try:    max_tok = int(self.inp_tokens.text())
+        except: max_tok = 2048
+        custom_prov = self.inp_custom_provider.text().strip()
+        name = self.inp_name.text().strip() or f"{custom_prov or provider} {model_id}"
+
+        use_custom = self.chk_custom_prompt.isChecked()
+        tmpl_key   = self.combo_template.currentData() or "default"
+        return ApiConfig(
+            name=name, provider=provider, model_id=model_id,
+            api_key=api_key, base_url=base_url,
+            api_format=api_format, max_tokens=max_tok,
+            custom_provider_name=custom_prov,
+            use_custom_prompt=use_custom,
+            prompt_template=tmpl_key,
+            system_prompt=(self.inp_system.toPlainText().strip() if use_custom else ""),
+            user_prefix=(self.inp_user_prefix.text() if use_custom else ""),
+            user_suffix=(self.inp_user_suffix.text() if use_custom else ""),
+            assistant_prefix=(self.inp_asst_prefix.text() if use_custom else ""),
+        )
+
+    def _run_test(self, cfg: ApiConfig):
+        self.btn_test.setEnabled(False)
+        self.lbl_status.setText("⏳  Testing connection…")
+        self.lbl_status.setStyleSheet(f"color:{C['warn']};font-size:11px;")
+
+        class _T(QThread):
+            finished = pyqtSignal(bool, str, object)
+            def __init__(self, c): super().__init__(); self.cfg = c
+            def run(self):
+                eng = ApiEngine()
+                ok  = eng.load(self.cfg)
+                self.finished.emit(ok, eng.status_text if ok else
+                                   "Connection failed — check key / URL / model ID", eng if ok else None)
+
+        self._tester = _T(cfg)
+        self._tester.finished.connect(self._on_test_done)
+        self._tester.start()
+
+    def _test_and_load(self):
+        cfg = self._collect_config()
+        if not cfg.model_id:
+            self.lbl_status.setText("⚠  Select or enter a model ID first")
+            self.lbl_status.setStyleSheet(f"color:{C['warn']};font-size:11px;")
+            return
+        self._run_test(cfg)
+
+    def _on_test_done(self, ok: bool, msg: str, engine):
+        self.btn_test.setEnabled(True)
+        if ok:
+            self.lbl_status.setText(f"✓  {msg}")
+            self.lbl_status.setStyleSheet(f"color:{C['ok']};font-size:11px;")
+            self.api_model_loaded.emit(engine)
+        else:
+            self.lbl_status.setText(f"✗  {msg}")
+            self.lbl_status.setStyleSheet(f"color:{C['err']};font-size:11px;")
+        self._tester = None
+
+    def _save_config(self):
+        cfg = self._collect_config()
+        if not cfg.model_id:
+            return
+        API_REGISTRY.add(cfg)
+        self._refresh_saved()
+
+    def _refresh_saved(self):
+        while self.saved_vbox.count() > 1:
+            item = self.saved_vbox.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for cfg in API_REGISTRY.all():
+            self._add_saved_card(cfg)
+
+    def _add_saved_card(self, cfg: ApiConfig):
+        ICONS = {"OpenAI": "⚡", "Anthropic": "◆", "Groq": "⚙",
+                 "Mistral": "🌊", "Together AI": "🤝", "OpenRouter": "🔀",
+                 "Ollama": "🦙", "Custom": "🔧"}
+        card = QFrame()
+        card.setStyleSheet(
+            f"QFrame{{background:{C['bg2']};border:1px solid {C['bdr']};"
+            f"border-radius:8px;}}")
+        cl = QHBoxLayout(card)
+        cl.setContentsMargins(14, 10, 14, 10)
+        cl.setSpacing(10)
+
+        icon = ICONS.get(cfg.provider, "🌐")
+        il = QVBoxLayout(); il.setSpacing(2)
+        t = QLabel(f"{icon}  <b>{cfg.name}</b>")
+        t.setTextFormat(Qt.TextFormat.RichText)
+        t.setStyleSheet(f"color:{C['txt']};font-size:12px;")
+        prov_display = getattr(cfg, "custom_provider_name", "") or cfg.provider
+        fmt_badge    = "  ·  🎨 custom fmt" if getattr(cfg, "use_custom_prompt", False) else ""
+        s = QLabel(f"{prov_display}  ·  {cfg.model_id}{fmt_badge}")
+        s.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        il.addWidget(t); il.addWidget(s)
+        cl.addLayout(il, 1)
+
+        def _sb(label, color):
+            b = QPushButton(label)
+            b.setFixedHeight(28)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet(
+                f"QPushButton{{background:transparent;color:{color};"
+                f"border:1px solid {color};border-radius:6px;"
+                f"font-size:10px;font-weight:600;padding:0 10px;}}"
+                f"QPushButton:hover{{background:{color};color:#fff;}}")
+            return b
+
+        bl = _sb("▶  Load", C["ok"])
+        bd = _sb("🗑", C["err"])
+        bl.clicked.connect(lambda _, c=cfg: self._load_saved(c))
+        bd.clicked.connect(lambda _, c=cfg: self._delete_saved(c))
+        cl.addWidget(bl); cl.addWidget(bd)
+        self.saved_vbox.insertWidget(self.saved_vbox.count() - 1, card)
+        _fade_in(card, 200)
+
+    def _load_saved(self, cfg: ApiConfig):
+        idx = self.combo_provider.findText(cfg.provider)
+        if idx >= 0: self.combo_provider.setCurrentIndex(idx)
+        self.inp_url.setText(cfg.base_url)
+        self.inp_key.setText(cfg.api_key)
+        self.inp_tokens.setText(str(cfg.max_tokens))
+        self.inp_name.setText(cfg.name)
+        self.inp_custom_provider.setText(getattr(cfg, "custom_provider_name", ""))
+        mi = self.combo_model.findText(cfg.model_id)
+        if mi < 0: self.combo_model.addItem(cfg.model_id)
+        self.combo_model.setCurrentText(cfg.model_id)
+
+        use_custom = getattr(cfg, "use_custom_prompt", False)
+        self.chk_custom_prompt.setChecked(use_custom)
+        if use_custom:
+            tmpl_key = getattr(cfg, "prompt_template", "custom")
+            ti = self.combo_template.findData(tmpl_key)
+            if ti >= 0: self.combo_template.setCurrentIndex(ti)
+            self.inp_system.setPlainText(getattr(cfg, "system_prompt", ""))
+            self.inp_user_prefix.setText(getattr(cfg, "user_prefix", ""))
+            self.inp_user_suffix.setText(getattr(cfg, "user_suffix", ""))
+            self.inp_asst_prefix.setText(getattr(cfg, "assistant_prefix", ""))
+        self._run_test(cfg)
+
+    def _delete_saved(self, cfg: ApiConfig):
+        ans = QMessageBox.question(
+            self, "Delete Config", f"Delete '{cfg.name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if ans == QMessageBox.StandardButton.Yes:
+            API_REGISTRY.remove(cfg.name)
+            self._refresh_saved()
+
+
 # ═════════════════════════════ MAIN WINDOW ══════════════════════════════════
 
 class MainWindow(QMainWindow):
@@ -6644,6 +9339,8 @@ class MainWindow(QMainWindow):
         self._pipeline_reason_w: Optional[MessageWidget] = None
         self._pipeline_code_w:   Optional[MessageWidget] = None
         self._pipeline_insight_widgets: list = []
+        self._chat_pipeline_worker: Optional[QThread] = None
+        self._api_engine:   Optional[ApiEngine] = None
 
         self._force_coding_mode:  bool = False
         self._pending_ref_ctx:    str  = ""
@@ -6840,6 +9537,8 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self.sidebar)
 
         self.tabs = QTabWidget()
+        self._tab_overlay = _FadeOverlay(self.tabs)
+        self.tabs.currentChanged.connect(self._on_tab_changed)
 
         # ── Chat tab (ChatModule) ──
         self.chat_module = ChatModule(
@@ -6853,6 +9552,7 @@ class MainWindow(QMainWindow):
         self.chat_module.multi_pdf_requested.connect(self._start_multi_pdf)
         self.input_bar.code_btn.toggled.connect(
             lambda chk: setattr(self, "_force_coding_mode", chk))
+        self.input_bar.pipeline_run_requested.connect(self._on_pipeline_from_chat)
         self.tabs.addTab(self.chat_module, "💬  Chat")
 
         # ── Models tab ──
@@ -6870,6 +9570,15 @@ class MainWindow(QMainWindow):
         self.server_tab.config_changed.connect(
             lambda: self._log("INFO", "Server config updated."))
         self.tabs.addTab(self.server_tab, "🖥️  Server")
+
+        # ── Pipeline Builder tab ──
+        self.pipeline_tab = PipelineBuilderTab(self.engine)
+        self.tabs.addTab(self.pipeline_tab, "🔗  Pipeline")
+
+        # ── API Models tab ──
+        self.api_tab = ApiModelsTab()
+        self.api_tab.api_model_loaded.connect(self._on_api_model_loaded)
+        self.tabs.addTab(self.api_tab, "🌐  API Models")
 
         # ── Logs tab ──
         self.log_console = LogConsole()
@@ -7633,6 +10342,9 @@ class MainWindow(QMainWindow):
         self._log("INFO" if ok else "ERROR", f"Model load: {status}")
         if hasattr(self, "model_list"):
             self._refresh_model_list()
+        # Keep pipeline tab's engine reference up-to-date
+        if hasattr(self, "pipeline_tab"):
+            self.pipeline_tab.update_engine(self.engine)
 
     def _reload_model(self):
         self.engine.shutdown()
@@ -7666,7 +10378,128 @@ class MainWindow(QMainWindow):
         if self._is_coding_prompt(text) and \
                 self.coding_engine and self.coding_engine.is_loaded:
             return self.coding_engine
+        # API engine takes priority over local engine when loaded
+        if self._api_engine and self._api_engine.is_loaded:
+            return self._api_engine
         return self.engine
+
+    # ── tab fade ─────────────────────────────────────────────────────────────
+
+    def _on_tab_changed(self, idx: int):
+        w = self.tabs.widget(idx)
+        if not w:
+            return
+        # Cover exactly the newly visible tab page
+        self._tab_overlay.setGeometry(w.geometry())
+        self._tab_overlay.raise_()
+        self._tab_overlay.show()
+        anim = QPropertyAnimation(self._tab_overlay, b"alpha", self)
+        anim.setDuration(180)
+        anim.setStartValue(220)
+        anim.setEndValue(0)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.finished.connect(self._tab_overlay.hide)
+        anim.start(QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+
+    # ── API engine ────────────────────────────────────────────────────────────
+
+    def _on_api_model_loaded(self, api_engine: ApiEngine):
+        """Called when ApiModelsTab successfully verifies an API model."""
+        self._api_engine = api_engine
+        cfg = api_engine._config
+        name = f"{cfg.provider}  ·  {cfg.model_id}" if cfg else api_engine.status_text
+        self.lbl_engine.setText(f"🌐  {name}")
+        self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
+        self.lbl_family.setText(f"API  ·  max {cfg.max_tokens if cfg else '?'} tokens")
+        self._log("INFO", f"API model loaded: {api_engine.status_text}")
+        # Update pipeline tab to use api engine for pipeline blocks
+        if hasattr(self, "pipeline_tab"):
+            self.pipeline_tab.update_engine(api_engine)
+
+    # ── pipeline-from-chat ────────────────────────────────────────────────────
+
+    def _on_pipeline_from_chat(self):
+        """Run a saved pipeline from the chat window. Output rendered as structured chat bubbles."""
+        saved = list_saved_pipelines()
+        if not saved:
+            QMessageBox.information(
+                self, "No Saved Pipelines",
+                "No saved pipelines found.\n\n"
+                "Build and save a pipeline in the 🔗 Pipeline tab first.")
+            return
+
+        pipeline_name, ok = QInputDialog.getItem(
+            self, "Select Pipeline",
+            "Choose a pipeline to run on your current input:",
+            saved, 0, False)
+        if not ok:
+            return
+
+        text = self.input_bar.input.toPlainText().strip()
+        if not text:
+            QMessageBox.warning(self, "No Input",
+                                "Type a message in the chat input first."); return
+
+        try:
+            blocks, conns = load_pipeline(pipeline_name)
+        except Exception as e:
+            QMessageBox.critical(self, "Load Error", str(e)); return
+
+        if not self.engine.is_loaded:
+            QMessageBox.warning(self, "Engine Not Ready",
+                                "Wait for the model to finish loading."); return
+
+        ts = datetime.now().strftime("%H:%M")
+        self.chat_area.add_message("user", text, ts)
+        self.input_bar.input.clear()
+
+        self.chat_area.add_message(
+            "assistant",
+            f"🔗 **Running pipeline: {pipeline_name}**\n\n"
+            f"_{len(blocks)} blocks · processing…_",
+            ts)
+
+        self._chat_pipeline_worker = PipelineExecutionWorker(
+            blocks, conns, text, self.engine)
+        self._chat_pipeline_worker.step_started.connect(
+            lambda bid, lbl: self._chat_pipeline_step(lbl))
+        self._chat_pipeline_worker.intermediate_live.connect(
+            self._chat_pipeline_intermediate)
+        self._chat_pipeline_worker.pipeline_done.connect(
+            self._chat_pipeline_done)
+        self._chat_pipeline_worker.err.connect(
+            lambda msg: self.chat_area.add_message(
+                "assistant",
+                f"❌ Pipeline error:\n\n{msg}",
+                datetime.now().strftime("%H:%M")))
+        self._chat_pipeline_worker.log_msg.connect(
+            lambda m: self._log("INFO", m))
+        self._chat_pipeline_worker.start()
+
+    def _chat_pipeline_step(self, label: str):
+        ts = datetime.now().strftime("%H:%M")
+        self.chat_area.add_message("system_note",
+                                   f"⚡ Processing block: **{label}**…", ts)
+
+    def _chat_pipeline_intermediate(self, bid: int, label: str, text: str):
+        ts = datetime.now().strftime("%H:%M")
+        self.chat_area.add_message(
+            "pipeline_intermediate",
+            f"◈ **{label}** — intermediate output\n\n{text}", ts)
+
+    def _chat_pipeline_done(self, payload: str):
+        import json as _json
+        try:
+            data   = _json.loads(payload)
+            final  = data.get("text", payload)
+            sender = data.get("sender", "")
+        except Exception:
+            final  = payload
+            sender = ""
+        ts     = datetime.now().strftime("%H:%M")
+        header = f"■ **Output** _(from: {sender})_\n\n" if sender else "■ **Output**\n\n"
+        self.chat_area.add_message("assistant", header + final, ts)
+        self._chat_pipeline_worker = None
 
     # ── chat send ─────────────────────────────────────────────────────────────
 
@@ -7749,6 +10582,12 @@ class MainWindow(QMainWindow):
         self._stream_w = self.chat_area.add_message(
             "assistant", "", ts, tag="💻 Coding" if is_coding else "")
         self._log("INFO", f"Prompt ≈ {len(prompt)} chars · engine: {eng_label}")
+
+        # For API engines, pass the full structured message history
+        if isinstance(active_eng, ApiEngine):
+            api_msgs = [{"role": m.role, "content": m.content}
+                        for m in self.active.messages[-60:]]
+            active_eng.set_messages(api_msgs)
 
         self._worker = active_eng.create_worker(
             prompt, n_predict=cfg_pred, model_path=active_eng.model_path)
@@ -8681,6 +11520,12 @@ class MainWindow(QMainWindow):
             try:
                 self._pipeline_worker.abort()
                 self._pipeline_worker.wait(1000)
+            except Exception:
+                pass
+        if hasattr(self, "pipeline_tab") and self.pipeline_tab._exec_worker:
+            try:
+                self.pipeline_tab._exec_worker.abort()
+                self.pipeline_tab._exec_worker.wait(1000)
             except Exception:
                 pass
 
