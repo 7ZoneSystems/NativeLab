@@ -116,13 +116,24 @@ import sys as _sys
 _BASE = Path(_sys._MEIPASS) if getattr(_sys, "frozen", False) else Path(".")
 _EXT  = ".exe" if __import__("platform").system() == "Windows" else ""
 
-LLAMA_CLI    = str(_BASE / f"llama-bin/llama-cli{_EXT}")
-LLAMA_SERVER = str(_BASE / f"llama-bin/llama-server{_EXT}")
+_LLAMA_CLI_DEFAULT    = str(_BASE / f"llama-bin/llama-cli{_EXT}")
+_LLAMA_SERVER_DEFAULT = str(_BASE / f"llama-bin/llama-server{_EXT}")
 
 # Fallback to local llama/bin for dev mode
-if not Path(LLAMA_CLI).exists():
-    LLAMA_CLI    = f"./llama/bin/llama-cli{_EXT}"
-    LLAMA_SERVER = f"./llama/bin/llama-server{_EXT}"
+if not Path(_LLAMA_CLI_DEFAULT).exists():
+    _LLAMA_CLI_DEFAULT    = f"./llama/bin/llama-cli{_EXT}"
+    _LLAMA_SERVER_DEFAULT = f"./llama/bin/llama-server{_EXT}"
+
+# These are resolved at runtime via SERVER_CONFIG (set after ServerConfig loads)
+LLAMA_CLI    = _LLAMA_CLI_DEFAULT
+LLAMA_SERVER = _LLAMA_SERVER_DEFAULT
+
+
+def _refresh_binary_paths():
+    """Re-read SERVER_CONFIG and update module-level LLAMA_CLI / LLAMA_SERVER."""
+    global LLAMA_CLI, LLAMA_SERVER
+    LLAMA_CLI    = _resolve_binary(SERVER_CONFIG.cli_path,    _LLAMA_CLI_DEFAULT)
+    LLAMA_SERVER = _resolve_binary(SERVER_CONFIG.server_path, _LLAMA_SERVER_DEFAULT)
 MODELS_DIR   = Path("./localllm")
 SESSIONS_DIR = Path("./sessions")
 SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -133,7 +144,8 @@ DEFAULT_CTX        = 4096
 DEFAULT_N_PRED     = 512
 CUSTOM_MODELS_FILE  = Path("./localllm/custom_models.json")
 MODEL_CONFIGS_FILE  = Path("./localllm/model_configs.json")
-PARALLEL_PREFS_FILE = Path("./localllm/parallel_prefs.json")
+PARALLEL_PREFS_FILE  = Path("./localllm/parallel_prefs.json")
+SERVER_CONFIG_FILE   = Path("./localllm/server_config.json")
 
 # ── model roles ───────────────────────────────────────────────────────────────
 MODEL_ROLES = ["general", "reasoning", "summarization", "coding", "secondary"]
@@ -1418,6 +1430,67 @@ class ParallelPrefs:
 
 PARALLEL_PREFS = ParallelPrefs.load()
 
+
+# ═════════════════════════════ SERVER CONFIG ═════════════════════════════════
+
+import platform as _platform
+
+@dataclass
+class ServerConfig:
+    cli_path:    str = ""
+    server_path: str = ""
+    host:        str = "127.0.0.1"
+    port_range_lo: int = 8600
+    port_range_hi: int = 8700
+    extra_cli_args:    str = ""
+    extra_server_args: str = ""
+
+    def save(self):
+        SERVER_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        SERVER_CONFIG_FILE.write_text(json.dumps({
+            "cli_path":          self.cli_path,
+            "server_path":       self.server_path,
+            "host":              self.host,
+            "port_range_lo":     self.port_range_lo,
+            "port_range_hi":     self.port_range_hi,
+            "extra_cli_args":    self.extra_cli_args,
+            "extra_server_args": self.extra_server_args,
+        }, indent=2))
+
+    @classmethod
+    def load(cls) -> "ServerConfig":
+        if SERVER_CONFIG_FILE.exists():
+            try:
+                d = json.loads(SERVER_CONFIG_FILE.read_text())
+                return cls(**{k: v for k, v in d.items()
+                               if k in cls.__dataclass_fields__})
+            except Exception:
+                pass
+        return cls()
+
+    @property
+    def detected_os(self) -> str:
+        s = _platform.system()
+        return {"Windows": "Windows", "Darwin": "macOS"}.get(s, "Linux")
+
+    @property
+    def default_cli_name(self) -> str:
+        return "llama-cli.exe" if self.detected_os == "Windows" else "llama-cli"
+
+    @property
+    def default_server_name(self) -> str:
+        return "llama-server.exe" if self.detected_os == "Windows" else "llama-server"
+
+
+SERVER_CONFIG = ServerConfig.load()
+
+
+def _resolve_binary(cfg_path: str, fallback: str) -> str:
+    """Return cfg_path if set and exists, else fallback."""
+    if cfg_path and Path(cfg_path).exists():
+        return cfg_path
+    return fallback
+
 # ═════════════════════════════ DATA MODELS ══════════════════════════════════
 
 @dataclass
@@ -1530,7 +1603,9 @@ class Session:
 
 # ═════════════════════════════ ENGINE LAYER ═════════════════════════════════
 
-def _free_port(lo: int = 8600, hi: int = 8700) -> int:
+def _free_port(lo: int = 0, hi: int = 0) -> int:
+    if lo == 0: lo = SERVER_CONFIG.port_range_lo
+    if hi == 0: hi = SERVER_CONFIG.port_range_hi
     for p in range(lo, hi):
         with socket.socket() as s:
             if s.connect_ex(("127.0.0.1", p)) != 0:
@@ -2293,12 +2368,13 @@ class LlamaEngine:
                 top_p=cfg.top_p,
                 repeat_penalty=cfg.repeat_penalty,
             )
+        _extra_cli = SERVER_CONFIG.extra_cli_args.split() if SERVER_CONFIG.extra_cli_args else []
         cmd = [
             LLAMA_CLI, "-m", self.model_path,
             "-t", str(DEFAULT_THREADS), "--ctx-size", str(self.ctx_value),
             "-n", str(n_predict), "--no-display-prompt", "--no-escape",
             "-p", prompt,
-        ]
+        ] + _extra_cli
         return CliStreamWorker(cmd)
 
     def ensure_server(self, log_cb=None) -> bool:
@@ -2413,9 +2489,10 @@ class LlamaEngine:
             self.server_proc = None
 
         self.server_port = _free_port()
+        _extra_srv = SERVER_CONFIG.extra_server_args.split() if SERVER_CONFIG.extra_server_args else []
         cmd = [LLAMA_SERVER, "-m", model_path, "-t", str(threads),
                "--ctx-size", str(ctx), "--port", str(self.server_port),
-               "--host", "127.0.0.1"]
+               "--host", SERVER_CONFIG.host or "127.0.0.1"] + _extra_srv
         self._log(f"[INFO] Starting llama-server on port {self.server_port}…")
         try:
             self.server_proc = subprocess.Popen(
@@ -6135,6 +6212,412 @@ class AppearanceTab(QWidget):
         self._palette = dict(palette)
         self._rebuild_rows()
 
+# ═════════════════════════════ SERVER TAB ════════════════════════════════════
+
+class ServerTab(QWidget):
+    """
+    Server & binary configuration tab.
+    Lets the user browse for llama-cli / llama-server binaries,
+    configure host / port range, and add extra CLI flags.
+    """
+    config_changed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cfg = SERVER_CONFIG
+        self._build()
+
+    def _build(self):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("chat_scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        inner = QWidget(); inner.setObjectName("chat_container")
+        root = QVBoxLayout(inner)
+        root.setContentsMargins(22, 18, 22, 22)
+        root.setSpacing(0)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+
+        # ── Header ────────────────────────────────────────────────────────────
+        hdr = QLabel("🖥️  Server & Binary Configuration")
+        hdr.setStyleSheet(
+            f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
+        root.addWidget(hdr)
+
+        os_lbl = QLabel(
+            f"Detected OS: <b>{self._cfg.detected_os}</b>   "
+            f"(looking for <code>{self._cfg.default_cli_name}</code> / "
+            f"<code>{self._cfg.default_server_name}</code>)")
+        os_lbl.setTextFormat(Qt.TextFormat.RichText)
+        os_lbl.setWordWrap(True)
+        os_lbl.setStyleSheet(
+            f"color:{C['txt2']};font-size:11px;margin-bottom:14px;")
+        root.addWidget(os_lbl)
+
+        # ── Binary paths card ────────────────────────────────────────────────
+        root.addWidget(self._section("BINARY PATHS"))
+        bin_card = self._card()
+        bin_l = QVBoxLayout(bin_card)
+        bin_l.setContentsMargins(16, 14, 16, 14)
+        bin_l.setSpacing(10)
+
+        # llama-cli row
+        cli_row = QHBoxLayout(); cli_row.setSpacing(8)
+        cli_lbl = QLabel("llama-cli path:")
+        cli_lbl.setFixedWidth(130)
+        cli_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.cli_edit = QLineEdit()
+        self.cli_edit.setPlaceholderText(
+            f"Leave blank to use built-in default  ({_LLAMA_CLI_DEFAULT})")
+        self.cli_edit.setText(self._cfg.cli_path)
+        self.cli_edit.setMinimumWidth(300)
+        self._cli_status = QLabel("")
+        self._cli_status.setFixedWidth(18)
+        btn_cli = QPushButton("Browse…")
+        btn_cli.setFixedWidth(80)
+        btn_cli.setFixedHeight(28)
+        btn_cli.clicked.connect(self._browse_cli)
+        self.cli_edit.textChanged.connect(self._update_cli_status)
+        cli_row.addWidget(cli_lbl)
+        cli_row.addWidget(self.cli_edit, 1)
+        cli_row.addWidget(self._cli_status)
+        cli_row.addWidget(btn_cli)
+        bin_l.addLayout(cli_row)
+
+        # llama-server row
+        srv_row = QHBoxLayout(); srv_row.setSpacing(8)
+        srv_lbl = QLabel("llama-server path:")
+        srv_lbl.setFixedWidth(130)
+        srv_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.srv_edit = QLineEdit()
+        self.srv_edit.setPlaceholderText(
+            f"Leave blank to use built-in default  ({_LLAMA_SERVER_DEFAULT})")
+        self.srv_edit.setText(self._cfg.server_path)
+        self.srv_edit.setMinimumWidth(300)
+        self._srv_status = QLabel("")
+        self._srv_status.setFixedWidth(18)
+        btn_srv = QPushButton("Browse…")
+        btn_srv.setFixedWidth(80)
+        btn_srv.setFixedHeight(28)
+        btn_srv.clicked.connect(self._browse_srv)
+        self.srv_edit.textChanged.connect(self._update_srv_status)
+        srv_row.addWidget(srv_lbl)
+        srv_row.addWidget(self.srv_edit, 1)
+        srv_row.addWidget(self._srv_status)
+        srv_row.addWidget(btn_srv)
+        bin_l.addLayout(srv_row)
+
+        # Resolved paths display
+        self._resolved_lbl = QLabel("")
+        self._resolved_lbl.setWordWrap(True)
+        self._resolved_lbl.setStyleSheet(
+            f"color:{C['txt2']};font-size:10px;padding:6px 8px;"
+            f"background:{C['bg2']};border-radius:5px;")
+        bin_l.addWidget(self._resolved_lbl)
+        self._refresh_resolved()
+
+        root.addWidget(bin_card)
+        root.addSpacing(14)
+
+        # ── Server settings card ──────────────────────────────────────────────
+        root.addWidget(self._section("SERVER SETTINGS"))
+        srv_card = self._card()
+        srv_l = QVBoxLayout(srv_card)
+        srv_l.setContentsMargins(16, 14, 16, 14)
+        srv_l.setSpacing(10)
+
+        def _row(label_text, widget, hint=""):
+            r = QHBoxLayout(); r.setSpacing(8)
+            lbl = QLabel(label_text)
+            lbl.setFixedWidth(160)
+            lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+            r.addWidget(lbl)
+            r.addWidget(widget)
+            if hint:
+                hl = QLabel(hint)
+                hl.setStyleSheet(f"color:{C['txt3']};font-size:10px;")
+                r.addWidget(hl)
+            r.addStretch()
+            return r
+
+        self.host_edit = QLineEdit(self._cfg.host)
+        self.host_edit.setFixedWidth(160)
+        self.host_edit.setToolTip(
+            "Bind host for llama-server.\n127.0.0.1 = localhost only (recommended).")
+        srv_l.addLayout(_row("Bind Host:", self.host_edit,
+                             "127.0.0.1 = local only"))
+
+        self.port_lo_edit = QLineEdit(str(self._cfg.port_range_lo))
+        self.port_lo_edit.setFixedWidth(80)
+        self.port_lo_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.port_hi_edit = QLineEdit(str(self._cfg.port_range_hi))
+        self.port_hi_edit.setFixedWidth(80)
+        self.port_hi_edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        port_row = QHBoxLayout(); port_row.setSpacing(8)
+        port_lbl = QLabel("Port Range:")
+        port_lbl.setFixedWidth(160)
+        port_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        dash = QLabel("–")
+        dash.setStyleSheet(f"color:{C['txt2']};")
+        port_row.addWidget(port_lbl)
+        port_row.addWidget(self.port_lo_edit)
+        port_row.addWidget(dash)
+        port_row.addWidget(self.port_hi_edit)
+        port_row.addWidget(
+            self._hint("First free port in this range is used for each server instance"))
+        port_row.addStretch()
+        srv_l.addLayout(port_row)
+
+        root.addWidget(srv_card)
+        root.addSpacing(14)
+
+        # ── Extra flags card ──────────────────────────────────────────────────
+        root.addWidget(self._section("EXTRA LAUNCH FLAGS"))
+        flag_card = self._card()
+        flag_l = QVBoxLayout(flag_card)
+        flag_l.setContentsMargins(16, 14, 16, 14)
+        flag_l.setSpacing(10)
+
+        flag_note = QLabel(
+            "Additional flags appended to every llama-cli or llama-server launch.\n"
+            "Separate multiple flags with spaces.  Example: --numa --no-mmap")
+        flag_note.setWordWrap(True)
+        flag_note.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        flag_l.addWidget(flag_note)
+
+        cli_flag_row = QHBoxLayout(); cli_flag_row.setSpacing(8)
+        cfl = QLabel("llama-cli extra flags:")
+        cfl.setFixedWidth(160)
+        cfl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.extra_cli_edit = QLineEdit(self._cfg.extra_cli_args)
+        self.extra_cli_edit.setPlaceholderText("e.g.  --numa  --no-mmap")
+        cli_flag_row.addWidget(cfl)
+        cli_flag_row.addWidget(self.extra_cli_edit, 1)
+        flag_l.addLayout(cli_flag_row)
+
+        srv_flag_row = QHBoxLayout(); srv_flag_row.setSpacing(8)
+        sfl = QLabel("llama-server extra flags:")
+        sfl.setFixedWidth(160)
+        sfl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.extra_srv_edit = QLineEdit(self._cfg.extra_server_args)
+        self.extra_srv_edit.setPlaceholderText("e.g.  --numa  --flash-attn")
+        srv_flag_row.addWidget(sfl)
+        srv_flag_row.addWidget(self.extra_srv_edit, 1)
+        flag_l.addLayout(srv_flag_row)
+
+        root.addWidget(flag_card)
+        root.addSpacing(14)
+
+        # ── Quick-test card ───────────────────────────────────────────────────
+        root.addWidget(self._section("BINARY TEST"))
+        test_card = self._card()
+        test_l = QVBoxLayout(test_card)
+        test_l.setContentsMargins(16, 14, 16, 14)
+        test_l.setSpacing(8)
+
+        test_note = QLabel(
+            "Click Test to run the binary with --version and verify it works.")
+        test_note.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        test_l.addWidget(test_note)
+
+        test_row = QHBoxLayout(); test_row.setSpacing(8)
+        self.btn_test_cli = QPushButton("🧪  Test llama-cli")
+        self.btn_test_cli.setFixedHeight(28)
+        self.btn_test_cli.clicked.connect(lambda: self._test_binary("cli"))
+        self.btn_test_srv = QPushButton("🧪  Test llama-server")
+        self.btn_test_srv.setFixedHeight(28)
+        self.btn_test_srv.clicked.connect(lambda: self._test_binary("server"))
+        test_row.addWidget(self.btn_test_cli)
+        test_row.addWidget(self.btn_test_srv)
+        test_row.addStretch()
+        test_l.addLayout(test_row)
+
+        self.test_output = QTextEdit()
+        self.test_output.setReadOnly(True)
+        self.test_output.setFixedHeight(90)
+        self.test_output.setFont(QFont("Consolas", 10))
+        self.test_output.setObjectName("log_te")
+        test_l.addWidget(self.test_output)
+
+        root.addWidget(test_card)
+        root.addSpacing(14)
+
+        # ── Save / Reset ──────────────────────────────────────────────────────
+        btn_row = QHBoxLayout(); btn_row.setSpacing(10)
+        save_btn = QPushButton("💾  Save Server Settings")
+        save_btn.setObjectName("btn_send")
+        save_btn.setFixedHeight(34)
+        save_btn.clicked.connect(self._save)
+        reset_btn = QPushButton("↺  Reset to Defaults")
+        reset_btn.setFixedHeight(34)
+        reset_btn.clicked.connect(self._reset)
+        btn_row.addWidget(save_btn)
+        btn_row.addWidget(reset_btn)
+        btn_row.addStretch()
+        root.addLayout(btn_row)
+        root.addStretch()
+
+        self._update_cli_status()
+        self._update_srv_status()
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+    @staticmethod
+    def _section(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(
+            f"color:{C['txt']};font-size:12px;font-weight:bold;"
+            f"letter-spacing:0.5px;padding:0;margin-bottom:2px;")
+        return lbl
+
+    @staticmethod
+    def _card() -> QFrame:
+        f = QFrame(); f.setObjectName("tab_card"); return f
+
+    @staticmethod
+    def _hint(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(f"color:{C['txt3']};font-size:10px;")
+        return lbl
+
+    def _update_cli_status(self):
+        path = self.cli_edit.text().strip()
+        if not path:
+            resolved = _LLAMA_CLI_DEFAULT
+        else:
+            resolved = path
+        ok = Path(resolved).exists()
+        self._cli_status.setText("✅" if ok else "❌")
+        self._cli_status.setToolTip(
+            f"{'Found' if ok else 'Not found'}: {resolved}")
+        self._refresh_resolved()
+
+    def _update_srv_status(self):
+        path = self.srv_edit.text().strip()
+        if not path:
+            resolved = _LLAMA_SERVER_DEFAULT
+        else:
+            resolved = path
+        ok = Path(resolved).exists()
+        self._srv_status.setText("✅" if ok else "❌")
+        self._srv_status.setToolTip(
+            f"{'Found' if ok else 'Not found'}: {resolved}")
+        self._refresh_resolved()
+
+    def _refresh_resolved(self):
+        cli_path  = self.cli_edit.text().strip() or _LLAMA_CLI_DEFAULT
+        srv_path  = self.srv_edit.text().strip() or _LLAMA_SERVER_DEFAULT
+        cli_ok    = "✅" if Path(cli_path).exists() else "❌"
+        srv_ok    = "✅" if Path(srv_path).exists() else "❌"
+        self._resolved_lbl.setText(
+            f"Resolved  llama-cli:     {cli_ok}  {cli_path}\n"
+            f"Resolved  llama-server:  {srv_ok}  {srv_path}")
+
+    def _browse_cli(self):
+        _ext = ".exe" if self._cfg.detected_os == "Windows" else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select llama-cli binary",
+            str(Path(self.cli_edit.text()).parent
+                if self.cli_edit.text() else Path.home()),
+            f"llama-cli{_ext} (*{_ext});;All Files (*)")
+        if path:
+            self.cli_edit.setText(path)
+
+    def _browse_srv(self):
+        _ext = ".exe" if self._cfg.detected_os == "Windows" else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select llama-server binary",
+            str(Path(self.srv_edit.text()).parent
+                if self.srv_edit.text() else Path.home()),
+            f"llama-server{_ext} (*{_ext});;All Files (*)")
+        if path:
+            self.srv_edit.setText(path)
+
+    def _test_binary(self, which: str):
+        if which == "cli":
+            path = self.cli_edit.text().strip() or _LLAMA_CLI_DEFAULT
+        else:
+            path = self.srv_edit.text().strip() or _LLAMA_SERVER_DEFAULT
+
+        if not Path(path).exists():
+            self.test_output.setPlainText(f"❌  Binary not found:\n{path}")
+            return
+
+        try:
+            result = subprocess.run(
+                [path, "--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=8)
+            out = result.stdout.decode("utf-8", errors="replace").strip()
+            self.test_output.setPlainText(
+                f"✅  {Path(path).name} --version\n\n{out or '(no output)'}")
+        except subprocess.TimeoutExpired:
+            self.test_output.setPlainText(f"⚠️  Timed out after 8s:\n{path}")
+        except Exception as e:
+            self.test_output.setPlainText(f"❌  Error:\n{e}")
+
+    def _save(self):
+        try:
+            lo = int(self.port_lo_edit.text())
+            hi = int(self.port_hi_edit.text())
+            assert 1024 <= lo < hi <= 65535
+        except Exception:
+            QMessageBox.warning(
+                self, "Invalid Port Range",
+                "Port range must be two integers between 1024 and 65535,\n"
+                "with the low value smaller than the high value.")
+            return
+
+        self._cfg.cli_path          = self.cli_edit.text().strip()
+        self._cfg.server_path       = self.srv_edit.text().strip()
+        self._cfg.host              = self.host_edit.text().strip() or "127.0.0.1"
+        self._cfg.port_range_lo     = lo
+        self._cfg.port_range_hi     = hi
+        self._cfg.extra_cli_args    = self.extra_cli_edit.text().strip()
+        self._cfg.extra_server_args = self.extra_srv_edit.text().strip()
+        self._cfg.save()
+        _refresh_binary_paths()
+        self._refresh_resolved()
+        self.config_changed.emit()
+        QMessageBox.information(
+            self, "Saved",
+            "Server settings saved.\n\n"
+            "Reload your model for the new binary paths to take effect.")
+
+    def _reset(self):
+        if QMessageBox.question(
+            self, "Reset", "Reset all server settings to defaults?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        self.cli_edit.setText("")
+        self.srv_edit.setText("")
+        self.host_edit.setText("127.0.0.1")
+        self.port_lo_edit.setText("8600")
+        self.port_hi_edit.setText("8700")
+        self.extra_cli_edit.setText("")
+        self.extra_srv_edit.setText("")
+        self._cfg.cli_path = ""
+        self._cfg.server_path = ""
+        self._cfg.host = "127.0.0.1"
+        self._cfg.port_range_lo = 8600
+        self._cfg.port_range_hi = 8700
+        self._cfg.extra_cli_args = ""
+        self._cfg.extra_server_args = ""
+        self._cfg.save()
+        _refresh_binary_paths()
+        self._refresh_resolved()
+        self._update_cli_status()
+        self._update_srv_status()
+
+
 # ═════════════════════════════ MAIN WINDOW ══════════════════════════════════
 
 class MainWindow(QMainWindow):
@@ -6381,6 +6864,12 @@ class MainWindow(QMainWindow):
         self.config_tab.config_changed.connect(self._on_config_changed)
         self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
         self.tabs.addTab(self.config_tab, "⚙️  Config")
+
+        # ── Server tab ──
+        self.server_tab = ServerTab()
+        self.server_tab.config_changed.connect(
+            lambda: self._log("INFO", "Server config updated."))
+        self.tabs.addTab(self.server_tab, "🖥️  Server")
 
         # ── Logs tab ──
         self.log_console = LogConsole()
@@ -8149,6 +8638,15 @@ class MainWindow(QMainWindow):
         self.config_tab.config_changed.connect(self._on_config_changed)
         self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
         self.tabs.insertTab(ct_idx, self.config_tab, "⚙️  Config")
+
+        # Rebuild Server tab
+        srv_idx = self.tabs.indexOf(self.server_tab)
+        self.server_tab.setParent(None)
+        self.server_tab.deleteLater()
+        self.server_tab = ServerTab()
+        self.server_tab.config_changed.connect(
+            lambda: self._log("INFO", "Server config updated."))
+        self.tabs.insertTab(srv_idx, self.server_tab, "🖥️  Server")
 
         # Rebuild Logs tab
         log_idx = self.tabs.indexOf(self.log_console)
