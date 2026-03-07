@@ -79,8 +79,8 @@ jobs:
       - name: Download macOS llama.cpp binaries
         run: |
           echo "[INFO] Fetching latest llama.cpp release tag..."
-          LATEST=$(curl -s https://api.github.com/repos/ggerganov/llama.cpp/releases/latest \
-                   | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+          LATEST=$(curl -s "https://api.github.com/repos/ggerganov/llama.cpp/releases" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['tag_name'])")
           echo "[INFO] Latest release: $LATEST"
 
           echo "[INFO] Downloading macOS arm64 binary package..."
