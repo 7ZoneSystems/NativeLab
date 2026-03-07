@@ -622,6 +622,346 @@
     .bar-track { flex: 1; height: 5px; background: var(--border); border-radius: 3px; max-width: 80px; }
     .bar-fill { height: 100%; border-radius: 3px; background: var(--sage); }
 
+    /* ══════════════════════════════════════
+       ── VIDEO SECTION ──
+    ══════════════════════════════════════ */
+    .video-section {
+      background: var(--ink);
+      padding: 5rem 5vw;
+    }
+    .video-section-inner {
+      max-width: 900px; margin: 0 auto;
+    }
+    .video-section .section-label { color: rgba(200,212,196,0.6); }
+    .video-section h2 { color: #fff; margin-bottom: 0.6rem; }
+    .video-section h2 em { color: var(--mist); }
+    .video-section p { color: rgba(255,255,255,0.6); font-weight: 300; margin-bottom: 2rem; font-size: 1rem; line-height: 1.8; }
+
+    .video-wrapper {
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+      background: #000;
+    }
+    .video-chrome {
+      background: #1a1a1a;
+      border-bottom: 1px solid #2a2a2a;
+      padding: 0.6rem 1rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .video-chrome-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .video-chrome-title {
+      font-size: 0.72rem; color: #555;
+      margin-left: 0.5rem; font-family: 'DM Sans', sans-serif;
+    }
+    .video-embed-wrap {
+      position: relative;
+      padding-bottom: 56.25%; /* 16:9 */
+      height: 0;
+      background: #000;
+    }
+    .video-embed-wrap iframe {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border: none;
+    }
+    /* Thumbnail play button (before load) */
+    .video-thumb {
+      position: relative; cursor: pointer;
+    }
+    .video-thumb img {
+      width: 100%; display: block;
+      aspect-ratio: 16/9; object-fit: cover;
+    }
+    .play-overlay {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.35);
+      transition: background 0.2s;
+    }
+    .video-thumb:hover .play-overlay { background: rgba(0,0,0,0.2); }
+    .play-btn-circle {
+      width: 72px; height: 72px;
+      background: rgba(255,255,255,0.95);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .video-thumb:hover .play-btn-circle {
+      transform: scale(1.08);
+      box-shadow: 0 6px 28px rgba(0,0,0,0.4);
+    }
+    .play-triangle {
+      width: 0; height: 0;
+      border-top: 12px solid transparent;
+      border-bottom: 12px solid transparent;
+      border-left: 20px solid var(--clay);
+      margin-left: 4px;
+    }
+    .video-footer {
+      background: #1a1a1a;
+      padding: 0.8rem 1.2rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .video-footer-label {
+      font-size: 0.8rem; color: rgba(255,255,255,0.5);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .video-footer-label strong { color: rgba(255,255,255,0.85); }
+    .video-yt-link {
+      font-size: 0.78rem; font-weight: 500;
+      color: #ff4444;
+      text-decoration: none;
+      display: flex; align-items: center; gap: 0.35rem;
+      padding: 0.3rem 0.75rem;
+      background: rgba(255,68,68,0.1);
+      border: 1px solid rgba(255,68,68,0.25);
+      border-radius: 6px;
+      transition: all 0.18s;
+    }
+    .video-yt-link:hover { background: rgba(255,68,68,0.2); }
+
+    /* ══════════════════════════════════════
+       ── MODE INDICATOR ──
+    ══════════════════════════════════════ */
+    .mode-indicator {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fff;
+      margin: 2rem 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+    }
+    .mode-indicator-header {
+      background: var(--warm);
+      border-bottom: 1px solid var(--border);
+      padding: 0.9rem 1.2rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .mode-indicator-title {
+      font-size: 0.78rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--dim);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .mode-indicator-title::before { content: '⚡'; }
+    .mode-toggle-wrap {
+      display: flex; gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px; overflow: hidden;
+    }
+    .mode-toggle-btn {
+      padding: 0.35rem 1rem;
+      font-size: 0.78rem; font-weight: 500;
+      background: var(--paper); color: var(--dim);
+      border: none; cursor: pointer;
+      transition: all 0.18s;
+      border-right: 1px solid var(--border);
+    }
+    .mode-toggle-btn:last-child { border-right: none; }
+    .mode-toggle-btn.active-server { background: var(--sage); color: #fff; }
+    .mode-toggle-btn.active-cli { background: var(--clay); color: #fff; }
+    .mode-toggle-btn:hover:not(.active-server):not(.active-cli) { background: var(--warm); }
+
+    .mode-cards {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 1px; background: var(--border);
+    }
+    @media(max-width:600px) { .mode-cards { grid-template-columns: 1fr; } }
+    .mode-card {
+      background: #fff; padding: 1.3rem 1.4rem;
+      position: relative; transition: all 0.25s;
+    }
+    .mode-card.mode-active {
+      background: rgba(61,90,71,0.04);
+    }
+    .mode-card.mode-active-cli {
+      background: rgba(184,92,56,0.04);
+    }
+    .mode-card-badge {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 0.22rem 0.65rem;
+      border-radius: 100px;
+      margin-bottom: 0.8rem;
+    }
+    .mode-card-badge.server { background: rgba(61,90,71,0.1); color: var(--sage); }
+    .mode-card-badge.cli    { background: rgba(184,92,56,0.1); color: var(--clay); }
+    .mode-card-badge .badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+    .mode-card-badge.server .badge-dot { background: var(--sage); animation: pulse 1.5s ease-in-out infinite; }
+    .mode-card-badge.cli    .badge-dot { background: #aaa; }
+    .mode-card-title { font-size: 1rem; font-weight: 600; color: var(--ink); margin-bottom: 0.4rem; }
+    .mode-card-desc { font-size: 0.82rem; color: var(--dim); line-height: 1.6; margin-bottom: 0.9rem; }
+    .mode-features { display: flex; flex-direction: column; gap: 0.3rem; }
+    .mode-feature {
+      display: flex; align-items: center; gap: 0.5rem;
+      font-size: 0.8rem; color: var(--dim);
+    }
+    .mode-feature::before { content: '·'; color: var(--border); font-size: 1rem; }
+    .mode-feature.yes::before { content: '✓'; color: var(--sage); font-size: 0.7rem; font-weight: 700; }
+    .mode-feature.no::before  { content: '✗'; color: #ccc; font-size: 0.7rem; font-weight: 700; }
+    .mode-current-badge {
+      position: absolute; top: 1rem; right: 1rem;
+      font-size: 0.66rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 0.18rem 0.55rem;
+      border-radius: 100px;
+      background: rgba(61,90,71,0.12); color: var(--sage);
+      border: 1px solid rgba(61,90,71,0.2);
+      display: none;
+    }
+    .mode-current-badge.cli-badge {
+      background: rgba(184,92,56,0.1); color: var(--clay);
+      border-color: rgba(184,92,56,0.2);
+    }
+    .mode-active .mode-current-badge,
+    .mode-active-cli .mode-current-badge { display: inline-block; }
+
+    /* Status indicator strip */
+    .mode-status-strip {
+      padding: 0.8rem 1.4rem;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 0.5rem;
+    }
+    .mode-status-left { display: flex; align-items: center; gap: 0.6rem; font-size: 0.82rem; }
+    .mode-status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #22c55e; flex-shrink: 0;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .mode-status-dot.dot-cli { background: #f59e0b; }
+    .mode-status-text { color: var(--ink); font-weight: 500; }
+    .mode-status-sub { color: var(--dim); font-size: 0.76rem; }
+
+    /* ── RELOAD TIP ── */
+    .reload-tip {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fff;
+      margin: 1.8rem 0;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    }
+    .reload-tip-header {
+      padding: 0.8rem 1.2rem;
+      background: var(--warm);
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--gold);
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .reload-tip-body {
+      display: grid; grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 0;
+    }
+    @media(max-width:580px) {
+      .reload-tip-body { grid-template-columns: 1fr; }
+      .reload-arrow { transform: rotate(90deg); }
+    }
+    .reload-panel {
+      padding: 1.2rem 1.4rem;
+    }
+    .reload-panel-label {
+      font-size: 0.68rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--dim); margin-bottom: 0.7rem;
+    }
+    /* macOS menu mockup */
+    .macos-menu {
+      background: rgba(250,249,248,0.96);
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      padding: 3px 0;
+      min-width: 160px;
+      font-size: 0.8rem;
+      backdrop-filter: blur(20px);
+    }
+    .macos-menu-title {
+      padding: 0.25rem 0.9rem;
+      font-weight: 600; color: #111; font-size: 0.82rem;
+    }
+    .macos-menu-sep {
+      height: 1px; background: rgba(0,0,0,0.1);
+      margin: 3px 0;
+    }
+    .macos-menu-item {
+      padding: 0.28rem 0.9rem 0.28rem 1.8rem;
+      color: #333; font-size: 0.79rem;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem;
+    }
+    .macos-menu-item.highlighted {
+      background: #1a73e8; color: #fff;
+      border-radius: 4px; margin: 1px 3px;
+      padding-left: 1.5rem;
+    }
+    .macos-menu-shortcut { opacity: 0.55; font-size: 0.72rem; }
+    /* Windows menu mockup */
+    .win-menu {
+      background: #f0f0f0;
+      border: 1px solid #aaa;
+      font-size: 0.8rem; min-width: 150px;
+    }
+    .win-menu-bar {
+      background: #e0e0e0;
+      padding: 3px 6px;
+      display: flex; gap: 0;
+      border-bottom: 1px solid #aaa;
+    }
+    .win-menu-bar-item {
+      padding: 2px 8px;
+      font-size: 0.78rem; color: #111;
+      cursor: default;
+    }
+    .win-menu-bar-item.open { background: #0078d4; color: #fff; }
+    .win-menu-dropdown {
+      background: #f9f9f9;
+      border: 1px solid #bbb;
+      padding: 2px 0; margin-top: 0;
+      min-width: 180px;
+    }
+    .win-menu-item {
+      padding: 0.3rem 1.8rem 0.3rem 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem; font-size: 0.79rem; color: #111;
+    }
+    .win-menu-item.highlighted { background: #0078d4; color: #fff; }
+    .win-menu-sep { height: 1px; background: #ddd; margin: 3px 1rem; }
+    .win-menu-shortcut { opacity: 0.6; font-size: 0.7rem; }
+
+    .reload-arrow-col {
+      display: flex; align-items: center; justify-content: center;
+      padding: 0 0.5rem;
+      font-size: 1.3rem; color: var(--border);
+    }
+    .reload-effect {
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .reload-effect-item {
+      display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.5rem 0.8rem;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      border: 1px solid var(--border);
+      background: var(--warm);
+    }
+    .reload-effect-item.good {
+      background: rgba(34,197,94,0.07);
+      border-color: rgba(34,197,94,0.2);
+      color: #166534;
+    }
+    .reload-effect-icon { font-size: 0.9rem; }
+
     /* ── FOOTER ── */
     footer {
       border-top: 1px solid var(--border);
@@ -708,8 +1048,14 @@
     <div class="guide-badge">Complete Setup Reference</div>
     <h1>Get up and running<br><em>in three steps</em></h1>
     <p class="guide-sub">Install the backend engine, connect it to NativeLab, then download a model that fits your hardware. Takes about five minutes.</p>
-    <div class="time-notice">
-      ⏱ &nbsp;Estimated setup time: 5–10 minutes
+    <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+      <div class="time-notice">
+        ⏱ &nbsp;Estimated setup time: 5–10 minutes
+      </div>
+      <a href="https://youtu.be/9l0IlSkI-IM" target="_blank" style="display:inline-flex; align-items:center; gap:0.55rem; background:#ff2b2b; color:#fff; padding:0.65rem 1.1rem; border-radius:8px; text-decoration:none; font-size:0.85rem; font-weight:500; transition:background 0.2s;" onmouseover="this.style.background='#cc0000'" onmouseout="this.style.background='#ff2b2b'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.27 8.27 0 004.84 1.55V6.79a4.85 4.85 0 01-1.07-.1z"/></svg>
+        Watch Setup Video
+      </a>
     </div>
 
     <div class="progress-bar fade-up" style="transition-delay:0.15s">
@@ -724,6 +1070,67 @@
       <div class="pb-step done">
         <div class="pb-num">3</div>
         Download a Model
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     VIDEO WALKTHROUGH SECTION
+═══════════════════════════════════════════ -->
+<section class="video-section" id="video-walkthrough">
+  <div class="video-section-inner">
+    <p class="section-label">Video Walkthrough</p>
+    <h2>Watch the full<br><em>setup in action</em></h2>
+    <p>See every step demonstrated live — from downloading llama.cpp to running your first conversation locally. No cloud, no account, everything on your machine.</p>
+
+    <div class="video-wrapper fade-up">
+      <div class="video-chrome">
+        <div class="video-chrome-dot" style="background:#ff5f57"></div>
+        <div class="video-chrome-dot" style="background:#ffbd2e"></div>
+        <div class="video-chrome-dot" style="background:#28c840"></div>
+        <span class="video-chrome-title">NativeLab Pro — Complete Setup Walkthrough</span>
+      </div>
+
+      <!-- Thumbnail that swaps to embed on click -->
+      <div class="video-thumb" id="videoThumb" onclick="loadVideo()" title="Click to play">
+        <div class="video-embed-wrap" style="padding-bottom:56.25%; height:0; position:relative; background:#111;">
+          <!-- YouTube thumbnail as background -->
+          <img src="https://img.youtube.com/vi/9l0IlSkI-IM/maxresdefault.jpg"
+               onerror="this.src='https://img.youtube.com/vi/9l0IlSkI-IM/hqdefault.jpg'"
+               alt="NativeLab Setup Video"
+               style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" />
+          <div class="play-overlay">
+            <div class="play-btn-circle">
+              <div class="play-triangle"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Iframe hidden until click -->
+      <div id="videoIframe" style="display:none;">
+        <div style="position:relative; padding-bottom:56.25%; height:0; background:#000;">
+          <iframe
+            id="ytIframe"
+            src=""
+            title="NativeLab Setup Video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowfullscreen
+            style="position:absolute;top:0;left:0;width:100%;height:100%;border:none;">
+          </iframe>
+        </div>
+      </div>
+
+      <div class="video-footer">
+        <div class="video-footer-label">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff2b2b"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 00.5 6.19C0 8.03 0 12 0 12s0 3.97.5 5.81a3.02 3.02 0 002.12 2.14C4.46 20.5 12 20.5 12 20.5s7.54 0 9.38-.55a3.02 3.02 0 002.12-2.14C24 15.97 24 12 24 12s0-3.97-.5-5.81zM9.75 15.52V8.48L15.5 12l-5.75 3.52z"/></svg>
+          <strong>NativeLab Pro — Full Setup</strong> &nbsp;· 7ZoneSystems
+        </div>
+        <a href="https://youtu.be/9l0IlSkI-IM" target="_blank" class="video-yt-link">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 00.5 6.19C0 8.03 0 12 0 12s0 3.97.5 5.81a3.02 3.02 0 002.12 2.14C4.46 20.5 12 20.5 12 20.5s7.54 0 9.38-.55a3.02 3.02 0 002.12-2.14C24 15.97 24 12 24 12s0-3.97-.5-5.81zM9.75 15.52V8.48L15.5 12l-5.75 3.52z"/></svg>
+          Watch on YouTube
+        </a>
       </div>
     </div>
   </div>
@@ -946,6 +1353,122 @@
         </div>
       </div>
     </div>
+
+    <!-- ══ MODE INDICATOR ══ -->
+    <p class="section-label" style="margin-top:2.5rem;">Understanding the active mode</p>
+    <h2 style="margin-bottom:0.5rem; font-size:clamp(1.5rem,3vw,2rem);">Server mode vs <em>CLI mode</em></h2>
+    <p style="font-size:0.9rem; color:var(--dim); margin-bottom:1.2rem; font-weight:300;">NativeLab can talk to llama.cpp in two ways. The indicator below shows which one is currently active and what it means for your workflow.</p>
+
+    <div class="mode-indicator fade-up" id="modeIndicator">
+      <div class="mode-indicator-header">
+        <div class="mode-indicator-title">Active backend mode</div>
+        <div class="mode-toggle-wrap">
+          <button class="mode-toggle-btn active-server" id="btnServer" onclick="setMode('server')">🖥️ Server</button>
+          <button class="mode-toggle-btn" id="btnCli" onclick="setMode('cli')">⌨️ CLI</button>
+        </div>
+      </div>
+
+      <div class="mode-cards">
+        <!-- SERVER CARD -->
+        <div class="mode-card mode-active" id="cardServer">
+          <div class="mode-current-badge" id="badgeServer">● Active</div>
+          <div class="mode-card-badge server">
+            <span class="badge-dot"></span> Server Mode
+          </div>
+          <div class="mode-card-title">llama-server (HTTP)</div>
+          <div class="mode-card-desc">Starts a local OpenAI-compatible API on port 8080. NativeLab connects to it over HTTP. The server stays running between messages.</div>
+          <div class="mode-features">
+            <div class="mode-feature yes">Persistent context window</div>
+            <div class="mode-feature yes">Streaming tokens</div>
+            <div class="mode-feature yes">OpenAI-compatible /v1/chat</div>
+            <div class="mode-feature yes">Pipeline &amp; API pass-through</div>
+            <div class="mode-feature yes">Faster multi-turn conversations</div>
+          </div>
+        </div>
+        <!-- CLI CARD -->
+        <div class="mode-card" id="cardCli">
+          <div class="mode-current-badge cli-badge" id="badgeCli">● Active</div>
+          <div class="mode-card-badge cli">
+            <span class="badge-dot" style="background:#ccc;"></span> CLI Mode
+          </div>
+          <div class="mode-card-title">llama-cli (subprocess)</div>
+          <div class="mode-card-desc">Spawns llama-cli as a subprocess per generation. Simpler setup — no server process needed. Slower for multi-turn chat.</div>
+          <div class="mode-features">
+            <div class="mode-feature no">No persistent context</div>
+            <div class="mode-feature yes">Simpler — no port needed</div>
+            <div class="mode-feature no">No streaming support</div>
+            <div class="mode-feature no">Not compatible with pipeline</div>
+            <div class="mode-feature yes">Good for single prompts</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mode-status-strip" id="modeStatusStrip">
+        <div class="mode-status-left">
+          <div class="mode-status-dot" id="modeStatusDot"></div>
+          <div>
+            <div class="mode-status-text" id="modeStatusText">llama-server running on port 8080</div>
+            <div class="mode-status-sub" id="modeStatusSub">NativeLab is connected · Streaming enabled · HTTP API ready</div>
+          </div>
+        </div>
+        <div style="font-size:0.78rem; color:var(--dim);" id="modeStatusHint">
+          💡 Recommended for most users
+        </div>
+      </div>
+    </div>
+
+    <!-- Reload tip -->
+    <div class="reload-tip fade-up">
+      <div class="reload-tip-header">
+        ⚠️ &nbsp;If the server isn't responding — Reload from the View menu
+      </div>
+      <div class="reload-tip-body">
+        <!-- macOS -->
+        <div class="reload-panel">
+          <div class="reload-panel-label">🍎 macOS — View menu</div>
+          <div class="macos-menu">
+            <div class="macos-menu-title">View</div>
+            <div class="macos-menu-sep"></div>
+            <div class="macos-menu-item">Toggle Sidebar<span class="macos-menu-shortcut">⌘B</span></div>
+            <div class="macos-menu-item">Zoom In<span class="macos-menu-shortcut">⌘+</span></div>
+            <div class="macos-menu-item">Zoom Out<span class="macos-menu-shortcut">⌘−</span></div>
+            <div class="macos-menu-sep"></div>
+            <div class="macos-menu-item highlighted">Reload / Restart Server<span class="macos-menu-shortcut">⌘R</span></div>
+            <div class="macos-menu-item">Force Reload<span class="macos-menu-shortcut">⇧⌘R</span></div>
+          </div>
+        </div>
+
+        <div class="reload-arrow-col">→</div>
+
+        <!-- Effect -->
+        <div class="reload-panel">
+          <div class="reload-panel-label">What this fixes</div>
+          <div class="reload-effect">
+            <div class="reload-effect-item good">
+              <span class="reload-effect-icon">✓</span>
+              Kills any stale llama-server process
+            </div>
+            <div class="reload-effect-item good">
+              <span class="reload-effect-icon">✓</span>
+              Relaunches server with current model
+            </div>
+            <div class="reload-effect-item good">
+              <span class="reload-effect-icon">✓</span>
+              Clears port 8080 if previously stuck
+            </div>
+            <div class="reload-effect-item good">
+              <span class="reload-effect-icon">✓</span>
+              Re-reads your binary path settings
+            </div>
+            <div class="reload-effect-item" style="border-color:rgba(201,168,76,0.25); background:rgba(201,168,76,0.07); color:#8a6a00;">
+              <span class="reload-effect-icon">📋</span>
+              Check the Logs tab to confirm restart
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- End reload tip -->
 
     <div class="callout fade-up">
       <div class="callout-label">📂 How to browse</div>
@@ -1267,7 +1790,8 @@
     <h2 style="color:#fff; margin-bottom:1rem; font-size:clamp(2rem,4vw,2.8rem);">Start your first <em style="color:var(--mist)">conversation</em></h2>
     <p style="color:rgba(255,255,255,0.75); max-width:540px; margin: 0 auto 2.5rem; font-weight:300; font-size:1rem; line-height:1.8;">Switch to the <strong style="color:#fff">Chat</strong> tab, type a message, and the model will respond. Everything runs locally — no cloud, no account, no data leaving your machine.</p>
     <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
-      <a href="index.html" class="btn-secondary" style="border-color:rgba(255,255,255,0.3); color:#fff;">← Back to Home</a>
+      <a href="onesystems.github.io/NativeLab" class="btn-secondary" style="border-color:rgba(255,255,255,0.3); color:#fff;">← Back to Home</a>
+      <a href="https://youtu.be/9l0IlSkI-IM" target="_blank" class="btn-primary" style="background:#ff2b2b; color:#fff; border-color:#ff2b2b;">▶ Watch Setup Video</a>
       <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-primary" style="background:#fff; color:var(--sage); border-color:#fff;">View on GitHub →</a>
     </div>
   </div>
@@ -1306,7 +1830,6 @@
         btn.classList.remove('copied');
       }, 2000);
     }).catch(() => {
-      /* fallback */
       const el = document.createElement('textarea');
       el.value = repo;
       document.body.appendChild(el);
@@ -1319,7 +1842,48 @@
     });
   }
 
-  /* Scroll fade-up */
+  /* ── MODE INDICATOR ── */
+  function setMode(mode) {
+    const cardServer  = document.getElementById('cardServer');
+    const cardCli     = document.getElementById('cardCli');
+    const btnServer   = document.getElementById('btnServer');
+    const btnCli      = document.getElementById('btnCli');
+    const statusDot   = document.getElementById('modeStatusDot');
+    const statusText  = document.getElementById('modeStatusText');
+    const statusSub   = document.getElementById('modeStatusSub');
+    const statusHint  = document.getElementById('modeStatusHint');
+
+    if (mode === 'server') {
+      cardServer.className = 'mode-card mode-active';
+      cardCli.className    = 'mode-card';
+      btnServer.className  = 'mode-toggle-btn active-server';
+      btnCli.className     = 'mode-toggle-btn';
+      statusDot.className  = 'mode-status-dot';
+      statusText.textContent = 'llama-server running on port 8080';
+      statusSub.textContent  = 'NativeLab is connected · Streaming enabled · HTTP API ready';
+      statusHint.textContent = '💡 Recommended for most users';
+    } else {
+      cardServer.className = 'mode-card';
+      cardCli.className    = 'mode-card mode-active-cli';
+      btnServer.className  = 'mode-toggle-btn';
+      btnCli.className     = 'mode-toggle-btn active-cli';
+      statusDot.className  = 'mode-status-dot dot-cli';
+      statusText.textContent = 'llama-cli subprocess mode active';
+      statusSub.textContent  = 'No persistent server · Single-shot completions · No streaming';
+      statusHint.textContent = '⚠ Limited — switch to Server mode for full features';
+    }
+  }
+
+  /* ── VIDEO LOAD ── */
+  function loadVideo() {
+    document.getElementById('videoThumb').style.display = 'none';
+    const wrap = document.getElementById('videoIframe');
+    wrap.style.display = 'block';
+    document.getElementById('ytIframe').src =
+      'https://www.youtube.com/embed/9l0IlSkI-IM?autoplay=1&rel=0&modestbranding=1';
+  }
+
+  /* ── SCROLL FADE-UP ── */
   const obs = new IntersectionObserver((entries) => {
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
   }, { threshold: 0.08 });
