@@ -22,37 +22,24 @@
 name: Build macOS App
 
 on:
-  # Trigger manually from the Actions tab — safest for on-demand builds
   workflow_dispatch:
-
-  # Or trigger automatically on every push to main
-  # push:
-  #   branches: [main]
 
 jobs:
   build-macos:
-    # macos-14 = Apple Silicon (M1) runner — free on GitHub, best for Metal
-    # Use macos-13 instead if you need Intel x86_64 target
     runs-on: macos-14
 
+    permissions:
+      contents: read
+
     steps:
-      # ── Step 1: Check out your source code ──────────────────────────────────
       - name: Checkout source
         uses: actions/checkout@v4
 
-      # ── Step 2: Set up Python ────────────────────────────────────────────────
-      # We pin to 3.11 for maximum compatibility with PyQt6 and llama-cpp-python.
-      # Python 3.12 has some known issues with certain PyInstaller hooks.
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # ── Step 3: Install Python dependencies ─────────────────────────────────
-      # The critical part here is CMAKE_ARGS="-DLLAMA_METAL=on" for
-      # llama-cpp-python. Without this flag it compiles CPU-only, which works
-      # but is dramatically slower on Apple Silicon. The Metal flag tells it
-      # to use Apple's GPU compute framework instead.
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
@@ -68,19 +55,19 @@ jobs:
           echo "[INFO] Installing PyInstaller..."
           pip install pyinstaller
 
-      # ── Step 4: Download macOS llama.cpp binaries ───────────────────────────
-      # Your Linux build uses pre-built llama-cli and llama-server binaries
-      # from the llama.cpp releases page. We need the macOS (arm64) versions.
-      # We fetch the latest release tag dynamically so this stays up to date.
-      #
-      # The binary package for macOS Apple Silicon is named:
-      #   llama-*-bin-macos-arm64.zip
-      # For Intel Mac, change arm64 → x64 and runner to macos-13.
+      # FIX: Use authenticated API call with GITHUB_TOKEN to avoid rate limiting
+      # Unauthenticated calls from shared Actions runners hit the 60 req/hr limit
+      # instantly. GITHUB_TOKEN gives 5000 req/hr and is always available.
       - name: Download macOS llama.cpp binaries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "[INFO] Fetching latest llama.cpp release tag..."
-          LATEST=$(curl -s "https://api.github.com/repos/ggerganov/llama.cpp/releases" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['tag_name'])")
+          LATEST=$(curl -s \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/ggerganov/llama.cpp/releases/latest" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
           echo "[INFO] Latest release: $LATEST"
 
           echo "[INFO] Downloading macOS arm64 binary package..."
@@ -91,9 +78,7 @@ jobs:
           echo "[INFO] Extracting..."
           unzip -q llama-macos.zip -d llama-extracted
 
-          # Create the same llama/bin/ layout your spec file expects
           mkdir -p llama/bin
-          # The zip usually puts binaries inside a nested folder — find them
           find llama-extracted -name "llama-cli"    -exec cp {} llama/bin/ \;
           find llama-extracted -name "llama-server" -exec cp {} llama/bin/ \;
 
@@ -103,13 +88,6 @@ jobs:
           echo "[INFO] llama binaries ready:"
           ls -lh llama/bin/
 
-      # ── Step 5: Create macOS PyInstaller spec ────────────────────────────────
-      # We generate a Mac-specific spec rather than reusing your Linux one
-      # because macOS needs: BUNDLE (not just EXE+COLLECT), .icns icon format,
-      # CFBundleIdentifier, and argv_emulation=True for proper Mac behaviour.
-      #
-      # The BUNDLE block is what creates the actual .app folder structure that
-      # macOS understands. Without it, PyInstaller just makes a Unix binary.
       - name: Create macOS PyInstaller spec
         run: |
           cat > NativeLab_mac.spec << 'SPECEOF'
@@ -125,13 +103,10 @@ jobs:
               ['nativelab.py'],
               pathex=['.'],
               binaries=[
-                  # macOS arm64 llama.cpp binaries
                   ('llama/bin/llama-cli',    'llama-bin'),
                   ('llama/bin/llama-server', 'llama-bin'),
               ],
               datas=[
-                  # .icns is the macOS icon format (used in Finder, Dock, etc.)
-                  # .png is the fallback shown inside the app
                   ('icon.icns', '.'),
                   ('icon.png',  '.'),
               ],
@@ -171,12 +146,10 @@ jobs:
               debug=False,
               bootloader_ignore_signals=False,
               strip=False,
-              upx=False,           # UPX not needed on Mac and can cause issues
-              console=False,       # no terminal window — proper GUI app
-              # argv_emulation makes macOS file-open events (drag-drop onto
-              # Dock icon) work correctly — important for a native feel
+              upx=False,
+              console=False,
               argv_emulation=True,
-              target_arch=None,    # None = match the build machine (arm64 here)
+              target_arch=None,
               codesign_identity=None,
               entitlements_file=None,
               icon='icon.icns',
@@ -192,41 +165,29 @@ jobs:
               name='NativeLabPro',
           )
 
-          # BUNDLE is the macOS-specific step that wraps everything into a
-          # proper .app folder with the correct Info.plist metadata.
-          # Without this, you just get a Unix binary, not a Mac app.
           app = BUNDLE(
               coll,
               name='NativeLab Pro.app',
               icon='icon.icns',
               bundle_identifier='com.yourname.nativelabpro',
               info_plist={
-                  # Display name shown in Finder and the menu bar
                   'CFBundleDisplayName': 'NativeLab Pro',
                   'CFBundleShortVersionString': '1.0.0',
                   'CFBundleVersion': '1.0.0',
-                  # Allows the app to run without Gatekeeper blocking network
-                  # access (needed for llama-server's local HTTP endpoint)
                   'NSAppTransportSecurity': {
                       'NSAllowsLocalNetworking': True,
                   },
-                  # Tells macOS this is a proper GUI app, not a CLI tool
                   'LSUIElement': False,
-                  # Minimum macOS version — 12.0 covers all M-series Macs
                   'LSMinimumSystemVersion': '12.0',
               },
           )
           SPECEOF
 
-      # ── Step 6: Create placeholder icon if not present ───────────────────────
-      # If your repo doesn't yet have an icon.icns, we create a minimal one
-      # so the build doesn't fail. Replace with your real icon.icns in the repo.
       - name: Ensure icon.icns exists
         run: |
           if [ ! -f "icon.icns" ]; then
             echo "[WARN] icon.icns not found — generating placeholder from icon.png"
             if [ -f "icon.png" ]; then
-              # macOS has sips and iconutil built in for icon conversion
               mkdir -p icon.iconset
               sips -z 16  16   icon.png --out icon.iconset/icon_16x16.png
               sips -z 32  32   icon.png --out icon.iconset/icon_32x32.png
@@ -237,22 +198,17 @@ jobs:
               echo "[INFO] icon.icns generated from icon.png"
             else
               echo "[WARN] No icon.png either — build will use default PyInstaller icon"
-              touch icon.icns   # empty placeholder so spec doesn't error
+              touch icon.icns
             fi
           else
             echo "[INFO] icon.icns found — using existing"
           fi
 
-      # ── Step 7: Run PyInstaller ──────────────────────────────────────────────
       - name: Build .app with PyInstaller
         run: |
           echo "[INFO] Running PyInstaller with macOS spec..."
           python -m PyInstaller NativeLab_mac.spec --noconfirm --clean
 
-      # ── Step 8: Create required data folders inside the bundle ───────────────
-      # Your Linux build creates these after PyInstaller finishes.
-      # On Mac they go inside the .app/Contents/MacOS/ folder, which is where
-      # the binary runs from — equivalent to your dist/NativeLabPro/ on Linux.
       - name: Create required data folders
         run: |
           APP_RESOURCES="dist/NativeLab Pro.app/Contents/MacOS"
@@ -266,7 +222,6 @@ jobs:
           echo "[INFO] Folder structure:"
           ls -la "$APP_RESOURCES/"
 
-      # ── Step 9: Verify the build ─────────────────────────────────────────────
       - name: Verify build output
         run: |
           echo "[INFO] Checking .app structure..."
@@ -277,10 +232,6 @@ jobs:
           echo "[INFO] llama binaries in bundle:"
           find "dist/NativeLab Pro.app" -name "llama-*" -type f
 
-      # ── Step 10: Zip the .app for download ───────────────────────────────────
-      # GitHub Actions artifacts can't upload .app folders directly (they're
-      # really directories, not files). Zipping preserves permissions and the
-      # internal symlinks that macOS .app bundles rely on.
       - name: Zip .app bundle
         run: |
           cd dist
@@ -288,13 +239,9 @@ jobs:
           zip -r --symlinks "NativeLab-Pro-macOS-arm64.zip" "NativeLab Pro.app"
           echo "[INFO] Zip size: $(du -sh NativeLab-Pro-macOS-arm64.zip | cut -f1)"
 
-      # ── Step 11: Upload as downloadable artifact ─────────────────────────────
-      # After the run completes, go to: Actions → this run → Artifacts section
-      # Download the zip, extract on a Mac, and run the .app
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: NativeLab-Pro-macOS-arm64
           path: dist/NativeLab-Pro-macOS-arm64.zip
-          # Artifact kept for 30 days — download before it expires
           retention-days: 30
