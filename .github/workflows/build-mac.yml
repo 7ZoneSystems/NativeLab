@@ -59,33 +59,16 @@ jobs:
       # Unauthenticated calls from shared Actions runners hit the 60 req/hr limit
       # instantly. GITHUB_TOKEN gives 5000 req/hr and is always available.
       - name: Download macOS llama.cpp binaries
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "[INFO] Fetching latest llama.cpp release tag..."
-          LATEST=$(curl -s \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/ggerganov/llama.cpp/releases/latest" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
-          echo "[INFO] Latest release: $LATEST"
-
-          echo "[INFO] Downloading macOS arm64 binary package..."
           curl -L \
-            "https://github.com/ggerganov/llama.cpp/releases/download/${LATEST}/llama-${LATEST}-bin-macos-arm64.zip" \
-            -o llama-macos.zip
-
-          echo "[INFO] Extracting..."
-          unzip -q llama-macos.zip -d llama-extracted
-
+            "https://github.com/ggerganov/llama.cpp/releases/download/b8227/llama-b8227-bin-macos-arm64.tar.gz" \
+            -o llama-macos.tar.gz
+          mkdir -p llama-extracted
+          tar -xzf llama-macos.tar.gz -C llama-extracted
           mkdir -p llama/bin
           find llama-extracted -name "llama-cli"    -exec cp {} llama/bin/ \;
           find llama-extracted -name "llama-server" -exec cp {} llama/bin/ \;
-
-          chmod +x llama/bin/llama-cli
-          chmod +x llama/bin/llama-server
-
-          echo "[INFO] llama binaries ready:"
+          chmod +x llama/bin/llama-cli llama/bin/llama-server
           ls -lh llama/bin/
 
       - name: Create macOS PyInstaller spec
