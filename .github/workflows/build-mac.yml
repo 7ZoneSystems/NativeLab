@@ -58,18 +58,7 @@ jobs:
       # FIX: Use authenticated API call with GITHUB_TOKEN to avoid rate limiting
       # Unauthenticated calls from shared Actions runners hit the 60 req/hr limit
       # instantly. GITHUB_TOKEN gives 5000 req/hr and is always available.
-      - name: Download macOS llama.cpp binaries
-        run: |
-          curl -L \
-            "https://github.com/ggerganov/llama.cpp/releases/download/b8227/llama-b8227-bin-macos-arm64.tar.gz" \
-            -o llama-macos.tar.gz
-          mkdir -p llama-extracted
-          tar -xzf llama-macos.tar.gz -C llama-extracted
-          mkdir -p llama/bin
-          find llama-extracted -name "llama-cli"    -exec cp {} llama/bin/ \;
-          find llama-extracted -name "llama-server" -exec cp {} llama/bin/ \;
-          chmod +x llama/bin/llama-cli llama/bin/llama-server
-          ls -lh llama/bin/
+
 
       - name: Create macOS PyInstaller spec
         run: |
@@ -85,10 +74,6 @@ jobs:
           a = Analysis(
               ['nativelab.py'],
               pathex=['.'],
-              binaries=[
-                  ('llama/bin/llama-cli',    'llama-bin'),
-                  ('llama/bin/llama-server', 'llama-bin'),
-              ],
               datas=[
                   ('icon.icns', '.'),
                   ('icon.png',  '.'),
