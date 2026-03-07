@@ -1,22 +1,7 @@
 # .github/workflows/build-mac.yml
 # ──────────────────────────────────────────────────────────────────────────────
 # Native Lab Pro — macOS Build via GitHub Actions
-#
-# HOW TO USE:
-#   1. Push your repo to GitHub (including this file at the path above)
-#   2. Also push: nativelab.py, NativeLab.spec, icon.icns, icon.png
-#   3. Go to your repo → Actions tab → "Build macOS App" → Run workflow
-#   4. Wait ~10 minutes → download the .zip artifact from the run page
-#   5. Unzip on a Mac → double-click NativeLab Pro.app
-#
-# WHAT THIS DOES:
-#   - Spins up a real Apple Silicon Mac (macos-14) on GitHub's servers
-#   - Installs Python 3.11, PyQt6, psutil, PyPDF2
-#   - Compiles llama-cpp-python with Metal GPU support (for M-series Macs)
-#   - Downloads the official macOS llama.cpp binaries from GitHub Releases
-#   - Runs PyInstaller using your NativeLab.spec (with Mac-specific overrides)
-#   - Creates the required data folders inside the .app bundle
-#   - Zips and uploads the result as a downloadable artifact
+# llama.cpp binaries NOT bundled — user selects their own build via the UI
 # ──────────────────────────────────────────────────────────────────────────────
 
 name: Build macOS App
@@ -43,37 +28,22 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-
-          echo "[INFO] Installing llama-cpp-python with Metal GPU support..."
-          CMAKE_ARGS="-DLLAMA_METAL=on" \
-          FORCE_CMAKE=1 \
-          pip install llama-cpp-python --no-cache-dir
-
+          # llama-cpp-python removed — user supplies their own llama.cpp binaries
           echo "[INFO] Installing UI and utility dependencies..."
           pip install PyQt6 PyPDF2 psutil
-
           echo "[INFO] Installing PyInstaller..."
           pip install pyinstaller
-
-      # FIX: Use authenticated API call with GITHUB_TOKEN to avoid rate limiting
-      # Unauthenticated calls from shared Actions runners hit the 60 req/hr limit
-      # instantly. GITHUB_TOKEN gives 5000 req/hr and is always available.
-
 
       - name: Create macOS PyInstaller spec
         run: |
           cat > NativeLab_mac.spec << 'SPECEOF'
           # -*- mode: python ; coding: utf-8 -*-
-          # NativeLab_mac.spec — PyInstaller spec for macOS .app bundle
-
-          import sys
-          from pathlib import Path
-
           block_cipher = None
 
           a = Analysis(
               ['nativelab.py'],
               pathex=['.'],
+              binaries=[],
               datas=[
                   ('icon.icns', '.'),
                   ('icon.png',  '.'),
@@ -165,7 +135,7 @@ jobs:
               iconutil -c icns icon.iconset -o icon.icns
               echo "[INFO] icon.icns generated from icon.png"
             else
-              echo "[WARN] No icon.png either — build will use default PyInstaller icon"
+              echo "[WARN] No icon.png — build will use default PyInstaller icon"
               touch icon.icns
             fi
           else
@@ -196,9 +166,6 @@ jobs:
           ls -lh "dist/"
           ls -lh "dist/NativeLab Pro.app/Contents/"
           ls -lh "dist/NativeLab Pro.app/Contents/MacOS/" | head -20
-          echo ""
-          echo "[INFO] llama binaries in bundle:"
-          find "dist/NativeLab Pro.app" -name "llama-*" -type f
 
       - name: Zip .app bundle
         run: |
