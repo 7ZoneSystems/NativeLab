@@ -21,7 +21,7 @@ from Prefrences.prefrence_global import *
 from Server.server_global import *
 from core.streamer_global import *
 from components.components_global import *
-
+from core.engine_global import *
 
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)

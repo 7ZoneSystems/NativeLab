@@ -1,6 +1,7 @@
 from imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime
 from components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
-
+from core.engine_global import LlamaEngine
+from GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS
 class ChunkedSummaryWorker(QThread):
     section_done  = pyqtSignal(int, int, str, str)
     final_done    = pyqtSignal(str)
