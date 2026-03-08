@@ -254,3 +254,45 @@ PROMPT_TEMPLATES: Dict[str, Dict] = {
                   "system": "", "user_prefix": "", "user_suffix": "",
                   "assistant_prefix": ""},
 }
+
+# ----- for pdf summarization component -----
+MODE_SECTION_INSTRUCTIONS = {
+    "summary": (
+        "Summarise this section clearly. Retain all key facts, named entities, "
+        "numbers, arguments, and logical connections. Use bullet points for key facts."
+    ),
+    "logical": (
+        "Explain the logic, mechanism, or methodology described in this section. "
+        "Break it down step by step. Use numbered points and sub-bullets. "
+        "Preserve technical accuracy. Focus on HOW and WHY things work."
+    ),
+    "advice": (
+        "Extract actionable advice, recommendations, or implications from this section. "
+        "Frame findings as practical advice. Use bullet points. "
+        "Focus on what the reader should DO or KNOW based on this content."
+    ),
+}
+
+MODE_FINAL_INSTRUCTIONS = {
+    "summary": (
+        "Write a single, well-structured, coherent final summary.\n"
+        "Use clear headings (##) and bullet points for key facts.\n"
+        "Do NOT omit any core findings, data points, or named entities.\n"
+        "Structure: Overview → Key Points → Findings → Conclusion."
+    ),
+    "logical": (
+        "Write a structured explanation of the complete logic, mechanism, and methodology "
+        "of this document.\n"
+        "Use ## headings for each major concept or process.\n"
+        "Use numbered steps and sub-bullets for mechanisms.\n"
+        "Explain the WHY and HOW at each stage.\n"
+        "Structure: Core Premise → Mechanisms → Process Flow → Key Findings → Implications."
+    ),
+    "advice": (
+        "Write a structured advisory brief based on the full document.\n"
+        "Use ## headings for each advice category.\n"
+        "Use bullet points for every recommendation.\n"
+        "Make all advice actionable and specific.\n"
+        "Structure: Key Takeaways → Recommendations → What To Do → What To Avoid → Next Steps."
+    ),
+}
