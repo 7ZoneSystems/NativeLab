@@ -41,7 +41,7 @@ class ModelLoaderThread(QThread):
         
 # ═════════════════════════════ UI COMPONENTS ════════════════════════════════
 
-def _fade_in(widget: QWidget, duration: int = 180):
+def fade_in(widget: QWidget, duration: int = 180):
     """Fade a widget in. Skipped if widget has its own paintEvent (avoids QPainter conflicts)."""
     # PipelineCanvas and other custom-painted widgets must not get opacity effects
     if type(widget).__name__ in ("PipelineCanvas", "ThinkingBlock"):
@@ -58,8 +58,7 @@ def _fade_in(widget: QWidget, duration: int = 180):
     except Exception:
         pass
 
-
-class _FadeOverlay(QWidget):
+class FadeOverlay(QWidget):
     """Full-size overlay for tab-switch fade.
     Uses its own paintEvent — never touches QGraphicsOpacityEffect,
     so no QPainter conflicts with PipelineCanvas or other custom painters."""
@@ -113,14 +112,14 @@ class ChatArea(QScrollArea):
     def _show_placeholder(self, visible: bool):
         self._placeholder.setVisible(visible)
         if visible:
-            _fade_in(self._placeholder, 300)
+            fade_in(self._placeholder, 300)
 
     def add_message(self, role: str, content: str, timestamp: str,
                     tag: str = "") -> MessageWidget:
         w = MessageWidget(role, content, timestamp, tag=tag)
         self._vbox.insertWidget(self._vbox.count() - 1, w)
         self._widgets.append(w)
-        _fade_in(w, 220)
+        fade_in(w, 220)
         self._show_placeholder(False)
         QTimer.singleShot(30, self._scroll_bottom)
         return w
@@ -6731,7 +6730,7 @@ class ApiModelsTab(QWidget):
     def _toggle_prompt_format(self, checked: bool):
         self.prompt_format_widget.setVisible(checked)
         if checked:
-            _fade_in(self.prompt_format_widget, 180)
+            fade_in(self.prompt_format_widget, 180)
 
     def _on_template_changed(self, _idx: int):
         key = self.combo_template.currentData()
@@ -6869,7 +6868,7 @@ class ApiModelsTab(QWidget):
         bd.clicked.connect(lambda _, c=cfg: self._delete_saved(c))
         cl.addWidget(bl); cl.addWidget(bd)
         self.saved_vbox.insertWidget(self.saved_vbox.count() - 1, card)
-        _fade_in(card, 200)
+        fade_in(card, 200)
 
     def _load_saved(self, cfg: ApiConfig):
         idx = self.combo_provider.findText(cfg.provider)
@@ -7128,7 +7127,7 @@ class MainWindow(QMainWindow):
         self.splitter.addWidget(self.sidebar)
 
         self.tabs = QTabWidget()
-        self._tab_overlay = _FadeOverlay(self.tabs)
+        self._tab_overlay = FadeOverlay(self.tabs)
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
         # ── Chat tab (ChatModule) ──
