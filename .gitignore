@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+
+# Virtual env
+env/
+venv/
+.venv/
+
+# System
+.DS_Store
+Thumbs.db
+
+# NativeLab runtime files
+sessions/
+ref_cache/
+ref_index/
+paused_jobs/
+chat_refs/
+
+# Config files generated at runtime
+app_config.json
+localllm/

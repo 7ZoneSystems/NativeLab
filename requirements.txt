@@ -1,0 +1,3 @@
+pyQt6
+PyPDF2
+psutil
