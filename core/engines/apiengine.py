@@ -1,3 +1,7 @@
+from imports.import_global import Optional, List, Dict, json, QThread
+from core.streamer_global import ApiStreamWorker
+from GlobalConfig.config_global import DEFAULT_N_PRED
+from Model.model_global import ApiConfig
 class ApiEngine:
     """Drop-in replacement for LlamaEngine that routes inference to a cloud/local API."""
 
