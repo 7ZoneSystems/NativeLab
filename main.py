@@ -115,7 +115,7 @@ class ChunkedSummaryWorker(QThread):
         running_ctx = ""
 
         if self.resume_job_id:
-            state = _load_paused_job(self.resume_job_id)
+            state = load_paused_job(self.resume_job_id)
             if state:
                 start_idx         = state.get("next_chunk", 0)
                 section_summaries = state.get("summaries", [])
@@ -143,7 +143,7 @@ class ChunkedSummaryWorker(QThread):
                     "paused_at":   datetime.now().isoformat(),
                     "summary_mode": mode,
                 }
-                _save_paused_job(self.job_id, state)
+                save_paused_job(self.job_id, state)
                 self.progress.emit(
                     f"⏸  Paused after chunk {i} / {total}. State saved to disk.")
                 self.err.emit(f"__PAUSED__:{self.job_id}")
@@ -175,7 +175,7 @@ class ChunkedSummaryWorker(QThread):
             self.section_done.emit(i + 1, total, chunk, summary)
 
             if (i + 1) % 3 == 0:
-                _save_paused_job(self.job_id + "_autosave", {
+                save_paused_job(self.job_id + "_autosave", {
                     "job_id":      self.job_id,
                     "filename":    self.filename,
                     "session_id":  self.session_id,
@@ -218,8 +218,8 @@ class ChunkedSummaryWorker(QThread):
             self.progress.emit("⚠️ Final pass failed — using section summaries as fallback.")
             final = f"[Auto-fallback — final consolidation failed]\n\n" + all_sects
 
-        _delete_paused_job(self.job_id + "_autosave")
-        _delete_paused_job(self.job_id)
+        delete_paused_job(self.job_id + "_autosave")
+        delete_paused_job(self.job_id)
         self.final_done.emit(final.strip())
 
     def _split(self, text: str, chunk_chars: int) -> List[str]:
@@ -1032,7 +1032,7 @@ class MultiPdfSummaryWorker(QThread):
             # For display in Config tab
             "next_chunk":         next_ci,
         }
-        _save_paused_job(self.job_id, state)
+        save_paused_job(self.job_id, state)
 
     def run(self):
         cfg          = APP_CONFIG
@@ -1051,7 +1051,7 @@ class MultiPdfSummaryWorker(QThread):
         running_ctx = ""
 
         if self.resume_job_id:
-            state = _load_paused_job(self.resume_job_id)
+            state = load_paused_job(self.resume_job_id)
             if state:
                 start_fi  = state.get("next_fi", 0)
                 start_ci  = state.get("next_ci", 0)
@@ -1204,7 +1204,7 @@ class MultiPdfSummaryWorker(QThread):
         self.final_done.emit(final.strip())
 
         # Cleanup
-        _delete_paused_job(self.job_id)
+        delete_paused_job(self.job_id)
         for dp in self._disk_summaries.values():
             try: dp.unlink()
             except Exception: pass
@@ -3837,7 +3837,7 @@ class ConfigTab(QWidget):
             b.setFixedHeight(28); pj_btn_row.addWidget(b)
         pj_btn_row.addStretch()
         self.btn_refresh_jobs.clicked.connect(self.refresh_paused_jobs)
-        self.btn_delete_job.clicked.connect(self._delete_paused_job)
+        self.btn_delete_job.clicked.connect(self.delete_paused_job)
         pj_l.addLayout(pj_btn_row)
         root.addWidget(pj_card)
 
@@ -3955,11 +3955,11 @@ class ConfigTab(QWidget):
             item.setForeground(QColor(C["warn"]))
             self.paused_jobs_list.addItem(item)
 
-    def _delete_paused_job(self):
+    def delete_paused_job(self):
         item = self.paused_jobs_list.currentItem()
         if not item: return
         jid = item.data(Qt.ItemDataRole.UserRole)
-        _delete_paused_job(jid)
+        delete_paused_job(jid)
         self.refresh_paused_jobs()
 
     def get_selected_job_id(self) -> str:
@@ -3968,7 +3968,7 @@ class ConfigTab(QWidget):
 
     def get_selected_job_state(self) -> Optional[dict]:
         jid = self.get_selected_job_id()
-        return _load_paused_job(jid) if jid else None
+        return load_paused_job(jid) if jid else None
 
 class ParallelLoadingDialog(QWidget):
     """Embedded panel (not a popup) in the Models tab for parallel loading config."""

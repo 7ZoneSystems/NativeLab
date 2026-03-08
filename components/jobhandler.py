@@ -2,11 +2,11 @@ from imports.import_global import Optional, List, json
 from old_files.nativelab import PAUSED_JOBS_DIR
 # ── Paused job persistence ────────────────────────────────────────────────────
 
-def _save_paused_job(job_id: str, state: dict):
+def save_paused_job(job_id: str, state: dict):
     p = PAUSED_JOBS_DIR / f"{job_id}.json"
     p.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
-def _load_paused_job(job_id: str) -> Optional[dict]:
+def load_paused_job(job_id: str) -> Optional[dict]:
     p = PAUSED_JOBS_DIR / f"{job_id}.json"
     if p.exists():
         try:
@@ -15,7 +15,7 @@ def _load_paused_job(job_id: str) -> Optional[dict]:
             pass
     return None
 
-def _delete_paused_job(job_id: str):
+def delete_paused_job(job_id: str):
     p = PAUSED_JOBS_DIR / f"{job_id}.json"
     if p.exists():
         try: p.unlink()
