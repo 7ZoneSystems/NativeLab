@@ -23,6 +23,7 @@ from core.streamer_global import *
 from components.components_global import *
 from core.engine_global import *
 
+
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
     log      = pyqtSignal(str, str)
@@ -36,27 +37,6 @@ class ModelLoaderThread(QThread):
     def run(self):
         ok = self.engine.load(self.model_path, ctx=self.ctx)
         self.finished.emit(ok, self.engine.status_text)
-
-# ═════════════════════════════ REFERENCE ENGINE ══════════════════════════════
-
-import threading
-
-def _ram_free_mb() -> float:
-    if HAS_PSUTIL:
-        return psutil.virtual_memory().available / (1024 * 1024)
-    return 9999.0
-
-def _cpu_count() -> int:
-    try:
-        import multiprocessing
-        n = multiprocessing.cpu_count()
-        return n if n and n > 0 else 4
-    except Exception:
-        return 4
-
-
-def _simple_hash(text: str) -> str:
-    return hashlib.md5(text.encode("utf-8", errors="replace")).hexdigest()[:12]
 
 
 @dataclass
@@ -96,7 +76,7 @@ class SmartReference:
             i += step
         self._chunks = chunks
 
-        if _ram_free_mb() > RAM_WATCHDOG_MB():
+        if ram_free_mb() > RAM_WATCHDOG_MB():
             for c in chunks[:MAX_RAM_CHUNKS()]:
                 self._hot[c.idx] = c.text
         else:
@@ -127,7 +107,7 @@ class SmartReference:
         if idx in self._hot:
             return self._hot[idx]
         text = self._load_chunk_from_disk(idx)
-        if _ram_free_mb() > RAM_WATCHDOG_MB() + 200:
+        if ram_free_mb() > RAM_WATCHDOG_MB() + 200:
             self._hot[idx] = text
         return text
 
@@ -269,7 +249,7 @@ class SessionReferenceStore:
         self._index_path.write_text(json.dumps(meta), encoding="utf-8")
 
     def add_reference(self, name: str, ftype: str, raw_text: str) -> SmartReference:
-        ref_id = _simple_hash(name + raw_text[:64])
+        ref_id = simple_hash(name + raw_text[:64])
         raw_path = REF_CACHE_DIR / f"{ref_id}_raw.txt"
         raw_path.write_text(raw_text, encoding="utf-8", errors="replace")
         ref = SmartReference(ref_id, name, ftype, raw_text)
@@ -310,7 +290,7 @@ class SessionReferenceStore:
 
     def reactive_reload(self, query: str):
         """Selectively reload relevant chunks before final summarization."""
-        if _ram_free_mb() < RAM_WATCHDOG_MB():
+        if ram_free_mb() < RAM_WATCHDOG_MB():
             return
         for ref in self._refs.values():
             words = set(re.findall(r'\w+', query.lower()))
@@ -319,12 +299,12 @@ class SessionReferenceStore:
                     text = ref._load_chunk_from_disk(c.idx)
                     if any(w in text.lower() for w in words):
                         ref._hot[c.idx] = text
-                        if _ram_free_mb() < RAM_WATCHDOG_MB():
+                        if ram_free_mb() < RAM_WATCHDOG_MB():
                             return
   
     def _add_script_reference(self, store, name: str, raw: str) -> ScriptSmartReference:
         """Add a parsed script reference to the store."""
-        ref_id = _simple_hash(name + raw[:64])
+        ref_id = simple_hash(name + raw[:64])
         # Save raw to disk for resume/reload
         raw_path = REF_CACHE_DIR / f"{ref_id}_raw.txt"
         raw_path.write_text(raw, encoding="utf-8", errors="replace")
@@ -393,7 +373,7 @@ class RamWatchdog:
     @staticmethod
     def check_and_spill(session_id: str) -> bool:
         """Returns True if spill was triggered."""
-        if _ram_free_mb() < RAM_WATCHDOG_MB():
+        if ram_free_mb() < RAM_WATCHDOG_MB():
             store = get_ref_store(session_id)
             store.flush_ram()
             RamWatchdog.triggered = True
@@ -434,7 +414,7 @@ class MultiPdfSummaryWorker(QThread):
 
         # Stable job id derived from filenames so resume matches original
         names_key = "_".join(Path(fn).stem for fn, _ in pdf_texts)[:40]
-        self.job_id = resume_job_id or f"mpdf_{_simple_hash(names_key)}_{int(time.time())}"
+        self.job_id = resume_job_id or f"mpdf_{simple_hash(names_key)}_{int(time.time())}"
 
     def abort(self):
         self._abort = True
@@ -594,7 +574,7 @@ class MultiPdfSummaryWorker(QThread):
                 file_summary = "\n".join(file_summaries_so_far)
             file_summary = file_summary.strip()
 
-            disk_path = REF_CACHE_DIR / f"mpdf_{_simple_hash(filename)}_{fi}.txt"
+            disk_path = REF_CACHE_DIR / f"mpdf_{simple_hash(filename)}_{fi}.txt"
             disk_path.write_text(file_summary, encoding="utf-8")
             self._disk_summaries[filename] = disk_path
             completed_file_summaries.append((filename, file_summary))
@@ -1869,7 +1849,7 @@ class ReferencePanelV2(QWidget):
         self.session_id       = session_id
         self._get_store       = get_ref_store_fn
         self._ram_watchdog    = ram_watchdog_fn
-        self._ram_free_mb     = ram_mb_fn
+        self.ram_free_mb     = ram_mb_fn
         self._has_pdf         = has_pdf
         self._PdfReader       = pdf_reader_cls
         self._building        = False
@@ -2174,7 +2154,7 @@ class ReferencePanelV2(QWidget):
 
     # ── RAM badge ─────────────────────────────────────────────────────────────
     def _update_ram_badge(self):
-        free_mb = self._ram_free_mb()
+        free_mb = self.ram_free_mb()
         # reuse ram_watchdog_mb constant from main
         try:
             threshold = RAM_WATCHDOG_MB()
@@ -2352,7 +2332,7 @@ class ReferencePanel(QWidget):
             QMessageBox.warning(self, "Empty File", "No text extracted."); return
 
         # RAM watchdog before adding
-        if _ram_free_mb() < RAM_WATCHDOG_MB():
+        if ram_free_mb() < RAM_WATCHDOG_MB():
             self._store.flush_ram()
 
         ref = self._store.add_reference(filename, ftype, raw)
@@ -2374,7 +2354,7 @@ class ReferencePanel(QWidget):
         self.refs_changed.emit()   # MainWindow listens and handles
 
     def _update_ram_badge(self):
-        free_mb = _ram_free_mb()
+        free_mb = ram_free_mb()
         if free_mb < RAM_WATCHDOG_MB():
             self.ram_badge.setText(f"⚠️ RAM: {free_mb:.0f}MB free")
             self.ram_badge.setVisible(True)
@@ -2622,7 +2602,7 @@ class ChatModule(QWidget):
             session_id or "default",
             get_ref_store_fn = get_ref_store,
             ram_watchdog_fn  = lambda sid: RamWatchdog.check_and_spill(sid),
-            ram_mb_fn   = _ram_free_mb,
+            ram_mb_fn   = ram_free_mb,
             has_pdf          = HAS_PDF,
             pdf_reader_cls   = PdfReader if HAS_PDF else None,
         )
@@ -3132,7 +3112,7 @@ CONFIG_FIELD_META = {
         "desc":  (
             "Number of CPU threads used by llama.cpp for inference. "
             "Setting this higher than your physical core count may reduce performance. "
-            f"Your system has {_cpu_count()} logical CPUs. "
+            f"Your system has {cpu_count()} logical CPUs. "
             "Recommended: physical core count (not hyperthreaded)."
         ),
         "min": 1, "max": 64, "type": "int",

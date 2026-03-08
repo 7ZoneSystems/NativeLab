@@ -1,7 +1,8 @@
-from imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime
+from imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime, json
 from components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
 from core.engine_global import LlamaEngine
 from GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS
+from GlobalConfig.config_global import APP_CONFIG, simple_hash 
 class ChunkedSummaryWorker(QThread):
     section_done  = pyqtSignal(int, int, str, str)
     final_done    = pyqtSignal(str)
@@ -25,7 +26,7 @@ class ChunkedSummaryWorker(QThread):
         self._abort        = False
         self._pause        = False
         self._pending_txt = ""
-        self.job_id        = resume_job_id or f"sum_{_simple_hash(filename + text[:32])}_{int(time.time())}"
+        self.job_id        = resume_job_id or f"sum_{simple_hash(filename + text[:32])}_{int(time.time())}"
     
     def abort(self):
         self._abort = True
