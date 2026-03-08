@@ -12,19 +12,25 @@
 4. [Requirements & Installation](#requirements--installation)
 5. [Configuration](#configuration)
 6. [Model Management](#model-management)
-7. [Prompt Template System](#prompt-template-system)
-8. [Quantization Format Support](#quantization-format-support)
-9. [Chat & Sessions](#chat--sessions)
-10. [Reference Engine](#reference-engine)
-11. [Script Parser](#script-parser)
-12. [Summarization Pipeline](#summarization-pipeline)
-13. [Multi-PDF Summarization](#multi-pdf-summarization)
-14. [Parallel Loading & Pipeline Mode](#parallel-loading--pipeline-mode)
-15. [UI Components](#ui-components)
-16. [Data Persistence](#data-persistence)
-17. [RAM Watchdog & Memory Management](#ram-watchdog--memory-management)
-18. [Keyboard Shortcuts & Menus](#keyboard-shortcuts--menus)
-19. [Developer Notes](#developer-notes)
+7. [API Model Support](#api-model-support)
+8. [Prompt Template System](#prompt-template-system)
+9. [Quantization Format Support](#quantization-format-support)
+10. [Chat & Sessions](#chat--sessions)
+11. [Reference Engine](#reference-engine)
+12. [Script Parser](#script-parser)
+13. [Summarization Pipeline](#summarization-pipeline)
+14. [Multi-PDF Summarization](#multi-pdf-summarization)
+15. [Parallel Loading & Pipeline Mode](#parallel-loading--pipeline-mode)
+16. [Visual Pipeline Builder](#visual-pipeline-builder)
+17. [MCP — Model Context Protocol](#mcp--model-context-protocol)
+18. [HuggingFace Model Downloader](#huggingface-model-downloader)
+19. [Server Configuration](#server-configuration)
+20. [UI Components](#ui-components)
+21. [Theming & Appearance](#theming--appearance)
+22. [Data Persistence](#data-persistence)
+23. [RAM Watchdog & Memory Management](#ram-watchdog--memory-management)
+24. [Keyboard Shortcuts & Menus](#keyboard-shortcuts--menus)
+25. [Developer Notes](#developer-notes)
 
 ---
 
@@ -50,6 +56,24 @@ Version 2 is a significant expansion of the original v1 feature set.
 
 **Python/code snippet copy buttons** are embedded directly inside chat bubbles for each fenced code block.
 
+**API model support** lets you connect to any OpenAI-compatible endpoint or the Anthropic API as a drop-in replacement for a local engine. This includes OpenAI, Anthropic Claude, and any self-hosted OpenAI-compatible server. API models participate fully in pipeline, summarization, and reference injection workflows.
+
+**Visual Pipeline Builder** is a full drag-and-drop pipeline editor with an interactive canvas. You can place LLM blocks, transform blocks, and branch blocks, connect them with directed edges, and execute the pipeline from within the UI. Each intermediate block streams its output live into a dedicated output pane.
+
+**MCP (Model Context Protocol) integration** lets you configure and launch stdio or SSE MCP servers that connect the LLM to external tools — filesystem access, web search, databases, APIs, and more. Servers are managed from a dedicated tab and launched as child processes.
+
+**HuggingFace GGUF Downloader** lets you search any HuggingFace repository by ID, browse available GGUF files with size and metadata, and download them directly into your models folder — all without leaving the app.
+
+**Server configuration tab** exposes all llama.cpp binary paths, server host/port range, GPU offload settings (NGL layer count, primary GPU index, tensor split for multi-GPU), and extra CLI/server arguments. Configuration is persisted to `server_config.json`.
+
+**GPU offload support** — the server configuration now includes toggles for enabling GPU inference, setting the number of layers to offload (`ngl`), selecting the primary GPU device, and configuring tensor split ratios across multiple GPUs.
+
+**Light and dark theme toggle** — the app ships with both a light and a dark color palette, switchable at runtime from the View menu. All tabs, chat bubbles, and UI chrome rebuild instantly on theme switch, and the active palette is persisted across restarts.
+
+**Customizable color palette (Appearance tab)** — every color token in the active theme can be overridden through a point-and-click color picker in the new Appearance tab. Custom palettes are saved separately for light and dark modes.
+
+**Windows and macOS support** — binary paths are now resolved at runtime based on the detected OS. On Windows, the app looks for `.exe` suffixed binaries. Frozen (PyInstaller) builds are also supported via `sys._MEIPASS`.
+
 All v1 features — session management, PDF summarization, reference injection, chunked long-document processing, pause/resume of summarization jobs — are fully preserved.
 
 ---
@@ -59,17 +83,18 @@ All v1 features — session management, PDF summarization, reference injection, 
 The application is organized into several distinct layers that work together.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        MainWindow (PyQt6)                    │
-│  ┌──────────────┐  ┌────────────────────────────────────┐   │
-│  │ SessionSidebar│  │            QTabWidget              │   │
-│  │              │  │  ┌──────────┬────────┬──────────┐  │   │
-│  │ (chat list)  │  │  │ Chat     │ Models │ Config   │  │   │
-│  └──────────────┘  │  │          │        │          │  │   │
-│                     │  │ChatModule│        │ConfigTab │  │   │
-│                     │  └──────────┴────────┴──────────┘  │   │
-│                     └────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                          MainWindow (PyQt6)                          │
+│  ┌──────────────┐  ┌──────────────────────────────────────────────┐ │
+│  │ SessionSidebar│  │                 QTabWidget                   │ │
+│  │              │  │  ┌──────┬───────┬───────┬───────┬─────────┐  │ │
+│  │ (chat list)  │  │  │ Chat │Models │Config │Server │Pipeline │  │ │
+│  └──────────────┘  │  │      │       │       │       │ Builder │  │ │
+│                     │  ├──────┼───────┼───────┼───────┼─────────┤  │ │
+│                     │  │ MCP  │  DL   │Appear.│ Logs  │         │  │ │
+│                     │  └──────┴───────┴───────┴───────┴─────────┘  │ │
+│                     └──────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────┘
          │
          ▼
 ┌─────────────────────────────────┐
@@ -78,7 +103,11 @@ The application is organized into several distinct layers that work together.
 │  ├── ServerStreamWorker (HTTP)  │
 │  └── CliStreamWorker (stdio)    │
 │                                 │
+│  ApiEngine (cloud / local API)  │
+│  └── ApiStreamWorker (HTTP)     │
+│                                 │
 │  PipelineWorker (multi-engine)  │
+│  PipelineExecutionWorker        │
 │  ChunkedSummaryWorker           │
 │  MultiPdfSummaryWorker          │
 └─────────────────────────────────┘
@@ -97,13 +126,18 @@ The application is organized into several distinct layers that work together.
 │       Data / Persistence        │
 │  Session (JSON in sessions/)    │
 │  ModelRegistry (JSON)           │
+│  ApiRegistry (JSON)             │
+│  ServerConfig (JSON)            │
 │  APP_CONFIG (app_config.json)   │
 │  ParallelPrefs (JSON)           │
 │  PausedJobs (paused_jobs/)      │
+│  McpConfig (JSON)               │
 └─────────────────────────────────┘
 ```
 
-The `LlamaEngine` class is the heart of the inference layer. It tries to start `llama-server` first (preferred, because it supports true HTTP streaming with a persistent model in memory). If the server binary is not found or fails to start, it falls back to calling `llama-cli` as a subprocess for each prompt. This dual-mode design means the app works even in minimal llama.cpp builds.
+The `LlamaEngine` class is the heart of the local inference layer. It tries to start `llama-server` first (preferred, because it supports true HTTP streaming with a persistent model in memory). If the server binary is not found or fails to start, it falls back to calling `llama-cli` as a subprocess for each prompt. This dual-mode design means the app works even in minimal llama.cpp builds.
+
+`ApiEngine` is a drop-in replacement for `LlamaEngine` that routes inference to a remote or locally-hosted API endpoint. It supports the OpenAI chat completions format and the Anthropic messages format, and participates in all the same pipeline, summarization, and reference workflows as a local engine.
 
 ---
 
@@ -111,9 +145,9 @@ The `LlamaEngine` class is the heart of the inference layer. It tries to start `
 
 ### System Requirements
 
-Native Lab Pro runs on Linux (primary development target). The paths in the source code are Linux-style and point to a specific user's home directory by default.
+Native Lab Pro runs on Linux, macOS, and Windows. On Windows, binary paths are resolved with a `.exe` suffix automatically. Frozen builds (packaged with PyInstaller) are also supported — the app detects `sys._MEIPASS` and resolves binaries relative to the bundle directory.
 
-The minimum hardware depends entirely on the models you intend to run. As a rough guide, a 7B parameter Q4 model requires approximately 4–5 GB of RAM, a 13B Q5 model requires roughly 9–10 GB, and a 70B Q4 model requires 38–40 GB.
+The minimum hardware depends entirely on the models you intend to run. As a rough guide, a 7B parameter Q4 model requires approximately 4–5 GB of RAM, a 13B Q5 model requires roughly 9–10 GB, and a 70B Q4 model requires 38–40 GB. GPU offload (via the Server tab) can significantly reduce RAM requirements by moving layers to VRAM.
 
 ### Python Dependencies
 
@@ -132,24 +166,23 @@ pip install PyPDF2    # enables PDF loading and summarization
 
 ### llama.cpp Binaries
 
-You must compile or download llama.cpp and point the app to the binaries. The default paths in the source are:
+You must compile or download llama.cpp and point the app to the binaries. Binary paths are now configured through the **Server tab** in the UI and persisted to `server_config.json`. The default resolution order is:
 
-```python
-LLAMA_CLI    = "/home/hrirake/llama.cpp/build/bin/llama-cli"
-LLAMA_SERVER = "/home/hrirake/llama.cpp/build/bin/llama-server"
-```
+1. Paths stored in `server_config.json` (set via the Server tab)
+2. Bundled binaries at `llama-bin/llama-cli` (for frozen builds)
+3. Dev fallback at `./llama/bin/llama-cli`
 
-Edit these two constants at the top of the file to match your actual binary locations.
+On Windows the app automatically appends `.exe` to all binary lookups. You do not need to edit the source to configure binary paths — use the Server tab instead.
 
 ### Models Directory
 
 By default the app scans for `.gguf` files in:
 
 ```python
-MODELS_DIR = Path("/home/hrirake/localllm")
+MODELS_DIR = Path("./localllm")
 ```
 
-Edit this path, or use the **Browse GGUF…** button in the Models tab to add individual model files from anywhere on your filesystem.
+Use the **Browse GGUF…** button in the Models tab to add individual model files from anywhere on your filesystem, or use the new **Download tab** to fetch GGUF files directly from HuggingFace.
 
 ### Running the App
 
@@ -401,6 +434,263 @@ This two-stage approach typically produces better-structured, more complete code
 
 ---
 
+## Visual Pipeline Builder
+
+The Pipeline Builder is the most powerful feature in Native Lab Pro. It is a full node-based pipeline editor with an interactive drag-and-drop canvas, 20 distinct block types across four categories, loop support, LLM-powered routing logic, a live execution log, and per-block streaming output — all running entirely on your local machine.
+
+Pipelines are saved as JSON in `~/.native_lab/pipelines/` and can be loaded, overwritten, and deleted from within the UI.
+
+---
+
+### The Canvas
+
+The canvas is a 1400×900+ pixel infinite workspace with a 20px snap-to-grid. Every block snaps cleanly to the grid when placed or dragged.
+
+**Placing blocks** — click any block type button in the left sidebar, or drag a model directly from the model list onto the canvas. The model's path and role are decoded from the drag event and applied to the new block automatically.
+
+**Selecting and moving** — click a block to select it (highlighted border). Drag it anywhere. Blocks snap to the nearest grid point on release.
+
+**Drawing connections** — hover over a block until a port circle appears (N/S/E/W edges), then click-drag from that port to any port on another block. A dashed preview arrow follows your cursor. Release on a target port to create the connection.
+
+**Deleting** — right-click a block or connection for a context menu with delete, duplicate, and configure options.
+
+**Connection rules enforced by the canvas:**
+- Direct model-to-model connections are blocked. You must place an Intermediate block between two Model blocks to capture the output of the first before it enters the second.
+- Duplicate connections (same source port, same target) are silently prevented.
+- A single outgoing port on a non-logic block can only have one connection; drawing a new one replaces the old.
+- Logic blocks can fan-out to multiple targets from the same port.
+
+---
+
+### Block Types
+
+There are four categories of blocks, color-coded on the canvas.
+
+#### I/O and Model Blocks
+
+| Block | Color | Description |
+|---|---|---|
+| **▶ Input** | Green | Source block. Captures the user's text prompt at run time before execution starts. Every pipeline must have at least one. |
+| **■ Output** | Red | Sink block. Receives the final text and renders it in the Output tab with full Markdown and code highlighting. Every pipeline must have at least one. |
+| **⚡ Model** | Purple | Runs an LLM inference step. Shows a badge with the detected family and quant type. Can be dragged directly from the model list in the sidebar. |
+| **◈ Intermediate** | Yellow | Captures and displays the output from a model or logic block mid-pipeline. Creates a live streaming tab in the output panel. Required between chained model blocks. |
+
+#### Context Injection Blocks
+
+| Block | Color | Description |
+|---|---|---|
+| **📎 Reference** | Purple | Injects a static text snippet (typed or loaded from a file) as a `[REFERENCE: name] … [/REFERENCE]` block prepended to the context before it reaches the next block. |
+| **💡 Knowledge** | Violet | Prepends a knowledge-base chunk to the context under a `Knowledge Base:` header. Similar to Reference but styled for factual knowledge rather than document references. |
+| **📄 PDF** | Cyan | Loads a PDF file, extracts its text, and if it exceeds 4,500 characters, automatically chunk-summarises it using the primary engine before injecting it. Supports two roles: `reference` (PDF injected below the existing context) or `main` (PDF replaces the existing context, prior text becomes a reference). |
+
+#### Deterministic Logic Blocks
+
+These blocks operate purely on text without any model calls.
+
+| Block | Color | Operation |
+|---|---|---|
+| **⑂ IF/ELSE** | Amber | Evaluates a Python expression against the incoming text (`text` variable). TRUE → E port, FALSE → W port. |
+| **⑃ SWITCH** | Orange | Evaluates a Python expression that returns a string key. Routes to the outgoing connection whose label matches the key. A `default` label catches unmatched keys. |
+| **⊘ FILTER** | Lime | Evaluates a Python condition. If TRUE, text passes through. If FALSE, the pipeline terminates with a structured drop message. |
+| **⟲ TRANSFORM** | Cyan | Applies a deterministic text transformation: prefix, suffix, find-and-replace, upper, lower, strip, or truncate to N characters. |
+| **⊕ MERGE** | Violet | Collects all texts arriving at it from multiple upstream connections and combines them using one of four modes: concat (with separator), prepend, append, or json array. |
+| **⑁ SPLIT** | Pink | Broadcasts the same incoming text to all outgoing connections simultaneously. No configuration needed — fan-out is automatic. |
+| **⌥ Custom Code** | Green | Executes user-written Python inline at runtime. See [Custom Code Blocks](#custom-code-blocks) below. |
+
+The Python sandbox for IF/ELSE, SWITCH, and FILTER is intentionally restricted — it exposes only safe builtins (`len`, `str`, `int`, `float`, `bool`, `list`, `dict`, `any`, `all`, `min`, `max`, `abs`, `isinstance`, `True`, `False`, `None`) and the `text` variable. No imports, no file access, no network.
+
+#### LLM Logic Blocks
+
+These blocks make a real inference call to a locally-running GGUF model to make routing or transformation decisions. Each has its own model selector, max-token count, temperature, and optional passthrough-on-error setting.
+
+| Block | Color | What the LLM does |
+|---|---|---|
+| **🧠 LLM-IF** | Purple | Reads your condition in plain English, answers YES or NO. YES → TRUE (E port), NO → FALSE (W port). |
+| **🧠 LLM-SWITCH** | Dark violet | Classifies the text into one of your named categories. Category names are read automatically from the labels on outgoing arrows. |
+| **🧠 LLM-FILTER** | Indigo | Decides PASS or STOP based on a plain-English pass condition. STOP terminates the pipeline with a detailed explanation. |
+| **🧠 LLM-TRANSFORM** | Sky blue | Rewrites or reformats the incoming text according to your instruction. The result replaces the context for all downstream blocks. |
+| **🧠 LLM-SCORE** | Fuchsia | Scores the text from 1–10 on your criterion. Routes LOW (1–3) → E, MID (4–7) → S, HIGH (8–10) → W. Label an arrow `score` to receive the raw number instead of the text. |
+
+---
+
+### LLM Logic Block Editor
+
+Double-clicking any LLM logic block opens the **LLM Logic Editor**, a full configuration dialog with:
+
+- **Block description** — a card explaining what the block does, what input it expects, and what output it produces.
+- **Branch routing hint** — a color-coded summary showing which port receives which outcome.
+- **Model selector** — a combo box populated from `ModelRegistry`, plus a Browse button. A ✅/❌ badge shows whether the selected file exists on disk.
+- **Instruction editor** — a multi-line text field for writing the condition or instruction in plain English. Placeholder examples are shown for each block type.
+- **Advanced settings panel** (collapsible):
+  - `Max response tokens` — how many tokens the model generates for its decision (8–512).
+  - `Temperature` — sampling temperature (0–100, divided by 100 at runtime).
+  - `Show model reasoning in log` — whether the raw model response appears in the execution log.
+  - `Pass through unchanged if model call fails` — whether to silently continue on error instead of halting the pipeline.
+
+---
+
+### Custom Code Blocks
+
+The `⌥ Custom Code` block runs user-written Python inside a sandboxed `exec()` call at pipeline execution time.
+
+**Available variables:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `text` | `str` | The incoming context string from the previous block (read-only) |
+| `result` | `str` | Set this to your output — the pipeline continues with this value |
+| `metadata` | `dict` | The block's own metadata dictionary — persists across pipeline runs |
+| `log(msg)` | `fn` | Writes a message to the pipeline execution log |
+
+The code editor has live syntax checking — a ✅ / ❌ indicator updates on every keystroke using `compile()`. A **Test with sample text…** button lets you run the code against any text you type and see the `result` and log output before saving.
+
+The sandbox exposes an expanded set of builtins compared to the simpler logic blocks, including `list`, `dict`, `tuple`, `range`, `enumerate`, `zip`, `map`, `filter`, `sorted`, `sum`, `round`, `print` (mapped to `log`), `isinstance`, `hasattr`, `getattr`, `repr`, and `type`.
+
+---
+
+### Loop Edges
+
+Draw a connection **backwards** — from a downstream block back to an upstream block. The canvas detects the cycle and prompts for a loop count (2–999). Loop edges are rendered as dashed dash-dot lines with a `×N` badge at the midpoint.
+
+At runtime, each loop edge is tracked independently by a visit counter. When the counter reaches the configured limit, the edge is skipped and execution flows to the next non-loop outgoing connection instead.
+
+**Refinement loop pattern:**
+```
+▶ Input → ⚡ Draft Model → ◈ Intermediate ("Critique the draft and list improvements")
+     ↑                                        |
+     └────────────── ×3 loop ─────────────────┘
+→ ■ Output
+```
+
+---
+
+### Execution
+
+Click **▶ Run Pipeline** to begin. The `PipelineExecutionWorker` QThread processes blocks in topological BFS order, carrying a `current_text` string from block to block.
+
+- Each block emits a `step_started` signal (shows a spinner in the output panel) and a `step_done` signal (populates its intermediate tab).
+- Model blocks start their own `llama-server` instance (or use `llama-cli` as fallback) and stream tokens live into the intermediate tab.
+- The execution log shows every decision made: condition evaluated, branch taken, chars processed, FILTER pass/drop, MERGE inputs combined, SPLIT fan-out count, loop iteration.
+- Click **⏹ Stop Execution** at any time. The worker finishes its current HTTP request and halts cleanly.
+
+---
+
+### Save & Load
+
+- **💾 Save Pipeline…** — prompts for a name and writes to `~/.native_lab/pipelines/{name}.json`. Existing names are overwritten.
+- **📂 Load Pipeline…** — lists saved pipelines with a delete option. If the canvas has blocks, a confirmation dialog asks before clearing.
+
+What is persisted per block: type, canvas position, size, model path, role, label, and all metadata (system prompt, instruction text, Python code, PDF path, reference text, transform settings, etc.).
+
+What is persisted per connection: source block ID, source port, target block ID, target port, `is_loop` flag, `loop_times`, and branch label.
+
+---
+
+### Performance Notes
+
+- Use 0.5B–1.5B models for all LLM logic routing blocks (LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-SCORE). They only need to output a word or a number — a small model is fast and accurate for this task.
+- Reserve large models for actual generation steps (Model blocks, LLM-TRANSFORM).
+- TRANSFORM blocks before expensive model calls keep context short and inference fast.
+- Each loop iteration is a full model call. Three models × five loops = fifteen server requests — plan accordingly.
+- Max response tokens for routing blocks can be as low as 16 (YES/NO decisions need very few tokens).
+- PDF blocks auto-summarise large documents, which adds extra model calls. Pre-process large PDFs offline if speed is critical.
+
+---
+
+## MCP — Model Context Protocol
+
+The MCP tab lets you configure and manage MCP servers that extend the LLM with access to external tools and data sources — filesystem operations, web search, database queries, REST APIs, and more.
+
+### Server Types
+
+**Stdio servers** are launched as child processes by the app. You supply the command and arguments, and the app manages the process lifecycle (start, stop, restart). Stdio servers communicate over standard input/output using the MCP protocol.
+
+**SSE servers** connect over HTTP using Server-Sent Events. You supply the base URL of an already-running SSE server and the app connects to it. SSE servers are not managed as child processes.
+
+### Configuration
+
+Each server entry stores a name, transport type, command/URL, optional environment variable overrides, and a description. Configuration is persisted to `mcp_config.json`. The server list in the tab shows each server's name, type, and current status (running / stopped / error).
+
+---
+
+## HuggingFace Model Downloader
+
+The Download tab provides a built-in interface for finding and downloading GGUF model files from HuggingFace, without needing to use a browser or the `huggingface-cli` tool.
+
+### Searching
+
+Enter any HuggingFace repository ID (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`) in the search box and click **Search**. The app queries the HuggingFace API for all files in that repository and populates the results list with the GGUF files found, along with their file sizes and last-modified dates.
+
+### Downloading
+
+Select a file from the results list to see its full metadata, then click **Download**. The file is streamed directly into your configured models directory. A progress bar shows download progress. If a file already exists locally, the app will warn before overwriting.
+
+The `HfSearchWorker` and `HfDownloadWorker` QThread subclasses handle the network operations off the main thread, so the UI stays responsive during large downloads.
+
+---
+
+## Server Configuration
+
+The Server tab exposes all settings for the llama.cpp binaries and the HTTP server that the app manages.
+
+### Binary Paths
+
+You can set explicit paths for `llama-cli` and `llama-server`. If left blank, the app uses the built-in path resolution order (bundle directory → dev fallback). A **Test** button verifies that each binary exists and is executable.
+
+### Network Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| Host | `127.0.0.1` | Address the llama-server listens on |
+| Port range low | `8600` | Lowest port the app will try when starting a server |
+| Port range high | `8700` | Highest port in the range |
+
+The app scans the port range at startup and picks the first available port, so multiple instances can run simultaneously without manual port configuration.
+
+### GPU Offload
+
+| Setting | Default | Description |
+|---|---|---|
+| Enable GPU | off | Pass GPU flags to llama-server |
+| NGL (n-gpu-layers) | -1 | Number of model layers to offload; -1 offloads all layers |
+| Main GPU | 0 | Primary GPU device index (for multi-GPU systems) |
+| Tensor split | (empty) | Comma-separated split ratios, e.g. `0.6,0.4` for two GPUs |
+
+GPU settings are passed directly as command-line arguments when launching `llama-server`.
+
+### Extra Arguments
+
+Free-form extra arguments can be appended to the `llama-cli` and `llama-server` invocations for any flags not exposed by the UI (e.g. `--mlock`, `--no-mmap`, `--rope-scaling`).
+
+---
+
+## API Model Support
+
+In addition to local GGUF models, Native Lab Pro can route inference to any OpenAI-compatible API endpoint or the Anthropic API. This lets you mix local and cloud models in the same session, or use the full feature set (reference injection, summarization, pipeline mode) against a hosted model.
+
+### API Formats
+
+| Format | Endpoint used | Auth header |
+|---|---|---|
+| `openai` | `/chat/completions` | `Authorization: Bearer <key>` |
+| `anthropic` | `/v1/messages` | `x-api-key: <key>` |
+
+Any self-hosted server that exposes an OpenAI-compatible `/chat/completions` endpoint (LM Studio, Ollama, vLLM, etc.) works with the `openai` format.
+
+### ApiConfig Fields
+
+Each API model is stored as an `ApiConfig` dataclass with the following fields: `name`, `provider`, `model_id`, `api_key`, `base_url`, `api_format`, `max_tokens`, `temperature`, and an optional custom prompt template configuration (`use_custom_prompt`, `system_prompt`, `user_prefix`, `user_suffix`, `assistant_prefix`, `prompt_template`).
+
+### ApiRegistry
+
+All API model configurations are saved to `api_models.json` and managed through `ApiRegistry`. The Models tab shows API models alongside local GGUF models and lets you load them into any engine role (general, reasoning, coding, etc.).
+
+### ApiEngine
+
+`ApiEngine` implements the same interface as `LlamaEngine` (`.load()`, `.create_worker()`, `.shutdown()`, `.is_loaded`, `.status_text`) so the rest of the application — including pipeline mode, summarization workers, and reference injection — works identically whether a local or API engine is active.
+
+---
+
 ## UI Components
 
 ### ChatArea & MessageWidget
@@ -429,9 +719,41 @@ The sidebar groups sessions by creation date and supports incremental search. It
 
 The configuration tab renders all `APP_CONFIG` fields with descriptions, input validation, and range hints. It also shows the list of paused summarization jobs with resume/delete controls.
 
+### ServerTab
+
+The Server tab provides a full UI for configuring llama-server binary paths, host and port range, extra CLI arguments, and GPU offload settings. Changes are saved to `server_config.json` and take effect on the next model load. Test buttons verify that configured binary paths are accessible.
+
+### ModelDownloadTab
+
+The Download tab provides the HuggingFace GGUF search and download interface described in [HuggingFace Model Downloader](#huggingface-model-downloader).
+
+### McpTab
+
+The MCP tab provides the server configuration and process management interface described in [MCP — Model Context Protocol](#mcp--model-context-protocol).
+
+### PipelineBuilderTab
+
+The Pipeline Builder tab provides the visual drag-and-drop pipeline editor described in [Visual Pipeline Builder](#visual-pipeline-builder).
+
+### AppearanceTab
+
+The Appearance tab exposes every color token in the active theme (background layers, accent, text, borders, status colors, etc.) through a color-picker grid. Clicking any swatch opens the system color dialog. Changes apply live to the entire application. Custom palettes are saved separately for light and dark modes and survive theme switching.
+
 ### LogConsole
 
 A simple read-only `QTextEdit` with color-coded log levels (INFO in purple, WARN in yellow, ERROR in red), used for debugging engine status, model loading progress, and summarization progress.
+
+---
+
+## Theming & Appearance
+
+Native Lab Pro ships with two built-in color themes: **light** and **dark**. The active theme is toggled from the **View** menu (or the keyboard shortcut `Ctrl+T`) and persists across restarts via `app_config.json`.
+
+When the theme is switched, all tabs are rebuilt from scratch so that any baked-in color values (gradient cards on the Models tab, syntax highlighting in chat bubbles, etc.) update correctly. The rebuild happens in a single synchronous pass, so the switch is near-instant.
+
+### Custom Palettes
+
+The Appearance tab lets you override any color token in the current theme. Light-mode and dark-mode palettes are stored independently, so you can customise each without affecting the other. Custom palettes are saved as `custom_light_palette` and `custom_dark_palette` keys in `app_config.json`.
 
 ---
 
@@ -445,7 +767,10 @@ The app writes several categories of files:
 | `custom_models.json` | List of manually-added model paths |
 | `model_configs.json` | Per-model parameter configurations |
 | `parallel_prefs.json` | Parallel loading and pipeline settings |
-| `app_config.json` | All threshold and default settings |
+| `app_config.json` | All threshold, default, and theme settings |
+| `server_config.json` | Binary paths, host/port, GPU offload settings |
+| `api_models.json` | API model configurations (OpenAI/Anthropic endpoints) |
+| `mcp_config.json` | MCP server definitions |
 | `paused_jobs/{id}.json` | Full state snapshots of paused summarization jobs |
 | `ref_cache/{id}_raw.txt` | Raw text of attached reference files |
 | `ref_cache/{id}.pkl` | Pickled chunk cache for disk-spilled references |
@@ -489,10 +814,22 @@ To add support for a new model family's prompt template, add a new `ModelFamily`
 
 To add parsing support for a new language, add the file extension to `SCRIPT_LANGUAGES` and add a corresponding `_parse_{key}()` class method to `ScriptParser`. If no dedicated parser is added, the generic fallback parser will be used for the new extension.
 
+### Adding a New API Provider
+
+To add a new cloud provider, add an `ApiConfig` with the appropriate `base_url`, `api_format` (`"openai"` or `"anthropic"`), and `custom_provider_name` through the Models tab UI. If the provider uses a non-standard authentication or request format, extend `ApiStreamWorker` with a new format branch.
+
+### Adding a New Pipeline Block Type
+
+To add a new block type to the visual pipeline builder, add a `PipelineBlockType` constant and create the corresponding rendering logic in `PipelineBlock`. Add a button in `PipelineBuilderTab._build()` to make it accessible from the sidebar. If the block needs custom parameters, add a dialog class similar to `_LlmLogicEditorDialog`.
+
 ### Engine Mode Fallback
 
 `LlamaEngine.load()` tries `llama-server` first, falling back to `llama-cli`. If you only have one binary, the app will use it automatically. The server mode is strongly preferred because it keeps the model loaded between prompts, avoiding the significant startup overhead of `llama-cli` mode for multi-turn conversations.
 
 ### Threading Model
 
-All inference (streaming tokens, summarization, pipeline stages) runs on `QThread` subclasses with PyQt signals for cross-thread UI updates. The main thread never blocks. Long-running background operations expose an `abort()` method that sets a flag checked at each iteration, ensuring clean cancellation. The `_summary_worker` additionally supports a `request_pause()` path that saves state to disk before exiting.
+All inference (streaming tokens, summarization, pipeline stages, HuggingFace downloads, MCP server probing) runs on `QThread` subclasses with PyQt signals for cross-thread UI updates. The main thread never blocks. Long-running background operations expose an `abort()` method that sets a flag checked at each iteration, ensuring clean cancellation. The `_summary_worker` additionally supports a `request_pause()` path that saves state to disk before exiting.
+
+### Stray Process Cleanup
+
+On shutdown, `_kill_stray_llama_servers()` is called to terminate any orphaned `llama-server` processes from previous crashed sessions, in addition to cleanly shutting down all currently managed engines.
