@@ -24,3 +24,4 @@ chat_refs/
 # Config files generated at runtime
 app_config.json
 localllm/
+.vscode/
