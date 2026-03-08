@@ -652,8 +652,9 @@ class ReferencePanelV2(QWidget):
             self.ram_info.setText(f"{free_mb:.0f} MB free RAM")
 
     # ── Context for prompt ────────────────────────────────────────────────────
-    def get_context_for(self, query: str) -> str:     
-        self._store = SessionReferenceStore()
+    def get_context_for(self, query: str) -> str:
+        if not hasattr(self, "_store"):
+            self._store = SessionReferenceStore(self.session.id)
         return self._store.build_context_block_extended(query)
 
 class ReferencePanel(QWidget):

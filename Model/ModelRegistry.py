@@ -66,6 +66,9 @@ class ModelRegistry:
                 self._configs = {}
 
     def save(self):
+        CUSTOM_MODELS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        MODEL_CONFIGS_FILE.parent.mkdir(parents=True, exist_ok=True)
+
         CUSTOM_MODELS_FILE.write_text(json.dumps(self._custom, indent=2))
         MODEL_CONFIGS_FILE.write_text(
             json.dumps({p: c.to_dict() for p, c in self._configs.items()}, indent=2))
