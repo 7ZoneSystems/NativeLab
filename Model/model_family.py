@@ -1,6 +1,5 @@
 from imports.import_global import List, field, dataclass, Dict, Path, Tuple, re
 from GlobalConfig.config import QUANT_REGEX, GGUF_QUANT_PATTERNS 
-from .templates import *
 @dataclass
 class ModelFamily:
     """Detected model family with prompt template configuration."""
@@ -22,8 +21,9 @@ def detect_model_family(filename: str) -> ModelFamily:
     Detect model family from GGUF filename and return the matching template.
     Uses prioritised pattern matching so more specific names win.
     """
-    name = Path(filename).stem.lower()
+    from .templates import FAMILY_TEMPLATES   # lazy import
 
+    name = Path(filename).stem.lower()
     # Order matters — more specific patterns first
     patterns: List[Tuple[List[str], str]] = [
         # DeepSeek variants

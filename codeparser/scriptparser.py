@@ -1,7 +1,7 @@
 from imports.import_global import Path, re, ast, json
 from .parser.typeparser import ParsedItem
 from .refrenceengine import ParsedScript
-from Model.model_global import SCRIPT_LANGUAGES
+from Model.templates import SCRIPT_LANGUAGES
 class ScriptParser:
     """
     Multi-language script parser.

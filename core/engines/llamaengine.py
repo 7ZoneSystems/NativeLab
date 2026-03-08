@@ -2,8 +2,8 @@ from imports.import_global import Optional, subprocess, time, json, Path, QThrea
 from components.components_global import detect_model_family
 from Model.model_global import MODEL_REGISTRY
 from core.streamer_global import ServerStreamWorker, CliStreamWorker
-from GlobalConfig.config_global import LLAMA_CLI, LLAMA_SERVER, SERVER_CONFIG, DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED
-from Server.server_global import free_port
+from GlobalConfig.config_global import LLAMA_CLI, LLAMA_SERVER, DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED
+from Server.server_global import free_port, SERVER_CONFIG
 class LlamaEngine:
     def __init__(self):
         self.server_proc: Optional[subprocess.Popen] = None

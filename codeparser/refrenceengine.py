@@ -3,7 +3,7 @@ from GlobalConfig.hardwareUtil import ram_free_mb, simple_hash
 from GlobalConfig.config_global import REF_CACHE_DIR, REF_INDEX_DIR, RAM_WATCHDOG_MB, CHUNK_INDEX_SIZE, MAX_RAM_CHUNKS
 from .parser.parsefinal import ParsedScript
 from .scriptparser import ScriptParser
-from Model.model_global import SCRIPT_LANGUAGES
+from Model.templates import SCRIPT_LANGUAGES
 @dataclass
 class RefChunk:
     idx:     int

@@ -1,5 +1,4 @@
 from imports.import_global import Path, _sys, re
-from .binaryResolve import APP_CONFIG
 _BASE = Path(_sys._MEIPASS) if getattr(_sys, "frozen", False) else Path(".")
 _EXT  = ".exe" if __import__("platform").system() == "Windows" else ""
 
@@ -61,9 +60,26 @@ QUANT_REGEX = re.compile(
 )
 
 # Dynamic accessors (use these everywhere instead of bare constants)
-def RAM_WATCHDOG_MB()     -> float: return float(APP_CONFIG["ram_watchdog_mb"])
-def CHUNK_INDEX_SIZE()    -> int:   return int(APP_CONFIG["chunk_index_size"])
-def MAX_RAM_CHUNKS()      -> int:   return int(APP_CONFIG["max_ram_chunks"])
-def DEFAULT_THREADS()     -> int:   return int(APP_CONFIG["default_threads"])
-def DEFAULT_CTX()         -> int:   return int(APP_CONFIG["default_ctx"])
-def DEFAULT_N_PRED()      -> int:   return int(APP_CONFIG["default_n_predict"])
+def RAM_WATCHDOG_MB() -> float:
+    from .binaryResolve import APP_CONFIG
+    return float(APP_CONFIG["ram_watchdog_mb"])
+
+def CHUNK_INDEX_SIZE() -> int:
+    from .binaryResolve import APP_CONFIG
+    return int(APP_CONFIG["chunk_index_size"])
+
+def MAX_RAM_CHUNKS() -> int:
+    from .binaryResolve import APP_CONFIG
+    return int(APP_CONFIG["max_ram_chunks"])
+
+def get_default_threads() -> int:
+    from .binaryResolve import APP_CONFIG
+    return int(APP_CONFIG["default_threads"])
+
+def get_default_ctx() -> int:
+    from .binaryResolve import APP_CONFIG
+    return int(APP_CONFIG["default_ctx"])
+
+def get_default_n_pred() -> int:
+    from .binaryResolve import APP_CONFIG
+    return int(APP_CONFIG["default_n_predict"])

@@ -1,16 +1,10 @@
 from imports.import_global import Dict
-from .model_family import ModelFamily
-C = {
-    "bg0":  "#07070f", "bg1":  "#0d0d1c", "bg2":  "#13132a",
-    "bg3":  "#1a1a35",
-    "acc":  "#a78bfa", "acc2": "#c4b5fd",
-    "usr":  "#12103a", "ast":  "#0b1a12",
-    "txt":  "#ede8ff", "txt2": "#7e7a9a", "bdr":  "#252340",
-    "ok":   "#34d399", "warn": "#fbbf24", "err":  "#f87171",
-    "glow": "#7c3aed",
-    "pipeline": "#22d3ee",
-}
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from .model_family import ModelFamily
+
+from .model_family import ModelFamily
 # ── Prompt templates for each family ─────────────────────────────────────────
 FAMILY_TEMPLATES: Dict[str, ModelFamily] = {
     "deepseek": ModelFamily(
