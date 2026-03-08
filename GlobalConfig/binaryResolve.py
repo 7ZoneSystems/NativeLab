@@ -1,7 +1,7 @@
 from imports.import_global import Path, _sys, json, Dict
 from main import SERVER_CONFIG
 from .config import LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT
-from constants.const import APP_CONFIG_DEFAULTS, APP_CONFIG_FILE
+from .const import APP_CONFIG_DEFAULTS, APP_CONFIG_FILE
 def refresh_binary_paths():
     """Re-read SERVER_CONFIG and update module-level LLAMA_CLI / LLAMA_SERVER."""
     global LLAMA_CLI, LLAMA_SERVER

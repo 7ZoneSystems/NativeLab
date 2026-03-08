@@ -14,7 +14,6 @@ v2 New Features:
 """
 #import 
 from imports.import_global import *
-from constants.const import *
 from GlobalConfig.config_global import *
 from Model.model_global import *
 from UI.UI_global import *
