@@ -1,4 +1,4 @@
-from imports.import_global import hashlib, psutil, HAS_PSUTIL
+from imports.import_global import hashlib, psutil, HAS_PSUTIL, Dict
 from GlobalConfig.config_global import RAM_WATCHDOG_MB
 
 
@@ -18,7 +18,7 @@ def cpu_count() -> int:
 
 def simple_hash(text: str) -> str:
     return hashlib.md5(text.encode("utf-8", errors="replace")).hexdigest()[:12]
-
+from codeparser.codeparser_global import SessionReferenceStore
 # ── Global per-session reference store cache ──────────────────────────────────
 _SESSION_REF_STORES: Dict[str, SessionReferenceStore] = {}
 

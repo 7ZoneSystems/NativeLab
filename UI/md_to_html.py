@@ -1,3 +1,5 @@
+from imports.import_global import Optional, Dict, re
+from Model.model_global import C
 def md_to_html(text: str,
                 code_store: Optional[Dict[str, str]] = None) -> str:
     """
@@ -11,13 +13,13 @@ def md_to_html(text: str,
 
     Qt renderer constraints
     ───────────────────────
-    ✓  <table>, <tr>, <td align="…">
-    ✓  Inline styles: color, background-color, font-family, font-size,
-       font-weight, padding, margin, border (simple 1px solid …),
-       white-space:pre, width
-    ✗  float, position, display:flex/grid
-    ✗  JavaScript / onclick
-    ✗  CSS pseudo-elements, :hover
+    <table>, <tr>, <td align="…">
+    Inline styles: color, background-color, font-family, font-size,
+        font-weight, padding, margin, border (simple 1px solid …),
+        white-space:pre, width
+    float, position, display:flex/grid
+    JavaScript / onclick
+    CSS pseudo-elements, :hover
     """
     if code_store is None:
         code_store = {}
