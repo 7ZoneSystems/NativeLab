@@ -1,0 +1,182 @@
+# .github/workflows/build-mac.yml
+# ──────────────────────────────────────────────────────────────────────────────
+# Native Lab Pro — macOS Build via GitHub Actions
+# llama.cpp binaries NOT bundled — user selects their own build via the UI
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # llama-cpp-python removed — user supplies their own llama.cpp binaries
+          echo "[INFO] Installing UI and utility dependencies..."
+          pip install PyQt6 PyPDF2 psutil
+          echo "[INFO] Installing PyInstaller..."
+          pip install pyinstaller
+
+      - name: Create macOS PyInstaller spec
+        run: |
+          cat > NativeLab_mac.spec << 'SPECEOF'
+          # -*- mode: python ; coding: utf-8 -*-
+          block_cipher = None
+
+          a = Analysis(
+              ['nativelab.py'],
+              pathex=['.'],
+              binaries=[],
+              datas=[
+                  ('icon.icns', '.'),
+                  ('icon.png',  '.'),
+              ],
+              hiddenimports=[
+                  'PyQt6.QtWidgets',
+                  'PyQt6.QtGui',
+                  'PyQt6.QtCore',
+                  'PyQt6.sip',
+                  'psutil',
+                  'PyPDF2',
+                  'multiprocessing',
+                  'multiprocessing.pool',
+                  'concurrent.futures',
+                  'hashlib',
+                  'pickle',
+                  'ast',
+                  'socket',
+                  'http.client',
+                  'json',
+                  'pathlib',
+              ],
+              hookspath=[],
+              hooksconfig={},
+              runtime_hooks=[],
+              cipher=block_cipher,
+              noarchive=False,
+          )
+
+          pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
+          exe = EXE(
+              pyz,
+              a.scripts,
+              [],
+              exclude_binaries=True,
+              name='NativeLabPro',
+              debug=False,
+              bootloader_ignore_signals=False,
+              strip=False,
+              upx=False,
+              console=False,
+              argv_emulation=True,
+              target_arch=None,
+              codesign_identity=None,
+              entitlements_file=None,
+              icon='icon.icns',
+          )
+
+          coll = COLLECT(
+              exe,
+              a.binaries,
+              a.zipfiles,
+              a.datas,
+              strip=False,
+              upx=False,
+              name='NativeLabPro',
+          )
+
+          app = BUNDLE(
+              coll,
+              name='NativeLab Pro.app',
+              icon='icon.icns',
+              bundle_identifier='com.yourname.nativelabpro',
+              info_plist={
+                  'CFBundleDisplayName': 'NativeLab Pro',
+                  'CFBundleShortVersionString': '1.0.0',
+                  'CFBundleVersion': '1.0.0',
+                  'NSAppTransportSecurity': {
+                      'NSAllowsLocalNetworking': True,
+                  },
+                  'LSUIElement': False,
+                  'LSMinimumSystemVersion': '12.0',
+              },
+          )
+          SPECEOF
+
+      - name: Ensure icon.icns exists
+        run: |
+          if [ ! -f "icon.icns" ]; then
+            echo "[WARN] icon.icns not found — generating placeholder from icon.png"
+            if [ -f "icon.png" ]; then
+              mkdir -p icon.iconset
+              sips -z 16  16   icon.png --out icon.iconset/icon_16x16.png
+              sips -z 32  32   icon.png --out icon.iconset/icon_32x32.png
+              sips -z 128 128  icon.png --out icon.iconset/icon_128x128.png
+              sips -z 256 256  icon.png --out icon.iconset/icon_256x256.png
+              sips -z 512 512  icon.png --out icon.iconset/icon_512x512.png
+              iconutil -c icns icon.iconset -o icon.icns
+              echo "[INFO] icon.icns generated from icon.png"
+            else
+              echo "[WARN] No icon.png — build will use default PyInstaller icon"
+              touch icon.icns
+            fi
+          else
+            echo "[INFO] icon.icns found — using existing"
+          fi
+
+      - name: Build .app with PyInstaller
+        run: |
+          echo "[INFO] Running PyInstaller with macOS spec..."
+          python -m PyInstaller NativeLab_mac.spec --noconfirm --clean
+
+      - name: Create required data folders
+        run: |
+          APP_RESOURCES="dist/NativeLab Pro.app/Contents/MacOS"
+          echo "[INFO] Creating data directories inside bundle..."
+          mkdir -p "$APP_RESOURCES/localllm"
+          mkdir -p "$APP_RESOURCES/sessions"
+          mkdir -p "$APP_RESOURCES/chat_refs"
+          mkdir -p "$APP_RESOURCES/ref_cache"
+          mkdir -p "$APP_RESOURCES/ref_index"
+          mkdir -p "$APP_RESOURCES/paused_jobs"
+          echo "[INFO] Folder structure:"
+          ls -la "$APP_RESOURCES/"
+
+      - name: Verify build output
+        run: |
+          echo "[INFO] Checking .app structure..."
+          ls -lh "dist/"
+          ls -lh "dist/NativeLab Pro.app/Contents/"
+          ls -lh "dist/NativeLab Pro.app/Contents/MacOS/" | head -20
+
+      - name: Zip .app bundle
+        run: |
+          cd dist
+          echo "[INFO] Zipping NativeLab Pro.app..."
+          zip -r --symlinks "NativeLab-Pro-macOS-arm64.zip" "NativeLab Pro.app"
+          echo "[INFO] Zip size: $(du -sh NativeLab-Pro-macOS-arm64.zip | cut -f1)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NativeLab-Pro-macOS-arm64
+          path: dist/NativeLab-Pro-macOS-arm64.zip
+          retention-days: 30
