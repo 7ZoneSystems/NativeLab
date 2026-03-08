@@ -296,3 +296,37 @@ MODE_FINAL_INSTRUCTIONS = {
         "Structure: Key Takeaways → Recommendations → What To Do → What To Avoid → Next Steps."
     ),
 }
+
+#--- templates for script parser -----
+SCRIPT_LANGUAGES = {
+    # extension → (display_name, parser_key)
+    ".py":    ("Python",      "python"),
+    ".js":    ("JavaScript",  "js"),
+    ".jsx":   ("React/JSX",   "js"),
+    ".ts":    ("TypeScript",  "ts"),
+    ".tsx":   ("React/TSX",   "ts"),
+    ".sql":   ("SQL",         "sql"),
+    ".rs":    ("Rust",        "rust"),
+    ".go":    ("Go",          "go"),
+    ".c":     ("C",           "c"),
+    ".h":     ("C Header",    "c"),
+    ".cpp":   ("C++",         "cpp"),
+    ".hpp":   ("C++ Header",  "cpp"),
+    ".java":  ("Java",        "java"),
+    ".kt":    ("Kotlin",      "kotlin"),
+    ".rb":    ("Ruby",        "ruby"),
+    ".sh":    ("Bash",        "bash"),
+    ".bash":  ("Bash",        "bash"),
+    ".yaml":  ("YAML",        "yaml"),
+    ".yml":   ("YAML",        "yaml"),
+    ".json":  ("JSON",        "json"),
+    ".toml":  ("TOML",        "toml"),
+    ".md":    ("Markdown",    "text"),
+    ".txt":   ("Text",        "text"),
+    ".lua":   ("Lua",         "lua"),
+    ".swift": ("Swift",       "swift"),
+    ".cs":    ("C#",          "csharp"),
+    ".php":   ("PHP",         "php"),
+    ".r":     ("R",           "r"),
+    ".jl":    ("Julia",       "julia"),
+}
