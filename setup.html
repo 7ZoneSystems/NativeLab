@@ -37,7 +37,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* ── NAV ── */
+    /* NAV */
     nav {
       position: fixed; top: 0; left: 0; right: 0; z-index: 100;
       display: flex; align-items: center; justify-content: space-between;
@@ -74,7 +74,7 @@
     .nav-cta:hover { background: var(--sage-lt) !important; }
     @media (max-width: 820px) { .nav-links a:not(.nav-cta) { display: none; } }
 
-    /* ── GUIDE HERO ── */
+    /* GUIDE HERO */
     #guide-hero {
       padding: 130px 5vw 70px;
       position: relative; overflow: hidden;
@@ -133,7 +133,6 @@
       font-size: 0.85rem; color: var(--sage);
       font-weight: 500;
     }
-    /* progress indicator */
     .progress-bar {
       display: flex; gap: 0; margin-top: 3rem;
       border-radius: 10px; overflow: hidden;
@@ -161,7 +160,7 @@
     }
     .pb-step.done .pb-num { background: var(--sage); color: #fff; }
 
-    /* ── SECTION SHARED ── */
+    /* SECTION SHARED */
     section { padding: 5rem 5vw; }
     section:nth-child(even) { background: var(--warm); }
     .section-inner { max-width: 900px; margin: 0 auto; }
@@ -183,7 +182,7 @@
       margin-bottom: 3rem; font-weight: 300;
     }
 
-    /* ── STEP HEADER ── */
+    /* STEP HEADER */
     .step-header {
       display: flex; align-items: center; gap: 1rem;
       margin-bottom: 2.5rem;
@@ -208,7 +207,7 @@
       color: var(--ink); line-height: 1.2;
     }
 
-    /* ── OS TABS ── */
+    /* OS TABS */
     .os-tabs { display: flex; gap: 0; margin-bottom: 1.8rem; }
     .os-tab {
       padding: 0.65rem 1.4rem;
@@ -227,7 +226,7 @@
     .os-panel { display: none; }
     .os-panel.active { display: block; }
 
-    /* ── RELEASE MOCKUP ── */
+    /* RELEASE MOCKUP */
     .release-card {
       background: #fff;
       border: 1px solid var(--border);
@@ -264,7 +263,7 @@
       color: #1a7a35;
       margin-bottom: 1rem;
     }
-    .release-tag::before { content: '●'; font-size: 0.5rem; }
+    .release-tag::before { content: ''; font-size: 0.5rem; }
     .release-title-row {
       display: flex; align-items: center; gap: 0.8rem;
       margin-bottom: 1rem;
@@ -298,7 +297,7 @@
     .file-badge.mac { background: rgba(100,100,100,0.1); color: #555; }
     .file-badge.lnx { background: rgba(221,136,0,0.1); color: #c47a00; }
 
-    /* ── CALLOUT BOXES ── */
+    /* CALLOUT BOXES */
     .callout {
       border-left: 3px solid var(--sage);
       background: rgba(61,90,71,0.06);
@@ -325,7 +324,7 @@
     .callout.warn .callout-label { color: var(--gold); }
     .callout.tip .callout-label { color: var(--clay); }
 
-    /* ── HARDWARE TABLE ── */
+    /* HARDWARE TABLE */
     .hw-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -375,7 +374,7 @@
       margin-top: 0.7rem; line-height: 1.5;
     }
 
-    /* ── APP UI MOCKUP ── */
+    /* APP UI MOCKUP */
     .app-mockup {
       border-radius: 14px; overflow: hidden;
       box-shadow: 0 8px 40px rgba(0,0,0,0.12), 0 0 0 1px var(--border);
@@ -437,9 +436,7 @@
     }
     .sidebar-item.active { background: rgba(61,90,71,0.08); color: var(--sage); }
     .main-panel { flex: 1; padding: 1rem; }
-    .server-row {
-      margin-bottom: 1rem;
-    }
+    .server-row { margin-bottom: 1rem; }
     .server-label {
       font-size: 0.72rem; font-weight: 600;
       letter-spacing: 0.06em; text-transform: uppercase;
@@ -481,7 +478,7 @@
     }
     @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
-    /* ── DOWNLOAD MOCKUP ── */
+    /* DOWNLOAD MOCKUP */
     .dl-mockup {
       border-radius: 14px; overflow: hidden;
       box-shadow: 0 8px 40px rgba(0,0,0,0.10), 0 0 0 1px var(--border);
@@ -531,7 +528,7 @@
     .dl-filename { font-family: 'DM Mono', monospace; font-size: 0.8rem; color: var(--ink); }
     .dl-quant { font-size: 0.72rem; color: var(--dim); margin-left: 0.4rem; }
 
-    /* ── MODEL CARDS ── */
+    /* MODEL CARDS */
     .model-category { margin-bottom: 3rem; }
     .model-category-title {
       font-family: 'Instrument Serif', serif;
@@ -581,7 +578,7 @@
     .model-copy-btn:hover { background: var(--sage); color: #fff; border-color: var(--sage); }
     .model-copy-btn.copied { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
 
-    /* ── QUANT GUIDE ── */
+    /* QUANT GUIDE */
     .quant-table {
       width: 100%; border-collapse: collapse;
       margin: 1.5rem 0;
@@ -617,14 +614,11 @@
       border: 1px solid rgba(201,168,76,0.3);
       text-transform: uppercase; letter-spacing: 0.05em;
     }
-    /* quality bars */
     .bar-wrap { display: flex; align-items: center; gap: 0.5rem; }
     .bar-track { flex: 1; height: 5px; background: var(--border); border-radius: 3px; max-width: 80px; }
     .bar-fill { height: 100%; border-radius: 3px; background: var(--sage); }
 
-    /* ══════════════════════════════════════
-       ── VIDEO SECTION ──
-    ══════════════════════════════════════ */
+    /* VIDEO SECTION */
     .video-section {
       background: var(--ink);
       padding: 5rem 5vw;
@@ -657,7 +651,7 @@
     }
     .video-embed-wrap {
       position: relative;
-      padding-bottom: 56.25%; /* 16:9 */
+      padding-bottom: 56.25%;
       height: 0;
       background: #000;
     }
@@ -667,7 +661,6 @@
       width: 100%; height: 100%;
       border: none;
     }
-    /* Thumbnail play button (before load) */
     .video-thumb {
       position: relative; cursor: pointer;
     }
@@ -724,9 +717,7 @@
     }
     .video-yt-link:hover { background: rgba(255,68,68,0.2); }
 
-    /* ══════════════════════════════════════
-       ── MODE INDICATOR ──
-    ══════════════════════════════════════ */
+    /* MODE INDICATOR */
     .mode-indicator {
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -747,7 +738,6 @@
       color: var(--dim);
       display: flex; align-items: center; gap: 0.5rem;
     }
-    .mode-indicator-title::before { content: '⚡'; }
     .mode-toggle-wrap {
       display: flex; gap: 0;
       border: 1px solid var(--border);
@@ -775,12 +765,8 @@
       background: #fff; padding: 1.3rem 1.4rem;
       position: relative; transition: all 0.25s;
     }
-    .mode-card.mode-active {
-      background: rgba(61,90,71,0.04);
-    }
-    .mode-card.mode-active-cli {
-      background: rgba(184,92,56,0.04);
-    }
+    .mode-card.mode-active { background: rgba(61,90,71,0.04); }
+    .mode-card.mode-active-cli { background: rgba(184,92,56,0.04); }
     .mode-card-badge {
       display: inline-flex; align-items: center; gap: 0.35rem;
       font-size: 0.7rem; font-weight: 700;
@@ -803,9 +789,9 @@
       display: flex; align-items: center; gap: 0.5rem;
       font-size: 0.8rem; color: var(--dim);
     }
-    .mode-feature::before { content: '·'; color: var(--border); font-size: 1rem; }
-    .mode-feature.yes::before { content: '✓'; color: var(--sage); font-size: 0.7rem; font-weight: 700; }
-    .mode-feature.no::before  { content: '✗'; color: #ccc; font-size: 0.7rem; font-weight: 700; }
+    .mode-feature::before { content: '-'; color: var(--border); font-size: 1rem; }
+    .mode-feature.yes::before { content: 'v'; color: var(--sage); font-size: 0.7rem; font-weight: 700; }
+    .mode-feature.no::before  { content: 'x'; color: #ccc; font-size: 0.7rem; font-weight: 700; }
     .mode-current-badge {
       position: absolute; top: 1rem; right: 1rem;
       font-size: 0.66rem; font-weight: 700;
@@ -823,7 +809,6 @@
     .mode-active .mode-current-badge,
     .mode-active-cli .mode-current-badge { display: inline-block; }
 
-    /* Status indicator strip */
     .mode-status-strip {
       padding: 0.8rem 1.4rem;
       border-top: 1px solid var(--border);
@@ -840,7 +825,7 @@
     .mode-status-text { color: var(--ink); font-weight: 500; }
     .mode-status-sub { color: var(--dim); font-size: 0.76rem; }
 
-    /* ── RELOAD TIP ── */
+    /* RELOAD TIP */
     .reload-tip {
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -867,15 +852,12 @@
       .reload-tip-body { grid-template-columns: 1fr; }
       .reload-arrow { transform: rotate(90deg); }
     }
-    .reload-panel {
-      padding: 1.2rem 1.4rem;
-    }
+    .reload-panel { padding: 1.2rem 1.4rem; }
     .reload-panel-label {
       font-size: 0.68rem; font-weight: 700;
       letter-spacing: 0.1em; text-transform: uppercase;
       color: var(--dim); margin-bottom: 0.7rem;
     }
-    /* macOS menu mockup */
     .macos-menu {
       background: rgba(250,249,248,0.96);
       border: 1px solid rgba(0,0,0,0.12);
@@ -906,7 +888,6 @@
       padding-left: 1.5rem;
     }
     .macos-menu-shortcut { opacity: 0.55; font-size: 0.72rem; }
-    /* Windows menu mockup */
     .win-menu {
       background: #f0f0f0;
       border: 1px solid #aaa;
@@ -944,9 +925,7 @@
       padding: 0 0.5rem;
       font-size: 1.3rem; color: var(--border);
     }
-    .reload-effect {
-      display: flex; flex-direction: column; gap: 0.5rem;
-    }
+    .reload-effect { display: flex; flex-direction: column; gap: 0.5rem; }
     .reload-effect-item {
       display: flex; align-items: center; gap: 0.6rem;
       padding: 0.5rem 0.8rem;
@@ -962,7 +941,7 @@
     }
     .reload-effect-icon { font-size: 0.9rem; }
 
-    /* ── FOOTER ── */
+    /* FOOTER */
     footer {
       border-top: 1px solid var(--border);
       padding: 2.5rem 5vw;
@@ -978,14 +957,14 @@
     footer a { color: var(--dim); text-decoration: none; }
     footer a:hover { color: var(--ink); }
 
-    /* ── FADE-UP ── */
+    /* FADE-UP */
     .fade-up {
       opacity: 0; transform: translateY(22px);
       transition: opacity 0.55s ease, transform 0.55s ease;
     }
     .fade-up.visible { opacity: 1; transform: translateY(0); }
 
-    /* ── BTN ── */
+    /* BTN */
     .btn-primary {
       display: inline-flex; align-items: center; gap: 0.5rem;
       background: var(--sage); color: #fff;
@@ -1003,7 +982,6 @@
     }
     .btn-secondary:hover { border-color: var(--ink); }
 
-    /* inline code */
     code {
       font-family: 'DM Mono', monospace;
       font-size: 0.85em;
@@ -1022,7 +1000,6 @@
 </head>
 <body>
 
-<!-- ── NAV ── -->
 <nav>
   <a class="nav-logo" href="index.html">
     NativeLab <span>Pro</span>
@@ -1032,11 +1009,10 @@
     <a href="index.html#features">Features</a>
     <a href="index.html#models">Models</a>
     <a href="setup.html" class="active">Setup Guide</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="nav-cta">GitHub →</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="nav-cta">GitHub</a>
   </div>
 </nav>
 
-<!-- ── HERO ── -->
 <section id="guide-hero">
   <div class="guide-hero-texture"></div>
   <div class="guide-hero-inner fade-up">
@@ -1050,10 +1026,10 @@
     <p class="guide-sub">Install the backend engine, connect it to NativeLab, then download a model that fits your hardware. Takes about five minutes.</p>
     <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
       <div class="time-notice">
-        ⏱ &nbsp;Estimated setup time: 5–10 minutes
+        Estimated setup time: 5-10 minutes
       </div>
       <a href="https://youtu.be/9l0IlSkI-IM" target="_blank" style="display:inline-flex; align-items:center; gap:0.55rem; background:#ff2b2b; color:#fff; padding:0.65rem 1.1rem; border-radius:8px; text-decoration:none; font-size:0.85rem; font-weight:500; transition:background 0.2s;" onmouseover="this.style.background='#cc0000'" onmouseout="this.style.background='#ff2b2b'">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.27 8.27 0 004.84 1.55V6.79a4.85 4.85 0 01-1.07-.1z"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 00.5 6.19C0 8.03 0 12 0 12s0 3.97.5 5.81a3.02 3.02 0 002.12 2.14C4.46 20.5 12 20.5 12 20.5s7.54 0 9.38-.55a3.02 3.02 0 002.12-2.14C24 15.97 24 12 24 12s0-3.97-.5-5.81zM9.75 15.52V8.48L15.5 12l-5.75 3.52z"/></svg>
         Watch Setup Video
       </a>
     </div>
@@ -1075,9 +1051,6 @@
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════
-     VIDEO WALKTHROUGH SECTION
-═══════════════════════════════════════════ -->
 <section class="video-section" id="video-walkthrough">
   <div class="video-section-inner">
     <p class="section-label">Video Walkthrough</p>
@@ -1092,23 +1065,21 @@
         <span class="video-chrome-title">NativeLab Pro — Complete Setup Walkthrough</span>
       </div>
 
-      <!-- Thumbnail that swaps to embed on click -->
       <div class="video-thumb" id="videoThumb" onclick="loadVideo()" title="Click to play">
         <div class="video-embed-wrap" style="padding-bottom:56.25%; height:0; position:relative; background:#111;">
-          <!-- YouTube thumbnail as background -->
           <img src="https://img.youtube.com/vi/9l0IlSkI-IM/maxresdefault.jpg"
                onerror="this.src='https://img.youtube.com/vi/9l0IlSkI-IM/hqdefault.jpg'"
                alt="NativeLab Setup Video"
                style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" />
           <div class="play-overlay">
-            <div class="play-btn-circle">
-              <div class="play-triangle"></div>
-            </div>
+            <svg width="68" height="48" viewBox="0 0 68 48" style="filter:drop-shadow(0 2px 8px rgba(0,0,0,0.4));">
+              <rect width="68" height="48" rx="10" fill="#ff2b2b"/>
+              <polygon points="27,14 27,34 47,24" fill="#fff"/>
+            </svg>
           </div>
         </div>
       </div>
 
-      <!-- Iframe hidden until click -->
       <div id="videoIframe" style="display:none;">
         <div style="position:relative; padding-bottom:56.25%; height:0; background:#000;">
           <iframe
@@ -1136,9 +1107,6 @@
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════
-     STEP 1 — INSTALL LLAMA.CPP
-═══════════════════════════════════════════ -->
 <section id="step1">
   <div class="section-inner">
     <p class="section-label">Step 1 of 3</p>
@@ -1153,15 +1121,14 @@
     <p class="section-intro">NativeLab uses <strong>llama.cpp</strong> as its inference engine. You need to download the pre-built release that matches your operating system and hardware.</p>
 
     <div class="callout fade-up">
-      <div class="callout-label">📎 Official source</div>
+      <div class="callout-label">Official source</div>
       Visit the GitHub releases page to get the latest build:
       <br><br>
       <a href="https://github.com/ggml-org/llama.cpp/releases" target="_blank" style="color:var(--sage); font-family:'DM Mono',monospace; font-size:0.9rem; font-weight:500;">
-        github.com/ggml-org/llama.cpp/releases →
+        github.com/ggml-org/llama.cpp/releases
       </a>
     </div>
 
-    <!-- GitHub releases mockup -->
     <div class="release-card fade-up">
       <div class="release-header">
         <div class="gh-dot" style="background:#ff5f57"></div>
@@ -1178,7 +1145,7 @@
         <div class="release-files">
           <div class="release-file highlight">
             <span class="file-name">llama-b5605-bin-win-avx2-x64.zip</span>
-            <span class="file-badge win">Windows AVX2 ✓</span>
+            <span class="file-badge win">Windows AVX2</span>
           </div>
           <div class="release-file">
             <span class="file-name">llama-b5605-bin-win-avx-x64.zip</span>
@@ -1186,7 +1153,7 @@
           </div>
           <div class="release-file highlight">
             <span class="file-name">llama-b5605-bin-macos-arm64.zip</span>
-            <span class="file-badge mac">macOS Apple Silicon ✓</span>
+            <span class="file-badge mac">macOS Apple Silicon</span>
           </div>
           <div class="release-file">
             <span class="file-name">llama-b5605-bin-macos-x64.zip</span>
@@ -1194,22 +1161,21 @@
           </div>
           <div class="release-file highlight">
             <span class="file-name">llama-b5605-bin-ubuntu-x64.tar.gz</span>
-            <span class="file-badge lnx">Linux x64 ✓</span>
+            <span class="file-badge lnx">Linux x64</span>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- OS tabs -->
     <div class="os-tabs fade-up" id="osTabs">
-      <button class="os-tab active" onclick="switchOs('win',this)">🪟 Windows</button>
-      <button class="os-tab" onclick="switchOs('mac',this)">🍎 macOS</button>
-      <button class="os-tab" onclick="switchOs('lnx',this)">🐧 Linux</button>
+      <button class="os-tab active" onclick="switchOs('win',this)">Windows</button>
+      <button class="os-tab" onclick="switchOs('mac',this)">macOS</button>
+      <button class="os-tab" onclick="switchOs('lnx',this)">Linux</button>
     </div>
 
     <div id="os-win" class="os-panel active fade-up">
       <div class="callout warn">
-        <div class="callout-label">⚡ Windows — Choose the right build</div>
+        <div class="callout-label">Windows — Choose the right build</div>
         Download <strong>avx2</strong> if your CPU is from 2013 or later (Intel Haswell+ / AMD Ryzen). Use <strong>avx</strong> for older machines. If you have an NVIDIA GPU, grab the <strong>cuda</strong> variant for much faster inference.
       </div>
       <ol style="padding-left:1.4rem; font-size:0.92rem; color:var(--ink); line-height:2.2;">
@@ -1222,20 +1188,20 @@
 
     <div id="os-mac" class="os-panel fade-up">
       <div class="callout warn">
-        <div class="callout-label">🍎 macOS — Apple Silicon vs Intel</div>
+        <div class="callout-label">macOS — Apple Silicon vs Intel</div>
         Download <strong>arm64</strong> for any Mac with an M1/M2/M3/M4 chip. Download <strong>x64</strong> for older Intel-based Macs. Apple Silicon chips have unified memory — this means much better performance per GB than standard RAM.
       </div>
       <ol style="padding-left:1.4rem; font-size:0.92rem; color:var(--ink); line-height:2.2;">
         <li>Download <code>llama-bXXXX-bin-macos-arm64.zip</code> (M-series) or <code>x64</code> (Intel)</li>
         <li>Unzip the archive — you'll get a folder of binaries</li>
-        <li>On first run, macOS may show a security warning — go to <strong>System Settings → Privacy & Security</strong> and click <strong>Allow Anyway</strong></li>
+        <li>On first run, macOS may show a security warning — go to <strong>System Settings &gt; Privacy &amp; Security</strong> and click <strong>Allow Anyway</strong></li>
         <li>Note the path to <code>llama-cli</code> and <code>llama-server</code></li>
       </ol>
     </div>
 
     <div id="os-lnx" class="os-panel fade-up">
       <div class="callout warn">
-        <div class="callout-label">🐧 Linux — Ubuntu / Debian recommended</div>
+        <div class="callout-label">Linux — Ubuntu / Debian recommended</div>
         Download the <strong>ubuntu-x64</strong> build for most distros. If you have an NVIDIA GPU with CUDA drivers installed, grab the <strong>cuda</strong> variant for hardware acceleration.
       </div>
       <ol style="padding-left:1.4rem; font-size:0.92rem; color:var(--ink); line-height:2.2;">
@@ -1246,7 +1212,6 @@
       </ol>
     </div>
 
-    <!-- Hardware capability guide -->
     <p class="section-label" style="margin-top:3rem;">Hardware capability guide</p>
     <h2 style="margin-bottom:0.5rem;">Pick the right build<br><em>for your machine</em></h2>
     <p style="font-size:0.92rem; color:var(--dim); margin-bottom:1.5rem; font-weight:300;">Your CPU generation determines which binary flags are supported. When in doubt, AVX2 covers the vast majority of hardware made after 2013.</p>
@@ -1265,7 +1230,7 @@
         <div class="hw-ram">2013–2018</div>
         <div class="hw-tier">Modern CPU</div>
         <div class="hw-models">
-          <span class="hw-model-tag">avx2 ✓ recommended</span>
+          <span class="hw-model-tag">avx2 — recommended</span>
           <span class="hw-model-tag">Haswell / Ryzen 1st gen</span>
         </div>
         <div class="hw-note">Great for 7B–13B models on CPU. Most common setup.</div>
@@ -1274,7 +1239,7 @@
         <div class="hw-ram">2019–now</div>
         <div class="hw-tier">Newer CPU</div>
         <div class="hw-models">
-          <span class="hw-model-tag">avx2 ✓ recommended</span>
+          <span class="hw-model-tag">avx2 — recommended</span>
           <span class="hw-model-tag">avx512 (server CPUs)</span>
         </div>
         <div class="hw-note">Fast inference. Ryzen 3000+, 10th-gen Intel+, Apple Silicon.</div>
@@ -1284,22 +1249,19 @@
         <div class="hw-tier">CUDA acceleration</div>
         <div class="hw-models">
           <span class="hw-model-tag">cuda12 variant</span>
-          <span class="hw-model-tag">5–20× faster</span>
+          <span class="hw-model-tag">5–20x faster</span>
         </div>
         <div class="hw-note">GTX 10xx or newer. Needs CUDA drivers installed separately.</div>
       </div>
     </div>
 
     <div class="callout tip fade-up">
-      <div class="callout-label">💡 Apple Silicon tip</div>
+      <div class="callout-label">Apple Silicon tip</div>
       M1/M2/M3/M4 Macs have <strong>unified memory</strong> — RAM and GPU memory are shared. A 16 GB M2 Mac can comfortably run a 13B model that would require a dedicated 16 GB GPU on PC. The macOS arm64 build already uses Metal acceleration automatically.
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════
-     STEP 2 — CONNECT IN SERVER TAB
-═══════════════════════════════════════════ -->
 <section id="step2">
   <div class="section-inner">
     <p class="section-label">Step 2 of 3</p>
@@ -1313,38 +1275,37 @@
 
     <p class="section-intro">Open NativeLab Pro and navigate to the <strong>Server</strong> tab. You'll browse to the two binaries you extracted in Step 1.</p>
 
-    <!-- App mockup — Server tab -->
     <div class="app-mockup fade-up">
       <div class="app-titlebar">
         <div class="app-dot" style="background:#ff5f57"></div>
         <div class="app-dot" style="background:#ffbd2e"></div>
         <div class="app-dot" style="background:#28c840"></div>
-        <span class="app-title-text">✦ Native Lab Pro v2</span>
+        <span class="app-title-text">Native Lab Pro v2</span>
       </div>
       <div class="app-tabs">
-        <div class="app-tab">💬 Chat</div>
-        <div class="app-tab">📦 Models</div>
-        <div class="app-tab">⚙️ Config</div>
-        <div class="app-tab active">🖥️ Server</div>
-        <div class="app-tab">🔗 Pipeline</div>
-        <div class="app-tab">🌐 API Models</div>
-        <div class="app-tab">⬇️ Download</div>
-        <div class="app-tab">🔌 MCP</div>
-        <div class="app-tab">📋 Logs</div>
+        <div class="app-tab">Chat</div>
+        <div class="app-tab">Models</div>
+        <div class="app-tab">Config</div>
+        <div class="app-tab active">Server</div>
+        <div class="app-tab">Pipeline</div>
+        <div class="app-tab">API Models</div>
+        <div class="app-tab">Download</div>
+        <div class="app-tab">MCP</div>
+        <div class="app-tab">Logs</div>
       </div>
       <div class="app-body">
         <div class="server-row">
           <div class="server-label">llama-cli path</div>
           <div class="server-field">
             <div class="server-input">C:\llama\llama-cli.exe</div>
-            <button class="server-btn">Browse…</button>
+            <button class="server-btn">Browse...</button>
           </div>
         </div>
         <div class="server-row">
           <div class="server-label">llama-server path</div>
           <div class="server-field">
             <div class="server-input">C:\llama\llama-server.exe</div>
-            <button class="server-btn">Browse…</button>
+            <button class="server-btn">Browse...</button>
           </div>
         </div>
         <div class="status-row">
@@ -1354,7 +1315,6 @@
       </div>
     </div>
 
-    <!-- ══ MODE INDICATOR ══ -->
     <p class="section-label" style="margin-top:2.5rem;">Understanding the active mode</p>
     <h2 style="margin-bottom:0.5rem; font-size:clamp(1.5rem,3vw,2rem);">Server mode vs <em>CLI mode</em></h2>
     <p style="font-size:0.9rem; color:var(--dim); margin-bottom:1.2rem; font-weight:300;">NativeLab can talk to llama.cpp in two ways. The indicator below shows which one is currently active and what it means for your workflow.</p>
@@ -1363,15 +1323,14 @@
       <div class="mode-indicator-header">
         <div class="mode-indicator-title">Active backend mode</div>
         <div class="mode-toggle-wrap">
-          <button class="mode-toggle-btn active-server" id="btnServer" onclick="setMode('server')">🖥️ Server</button>
-          <button class="mode-toggle-btn" id="btnCli" onclick="setMode('cli')">⌨️ CLI</button>
+          <button class="mode-toggle-btn active-server" id="btnServer" onclick="setMode('server')">Server</button>
+          <button class="mode-toggle-btn" id="btnCli" onclick="setMode('cli')">CLI</button>
         </div>
       </div>
 
       <div class="mode-cards">
-        <!-- SERVER CARD -->
         <div class="mode-card mode-active" id="cardServer">
-          <div class="mode-current-badge" id="badgeServer">● Active</div>
+          <div class="mode-current-badge" id="badgeServer">Active</div>
           <div class="mode-card-badge server">
             <span class="badge-dot"></span> Server Mode
           </div>
@@ -1385,9 +1344,8 @@
             <div class="mode-feature yes">Faster multi-turn conversations</div>
           </div>
         </div>
-        <!-- CLI CARD -->
         <div class="mode-card" id="cardCli">
-          <div class="mode-current-badge cli-badge" id="badgeCli">● Active</div>
+          <div class="mode-current-badge cli-badge" id="badgeCli">Active</div>
           <div class="mode-card-badge cli">
             <span class="badge-dot" style="background:#ccc;"></span> CLI Mode
           </div>
@@ -1412,67 +1370,63 @@
           </div>
         </div>
         <div style="font-size:0.78rem; color:var(--dim);" id="modeStatusHint">
-          💡 Recommended for most users
+          Recommended for most users
         </div>
       </div>
     </div>
 
-    <!-- Reload tip -->
     <div class="reload-tip fade-up">
       <div class="reload-tip-header">
-        ⚠️ &nbsp;If the server isn't responding — Reload from the View menu
+        If the server is not responding — Reload from the View menu
       </div>
       <div class="reload-tip-body">
-        <!-- macOS -->
         <div class="reload-panel">
-          <div class="reload-panel-label">🍎 macOS — View menu</div>
+          <div class="reload-panel-label">macOS — View menu</div>
           <div class="macos-menu">
             <div class="macos-menu-title">View</div>
             <div class="macos-menu-sep"></div>
-            <div class="macos-menu-item">Toggle Sidebar<span class="macos-menu-shortcut">⌘B</span></div>
-            <div class="macos-menu-item">Zoom In<span class="macos-menu-shortcut">⌘+</span></div>
-            <div class="macos-menu-item">Zoom Out<span class="macos-menu-shortcut">⌘−</span></div>
+            <div class="macos-menu-item">Toggle Sidebar<span class="macos-menu-shortcut">Cmd+B</span></div>
+            <div class="macos-menu-item">Zoom In<span class="macos-menu-shortcut">Cmd++</span></div>
+            <div class="macos-menu-item">Zoom Out<span class="macos-menu-shortcut">Cmd+-</span></div>
             <div class="macos-menu-sep"></div>
-            <div class="macos-menu-item highlighted">Reload / Restart Server<span class="macos-menu-shortcut">⌘R</span></div>
-            <div class="macos-menu-item">Force Reload<span class="macos-menu-shortcut">⇧⌘R</span></div>
+            <div class="macos-menu-item highlighted">Reload / Restart Server<span class="macos-menu-shortcut">Cmd+R</span></div>
+            <div class="macos-menu-item">Force Reload<span class="macos-menu-shortcut">Shift+Cmd+R</span></div>
           </div>
         </div>
 
         <div class="reload-arrow-col">→</div>
 
-        <!-- Effect -->
         <div class="reload-panel">
           <div class="reload-panel-label">What this fixes</div>
           <div class="reload-effect">
             <div class="reload-effect-item good">
-              <span class="reload-effect-icon">✓</span>
+              <span class="reload-effect-icon">+</span>
               Kills any stale llama-server process
             </div>
             <div class="reload-effect-item good">
-              <span class="reload-effect-icon">✓</span>
+              <span class="reload-effect-icon">+</span>
               Relaunches server with current model
             </div>
             <div class="reload-effect-item good">
-              <span class="reload-effect-icon">✓</span>
+              <span class="reload-effect-icon">+</span>
               Clears port 8080 if previously stuck
             </div>
             <div class="reload-effect-item good">
-              <span class="reload-effect-icon">✓</span>
+              <span class="reload-effect-icon">+</span>
               Re-reads your binary path settings
             </div>
             <div class="reload-effect-item" style="border-color:rgba(201,168,76,0.25); background:rgba(201,168,76,0.07); color:#8a6a00;">
-              <span class="reload-effect-icon">📋</span>
+              <span class="reload-effect-icon">i</span>
               Check the Logs tab to confirm restart
             </div>
           </div>
         </div>
       </div>
     </div>
-    <!-- End reload tip -->
 
     <div class="callout fade-up">
-      <div class="callout-label">📂 How to browse</div>
-      Click <strong>Browse…</strong> next to each field. A file picker will open — navigate to the folder where you extracted llama.cpp and select the appropriate binary:
+      <div class="callout-label">How to browse</div>
+      Click <strong>Browse...</strong> next to each field. A file picker will open — navigate to the folder where you extracted llama.cpp and select the appropriate binary:
       <ul style="padding-left:1.2rem; margin-top:0.5rem; line-height:2; font-size:0.9rem;">
         <li><strong>llama-cli</strong> — for single prompt / chat completions</li>
         <li><strong>llama-server</strong> — for the local HTTP server (OpenAI-compatible API)</li>
@@ -1480,7 +1434,7 @@
     </div>
 
     <div class="callout tip fade-up">
-      <div class="callout-label">💡 Path examples by OS</div>
+      <div class="callout-label">Path examples by OS</div>
       <table style="width:100%; font-size:0.82rem; border-collapse:collapse;">
         <tr>
           <td style="padding:0.3rem 0.6rem; font-weight:600; color:var(--dim); width:80px;">Windows</td>
@@ -1504,9 +1458,6 @@
   </div>
 </section>
 
-<!-- ══════════════════════════════════════════
-     STEP 3 — DOWNLOAD A MODEL
-═══════════════════════════════════════════ -->
 <section id="step3">
   <div class="section-inner">
     <p class="section-label">Step 3 of 3</p>
@@ -1520,34 +1471,32 @@
 
     <p class="section-intro">Switch to the <strong>Download</strong> tab inside NativeLab. Paste a HuggingFace repo ID, click Search, choose a quantization, and download directly to your models folder.</p>
 
-    <!-- Download tab mockup -->
     <div class="dl-mockup fade-up">
       <div class="dl-header-bar">
-        <div class="dl-header-title"><span class="icon">⬇</span> HuggingFace GGUF Downloader</div>
+        <div class="dl-header-title"><span class="icon">Download</span> HuggingFace GGUF Downloader</div>
         <div class="dl-header-sub">Enter any HuggingFace repo ID to browse its GGUF files and download them straight to your models folder. Network access required.</div>
       </div>
       <div class="dl-body">
         <p style="font-size:0.75rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--dim); margin-bottom:0.7rem;">SEARCH REPOSITORY</p>
         <div class="dl-search-row">
           <div class="dl-input">bartowski/Llama-3.1-8B-Instruct-GGUF</div>
-          <button class="dl-btn">🔍 Search</button>
+          <button class="dl-btn">Search</button>
         </div>
-        <p style="font-size:0.78rem; color:var(--sage); margin-bottom:1rem;">✓ Found 8 GGUF file(s).</p>
+        <p style="font-size:0.78rem; color:var(--sage); margin-bottom:1rem;">Found 8 GGUF file(s).</p>
         <p style="font-size:0.75rem; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--dim); margin-bottom:0.7rem;">AVAILABLE FILES</p>
         <div class="dl-files">
           <div class="dl-file-row"><span class="dl-filename">Llama-3.1-8B-Instruct-Q2_K.gguf</span><span class="dl-quant">[Q2_K · Very compressed]</span></div>
           <div class="dl-file-row"><span class="dl-filename">Llama-3.1-8B-Instruct-Q3_K_M.gguf</span><span class="dl-quant">[Q3_K_M · Compressed]</span></div>
-          <div class="dl-file-row selected"><span class="dl-filename">Llama-3.1-8B-Instruct-Q4_K_M.gguf</span><span class="dl-quant">[Q4_K_M · Balanced ★]</span></div>
+          <div class="dl-file-row selected"><span class="dl-filename">Llama-3.1-8B-Instruct-Q4_K_M.gguf</span><span class="dl-quant">[Q4_K_M · Balanced]</span></div>
           <div class="dl-file-row"><span class="dl-filename">Llama-3.1-8B-Instruct-Q5_K_M.gguf</span><span class="dl-quant">[Q5_K_M · High quality]</span></div>
           <div class="dl-file-row"><span class="dl-filename">Llama-3.1-8B-Instruct-Q8_0.gguf</span><span class="dl-quant">[Q8_0 · Near lossless]</span></div>
         </div>
       </div>
     </div>
 
-    <!-- Quant guide table -->
     <p class="section-label" style="margin-top:2.5rem;">Quantization guide</p>
     <h2 style="margin-bottom:0.5rem;">Which quant<br><em>should you pick?</em></h2>
-    <p style="font-size:0.9rem; color:var(--dim); margin-bottom:1rem; font-weight:300;">Quantization compresses model weights. Lower = smaller file & less RAM needed, but slightly lower quality. <code>Q4_K_M</code> is the sweet spot for most setups.</p>
+    <p style="font-size:0.9rem; color:var(--dim); margin-bottom:1rem; font-weight:300;">Quantization compresses model weights. Lower = smaller file and less RAM needed, but slightly lower quality. <code>Q4_K_M</code> is the sweet spot for most setups.</p>
 
     <table class="quant-table fade-up">
       <thead>
@@ -1598,14 +1547,12 @@
       </tbody>
     </table>
 
-    <!-- Model recommendations by hardware -->
     <p class="section-label" style="margin-top:3rem; margin-bottom:0.6rem;">Recommended repos by hardware</p>
     <h2 style="margin-bottom:0.5rem;">Copy — Paste — Download</h2>
     <p style="font-size:0.9rem; color:var(--dim); margin-bottom:2rem; font-weight:300;">Click <strong>Copy</strong> on any repo ID below and paste it directly into NativeLab's Download tab search field.</p>
 
-    <!-- 8 GB RAM -->
     <div class="model-category fade-up">
-      <div class="model-category-title">🔵 8 GB RAM — Light models (3B–7B, Q3/Q4)</div>
+      <div class="model-category-title">8 GB RAM — Light models (3B–7B, Q3/Q4)</div>
       <div class="model-category-desc">Runs on most laptops. Expect ~8–18 tokens/sec on a modern CPU.</div>
       <div class="model-list">
         <div class="model-entry">
@@ -1631,7 +1578,7 @@
         <div class="model-entry">
           <div>
             <div class="model-repo"><span class="repo-user">lmstudio-community/</span>DeepSeek-R1-Distill-Qwen-7B-GGUF</div>
-            <div style="font-size:0.78rem; color:var(--dim); margin-top:0.2rem;">DeepSeek R1 Distill · Reasoning · Strong math & logic</div>
+            <div style="font-size:0.78rem; color:var(--dim); margin-top:0.2rem;">DeepSeek R1 Distill · Reasoning · Strong math &amp; logic</div>
           </div>
           <div class="model-entry-meta">
             <span class="model-size-badge">7B · ~4.4 GB</span>
@@ -1641,7 +1588,7 @@
         <div class="model-entry">
           <div>
             <div class="model-repo"><span class="repo-user">Qwen/</span>Qwen2.5-7B-Instruct-GGUF</div>
-            <div style="font-size:0.78rem; color:var(--dim); margin-top:0.2rem;">Qwen 2.5 · Strong coding & multilingual</div>
+            <div style="font-size:0.78rem; color:var(--dim); margin-top:0.2rem;">Qwen 2.5 · Strong coding &amp; multilingual</div>
           </div>
           <div class="model-entry-meta">
             <span class="model-size-badge">7B · ~4.4 GB</span>
@@ -1651,9 +1598,8 @@
       </div>
     </div>
 
-    <!-- 16 GB RAM -->
     <div class="model-category fade-up">
-      <div class="model-category-title">🟢 16 GB RAM — Mid-tier models (8B–13B, Q4/Q5)</div>
+      <div class="model-category-title">16 GB RAM — Mid-tier models (8B–13B, Q4/Q5)</div>
       <div class="model-category-desc">The sweet spot. Can run 13B at Q4 or 8B at Q5/Q6 for very high quality output.</div>
       <div class="model-list">
         <div class="model-entry">
@@ -1669,7 +1615,7 @@
         <div class="model-entry">
           <div>
             <div class="model-repo"><span class="repo-user">lmstudio-community/</span>DeepSeek-R1-Distill-Llama-8B-GGUF</div>
-            <div style="font-size:0.78rem; color:var(--dim); margin-top:0.2rem;">DeepSeek R1 Distill · LLaMA base · Reasoning & coding</div>
+            <div style="font-size:0.78rem; color:var(--dim); margin-top:0.2rem;">DeepSeek R1 Distill · LLaMA base · Reasoning &amp; coding</div>
           </div>
           <div class="model-entry-meta">
             <span class="model-size-badge">8B · ~5 GB</span>
@@ -1709,9 +1655,8 @@
       </div>
     </div>
 
-    <!-- 32 GB RAM -->
     <div class="model-category fade-up">
-      <div class="model-category-title">🟡 32 GB RAM — Large models (30B–34B, Q4/Q5)</div>
+      <div class="model-category-title">32 GB RAM — Large models (30B–34B, Q4/Q5)</div>
       <div class="model-category-desc">High-end desktop or workstation territory. Near-GPT-4-level quality from some models.</div>
       <div class="model-list">
         <div class="model-entry">
@@ -1747,9 +1692,8 @@
       </div>
     </div>
 
-    <!-- 64 GB RAM -->
     <div class="model-category fade-up">
-      <div class="model-category-title">🔴 64 GB+ RAM — Full 70B models (Q4/Q5)</div>
+      <div class="model-category-title">64 GB+ RAM — Full 70B models (Q4/Q5)</div>
       <div class="model-category-desc">Power workstations, Mac Studio / Mac Pro with 64GB unified memory. Best-in-class local inference.</div>
       <div class="model-list">
         <div class="model-entry">
@@ -1776,28 +1720,26 @@
     </div>
 
     <div class="callout fade-up" style="margin-top:1rem;">
-      <div class="callout-label">📁 Where models are saved</div>
+      <div class="callout-label">Where models are saved</div>
       NativeLab downloads models to <code>C:\NativeLabPro\localllm</code> on Windows (or the equivalent path on Mac/Linux). Once downloaded, they appear automatically in the <strong>Models</strong> tab and can be loaded from there.
     </div>
   </div>
 </section>
 
-<!-- ── DONE SECTION ── -->
 <section id="done" style="background: var(--sage); padding: 5rem 5vw;">
   <div class="section-inner" style="text-align:center;">
-    <div style="font-size:3rem; margin-bottom:1rem;">✦</div>
+    <div style="font-size:3rem; margin-bottom:1rem;">*</div>
     <p style="font-size:0.78rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:rgba(255,255,255,0.6); margin-bottom:0.8rem;">You're all set</p>
     <h2 style="color:#fff; margin-bottom:1rem; font-size:clamp(2rem,4vw,2.8rem);">Start your first <em style="color:var(--mist)">conversation</em></h2>
     <p style="color:rgba(255,255,255,0.75); max-width:540px; margin: 0 auto 2.5rem; font-weight:300; font-size:1rem; line-height:1.8;">Switch to the <strong style="color:#fff">Chat</strong> tab, type a message, and the model will respond. Everything runs locally — no cloud, no account, no data leaving your machine.</p>
     <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
-      <a href="onesystems.github.io/NativeLab" class="btn-secondary" style="border-color:rgba(255,255,255,0.3); color:#fff;">← Back to Home</a>
-      <a href="https://youtu.be/9l0IlSkI-IM" target="_blank" class="btn-primary" style="background:#ff2b2b; color:#fff; border-color:#ff2b2b;">▶ Watch Setup Video</a>
-      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-primary" style="background:#fff; color:var(--sage); border-color:#fff;">View on GitHub →</a>
+      <a href="onesystems.github.io/NativeLab" class="btn-secondary" style="border-color:rgba(255,255,255,0.3); color:#fff;">Back to Home</a>
+      <a href="https://youtu.be/9l0IlSkI-IM" target="_blank" class="btn-primary" style="background:#ff2b2b; color:#fff; border-color:#ff2b2b;">Watch Setup Video</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-primary" style="background:#fff; color:var(--sage); border-color:#fff;">View on GitHub</a>
     </div>
   </div>
 </section>
 
-<!-- ── FOOTER ── -->
 <footer>
   <div>
     <span class="footer-brand">NativeLab</span>
@@ -1812,7 +1754,6 @@
 </footer>
 
 <script>
-  /* OS tab switcher */
   function switchOs(os, btn) {
     document.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.os-panel').forEach(p => { p.classList.remove('active'); });
@@ -1820,10 +1761,9 @@
     document.getElementById('os-' + os).classList.add('active');
   }
 
-  /* Copy repo ID to clipboard */
   function copyRepo(btn, repo) {
     navigator.clipboard.writeText(repo).then(() => {
-      btn.textContent = 'Copied ✓';
+      btn.textContent = 'Copied';
       btn.classList.add('copied');
       setTimeout(() => {
         btn.textContent = 'Copy';
@@ -1836,13 +1776,12 @@
       el.select();
       document.execCommand('copy');
       document.body.removeChild(el);
-      btn.textContent = 'Copied ✓';
+      btn.textContent = 'Copied';
       btn.classList.add('copied');
       setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
     });
   }
 
-  /* ── MODE INDICATOR ── */
   function setMode(mode) {
     const cardServer  = document.getElementById('cardServer');
     const cardCli     = document.getElementById('cardCli');
@@ -1861,7 +1800,7 @@
       statusDot.className  = 'mode-status-dot';
       statusText.textContent = 'llama-server running on port 8080';
       statusSub.textContent  = 'NativeLab is connected · Streaming enabled · HTTP API ready';
-      statusHint.textContent = '💡 Recommended for most users';
+      statusHint.textContent = 'Recommended for most users';
     } else {
       cardServer.className = 'mode-card';
       cardCli.className    = 'mode-card mode-active-cli';
@@ -1870,11 +1809,10 @@
       statusDot.className  = 'mode-status-dot dot-cli';
       statusText.textContent = 'llama-cli subprocess mode active';
       statusSub.textContent  = 'No persistent server · Single-shot completions · No streaming';
-      statusHint.textContent = '⚠ Limited — switch to Server mode for full features';
+      statusHint.textContent = 'Limited — switch to Server mode for full features';
     }
   }
 
-  /* ── VIDEO LOAD ── */
   function loadVideo() {
     document.getElementById('videoThumb').style.display = 'none';
     const wrap = document.getElementById('videoIframe');
@@ -1883,7 +1821,6 @@
       'https://www.youtube.com/embed/9l0IlSkI-IM?autoplay=1&rel=0&modestbranding=1';
   }
 
-  /* ── SCROLL FADE-UP ── */
   const obs = new IntersectionObserver((entries) => {
     entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
   }, { threshold: 0.08 });
