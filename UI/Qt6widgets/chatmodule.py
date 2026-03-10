@@ -2,6 +2,8 @@ from imports.import_global import HAS_PDF, Qt, PdfReader, QWidget, QVBoxLayout, 
 from UI.UI_global import C, get_ref_store, ram_free_mb
 from UI.Qt6widgets.refrencepanels import ReferencePanelV2
 from GlobalConfig.config_global import RamWatchdog
+from .chatarea import ChatArea
+from .inputbar import InputBar
 class ChatModule(QWidget):
     """
     Self-contained chat module: ChatArea + ReferencePanel + InputBar.

@@ -1,3 +1,6 @@
+from imports.import_global import Qt, QFrame, List, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTimer
+from UI.UI_global import C, ThinkingBlock, fade_in, MessageWidget
+
 class ChatArea(QScrollArea):
     def __init__(self):
         super().__init__()

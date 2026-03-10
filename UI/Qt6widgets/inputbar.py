@@ -1,4 +1,4 @@
-from imports.import_global import Qt, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit, QTimer, pyqtSignal
+from imports.import_global import Qt, QEvent, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit, QTimer, pyqtSignal
 from UI.UI_global import C
 from GlobalConfig.config_global import DEFAULT_MODEL
 from Model.model_global import detect_model_family, detect_quant_type, quant_info, MODEL_REGISTRY, MODELS_DIR
