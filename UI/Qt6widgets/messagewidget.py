@@ -80,7 +80,9 @@ class MessageWidget(QWidget):
         self.te.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.te.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        self.te.document().contentsChanged.connect(self._fit)
+        doc = self.te.document()
+        if doc is not None:
+            doc.contentsChanged.connect(self._fit)
 
         bl.addLayout(hdr)
         bl.addWidget(self.te)
@@ -119,7 +121,8 @@ class MessageWidget(QWidget):
 
     def _maybe_add_expander(self):
         from UI.buildUI import C
-        natural_h = int(self.te.document().size().height()) + 6
+        doc = self.te.document()
+        natural_h = int(doc.size().height()) + 6 if doc else 0
         if natural_h > self._COLLAPSE_PX + 60 and not self._collapsible:
             self._collapsible = True
             self._collapsed   = True
@@ -131,19 +134,24 @@ class MessageWidget(QWidget):
                 f"padding:3px 12px;font-size:11px;}}"
                 f"QPushButton:hover{{background:rgba(124,58,237,0.25);color:{C['acc2']};}}")
             btn.clicked.connect(self._toggle_expand)
-            self.bubble.layout().addWidget(btn)
+            layout = self.bubble.layout()
+            if layout is not None:
+                layout.addWidget(btn)
             self._expand_btn = btn
 
     def _toggle_expand(self):
         if self._collapsed:
             self._collapsed = False
-            h = int(self.te.document().size().height()) + 6
+            doc = self.te.document()
+            h = int(doc.size().height()) + 6 if doc else self._COLLAPSE_PX
             self.te.setFixedHeight(h)
-            self._expand_btn.setText("▲  Show less")
+            if self._expand_btn is not None:
+                self._expand_btn.setText("▲  Show less")
         else:
             self._collapsed = True
             self.te.setFixedHeight(self._COLLAPSE_PX)
-            self._expand_btn.setText("▼  Show more")
+            if self._expand_btn is not None:
+                self._expand_btn.setText("▼  Show more")
 
     def finalize(self):
         raw = self._text or self.te.toPlainText()
@@ -172,11 +180,14 @@ class MessageWidget(QWidget):
         self._fit()
 
     def _fit(self):
-        h = int(self.te.document().size().height()) + 6
+        doc = self.te.document()
+        h = int(doc.size().height()) + 6 if doc else 22
         self.te.setFixedHeight(max(h, 22))
 
     def _copy_all(self):
-        QApplication.clipboard().setText(self._text)
+        cb = QApplication.clipboard()
+        if cb is not None:
+            cb.setText(self._text)
 
     @property
     def full_text(self) -> str:

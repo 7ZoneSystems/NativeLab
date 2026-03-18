@@ -231,14 +231,15 @@ class PipelineWorker(QThread):
                 bufsize=0
             )
             result = []
-            while not self._abort:
-                b = proc.stdout.read(1)
-                if not b:
-                    break
-                c = b.decode("utf-8", errors="replace")
-                result.append(c)
-                if token_cb:
-                    token_cb(c)
+            if proc.stdout is not None:
+                while not self._abort:
+                    b = proc.stdout.read(1)
+                    if not b:
+                        break
+                    c = b.decode("utf-8", errors="replace")
+                    result.append(c)
+                    if token_cb:
+                        token_cb(c)
             proc.terminate()
             return "".join(result)
         except Exception:

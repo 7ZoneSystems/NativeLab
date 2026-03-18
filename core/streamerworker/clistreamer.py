@@ -21,6 +21,8 @@ class CliStreamWorker(QThread):
                 bufsize=0
             )
             while not self._abort:
+                if self.proc.stdout is None:
+                    break
                 b = self.proc.stdout.read(1)
                 if not b: break
                 c = b.decode("utf-8", errors="replace")

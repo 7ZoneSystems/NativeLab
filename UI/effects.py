@@ -1,4 +1,4 @@
-from imports.import_global import Qt, pyqtProperty, QWidget, QGraphicsOpacityEffect, QPropertyAnimation, QEasingCurve, QPainter, QColor
+from imports.import_global import Qt, QWidget, QGraphicsOpacityEffect, QPropertyAnimation, QEasingCurve, QPainter, QColor
 def fade_in(widget: QWidget, duration: int = 180):
     """Fade a widget in. Skipped if widget has its own paintEvent (avoids QPainter conflicts)."""
     # PipelineCanvas and other custom-painted widgets must not get opacity effects
@@ -26,12 +26,15 @@ class FadeOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.hide()
+        
+    def _get_alpha(self) -> int: 
+        return self._alpha
 
-    def _get_alpha(self): return self._alpha
     def _set_alpha(self, v: int):
         self._alpha = max(0, min(255, v))
         self.update()
-    alpha = pyqtProperty(int, _get_alpha, _set_alpha)
+
+    alpha = property(_get_alpha, _set_alpha)
 
     def paintEvent(self, _):
         from UI.buildUI import C

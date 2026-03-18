@@ -1,5 +1,5 @@
-from imports.import_global import Path, _sys, re
-_BASE = Path(_sys._MEIPASS) if getattr(_sys, "frozen", False) else Path(".")
+from imports.import_global import Path, _sys, re, os
+_BASE = Path(getattr(_sys, "_MEIPASS", Path(".")))
 _EXT  = ".exe" if __import__("platform").system() == "Windows" else ""
 
 LLAMA_CLI_DEFAULT    = str(_BASE / f"llama-bin/llama-cli{_EXT}")
@@ -15,8 +15,11 @@ LLAMA_CLI    = LLAMA_CLI_DEFAULT
 LLAMA_SERVER = LLAMA_SERVER_DEFAULT
 
 DEFAULT_MODEL      = "./localllm/mistral-7b-instruct-v0.2.Q5_K_M.gguf"
-DEFAULT_THREADS    = 12
-DEFAULT_CTX        = 4096
+def DEFAULT_CTX() -> int:
+    return 2048
+
+def DEFAULT_THREADS() -> int:
+    return os.cpu_count() or 4
 DEFAULT_N_PRED     = 512
 CUSTOM_MODELS_FILE  = Path("./localllm/custom_models.json")
 MODEL_CONFIGS_FILE  = Path("./localllm/model_configs.json")

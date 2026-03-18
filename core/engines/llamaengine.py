@@ -1,6 +1,6 @@
 from imports.import_global import Optional, subprocess, time, json, Path, QThread, HAS_PSUTIL, psutil
 from components.components_global import detect_model_family
-from Model.model_global import MODEL_REGISTRY
+from Model.model_global import get_model_registry
 from core.streamer_global import ServerStreamWorker, CliStreamWorker
 from GlobalConfig.config_global import LLAMA_CLI, LLAMA_SERVER, DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED
 from Server.server_global import free_port, SERVER_CONFIG
@@ -13,8 +13,8 @@ class LlamaEngine:
         self._log = lambda m: None
 
     def load(self, model_path: str,
-             threads: int = DEFAULT_THREADS,
-             ctx:     int = DEFAULT_CTX,
+             threads: int = DEFAULT_THREADS(),
+             ctx:     int = DEFAULT_CTX(),
              log_cb=None) -> bool:
         self.model_path = model_path
         self._log = log_cb or (lambda m: None)
@@ -49,7 +49,7 @@ class LlamaEngine:
     def create_worker(self, prompt: str, n_predict: int = DEFAULT_N_PRED,
                       model_path: str = "") -> QThread:
         fam  = detect_model_family(model_path or self.model_path)
-        cfg  = MODEL_REGISTRY.get_config(self.model_path)
+        cfg  = get_model_registry().get_config(self.model_path)
         if self.mode == "server":
             return ServerStreamWorker(
                 self.server_port, prompt, n_predict,
@@ -80,7 +80,7 @@ class LlamaEngine:
         if log_cb:
             self._log = log_cb
         self._log(f"[INFO] ensure_server: attempting server start for {Path(self.model_path).name}")
-        ok = self._start_server(self.model_path, DEFAULT_THREADS, self.ctx_value)
+        ok = self._start_server(self.model_path, DEFAULT_THREADS(), self.ctx_value)
         if ok:
             self._log(f"[INFO] ensure_server: server started on port {self.server_port}")
         else:

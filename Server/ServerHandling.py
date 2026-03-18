@@ -241,7 +241,7 @@ def free_port(lo: int = 0, hi: int = 0) -> int:
     return lo
 
 
-def kill_stray_llama_servers(keep_pids: set = None):
+def kill_stray_llama_servers(keep_pids: set | None = None):
     """
     Kill every llama-server process on this machine whose PID is NOT in keep_pids.
     Uses psutil process tree kill when available; falls back to pkill/taskkill.

@@ -12,7 +12,7 @@ class ChunkedSummaryWorker(QThread):
     pause_suggest = pyqtSignal(str)   # job_id — UI can offer pause
 
     def __init__(self, engine: "LlamaEngine", text: str, filename: str = "",
-                 engine2: "LlamaEngine" = None,
+                 engine2: "LlamaEngine|None" = None,
                  resume_job_id: str = "",
                  session_id: str = "",
                  summary_mode: str = "summary"):

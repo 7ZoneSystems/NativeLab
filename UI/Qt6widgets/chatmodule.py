@@ -1,5 +1,7 @@
 from imports.import_global import HAS_PDF, Qt, PdfReader, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSplitter, QPropertyAnimation, QEasingCurve, pyqtSignal
-from UI.UI_global import C, get_ref_store, ram_free_mb
+def _ui():
+    from UI import UI_global
+    return UI_global
 from UI.Qt6widgets.refrencepanels import ReferencePanelV2
 from GlobalConfig.config_global import RamWatchdog
 from .chatarea import ChatArea
@@ -34,12 +36,12 @@ class ChatModule(QWidget):
         self.ref_toggle_btn.setFixedHeight(28)
         self.ref_toggle_btn.setCheckable(True)
         self.ref_toggle_btn.setStyleSheet(
-            f"QPushButton{{background:transparent;color:{C['txt3']};"
-            f"border:1px solid {C['bdr']};border-radius:6px;"
+            f"QPushButton{{background:transparent;color:{_ui().C['txt3']};"
+            f"border:1px solid {_ui().C['bdr']};border-radius:6px;"
             f"font-size:11px;padding:0 13px;font-weight:500;letter-spacing:0.1px;}}"
-            f"QPushButton:checked{{background:rgba(105,92,235,0.14);color:{C['acc2']};"
+            f"QPushButton:checked{{background:rgba(105,92,235,0.14);color:{_ui().C['acc2']};"
             f"border-color:rgba(105,92,235,0.36);font-weight:600;}}"
-            f"QPushButton:hover{{color:{C['txt']};border-color:{C['bdr2']};}}"
+            f"QPushButton:hover{{color:{_ui().C['txt']};border-color:{_ui().C['bdr2']};}}"
         ) 
         self.ref_toggle_btn.clicked.connect(self._toggle_refs)
         topbar.addWidget(self.ref_toggle_btn)
@@ -54,9 +56,9 @@ class ChatModule(QWidget):
 
         self.ref_panel = ReferencePanelV2(
             session_id or "default",
-            get_ref_store_fn = get_ref_store,
+            get_ref_store_fn = _ui().get_ref_store,
             ram_watchdog_fn  = lambda sid: RamWatchdog.check_and_spill(sid),
-            ram_mb_fn   = ram_free_mb,
+            ram_mb_fn   = _ui().ram_free_mb,
             has_pdf          = HAS_PDF,
             pdf_reader_cls   = PdfReader if HAS_PDF else None,
         )

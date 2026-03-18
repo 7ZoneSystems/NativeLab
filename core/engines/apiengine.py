@@ -3,8 +3,6 @@ from core.streamer_global import ApiStreamWorker
 from GlobalConfig.config_global import DEFAULT_N_PRED
 from Model.model_global import ApiConfig
 class ApiEngine:
-    """Drop-in replacement for LlamaEngine that routes inference to a cloud/local API."""
-
     def __init__(self):
         self.model_path:           str               = ""
         self.mode:                 str               = "unloaded"
@@ -12,6 +10,7 @@ class ApiEngine:
         self._config:    Optional[ApiConfig]         = None
         self._pending_messages: List[Dict]           = []
         self._log = lambda m: None
+
 
     def set_messages(self, messages: List[Dict]):
         """Store structured messages to be used by the next create_worker call."""
@@ -53,6 +52,8 @@ class ApiEngine:
     def create_worker(self, prompt: str, n_predict: int = DEFAULT_N_PRED,
                       model_path: str = "") -> QThread:
         cfg  = self._config
+        if cfg is None:
+            raise RuntimeError("API config not loaded. Call load() first.")
         if self._pending_messages:
             msgs = list(self._pending_messages)
             self._pending_messages = []

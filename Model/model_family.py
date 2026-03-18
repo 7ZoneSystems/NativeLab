@@ -83,8 +83,9 @@ def detect_quant_type(filename: str) -> str:
     # Try without leading dot
     stem = Path(filename).stem.upper()
     for pat in GGUF_QUANT_PATTERNS:
-        if re.search(pat, stem, re.IGNORECASE):
-            return re.search(pat, stem, re.IGNORECASE).group(0).upper()
+        match = re.search(pat, stem, re.IGNORECASE)
+        if match:
+            return match.group(0).upper()
     return "UNKNOWN"
 
 

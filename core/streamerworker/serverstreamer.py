@@ -1,4 +1,4 @@
-from imports.import_global import QThread, pyqtSignal, json, time, List
+from imports.import_global import QThread, pyqtSignal, json, time, List, Optional
 from GlobalConfig.config_global import DEFAULT_N_PRED
 class ServerStreamWorker(QThread):
     token  = pyqtSignal(str)
@@ -6,7 +6,7 @@ class ServerStreamWorker(QThread):
     err    = pyqtSignal(str)
 
     def __init__(self, port: int, prompt: str, n_predict: int = DEFAULT_N_PRED,
-                 stop_tokens: List[str] = None, temperature: float = 0.7,
+                 stop_tokens: Optional[List[str]] = None, temperature: float = 0.7,
                  top_p: float = 0.9, repeat_penalty: float = 1.1):
         super().__init__()
         self.port          = port

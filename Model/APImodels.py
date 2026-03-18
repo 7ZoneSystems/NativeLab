@@ -1,5 +1,7 @@
 from imports.import_global import dataclass, List, json, Dict
-from GlobalConfig.config_global import API_MODELS_FILE
+def _cfg():
+    from GlobalConfig import config_global
+    return config_global
 @dataclass
 class ApiConfig:
     name:        str   = ""
@@ -34,15 +36,15 @@ class ApiRegistry:
         self._load()
 
     def _load(self):
-        if API_MODELS_FILE.exists():
+        if _cfg().API_MODELS_FILE.exists():
             try:
                 self._configs = [ApiConfig.from_dict(d)
-                                 for d in json.loads(API_MODELS_FILE.read_text())]
+                                 for d in json.loads(_cfg().API_MODELS_FILE.read_text())]
             except Exception:
                 self._configs = []
 
     def save(self):
-        API_MODELS_FILE.write_text(
+        _cfg().API_MODELS_FILE.write_text(
             json.dumps([c.to_dict() for c in self._configs], indent=2))
 
     def add(self, cfg: ApiConfig):
@@ -58,4 +60,10 @@ class ApiRegistry:
         return list(self._configs)
 
 
-API_REGISTRY = ApiRegistry()
+_api_registry = None
+
+def get_api_registry():
+    global _api_registry
+    if _api_registry is None:
+        _api_registry = ApiRegistry()
+    return _api_registry

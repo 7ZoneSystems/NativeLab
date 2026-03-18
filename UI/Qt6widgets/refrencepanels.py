@@ -176,7 +176,7 @@ class ReferencePanelV2(QWidget):
 
     # ── Store access ──────────────────────────────────────────────────────────
     @property
-    def _store(self):
+    def _store(self) -> SessionReferenceStore:
         return self._get_store(self.session_id)
 
     def update_session(self, session_id: str):
@@ -269,6 +269,10 @@ class ReferencePanelV2(QWidget):
             return
         name = Path(path).name
         if ftype == "pdf":
+            if not self._PdfReader:
+                QMessageBox.warning(
+                    self, "Missing Dep", "Install PyPDF2: pip install PyPDF2")
+                return
             reader = self._PdfReader(path)
             raw = "\n".join(
                 page.extract_text() or "" for page in reader.pages)
@@ -299,8 +303,7 @@ class ReferencePanelV2(QWidget):
             QMessageBox.warning(self, "Empty File", "File has no content."); return
 
         # RAM check before parse
-        self._ram_watchdog(self.session_id)        
-        self._store = SessionReferenceStore()
+        self._ram_watchdog(self.session_id)
         ref = self._store.add_script_reference(name, raw)
         self._refresh()
         self.refs_changed.emit()
@@ -354,8 +357,6 @@ class ReferencePanelV2(QWidget):
 
     # ── Context for prompt ────────────────────────────────────────────────────
     def get_context_for(self, query: str) -> str:
-        if not hasattr(self, "_store"):
-            self._store = SessionReferenceStore(self.session.id)
         return self._store.build_context_block_extended(query)
 
 class ReferencePanel(QWidget):

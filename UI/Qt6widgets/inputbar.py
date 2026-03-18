@@ -1,7 +1,8 @@
 from imports.import_global import Qt, QEvent, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit, QTimer, pyqtSignal
 from UI.UI_global import C
-from GlobalConfig.config_global import DEFAULT_MODEL
-from Model.model_global import detect_model_family, detect_quant_type, quant_info, MODEL_REGISTRY, MODELS_DIR
+from GlobalConfig.config_global import DEFAULT_MODEL, MODELS_DIR
+from Model.model_global import detect_model_family, detect_quant_type, quant_info, get_model_registry
+
 class InputBar(QWidget):
     send_requested       = pyqtSignal(str)
     stop_requested       = pyqtSignal()
@@ -112,7 +113,7 @@ class InputBar(QWidget):
 
     def _populate_models(self):
         self.model_combo.clear()
-        for m in MODEL_REGISTRY.all_models():
+        for m in get_model_registry().all_models():
             self.model_combo.addItem(m["name"], m["path"])
         if self.model_combo.count() == 0:
             self.model_combo.addItem(DEFAULT_MODEL, str(MODELS_DIR / DEFAULT_MODEL))
@@ -127,14 +128,16 @@ class InputBar(QWidget):
         else:
             self.family_badge.setText("")
 
-    def _on_model_combo_changed(self, _index: int):
+    def _on_model_combo_changed(self, index: int):
         # Walk up to MainWindow and trigger primary model reload
         w = self.parent()
         while w and not hasattr(w, "_start_model_load"):
             w = w.parent()
-        if w and hasattr(w, "_start_model_load"):
+        if w:
             # Small delay so UI settles before reload
-            QTimer.singleShot(300, w._start_model_load)
+            start_load = getattr(w, "_start_model_load", None)
+            if start_load:
+                QTimer.singleShot(300, start_load)
 
     def set_pipeline_mode(self, active: bool):
         active = bool(active)

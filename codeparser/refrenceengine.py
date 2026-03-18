@@ -114,7 +114,7 @@ class SmartReference:
 # ScriptSmartReference — RAM/disk-aware with parsed structure
 # ═══════════════════════════════════════════════════════════════════════════
 
-class ScriptSmartReference:
+class ScriptSmartReference(SmartReference):
     """
     Extends the reference concept for source code files.
     Stores:
@@ -182,6 +182,7 @@ class SessionReferenceStore:
         self._refs: Dict[str, SmartReference] = {}
         self._index_path = REF_INDEX_DIR / f"{session_id}_refs.json"
         self._load_meta()
+        self._store = SessionReferenceStore(self.session_id)
 
     def _load_meta(self):
         if self._index_path.exists():
@@ -266,7 +267,7 @@ class SessionReferenceStore:
                         if ram_free_mb() < RAM_WATCHDOG_MB():
                             return
   
-    def add_script_reference(self, store, name: str, raw: str) -> ScriptSmartReference:
+    def add_script_reference(self, name: str, raw: str) -> ScriptSmartReference:
         """Add a parsed script reference to the store."""
         ref_id = simple_hash(name + raw[:64])
         # Save raw to disk for resume/reload
@@ -278,8 +279,8 @@ class SessionReferenceStore:
         cache_dir   = REF_CACHE_DIR
 
         ref = ScriptSmartReference(ref_id, name, lang_key, raw, cache_dir)
-        store._refs[ref_id] = ref
-        store.save_meta()
+        self._refs[ref_id] = ref
+        self.save_meta()
         return ref
 
 

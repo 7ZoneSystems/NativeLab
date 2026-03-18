@@ -1400,7 +1400,7 @@ class ModelRegistry:
         return models
 
 
-MODEL_REGISTRY = ModelRegistry()
+get_model_registry() = ModelRegistry()
 
 # ═════════════════════════════ API MODEL REGISTRY ════════════════════════════
 
@@ -2659,7 +2659,7 @@ class LlamaEngine:
     def create_worker(self, prompt: str, n_predict: int = DEFAULT_N_PRED,
                       model_path: str = "") -> QThread:
         fam  = detect_model_family(model_path or self.model_path)
-        cfg  = MODEL_REGISTRY.get_config(self.model_path)
+        cfg  = get_model_registry().get_config(self.model_path)
         if self.mode == "server":
             return ServerStreamWorker(
                 self.server_port, prompt, n_predict,
@@ -5695,7 +5695,7 @@ class InputBar(QWidget):
 
     def _populate_models(self):
         self.model_combo.clear()
-        for m in MODEL_REGISTRY.all_models():
+        for m in get_model_registry().all_models():
             self.model_combo.addItem(m["name"], m["path"])
         if self.model_combo.count() == 0:
             self.model_combo.addItem(DEFAULT_MODEL, str(MODELS_DIR / DEFAULT_MODEL))
@@ -7577,7 +7577,7 @@ class ModelDownloadTab(QWidget):
         self.btn_download.setVisible(True); self.btn_abort.setVisible(False)
         self.dl_progress.setValue(100)
         self.dl_status.setText(f"✅  Saved to:  {path}")
-        MODEL_REGISTRY.add(path)
+        get_model_registry().add(path)
         QMessageBox.information(
             self, "Download Complete",
             f"Model saved to:\n{path}\n\n"
@@ -9571,7 +9571,7 @@ class PipelineExecutionWorker(QThread):
             return None   # error already emitted by _ensure_server
 
         fam = detect_model_family(target)
-        cfg = MODEL_REGISTRY.get_config(target)
+        cfg = get_model_registry().get_config(target)
 
         ROLE_SYSTEM = {
             "general":       "You are a helpful assistant.",
@@ -10126,7 +10126,7 @@ class _LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else 
         self.model_combo = QComboBox()
         self.model_combo.setFixedHeight(30)
         # Populate from registry
-        _models = MODEL_REGISTRY.all_models()
+        _models = get_model_registry().all_models()
         _cur_path = self._block.model_path or self._block.metadata.get("llm_model_path", "")
         _sel_idx = 0
         for _i, _m in enumerate(_models):
@@ -10256,7 +10256,7 @@ class _LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else 
             "GGUF Models (*.gguf);;All Files (*)")
         if path:
             # Add to registry if not already there
-            MODEL_REGISTRY.add(path)
+            get_model_registry().add(path)
             # Refresh combo
             already = self.model_combo.findData(path)
             if already == -1:
@@ -11295,7 +11295,7 @@ class PipelineBuilderTab(QWidget):
 
     def _refresh_models(self):
         self.model_list.clear()
-        for m in MODEL_REGISTRY.all_models():
+        for m in get_model_registry().all_models():
             ri   = ROLE_ICONS.get(m.get("role", "general"), "💬")
             qt   = m.get("quant", "?")
             fam  = m.get("family", "?")
@@ -12052,7 +12052,7 @@ class ApiModelsTab(QWidget):
         cfg = self._collect_config()
         if not cfg.model_id:
             return
-        API_REGISTRY.add(cfg)
+        get_api_registry().add(cfg)
         self._refresh_saved()
 
     def _refresh_saved(self):
@@ -12221,7 +12221,7 @@ class MainWindow(QMainWindow):
     def _auto_load_parallel_engines(self):
         """Load all engines whose roles are in the auto_load list."""
         for role in PARALLEL_PREFS.auto_load_roles:
-            models = MODEL_REGISTRY.all_models()
+            models = get_model_registry().all_models()
             for m in models:
                 if m.get("role") == role and Path(m["path"]).exists():
                     self._start_role_engine_load(role, m["path"])
@@ -12250,7 +12250,7 @@ class MainWindow(QMainWindow):
         new_eng = LlamaEngine()
         setattr(self, attr, new_eng)
 
-        cfg    = MODEL_REGISTRY.get_config(path)
+        cfg    = get_model_registry().get_config(path)
         loader = ModelLoaderThread(new_eng, path, cfg.ctx)
         loader.log.connect(self._log)
         loader.finished.connect(
@@ -12718,7 +12718,7 @@ class MainWindow(QMainWindow):
             f"color:{qcolor};font-size:11px;"
             f"background:{C['bg2']};border-radius:4px;padding:3px 8px;")
 
-        cfg = MODEL_REGISTRY.get_config(path)
+        cfg = get_model_registry().get_config(path)
         idx = self.cfg_role.findData(cfg.role)
         self.cfg_role.setCurrentIndex(max(idx, 0))
         self.cfg_threads.setText(str(cfg.threads))
@@ -12762,7 +12762,7 @@ class MainWindow(QMainWindow):
             threads=threads, ctx=ctx, temperature=temp, top_p=topp,
             repeat_penalty=rep, n_predict=npred, family=fam.family,
         )
-        MODEL_REGISTRY.set_config(path, cfg)
+        get_model_registry().set_config(path, cfg)
         self._refresh_model_list()
         self._log("INFO", f"Saved config for {Path(path).name}: family={fam.name}, "
                           f"role={cfg.role}, ctx={cfg.ctx}")
@@ -12782,7 +12782,7 @@ class MainWindow(QMainWindow):
         path = item.data(Qt.ItemDataRole.UserRole)
         if not path or not Path(path).exists():
             QMessageBox.warning(self, "File Not Found", f"Cannot find:\n{path}"); return
-        cfg = MODEL_REGISTRY.get_config(path)
+        cfg = get_model_registry().get_config(path)
         role = cfg.role
 
         if PARALLEL_PREFS.enabled and role != "general":
@@ -12833,7 +12833,7 @@ class MainWindow(QMainWindow):
 
             new_eng = LlamaEngine()
             setattr(self, attr, new_eng)
-            cfg = MODEL_REGISTRY.get_config(path)
+            cfg = get_model_registry().get_config(path)
 
             def _on_loaded_reenable(ok, st, r=role, n=Path(path).name):
                 self._on_role_engine_loaded(ok, st, r, n, None)
@@ -12906,7 +12906,7 @@ class MainWindow(QMainWindow):
     def _refresh_model_list(self):
         self.model_list.clear()
         active = getattr(self.engine, "model_path", "")
-        for m in MODEL_REGISTRY.all_models():
+        for m in get_model_registry().all_models():
             tag       = "📌" if m["source"] == "custom" else "📦"
             role_icon = ROLE_ICONS.get(m.get("role", "general"), "💬")
             ql, qc    = quant_info(m.get("quant", ""))
@@ -12926,7 +12926,7 @@ class MainWindow(QMainWindow):
         cur = self.input_bar.model_combo.currentData()
         self.input_bar.model_combo.blockSignals(True)
         self.input_bar.model_combo.clear()
-        for m in MODEL_REGISTRY.all_models():
+        for m in get_model_registry().all_models():
             self.input_bar.model_combo.addItem(m["name"], m["path"])
         idx = self.input_bar.model_combo.findData(cur)
         self.input_bar.model_combo.setCurrentIndex(max(idx, 0))
@@ -12940,7 +12940,7 @@ class MainWindow(QMainWindow):
             self, "Select GGUF Model", str(Path.home()),
             "GGUF Models (*.gguf);;All Files (*)")
         if not path: return
-        MODEL_REGISTRY.add(path)
+        get_model_registry().add(path)
         fam   = detect_model_family(path)
         quant = detect_quant_type(path)
         ql, _ = quant_info(quant)
@@ -12967,7 +12967,7 @@ class MainWindow(QMainWindow):
     def _remove_selected_model(self):
         item = self.model_list.currentItem()
         if not item: return
-        MODEL_REGISTRY.remove(item.data(Qt.ItemDataRole.UserRole))
+        get_model_registry().remove(item.data(Qt.ItemDataRole.UserRole))
         self._refresh_model_list()
         self._sync_input_bar_combo()
 
@@ -13411,7 +13411,7 @@ class MainWindow(QMainWindow):
 
         cfg_pred = DEFAULT_N_PRED
         if active_eng.model_path:
-            cfg_pred = MODEL_REGISTRY.get_config(active_eng.model_path).n_predict
+            cfg_pred = get_model_registry().get_config(active_eng.model_path).n_predict
 
         self._stream_w = self.chat_area.add_message(
             "assistant", "", ts, tag="💻 Coding" if is_coding else "")
@@ -13493,7 +13493,7 @@ class MainWindow(QMainWindow):
             active_eng = self.coding_engine
             ctx_chars  = getattr(active_eng, "ctx_value", DEFAULT_CTX) * 4
             prompt     = self.active.build_prompt(model_path=active_eng.model_path, max_chars=ctx_chars)
-            cfg_pred   = MODEL_REGISTRY.get_config(active_eng.model_path).n_predict
+            cfg_pred   = get_model_registry().get_config(active_eng.model_path).n_predict
             self._stream_w = self.chat_area.add_message("assistant", "", ts, tag="💻 Coding")
             self._worker = active_eng.create_worker(prompt, n_predict=cfg_pred, model_path=active_eng.model_path)
             self._worker.token.connect(self._on_token)
@@ -13522,10 +13522,10 @@ class MainWindow(QMainWindow):
         self._pipeline_code_w   = self.chat_area.add_message("assistant", "", ts, tag="💻 Coding")
 
         insight_np = max(
-            (MODEL_REGISTRY.get_config(eng.model_path).n_predict for _, eng in insight_engines),
+            (get_model_registry().get_config(eng.model_path).n_predict for _, eng in insight_engines),
             default=512
         )
-        code_np = MODEL_REGISTRY.get_config(self.coding_engine.model_path).n_predict
+        code_np = get_model_registry().get_config(self.coding_engine.model_path).n_predict
 
         self._pipeline_worker = PipelineWorker(
             insight_engines, self.coding_engine, text,

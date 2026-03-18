@@ -1,19 +1,32 @@
-from imports.import_global import Dict, dataclass, Path, json
+from imports.import_global import Dict, dataclass, Path, json, field
 from .model_family import *
-from GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
 # ═════════════════════════════ MODEL REGISTRY ═══════════════════════════════
+def _cfg():
+    from GlobalConfig import config_global
+    return config_global
+
+def _default_ctx():
+    return _cfg().DEFAULT_CTX
+
+def _default_threads():
+    return _cfg().DEFAULT_THREADS
+
+def _default_n_pred():
+    return _cfg().DEFAULT_N_PRED
+
 @dataclass
 class ModelConfig:
-    path:           str
-    role:           str   = "general"
-    threads:        int   = DEFAULT_THREADS
-    ctx:            int   = DEFAULT_CTX
-    temperature:    float = 0.7
-    top_p:          float = 0.9
+    path: str
+    role: str = "general"
+
+    threads: int = field(default_factory=_default_threads())
+    ctx: int = field(default_factory=_default_ctx())
+    n_predict: int = field(default_factory=_default_n_pred)
+
+    temperature: float = 0.7
+    top_p: float = 0.9
     repeat_penalty: float = 1.1
-    n_predict:      int   = DEFAULT_N_PRED
-    # auto-detected, stored for display
-    family:         str   = "default"
+    family: str = "default"
 
     def to_dict(self) -> Dict:
         return {
@@ -53,6 +66,7 @@ class ModelRegistry:
         self._load()
 
     def _load(self):
+        from GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
         if CUSTOM_MODELS_FILE.exists():
             try:
                 self._custom = json.loads(CUSTOM_MODELS_FILE.read_text())
@@ -66,6 +80,7 @@ class ModelRegistry:
                 self._configs = {}
 
     def save(self):
+        from GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
         CUSTOM_MODELS_FILE.parent.mkdir(parents=True, exist_ok=True)
         MODEL_CONFIGS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -97,6 +112,7 @@ class ModelRegistry:
         self.save()
 
     def all_models(self) -> List[Dict]:
+        from GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
         seen:   set        = set()
         models: List[Dict] = []
         if MODELS_DIR.exists():
@@ -127,5 +143,11 @@ class ModelRegistry:
         return models
 
 
-MODEL_REGISTRY = ModelRegistry()
+_model_registry = None
+
+def get_model_registry():
+    global _model_registry
+    if _model_registry is None:
+        _model_registry = ModelRegistry()
+    return _model_registry
 

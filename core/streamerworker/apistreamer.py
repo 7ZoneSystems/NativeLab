@@ -17,7 +17,12 @@ class ApiStreamWorker(QThread):
         self.max_tokens  = max_tokens
         self.temperature = temperature
         self._abort      = False
-
+        self.use_custom_prompt: bool = False
+        self.system_prompt:     str  = ""
+        self.user_prefix:       str  = ""
+        self.user_suffix:       str  = ""
+        self.assistant_prefix:  str  = ""
+        
     def run(self):
         import urllib.request, urllib.error
         t0 = time.time()

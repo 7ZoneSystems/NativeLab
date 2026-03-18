@@ -38,304 +38,6 @@ class ModelLoaderThread(QThread):
         ok = self.engine.load(self.model_path, ctx=self.ctx)
         self.finished.emit(ok, self.engine.status_text)
 
-        
-# ═════════════════════════════ UI COMPONENTS ════════════════════════════════
-
-class SessionSidebar(QWidget):
-    session_selected = pyqtSignal(str)
-    new_session      = pyqtSignal()
-    session_deleted  = pyqtSignal(str)
-    session_renamed  = pyqtSignal(str, str)
-    session_exported = pyqtSignal(str)
-
-    def __init__(self):
-        super().__init__()
-        self.setMinimumWidth(180)
-        self.setMaximumWidth(300)
-        self.setObjectName("session_sidebar")
-        root = QVBoxLayout()
-        root.setContentsMargins(12, 18, 12, 12)
-        root.setSpacing(10)
-
-        hdr = QLabel("CONVERSATIONS")
-        hdr.setStyleSheet(
-            f"color:{C['txt3']};font-size:10px;font-weight:700;"
-            f"letter-spacing:1.4px;padding:4px 6px 2px;")
-        root.addWidget(hdr)
-
-        self.new_btn = QPushButton("＋  New Chat")
-        self.new_btn.setObjectName("btn_new")
-        self.new_btn.setStyleSheet(
-            f"color:#ffffff;font-size:10px;font-weight:700;")
-        self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.new_btn.clicked.connect(self.new_session)
-        root.addWidget(self.new_btn)
-
-        self.search = QLineEdit()
-        self.search.setPlaceholderText("🔍  Search…")
-        self.search.textChanged.connect(self._redraw)
-        root.addWidget(self.search)
-
-        self.lst = QListWidget()
-        self.lst.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.lst.customContextMenuRequested.connect(self._ctx_menu)
-        self.lst.itemClicked.connect(self._on_click)
-        root.addWidget(self.lst, 1)
-        self.setLayout(root)
-        self._sessions: Dict[str, Session] = {}
-        self._active:   str = ""
-        self._busy:     str = ""
-
-    def refresh(self, sessions: Dict[str, Session], active_id: str = "", busy_id: str = ""):
-        self._sessions = sessions
-        self._active   = active_id
-        self._busy     = busy_id
-        self._redraw()
-
-    def set_active(self, sid: str):
-        self._active = sid
-        self._redraw()
-
-    def _redraw(self, _=None):
-        q = self.search.text().lower()
-        self.lst.clear()
-        grouped: Dict[str, List[Session]] = {}
-        for s in sorted(self._sessions.values(), key=lambda x: x.id, reverse=True):
-            if q and q not in s.title.lower(): continue
-            grouped.setdefault(s.created, []).append(s)
-
-        for date in sorted(grouped.keys(), reverse=True):
-            di = QListWidgetItem(f"  📅  {date}")
-            di.setFlags(Qt.ItemFlag.NoItemFlags)
-            di.setForeground(QColor(C["txt2"]))
-            f = di.font(); f.setPointSize(10); di.setFont(f)
-            self.lst.addItem(di)
-            for s in grouped[date]:
-                title = (s.title[:34] + "…") if len(s.title) > 34 else s.title
-                item  = QListWidgetItem(f"    {title}")
-                item.setData(Qt.ItemDataRole.UserRole, s.id)
-                if s.id == self._active:
-                    item.setForeground(QColor(C["acc"]))
-                    fo = item.font(); fo.setBold(True); item.setFont(fo)
-                elif s.id == self._busy:
-                    item.setForeground(QColor(C["pipeline"]))   # cyan = actively processing
-                    item.setToolTip("⚡ Processing…")
-                    fo = item.font(); fo.setBold(True); item.setFont(fo)
-                self.lst.addItem(item)
-    def _on_click(self, item: QListWidgetItem):
-        sid = item.data(Qt.ItemDataRole.UserRole)
-        if sid: self.session_selected.emit(sid)
-
-    def _ctx_menu(self, pos):
-        item = self.lst.itemAt(pos)
-        if not item: return
-        sid = item.data(Qt.ItemDataRole.UserRole)
-        if not sid: return
-        menu = QMenu(self)
-        act_rename = menu.addAction("✏️  Rename")
-        act_export = menu.addAction("📤  Export Markdown")
-        menu.addSeparator()
-        act_del    = menu.addAction("🗑  Delete")
-        chosen = menu.exec(self.lst.mapToGlobal(pos))
-        if chosen == act_del:
-            self.session_deleted.emit(sid)
-        elif chosen == act_rename:
-            text, ok = QInputDialog.getText(
-                self, "Rename Session", "New title:",
-                text=self._sessions[sid].title)
-            if ok and text.strip():
-                self.session_renamed.emit(sid, text.strip())
-        elif chosen == act_export:
-            self.session_exported.emit(sid)
-
-
-class LogConsole(QWidget):
-    def __init__(self):
-        super().__init__()
-        root = QVBoxLayout()
-        root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
-        toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(14, 8, 14, 6)
-        lbl = QLabel("🐞  Debug Console")
-        lbl.setStyleSheet(f"color:{C['txt']};font-weight:700;font-size:13px;")
-        clr = QPushButton("Clear")
-        clr.setFixedSize(70, 28)
-        clr.clicked.connect(lambda: self.te.clear())
-        toolbar.addWidget(lbl); toolbar.addStretch(); toolbar.addWidget(clr)
-        self.te = QTextEdit()
-        self.te.setReadOnly(True)
-        self.te.setFont(QFont("Consolas", 10))
-        self.te.setObjectName("log_te")
-        root.addLayout(toolbar)
-        root.addWidget(self.te)
-        self.setLayout(root)
-
-    def log(self, level: str, msg: str):
-        ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        lc = {"INFO": C["acc"], "WARN": C["warn"], "ERROR": C["err"]}.get(level, C["txt2"])
-        self.te.append(
-            f'<span style="color:{C["txt2"]}">[{ts}]</span> '
-            f'<span style="color:{lc}">[{level}]</span> '
-            f'<span style="color:{C["txt"]}">{msg}</span>'
-        )
-
-
-# ═════════════════════════════ PARALLEL LOADING DIALOG ══════════════════════
-
-# ─── Config descriptions ──────────────────────────────────────────────────────
-CONFIG_FIELD_META = {
-    "ram_watchdog_mb": {
-        "label": "RAM Watchdog (MB)",
-        "desc":  (
-            "Free RAM threshold in megabytes. When available RAM drops below "
-            "this value, reference chunk caches are automatically spilled to disk "
-            "to prevent system memory exhaustion. Lower = more aggressive spilling. "
-            "Recommended: 400–1200 MB depending on your total RAM."
-        ),
-        "min": 100, "max": 8000, "type": "int",
-    },
-    "chunk_index_size": {
-        "label": "Ref Chunk Size (chars)",
-        "desc":  (
-            "Character size of each indexed chunk when a reference file is loaded. "
-            "Smaller chunks = finer retrieval granularity but more memory entries. "
-            "Larger chunks = broader context per hit but less precise. "
-            "Recommended: 300–600."
-        ),
-        "min": 100, "max": 2000, "type": "int",
-    },
-    "max_ram_chunks": {
-        "label": "Max RAM Chunks (per ref)",
-        "desc":  (
-            "Maximum number of reference chunks kept in RAM per loaded file. "
-            "Chunks beyond this limit are evicted to disk. On systems with "
-            "8 GB RAM, 80–120 is safe. On 4 GB, consider 40–60."
-        ),
-        "min": 10, "max": 500, "type": "int",
-    },
-    "summary_chunk_chars": {
-        "label": "Summary Chunk Size (chars)",
-        "desc":  (
-            "Size of each text chunk sent to the model during PDF summarization. "
-            "Smaller values = more chunks, less RAM per step, but more inference calls. "
-            "Larger values = fewer calls but each prompt uses more context window. "
-            "Recommended: 2000–4000."
-        ),
-        "min": 500, "max": 8000, "type": "int",
-    },
-    "summary_ctx_carry": {
-        "label": "Summary Context Carry (chars)",
-        "desc":  (
-            "Number of characters from the previous chunk's summary to carry forward "
-            "as context for the next chunk. Helps maintain narrative continuity "
-            "across long documents. Recommended: 400–800."
-        ),
-        "min": 100, "max": 2000, "type": "int",
-    },
-    "summary_n_pred_sect": {
-        "label": "Summary Tokens / Section",
-        "desc":  (
-            "Maximum tokens the model generates for each section summary. "
-            "Higher = more detailed section summaries but slower processing. "
-            "Recommended: 250–500."
-        ),
-        "min": 64, "max": 1024, "type": "int",
-    },
-    "summary_n_pred_final": {
-        "label": "Summary Tokens / Final Pass",
-        "desc":  (
-            "Maximum tokens for the final consolidation pass that synthesizes "
-            "all section summaries into one cohesive document summary. "
-            "Recommended: 500–900."
-        ),
-        "min": 128, "max": 2048, "type": "int",
-    },
-    "multipdf_n_pred_sect": {
-        "label": "Multi-PDF Tokens / Section",
-        "desc":  (
-            "Tokens per section for multi-PDF batch summarization. "
-            "Same as Summary Tokens / Section but applied to each document "
-            "in a multi-document batch job. Recommended: 300–500."
-        ),
-        "min": 64, "max": 1024, "type": "int",
-    },
-    "multipdf_n_pred_final": {
-        "label": "Multi-PDF Tokens / Final",
-        "desc":  (
-            "Tokens for the final cross-document consolidation in multi-PDF mode. "
-            "This pass synthesizes summaries across all loaded documents, "
-            "so a higher value gives richer cross-document analysis. "
-            "Recommended: 700–1200."
-        ),
-        "min": 128, "max": 2048, "type": "int",
-    },
-    "ref_top_k": {
-        "label": "Reference Top-K Chunks",
-        "desc":  (
-            "Number of most relevant chunks retrieved from each reference file "
-            "per query. Higher = more context injected but larger prompts. "
-            "Lower = faster, smaller prompts. Recommended: 4–8."
-        ),
-        "min": 1, "max": 20, "type": "int",
-    },
-    "ref_max_context_chars": {
-        "label": "Ref Max Context (chars)",
-        "desc":  (
-            "Maximum total characters injected from all references combined "
-            "into each prompt. Guards against overflowing the model's context window. "
-            "Recommended: 1500–4000."
-        ),
-        "min": 200, "max": 12000, "type": "int",
-    },
-    "pause_after_chunks": {
-        "label": "Pause-Suggest Threshold (chunks)",
-        "desc":  (
-            "After this many chunks are processed, the app will show a "
-            "pause/save banner if many chunks remain. Set to 0 to disable "
-            "auto-pause suggestions. Recommended: 2–5."
-        ),
-        "min": 0, "max": 50, "type": "int",
-    },
-    "default_threads": {
-        "label": "Default CPU Threads",
-        "desc":  (
-            "Number of CPU threads used by llama.cpp for inference. "
-            "Setting this higher than your physical core count may reduce performance. "
-            f"Your system has {cpu_count()} logical CPUs. "
-            "Recommended: physical core count (not hyperthreaded)."
-        ),
-        "min": 1, "max": 64, "type": "int",
-    },
-    "default_ctx": {
-        "label": "Default Context Window (tokens)",
-        "desc":  (
-            "Default token context window loaded with each model. "
-            "Larger context = more conversation history, more RAM. "
-            "Each 4096 additional tokens uses ~0.5 GB extra RAM. "
-            "Recommended: 2048–8192 for most systems."
-        ),
-        "min": 512, "max": 32768, "type": "int",
-    },
-    "default_n_predict": {
-        "label": "Default Max New Tokens",
-        "desc":  (
-            "Default maximum number of tokens the model generates per response. "
-            "Does not affect RAM usage, only generation length. "
-            "Recommended: 256–1024."
-        ),
-        "min": 32, "max": 4096, "type": "int",
-    },
-    "auto_spill_on_start": {
-        "label": "Auto-Spill Refs on Startup",
-        "desc":  (
-            "When enabled, all reference chunk caches are immediately spilled to disk "
-            "on app startup regardless of available RAM. Useful on systems with "
-            "very low RAM where you need the model to have maximum headroom."
-        ),
-        "min": 0, "max": 1, "type": "bool",
-    },
-}
-
 
 class ConfigTab(QWidget):
     """Full configuration tab — all thresholds with descriptions."""
@@ -1863,7 +1565,7 @@ class ModelDownloadTab(QWidget):
         self.btn_download.setVisible(True); self.btn_abort.setVisible(False)
         self.dl_progress.setValue(100)
         self.dl_status.setText(f"✅  Saved to:  {path}")
-        MODEL_REGISTRY.add(path)
+        get_model_registry().add(path)
         QMessageBox.information(
             self, "Download Complete",
             f"Model saved to:\n{path}\n\n"
@@ -3857,7 +3559,7 @@ class PipelineExecutionWorker(QThread):
             return None   # error already emitted by _ensure_server
 
         fam = detect_model_family(target)
-        cfg = MODEL_REGISTRY.get_config(target)
+        cfg = get_model_registry().get_config(target)
 
         ROLE_SYSTEM = {
             "general":       "You are a helpful assistant.",
@@ -4412,7 +4114,7 @@ class _LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else 
         self.model_combo = QComboBox()
         self.model_combo.setFixedHeight(30)
         # Populate from registry
-        _models = MODEL_REGISTRY.all_models()
+        _models = get_model_registry().all_models()
         _cur_path = self._block.model_path or self._block.metadata.get("llm_model_path", "")
         _sel_idx = 0
         for _i, _m in enumerate(_models):
@@ -4542,7 +4244,7 @@ class _LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else 
             "GGUF Models (*.gguf);;All Files (*)")
         if path:
             # Add to registry if not already there
-            MODEL_REGISTRY.add(path)
+            get_model_registry().add(path)
             # Refresh combo
             already = self.model_combo.findData(path)
             if already == -1:
@@ -5581,7 +5283,7 @@ class PipelineBuilderTab(QWidget):
 
     def _refresh_models(self):
         self.model_list.clear()
-        for m in MODEL_REGISTRY.all_models():
+        for m in get_model_registry().all_models():
             ri   = ROLE_ICONS.get(m.get("role", "general"), "💬")
             qt   = m.get("quant", "?")
             fam  = m.get("family", "?")
@@ -6338,7 +6040,7 @@ class ApiModelsTab(QWidget):
         cfg = self._collect_config()
         if not cfg.model_id:
             return
-        API_REGISTRY.add(cfg)
+        get_api_registry().add(cfg)
         self._refresh_saved()
 
     def _refresh_saved(self):
@@ -6507,7 +6209,7 @@ class MainWindow(QMainWindow):
     def _auto_load_parallel_engines(self):
         """Load all engines whose roles are in the auto_load list."""
         for role in PARALLEL_PREFS.auto_load_roles:
-            models = MODEL_REGISTRY.all_models()
+            models = get_model_registry().all_models()
             for m in models:
                 if m.get("role") == role and Path(m["path"]).exists():
                     self._start_role_engine_load(role, m["path"])
@@ -6536,7 +6238,7 @@ class MainWindow(QMainWindow):
         new_eng = LlamaEngine()
         setattr(self, attr, new_eng)
 
-        cfg    = MODEL_REGISTRY.get_config(path)
+        cfg    = get_model_registry().get_config(path)
         loader = ModelLoaderThread(new_eng, path, cfg.ctx)
         loader.log.connect(self._log)
         loader.finished.connect(
@@ -7004,7 +6706,7 @@ class MainWindow(QMainWindow):
             f"color:{qcolor};font-size:11px;"
             f"background:{C['bg2']};border-radius:4px;padding:3px 8px;")
 
-        cfg = MODEL_REGISTRY.get_config(path)
+        cfg = get_model_registry().get_config(path)
         idx = self.cfg_role.findData(cfg.role)
         self.cfg_role.setCurrentIndex(max(idx, 0))
         self.cfg_threads.setText(str(cfg.threads))
@@ -7048,7 +6750,7 @@ class MainWindow(QMainWindow):
             threads=threads, ctx=ctx, temperature=temp, top_p=topp,
             repeat_penalty=rep, n_predict=npred, family=fam.family,
         )
-        MODEL_REGISTRY.set_config(path, cfg)
+        get_model_registry().set_config(path, cfg)
         self._refresh_model_list()
         self._log("INFO", f"Saved config for {Path(path).name}: family={fam.name}, "
                           f"role={cfg.role}, ctx={cfg.ctx}")
@@ -7068,7 +6770,7 @@ class MainWindow(QMainWindow):
         path = item.data(Qt.ItemDataRole.UserRole)
         if not path or not Path(path).exists():
             QMessageBox.warning(self, "File Not Found", f"Cannot find:\n{path}"); return
-        cfg = MODEL_REGISTRY.get_config(path)
+        cfg = get_model_registry().get_config(path)
         role = cfg.role
 
         if PARALLEL_PREFS.enabled and role != "general":
@@ -7119,7 +6821,7 @@ class MainWindow(QMainWindow):
 
             new_eng = LlamaEngine()
             setattr(self, attr, new_eng)
-            cfg = MODEL_REGISTRY.get_config(path)
+            cfg = get_model_registry().get_config(path)
 
             def _on_loaded_reenable(ok, st, r=role, n=Path(path).name):
                 self._on_role_engine_loaded(ok, st, r, n, None)
@@ -7192,7 +6894,7 @@ class MainWindow(QMainWindow):
     def _refresh_model_list(self):
         self.model_list.clear()
         active = getattr(self.engine, "model_path", "")
-        for m in MODEL_REGISTRY.all_models():
+        for m in get_model_registry().all_models():
             tag       = "📌" if m["source"] == "custom" else "📦"
             role_icon = ROLE_ICONS.get(m.get("role", "general"), "💬")
             ql, qc    = quant_info(m.get("quant", ""))
@@ -7212,7 +6914,7 @@ class MainWindow(QMainWindow):
         cur = self.input_bar.model_combo.currentData()
         self.input_bar.model_combo.blockSignals(True)
         self.input_bar.model_combo.clear()
-        for m in MODEL_REGISTRY.all_models():
+        for m in get_model_registry().all_models():
             self.input_bar.model_combo.addItem(m["name"], m["path"])
         idx = self.input_bar.model_combo.findData(cur)
         self.input_bar.model_combo.setCurrentIndex(max(idx, 0))
@@ -7226,7 +6928,7 @@ class MainWindow(QMainWindow):
             self, "Select GGUF Model", str(Path.home()),
             "GGUF Models (*.gguf);;All Files (*)")
         if not path: return
-        MODEL_REGISTRY.add(path)
+        get_model_registry().add(path)
         fam   = detect_model_family(path)
         quant = detect_quant_type(path)
         ql, _ = quant_info(quant)
@@ -7253,7 +6955,7 @@ class MainWindow(QMainWindow):
     def _remove_selected_model(self):
         item = self.model_list.currentItem()
         if not item: return
-        MODEL_REGISTRY.remove(item.data(Qt.ItemDataRole.UserRole))
+        get_model_registry().remove(item.data(Qt.ItemDataRole.UserRole))
         self._refresh_model_list()
         self._sync_input_bar_combo()
 
@@ -7697,7 +7399,7 @@ class MainWindow(QMainWindow):
 
         cfg_pred = DEFAULT_N_PRED
         if active_eng.model_path:
-            cfg_pred = MODEL_REGISTRY.get_config(active_eng.model_path).n_predict
+            cfg_pred = get_model_registry().get_config(active_eng.model_path).n_predict
 
         self._stream_w = self.chat_area.add_message(
             "assistant", "", ts, tag="💻 Coding" if is_coding else "")
@@ -7779,7 +7481,7 @@ class MainWindow(QMainWindow):
             active_eng = self.coding_engine
             ctx_chars  = getattr(active_eng, "ctx_value", DEFAULT_CTX) * 4
             prompt     = self.active.build_prompt(model_path=active_eng.model_path, max_chars=ctx_chars)
-            cfg_pred   = MODEL_REGISTRY.get_config(active_eng.model_path).n_predict
+            cfg_pred   = get_model_registry().get_config(active_eng.model_path).n_predict
             self._stream_w = self.chat_area.add_message("assistant", "", ts, tag="💻 Coding")
             self._worker = active_eng.create_worker(prompt, n_predict=cfg_pred, model_path=active_eng.model_path)
             self._worker.token.connect(self._on_token)
@@ -7808,10 +7510,10 @@ class MainWindow(QMainWindow):
         self._pipeline_code_w   = self.chat_area.add_message("assistant", "", ts, tag="💻 Coding")
 
         insight_np = max(
-            (MODEL_REGISTRY.get_config(eng.model_path).n_predict for _, eng in insight_engines),
+            (get_model_registry().get_config(eng.model_path).n_predict for _, eng in insight_engines),
             default=512
         )
-        code_np = MODEL_REGISTRY.get_config(self.coding_engine.model_path).n_predict
+        code_np = get_model_registry().get_config(self.coding_engine.model_path).n_predict
 
         self._pipeline_worker = PipelineWorker(
             insight_engines, self.coding_engine, text,

@@ -21,7 +21,7 @@ class MultiPdfSummaryWorker(QThread):
     pause_suggest   = pyqtSignal(str)   # job_id
 
     def __init__(self, engine: "LlamaEngine", pdf_texts: List[Tuple[str, str]],
-                 session_id: str, engine2: "LlamaEngine" = None,
+                 session_id: str, engine2: "LlamaEngine | None" = None,
                  resume_job_id: str = ""):
         super().__init__()
         self.engine        = engine

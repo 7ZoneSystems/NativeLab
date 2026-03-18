@@ -81,12 +81,13 @@ class ScriptParser:
                     signature=full, language="python"))
 
             elif isinstance(node, ast.FunctionDef) and \
-                 not isinstance(node, ast.AsyncFunctionDef):
+                    not isinstance(node, ast.AsyncFunctionDef):
                 if not any(
                     isinstance(p, ast.FunctionDef)
                     for p in ast.walk(tree)
-                    if isinstance(getattr(p, "body", None), list)
-                    and any(child is node for child in p.body)
+                    if (body := getattr(p, "body", None)) is not None
+                    and isinstance(body, list)
+                    and any(child is node for child in body)
                 ):
                     decs = [ast.unparse(d) for d in node.decorator_list]
                     ps.functions.append(ParsedItem(
