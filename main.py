@@ -5694,6 +5694,7 @@ class PipelineBuilderTab(QWidget):
             b.selected = False
         self.canvas.update()
 
+API_REGISTRY = ApiRegistry()
 
 # ═════════════════════════════ API MODELS TAB ════════════════════════════════
 
@@ -6040,7 +6041,7 @@ class ApiModelsTab(QWidget):
         cfg = self._collect_config()
         if not cfg.model_id:
             return
-        get_api_registry().add(cfg)
+        getapi_registry().add(cfg)
         self._refresh_saved()
 
     def _refresh_saved(self):
@@ -6140,21 +6141,21 @@ class MainWindow(QMainWindow):
         self.sessions: Dict[str, Session] = {}
         self.active:   Optional[Session]  = None
 
-        self._worker:          Optional[QThread]       = None
-        self._stream_w:        Optional[MessageWidget] = None
-        self._summary_worker:  Optional[QThread]       = None
-        self._summary_bubble:  Optional[MessageWidget] = None 
-        self._pipeline_worker: Optional[PipelineWorker] = None
-        self.reasoning_engine:     Optional[LlamaEngine] = None
-        self.summarization_engine: Optional[LlamaEngine] = None
-        self.coding_engine:        Optional[LlamaEngine] = None
-        self.secondary_engine:     Optional[LlamaEngine] = None
-        self._thinking_block:  Optional[ThinkingBlock]  = None
-        self._pipeline_reason_w: Optional[MessageWidget] = None
-        self._pipeline_code_w:   Optional[MessageWidget] = None
+        self._worker:          Optional[QThread] = None
+        self._stream_w:        Any = None
+        self._summary_worker:  Optional[QThread] = None
+        self._summary_bubble:  Any = None
+        self._pipeline_worker: Any = None
+        self.reasoning_engine:     Any = None
+        self.summarization_engine: Any = None
+        self.coding_engine:        Any = None
+        self.secondary_engine:     Any = None
+        self._thinking_block:  Any = None
+        self._pipeline_reason_w: Any = None
+        self._pipeline_code_w:   Any = None
         self._pipeline_insight_widgets: list = []
         self._chat_pipeline_worker: Optional[QThread] = None
-        self._api_engine:   Optional[ApiEngine] = None
+        self._api_engine:   Any = None
 
         self._force_coding_mode:  bool = False
         self._pending_ref_ctx:    str  = ""

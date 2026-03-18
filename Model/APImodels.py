@@ -60,10 +60,10 @@ class ApiRegistry:
         return list(self._configs)
 
 
-_api_registry = None
+api_registry = None
 
-def get_api_registry():
-    global _api_registry
-    if _api_registry is None:
-        _api_registry = ApiRegistry()
-    return _api_registry
+def getapi_registry():
+    global api_registry
+    if api_registry is None:
+        api_registry = ApiRegistry()
+    return api_registry

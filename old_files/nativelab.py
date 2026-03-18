@@ -12052,7 +12052,7 @@ class ApiModelsTab(QWidget):
         cfg = self._collect_config()
         if not cfg.model_id:
             return
-        get_api_registry().add(cfg)
+        getapi_registry().add(cfg)
         self._refresh_saved()
 
     def _refresh_saved(self):
