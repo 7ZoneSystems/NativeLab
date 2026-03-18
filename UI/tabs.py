@@ -1,3 +1,8 @@
+from imports.import_global import HAS_PSUTIL, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
+from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C
+from GlobalConfig.config_global import APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS
+from Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
+from components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
 class ConfigTab(QWidget):
     """Full configuration tab — all thresholds with descriptions."""
 
