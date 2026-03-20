@@ -1,10 +1,12 @@
-from imports.import_global import HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
+from imports.import_global import QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
 from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C
+from .effects import fade_in
+from core.engine_global import ApiConfig, ApiEngine
 from Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
 from GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths
 from components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
 from Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchWorker, HfDownloadWorker, MCP_CONFIG_FILE
-from Model.model_global import detect_quant_type, quant_info, detect_model_family, get_model_registry
+from Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES
 class ConfigTab(QWidget):
     """Full configuration tab — all thresholds with descriptions."""
 
@@ -1718,3 +1720,433 @@ class McpTab(QWidget):
                 except Exception: pass
             del self._procs[name]
             self._mcp_log_msg(f"⏹  Stopped '{name}'")
+API_REGISTRY = ApiRegistry()
+
+class ApiModelsTab(QWidget):
+    """Tab for connecting to cloud/local API models. Once verified, treated as a normal engine."""
+    api_model_loaded = pyqtSignal(object)   # emits ApiEngine
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._tester = None
+        self._build()
+        self._refresh_saved()
+
+    @staticmethod
+    def _sec_lbl(text: str) -> QLabel:
+        lb = QLabel(text)
+        lb.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1.2px;")
+        return lb
+
+    @staticmethod
+    def _inp(placeholder: str = "", pw: bool = False) -> QLineEdit:
+        e = QLineEdit()
+        e.setPlaceholderText(placeholder)
+        e.setFixedHeight(32)
+        if pw:
+            e.setEchoMode(QLineEdit.EchoMode.Password)
+        e.setStyleSheet(
+            f"QLineEdit{{background:{C['bg1']};border:1px solid {C['bdr']};"
+            f"border-radius:6px;color:{C['txt']};padding:0 10px;font-size:12px;}}"
+            f"QLineEdit:focus{{border-color:{C['acc']};}}")
+        return e
+
+    @staticmethod
+    def _combo_style() -> str:
+        return (f"QComboBox{{background:{C['bg1']};border:1px solid {C['bdr']};"
+                f"border-radius:6px;color:{C['txt']};padding:0 10px;font-size:12px;}}"
+                f"QComboBox::drop-down{{border:none;width:22px;}}"
+                f"QComboBox QAbstractItemView{{background:{C['bg2']};color:{C['txt']};"
+                f"selection-background-color:{C['acc']};}}")
+
+    @staticmethod
+    def _action_btn(label: str, color: str) -> QPushButton:
+        b = QPushButton(label)
+        b.setFixedHeight(34)
+        b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setStyleSheet(
+            f"QPushButton{{background:transparent;color:{color};"
+            f"border:1px solid {color};border-radius:7px;"
+            f"font-size:11px;font-weight:600;padding:0 16px;}}"
+            f"QPushButton:hover{{background:{color};color:#fff;}}"
+            f"QPushButton:disabled{{color:{C['txt3']};border-color:{C['bdr']};}}")
+        return b
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 18, 24, 18)
+        root.setSpacing(14)
+
+        hdr = QLabel("🌐  API Models")
+        hdr.setStyleSheet(f"color:{C['txt']};font-size:15px;font-weight:700;")
+        root.addWidget(hdr)
+
+        sub = QLabel("Connect to any OpenAI-compatible or Anthropic endpoint. "
+                     "Once verified, the API model is treated exactly like a local model.")
+        sub.setWordWrap(True)
+        sub.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        root.addWidget(sub)
+
+        # ── Connection card (scrollable so custom-format fields never overlap) ─
+        card_scroll = QScrollArea()
+        card_scroll.setWidgetResizable(True)
+        card_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        card_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        card_scroll.setStyleSheet(
+            f"QScrollArea{{background:{C['bg2']};border:1px solid {C['bdr']};"
+            f"border-radius:10px;}}"
+            f"QScrollBar:vertical{{background:{C['bg1']};width:6px;border-radius:3px;}}"
+            f"QScrollBar::handle:vertical{{background:{C['bdr2']};border-radius:3px;}}"
+            f"QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0px;}}")
+        card = QWidget()
+        card.setStyleSheet(f"QWidget{{background:{C['bg2']};border:none;}}")
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(18, 16, 18, 16)
+        cl.setSpacing(12)
+        cl.addWidget(self._sec_lbl("NEW CONNECTION"))
+
+        # Provider + Model row
+        r1 = QHBoxLayout(); r1.setSpacing(12)
+
+        lp = QVBoxLayout(); lp.setSpacing(4)
+        lp.addWidget(QLabel("Provider"))
+        self.combo_provider = QComboBox()
+        self.combo_provider.setFixedHeight(32)
+        self.combo_provider.setStyleSheet(self._combo_style())
+        for p in API_PROVIDERS:
+            self.combo_provider.addItem(p)
+        self.combo_provider.currentTextChanged.connect(self._on_provider_changed)
+        lp.addWidget(self.combo_provider)
+        r1.addLayout(lp, 1)
+
+        lm = QVBoxLayout(); lm.setSpacing(4)
+        lm.addWidget(QLabel("Model"))
+        self.combo_model = QComboBox()
+        self.combo_model.setFixedHeight(32)
+        self.combo_model.setEditable(True)
+        self.combo_model.setStyleSheet(self._combo_style())
+        lm.addWidget(self.combo_model)
+        r1.addLayout(lm, 2)
+        cl.addLayout(r1)
+
+        # API Key
+        kl = QVBoxLayout(); kl.setSpacing(4)
+        kl.addWidget(QLabel("API Key"))
+        self.inp_key = self._inp("sk-…  (leave blank for Ollama / no-auth endpoints)", pw=True)
+        kl.addWidget(self.inp_key)
+        cl.addLayout(kl)
+
+        # Base URL + Max Tokens row
+        r3 = QHBoxLayout(); r3.setSpacing(12)
+        ul = QVBoxLayout(); ul.setSpacing(4)
+        ul.addWidget(QLabel("Base URL"))
+        self.inp_url = self._inp("https://api.openai.com/v1")
+        ul.addWidget(self.inp_url)
+        r3.addLayout(ul, 3)
+        tl = QVBoxLayout(); tl.setSpacing(4)
+        tl.addWidget(QLabel("Max Tokens"))
+        self.inp_tokens = self._inp("2048")
+        self.inp_tokens.setFixedWidth(96)
+        tl.addWidget(self.inp_tokens)
+        r3.addLayout(tl)
+        cl.addLayout(r3)
+
+        # Config name + custom provider name
+        r4 = QHBoxLayout(); r4.setSpacing(12)
+        nl = QVBoxLayout(); nl.setSpacing(4)
+        nl.addWidget(QLabel("Config Name  (for saving)"))
+        self.inp_name = self._inp("e.g. My GPT-4o")
+        nl.addWidget(self.inp_name)
+        r4.addLayout(nl, 2)
+        pnl = QVBoxLayout(); pnl.setSpacing(4)
+        pnl.addWidget(QLabel("Custom Provider Label  (optional)"))
+        self.inp_custom_provider = self._inp("e.g. My Company API")
+        pnl.addWidget(self.inp_custom_provider)
+        r4.addLayout(pnl, 2)
+        cl.addLayout(r4)
+
+        # ── Prompt format section ─────────────────────────────────────────────
+        sep_pf = QFrame(); sep_pf.setFrameShape(QFrame.Shape.HLine)
+        sep_pf.setStyleSheet(f"color:{C['bdr']};")
+        cl.addWidget(sep_pf)
+
+        pf_hdr = QHBoxLayout()
+        pf_lbl = self._sec_lbl("PROMPT FORMAT")
+        self.chk_custom_prompt = QCheckBox("Use custom format")
+        self.chk_custom_prompt.setStyleSheet(
+            f"QCheckBox{{color:{C['txt2']};font-size:11px;}}"
+            f"QCheckBox::indicator{{width:14px;height:14px;border:1px solid {C['bdr']};"
+            f"border-radius:3px;background:{C['bg1']};}}"
+            f"QCheckBox::indicator:checked{{background:{C['acc']};border-color:{C['acc']};}}")
+        self.chk_custom_prompt.toggled.connect(self._toggle_prompt_format)
+        pf_hdr.addWidget(pf_lbl)
+        pf_hdr.addStretch()
+        pf_hdr.addWidget(self.chk_custom_prompt)
+        cl.addLayout(pf_hdr)
+
+        # Template picker row
+        self.prompt_format_widget = QWidget()
+        pfw = QVBoxLayout(self.prompt_format_widget)
+        pfw.setContentsMargins(0, 0, 0, 0)
+        pfw.setSpacing(10)
+
+        tr = QHBoxLayout(); tr.setSpacing(12)
+        tl2 = QVBoxLayout(); tl2.setSpacing(4)
+        tl2.addWidget(QLabel("Template Preset"))
+        self.combo_template = QComboBox()
+        self.combo_template.setFixedHeight(32)
+        self.combo_template.setStyleSheet(self._combo_style())
+        for key, val in PROMPT_TEMPLATES.items():
+            self.combo_template.addItem(val["label"], key)
+        self.combo_template.currentIndexChanged.connect(self._on_template_changed)
+        tl2.addWidget(self.combo_template)
+        tr.addLayout(tl2, 1)
+        pfw.addLayout(tr)
+
+        # System prompt
+        spl = QVBoxLayout(); spl.setSpacing(4)
+        spl.addWidget(QLabel("System Prompt"))
+        self.inp_system = QTextEdit()
+        self.inp_system.setFixedHeight(64)
+        self.inp_system.setPlaceholderText("System prompt / instruction prefix (optional)")
+        self.inp_system.setStyleSheet(
+            f"QTextEdit{{background:{C['bg1']};border:1px solid {C['bdr']};"
+            f"border-radius:6px;color:{C['txt']};padding:6px 10px;font-size:11px;}}"
+            f"QTextEdit:focus{{border-color:{C['acc']};}}")
+        spl.addWidget(self.inp_system)
+        pfw.addLayout(spl)
+
+        # Prefix / suffix rows
+        pfx_row = QHBoxLayout(); pfx_row.setSpacing(12)
+        upl = QVBoxLayout(); upl.setSpacing(4)
+        upl.addWidget(QLabel("User Prefix"))
+        self.inp_user_prefix = self._inp(r"e.g. [INST] ")
+        upl.addWidget(self.inp_user_prefix)
+        pfx_row.addLayout(upl)
+        usl = QVBoxLayout(); usl.setSpacing(4)
+        usl.addWidget(QLabel("User Suffix"))
+        self.inp_user_suffix = self._inp(r"e.g.  [/INST]")
+        usl.addWidget(self.inp_user_suffix)
+        pfx_row.addLayout(usl)
+        apl = QVBoxLayout(); apl.setSpacing(4)
+        apl.addWidget(QLabel("Assistant Prefix"))
+        self.inp_asst_prefix = self._inp(r"e.g. <|assistant|>\n")
+        apl.addWidget(self.inp_asst_prefix)
+        pfx_row.addLayout(apl)
+        pfw.addLayout(pfx_row)
+
+        self.prompt_format_widget.setVisible(False)
+        cl.addWidget(self.prompt_format_widget)
+        cl.addStretch()
+
+        card_scroll.setWidget(card)
+
+        # Buttons + status
+        br = QHBoxLayout(); br.setSpacing(10)
+        self.btn_test = self._action_btn("⚡  Test & Load", C["ok"])
+        self.btn_save = self._action_btn("💾  Save Config",  C["acc"])
+        self.btn_test.clicked.connect(self._test_and_load)
+        self.btn_save.clicked.connect(self._save_config)
+        br.addWidget(self.btn_test)
+        br.addWidget(self.btn_save)
+        br.addStretch()
+        cl.addLayout(br)
+
+        self.lbl_status = QLabel("● Not connected")
+        self.lbl_status.setStyleSheet(f"color:{C['txt3']};font-size:11px;")
+        cl.addWidget(self.lbl_status)
+        root.addWidget(card_scroll, 2)
+
+        # ── Saved configs ─────────────────────────────────────────────────────
+        root.addWidget(self._sec_lbl("SAVED CONFIGS"))
+
+        saved_scroll = QScrollArea()
+        saved_scroll.setWidgetResizable(True)
+        saved_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        saved_scroll.setStyleSheet("QScrollArea{border:none;background:transparent;}")
+        self.saved_container = QWidget()
+        self.saved_vbox = QVBoxLayout(self.saved_container)
+        self.saved_vbox.setContentsMargins(0, 4, 0, 4)
+        self.saved_vbox.setSpacing(6)
+        self.saved_vbox.addStretch()
+        saved_scroll.setWidget(self.saved_container)
+        root.addWidget(saved_scroll, 1)
+
+        self._on_provider_changed(self.combo_provider.currentText())
+
+    def _toggle_prompt_format(self, checked: bool):
+        self.prompt_format_widget.setVisible(checked)
+        if checked:
+            fade_in(self.prompt_format_widget, 180)
+
+    def _on_template_changed(self, _idx: int):
+        key = self.combo_template.currentData()
+        if not key or key == "custom":
+            return
+        t = PROMPT_TEMPLATES[key]
+        self.inp_system.setPlainText(t["system"])
+        self.inp_user_prefix.setText(t["user_prefix"])
+        self.inp_user_suffix.setText(t["user_suffix"])
+        self.inp_asst_prefix.setText(t["assistant_prefix"])
+
+    def _on_provider_changed(self, provider: str):
+        info = API_PROVIDERS.get(provider, {})
+        self.combo_model.clear()
+        for m in info.get("models", []):
+            self.combo_model.addItem(m)
+        self.inp_url.setText(info.get("base_url", ""))
+
+    def _collect_config(self) -> ApiConfig:
+        provider   = self.combo_provider.currentText()
+        model_id   = self.combo_model.currentText().strip()
+        api_key    = self.inp_key.text().strip()
+        base_url   = self.inp_url.text().strip()
+        api_format = API_PROVIDERS.get(provider, {}).get("format", "openai")
+        try:    max_tok = int(self.inp_tokens.text())
+        except: max_tok = 2048
+        custom_prov = self.inp_custom_provider.text().strip()
+        name = self.inp_name.text().strip() or f"{custom_prov or provider} {model_id}"
+
+        use_custom = self.chk_custom_prompt.isChecked()
+        tmpl_key   = self.combo_template.currentData() or "default"
+        return ApiConfig(
+            name=name, provider=provider, model_id=model_id,
+            api_key=api_key, base_url=base_url,
+            api_format=api_format, max_tokens=max_tok,
+            custom_provider_name=custom_prov,
+            use_custom_prompt=use_custom,
+            prompt_template=tmpl_key,
+            system_prompt=(self.inp_system.toPlainText().strip() if use_custom else ""),
+            user_prefix=(self.inp_user_prefix.text() if use_custom else ""),
+            user_suffix=(self.inp_user_suffix.text() if use_custom else ""),
+            assistant_prefix=(self.inp_asst_prefix.text() if use_custom else ""),
+        )
+
+    def _run_test(self, cfg: ApiConfig):
+        self.btn_test.setEnabled(False)
+        self.lbl_status.setText("⏳  Testing connection…")
+        self.lbl_status.setStyleSheet(f"color:{C['warn']};font-size:11px;")
+
+        class _T(QThread):
+            finished = pyqtSignal(bool, str, object)
+            def __init__(self, c): super().__init__(); self.cfg = c
+            def run(self):
+                eng = ApiEngine()
+                ok  = eng.load(self.cfg)
+                self.finished.emit(ok, eng.status_text if ok else
+                                   "Connection failed — check key / URL / model ID", eng if ok else None)
+
+        self._tester = _T(cfg)
+        self._tester.finished.connect(self._on_test_done)
+        self._tester.start()
+
+    def _test_and_load(self):
+        cfg = self._collect_config()
+        if not cfg.model_id:
+            self.lbl_status.setText("⚠  Select or enter a model ID first")
+            self.lbl_status.setStyleSheet(f"color:{C['warn']};font-size:11px;")
+            return
+        self._run_test(cfg)
+
+    def _on_test_done(self, ok: bool, msg: str, engine):
+        self.btn_test.setEnabled(True)
+        if ok:
+            self.lbl_status.setText(f"✓  {msg}")
+            self.lbl_status.setStyleSheet(f"color:{C['ok']};font-size:11px;")
+            self.api_model_loaded.emit(engine)
+        else:
+            self.lbl_status.setText(f"✗  {msg}")
+            self.lbl_status.setStyleSheet(f"color:{C['err']};font-size:11px;")
+        self._tester = None
+
+    def _save_config(self):
+        cfg = self._collect_config()
+        if not cfg.model_id:
+            return
+        getapi_registry().add(cfg)
+        self._refresh_saved()
+
+    def _refresh_saved(self):
+        while self.saved_vbox.count() > 1:
+            item = self.saved_vbox.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        for cfg in API_REGISTRY.all():
+            self._add_saved_card(cfg)
+
+    def _add_saved_card(self, cfg: ApiConfig):
+        ICONS = {"OpenAI": "⚡", "Anthropic": "◆", "Groq": "⚙",
+                 "Mistral": "🌊", "Together AI": "🤝", "OpenRouter": "🔀",
+                 "Ollama": "🦙", "Custom": "🔧"}
+        card = QFrame()
+        card.setStyleSheet(
+            f"QFrame{{background:{C['bg2']};border:1px solid {C['bdr']};"
+            f"border-radius:8px;}}")
+        cl = QHBoxLayout(card)
+        cl.setContentsMargins(14, 10, 14, 10)
+        cl.setSpacing(10)
+
+        icon = ICONS.get(cfg.provider, "🌐")
+        il = QVBoxLayout(); il.setSpacing(2)
+        t = QLabel(f"{icon}  <b>{cfg.name}</b>")
+        t.setTextFormat(Qt.TextFormat.RichText)
+        t.setStyleSheet(f"color:{C['txt']};font-size:12px;")
+        prov_display = getattr(cfg, "custom_provider_name", "") or cfg.provider
+        fmt_badge    = "  ·  🎨 custom fmt" if getattr(cfg, "use_custom_prompt", False) else ""
+        s = QLabel(f"{prov_display}  ·  {cfg.model_id}{fmt_badge}")
+        s.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        il.addWidget(t); il.addWidget(s)
+        cl.addLayout(il, 1)
+
+        def _sb(label, color):
+            b = QPushButton(label)
+            b.setFixedHeight(28)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet(
+                f"QPushButton{{background:transparent;color:{color};"
+                f"border:1px solid {color};border-radius:6px;"
+                f"font-size:10px;font-weight:600;padding:0 10px;}}"
+                f"QPushButton:hover{{background:{color};color:#fff;}}")
+            return b
+
+        bl = _sb("▶  Load", C["ok"])
+        bd = _sb("🗑", C["err"])
+        bl.clicked.connect(lambda _, c=cfg: self._load_saved(c))
+        bd.clicked.connect(lambda _, c=cfg: self._delete_saved(c))
+        cl.addWidget(bl); cl.addWidget(bd)
+        self.saved_vbox.insertWidget(self.saved_vbox.count() - 1, card)
+        fade_in(card, 200)
+
+    def _load_saved(self, cfg: ApiConfig):
+        idx = self.combo_provider.findText(cfg.provider)
+        if idx >= 0: self.combo_provider.setCurrentIndex(idx)
+        self.inp_url.setText(cfg.base_url)
+        self.inp_key.setText(cfg.api_key)
+        self.inp_tokens.setText(str(cfg.max_tokens))
+        self.inp_name.setText(cfg.name)
+        self.inp_custom_provider.setText(getattr(cfg, "custom_provider_name", ""))
+        mi = self.combo_model.findText(cfg.model_id)
+        if mi < 0: self.combo_model.addItem(cfg.model_id)
+        self.combo_model.setCurrentText(cfg.model_id)
+
+        use_custom = getattr(cfg, "use_custom_prompt", False)
+        self.chk_custom_prompt.setChecked(use_custom)
+        if use_custom:
+            tmpl_key = getattr(cfg, "prompt_template", "custom")
+            ti = self.combo_template.findData(tmpl_key)
+            if ti >= 0: self.combo_template.setCurrentIndex(ti)
+            self.inp_system.setPlainText(getattr(cfg, "system_prompt", ""))
+            self.inp_user_prefix.setText(getattr(cfg, "user_prefix", ""))
+            self.inp_user_suffix.setText(getattr(cfg, "user_suffix", ""))
+            self.inp_asst_prefix.setText(getattr(cfg, "assistant_prefix", ""))
+        self._run_test(cfg)
+
+    def _delete_saved(self, cfg: ApiConfig):
+        ans = QMessageBox.question(
+            self, "Delete Config", f"Delete '{cfg.name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if ans == QMessageBox.StandardButton.Yes:
+            API_REGISTRY.remove(cfg.name)
+            self._refresh_saved()
