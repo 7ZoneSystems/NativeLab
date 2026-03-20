@@ -23,7 +23,7 @@ from core.streamer_global import *
 from components.components_global import *
 from core.engine_global import *
 from codeparser.codeparser_global import *
-
+from pipelinebuilder.pipe_global import *
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
     log      = pyqtSignal(str, str)
@@ -37,107 +37,6 @@ class ModelLoaderThread(QThread):
     def run(self):
         ok = self.engine.load(self.model_path, ctx=self.ctx)
         self.finished.emit(ok, self.engine.status_text)
-import math as _math
-
-class PipelineBlockType:
-    INPUT        = "input"
-    OUTPUT       = "output"
-    MODEL        = "model"
-    INTERMEDIATE = "intermediate"
-    REFERENCE    = "reference"    # injects a reference text snippet before context
-    KNOWLEDGE    = "knowledge"    # prepends a knowledge-base chunk before context
-    PDF_SUMMARY  = "pdf_summary"  # extracts / summarises a PDF and prepends it
-    # ── Logic blocks ─────────────────────────────────────────────────────────
-    IF_ELSE      = "if_else"      # condition → True port or False port
-    SWITCH       = "switch"       # match value → one of N labelled ports
-    FILTER       = "filter"       # pass-through or drop based on condition
-    TRANSFORM    = "transform"    # deterministic text transform (prefix/suffix/regex)
-    MERGE        = "merge"        # combine multiple incoming contexts into one
-    SPLIT        = "split"        # broadcast same text to all outgoing connections
-    CUSTOM_CODE  = "custom_code"  # user-written Python executed at runtime
-    # ── LLM Logic blocks — conditions evaluated by an attached LLM ───────────
-    LLM_IF       = "llm_if"       # LLM answers YES/NO → TRUE/FALSE routing
-    LLM_SWITCH   = "llm_switch"   # LLM classifies into one of N user-defined labels
-    LLM_FILTER   = "llm_filter"   # LLM decides pass/drop in plain English
-    LLM_TRANSFORM= "llm_transform"# LLM rewrites/transforms text per instruction
-    LLM_SCORE    = "llm_score"    # LLM scores 1–10 → routes to low/mid/high port
-
-# Runtime PyPDF2 guard — PDF blocks show a friendly error if not installed
-try:
-    import PyPDF2 as _pypdf2_check
-    HAS_PDF = True
-except ImportError:
-    HAS_PDF = False
-
-
-@dataclass
-class PipelineConnection:
-    from_block_id: int
-    from_port:     str   # "N" | "S" | "E" | "W"
-    to_block_id:   int
-    to_port:       str
-    is_loop:       bool = False
-    loop_times:    int  = 1
-
-
-class PipelineBlock:
-    _id_counter = 0
-
-    def __init__(self, btype: str, x: int, y: int,
-                 model_path: str = "", role: str = "general", label: str = ""):
-        PipelineBlock._id_counter += 1
-        self.bid        = PipelineBlock._id_counter
-        self.btype      = btype
-        self.x          = x
-        self.y          = y
-        self.w          = 148
-        self.h          = 76
-        self.model_path = model_path
-        self.role       = role
-        self.label      = label or self._default_label()
-        self.selected   = False
-        self.metadata:  dict = {}   # stores ref_text / knowledge_text / pdf_path
-
-    def _default_label(self) -> str:
-        if self.btype == PipelineBlockType.INPUT:        return "Input"
-        if self.btype == PipelineBlockType.OUTPUT:       return "Output"
-        if self.btype == PipelineBlockType.INTERMEDIATE: return "Intermediate"
-        if self.btype == PipelineBlockType.REFERENCE:    return "Reference"
-        if self.btype == PipelineBlockType.KNOWLEDGE:    return "Knowledge"
-        if self.btype == PipelineBlockType.PDF_SUMMARY:  return "PDF"
-        if self.model_path:
-            return Path(self.model_path).stem[:18]
-        return "Model"
-
-    def rect(self):
-        return QRect(self.x, self.y, self.w, self.h)
-
-    def port_pos(self, port: str) -> tuple:
-        cx = self.x + self.w // 2
-        cy = self.y + self.h // 2
-        return {
-            "N": (cx, self.y),
-            "S": (cx, self.y + self.h),
-            "W": (self.x, cy),
-            "E": (self.x + self.w, cy),
-        }.get(port, (cx, cy))
-
-    def port_at(self, px: int, py: int, radius: int = 11) -> Optional[str]:
-        for port in ("N", "S", "E", "W"):
-            bx, by = self.port_pos(port)
-            if abs(px - bx) <= radius and abs(py - by) <= radius:
-                return port
-        return None
-
-    def contains(self, px: int, py: int) -> bool:
-        return self.rect().contains(px, py)
-
-
-# ── Pipeline persistence helpers ──────────────────────────────────────────────
-
-PIPELINES_DIR = Path.home() / ".native_lab" / "pipelines"
-PIPELINES_DIR.mkdir(parents=True, exist_ok=True)
-
 
 def _pipeline_to_dict(blocks: list, connections: list) -> dict:
     """Serialise a pipeline to a JSON-safe dict."""

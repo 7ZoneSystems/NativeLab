@@ -12,6 +12,8 @@ REFS_DIR.mkdir(parents=True, exist_ok=True)
 REF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 REF_INDEX_DIR.mkdir(parents=True, exist_ok=True)
 PAUSED_JOBS_DIR.mkdir(parents=True, exist_ok=True)
+PIPELINES_DIR = Path.home() / ".native_lab" / "pipelines"
+PIPELINES_DIR.mkdir(parents=True, exist_ok=True)
 APP_CONFIG_DEFAULTS = {
     "ram_watchdog_mb":        800,
     "chunk_index_size":       400,
