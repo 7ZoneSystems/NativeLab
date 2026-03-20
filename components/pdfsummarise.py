@@ -1,21 +1,18 @@
 from imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime, json
 from components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
-from core.engine_global import LlamaEngine
 from Model.model_global import MODE_SECTION_INSTRUCTIONS, MODE_FINAL_INSTRUCTIONS
-from GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS
-from GlobalConfig.config_global import APP_CONFIG, simple_hash 
+from GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS, APP_CONFIG, simple_hash
+
 class ChunkedSummaryWorker(QThread):
     section_done  = pyqtSignal(int, int, str, str)
     final_done    = pyqtSignal(str)
     progress      = pyqtSignal(str)
     err           = pyqtSignal(str)
-    pause_suggest = pyqtSignal(str)   # job_id — UI can offer pause
+    pause_suggest = pyqtSignal(str)
 
-    def __init__(self, engine: "LlamaEngine", text: str, filename: str = "",
-                 engine2: "LlamaEngine|None" = None,
-                 resume_job_id: str = "",
-                 session_id: str = "",
-                 summary_mode: str = "summary"):
+    def __init__(self, engine, text: str, filename: str = "",
+                 engine2=None, resume_job_id: str = "",
+                 session_id: str = "", summary_mode: str = "summary"):
         super().__init__()
         self.engine        = engine
         self.engine2       = engine2
@@ -26,9 +23,9 @@ class ChunkedSummaryWorker(QThread):
         self.summary_mode  = summary_mode
         self._abort        = False
         self._pause        = False
-        self._pending_txt = ""
+        self._pending_txt  = ""
         self.job_id        = resume_job_id or f"sum_{simple_hash(filename + text[:32])}_{int(time.time())}"
-    
+
     def abort(self):
         self._abort = True
 
@@ -44,13 +41,11 @@ class ChunkedSummaryWorker(QThread):
         PAUSE_THRESH = int(cfg["pause_after_chunks"])
 
         mode = getattr(self, "summary_mode", "summary")
-
-        sect_instruction = MODE_SECTION_INSTRUCTIONS.get(mode, MODE_SECTION_INSTRUCTIONS["summary"])
+        sect_instruction  = MODE_SECTION_INSTRUCTIONS.get(mode, MODE_SECTION_INSTRUCTIONS["summary"])
         final_instruction = MODE_FINAL_INSTRUCTIONS.get(mode, MODE_FINAL_INSTRUCTIONS["summary"])
 
-        chunks = self._split(self.text, CHUNK_CHARS)
-        total  = len(chunks)
-
+        chunks    = self._split(self.text, CHUNK_CHARS)
+        total     = len(chunks)
         start_idx = 0
         section_summaries: List[str] = []
         running_ctx = ""
@@ -61,8 +56,7 @@ class ChunkedSummaryWorker(QThread):
                 start_idx         = state.get("next_chunk", 0)
                 section_summaries = state.get("summaries", [])
                 running_ctx       = state.get("running_ctx", "")
-                self.progress.emit(
-                    f"Resuming from chunk {start_idx + 1} / {total}…")
+                self.progress.emit(f"Resuming from chunk {start_idx + 1} / {total}…")
 
         fam = detect_model_family(getattr(self.engine, "model_path", ""))
 
@@ -72,21 +66,15 @@ class ChunkedSummaryWorker(QThread):
 
             if self._pause:
                 state = {
-                    "job_id":      self.job_id,
-                    "filename":    self.filename,
-                    "session_id":  self.session_id,
-                    "total":       total,
-                    "next_chunk":  i,
-                    "summaries":   section_summaries,
-                    "running_ctx": running_ctx,
-                    "raw_text":    self.text,
-                    "model_path":  getattr(self.engine, "model_path", ""),
-                    "paused_at":   datetime.now().isoformat(),
-                    "summary_mode": mode,
+                    "job_id": self.job_id, "filename": self.filename,
+                    "session_id": self.session_id, "total": total,
+                    "next_chunk": i, "summaries": section_summaries,
+                    "running_ctx": running_ctx, "raw_text": self.text,
+                    "model_path": getattr(self.engine, "model_path", ""),
+                    "paused_at": datetime.now().isoformat(), "summary_mode": mode,
                 }
                 save_paused_job(self.job_id, state)
-                self.progress.emit(
-                    f"⏸  Paused after chunk {i} / {total}. State saved to disk.")
+                self.progress.emit(f"⏸  Paused after chunk {i} / {total}. State saved to disk.")
                 self.err.emit(f"__PAUSED__:{self.job_id}")
                 return
 
@@ -95,8 +83,7 @@ class ChunkedSummaryWorker(QThread):
 
             chunk = chunks[i]
             self.progress.emit(f"Summarising section {i+1} / {total}…")
-            ctx_block = (f"Running context from previous sections:\n{running_ctx}\n\n"
-                         if running_ctx else "")
+            ctx_block = (f"Running context from previous sections:\n{running_ctx}\n\n" if running_ctx else "")
             prompt = (
                 fam.bos + fam.user_prefix +
                 f"You are analysing a long document section by section.\n"
@@ -117,22 +104,16 @@ class ChunkedSummaryWorker(QThread):
 
             if (i + 1) % 3 == 0:
                 save_paused_job(self.job_id + "_autosave", {
-                    "job_id":      self.job_id,
-                    "filename":    self.filename,
-                    "session_id":  self.session_id,
-                    "total":       total,
-                    "next_chunk":  i + 1,
-                    "summaries":   section_summaries,
-                    "running_ctx": running_ctx,
-                    "raw_text":    self.text,
-                    "model_path":  getattr(self.engine, "model_path", ""),
-                    "paused_at":   datetime.now().isoformat(),
-                    "summary_mode": mode,
+                    "job_id": self.job_id, "filename": self.filename,
+                    "session_id": self.session_id, "total": total,
+                    "next_chunk": i + 1, "summaries": section_summaries,
+                    "running_ctx": running_ctx, "raw_text": self.text,
+                    "model_path": getattr(self.engine, "model_path", ""),
+                    "paused_at": datetime.now().isoformat(), "summary_mode": mode,
                 })
 
         if self._abort: return
 
-        # ── Final consolidation pass ──────────────────────────────────────────
         fin_eng   = self.engine2 if (self.engine2 and self.engine2.is_loaded) else self.engine
         fin_label = "reasoning model" if fin_eng is self.engine2 else "primary model"
         self.progress.emit(f"Running final consolidation pass ({fin_label})…")
@@ -150,12 +131,9 @@ class ChunkedSummaryWorker(QThread):
 
         final = self._infer_with(fin_eng, final_prompt, N_PRED_FINAL)
         if final is None:
-            # Fallback: try primary engine if secondary failed
             self.progress.emit("⚠️ Final pass failed on secondary engine — retrying with primary…")
             final = self._infer_with(self.engine, final_prompt, N_PRED_FINAL)
-
         if final is None:
-            # Last resort: concatenate section summaries
             self.progress.emit("⚠️ Final pass failed — using section summaries as fallback.")
             final = f"[Auto-fallback — final consolidation failed]\n\n" + all_sects
 
@@ -170,7 +148,7 @@ class ChunkedSummaryWorker(QThread):
                 chunks.append(text.strip()); break
             cut = text.rfind("\n\n", 0, chunk_chars)
             if cut < 200:
-                cut = text.rfind("\n",  0, chunk_chars)
+                cut = text.rfind("\n", 0, chunk_chars)
             if cut < 200:
                 cut = chunk_chars
             chunks.append(text[:cut].strip())
@@ -180,12 +158,11 @@ class ChunkedSummaryWorker(QThread):
     def _infer(self, prompt: str, n_predict: int) -> Optional[str]:
         return self._infer_with(self.engine, prompt, n_predict)
 
-    def _infer_with(self, eng: "LlamaEngine", prompt: str,
-                    n_predict: int) -> Optional[str]:
+    def _infer_with(self, eng, prompt: str, n_predict: int) -> Optional[str]:
         if eng.mode == "server":
             return self._infer_server(prompt, n_predict, eng.server_port)
         return self.infer_cli(prompt, n_predict, eng.model_path,
-                               getattr(eng, "ctx_value", DEFAULT_CTX()))
+                              getattr(eng, "ctx_value", DEFAULT_CTX))
 
     def _infer_server(self, prompt: str, n_predict: int, port: int = 0) -> Optional[str]:
         import http.client
@@ -207,12 +184,12 @@ class ChunkedSummaryWorker(QThread):
             return None
 
     def infer_cli(self, prompt: str, n_predict: int,
-                   model_path: str = "", ctx: int = 0) -> Optional[str]:
-        if not ctx: ctx = DEFAULT_CTX()
+                  model_path: str = "", ctx: int = 0) -> Optional[str]:
+        if not ctx: ctx = DEFAULT_CTX
         if not model_path: model_path = self.engine.model_path
         try:
             result = subprocess.run(
-                [LLAMA_CLI, "-m", model_path, "-t", str(DEFAULT_THREADS()),
+                [LLAMA_CLI, "-m", model_path, "-t", str(DEFAULT_THREADS),
                  "--ctx-size", str(ctx), "-n", str(n_predict),
                  "--no-display-prompt", "--no-escape",
                  "--temp", "0.3", "--repeat-penalty", "1.15", "-p", prompt],

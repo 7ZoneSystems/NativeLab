@@ -9,5 +9,5 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import (
     QFont, QColor, QTextCursor,QMouseEvent, QAction, QKeySequence, QIcon, QPainter, QPen, QBrush, QColor, QPainterPath, QPolygonF, QLinearGradient
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QEvent, QRect, QPointF, QPropertyAnimation, QEasingCurve, QDataStream, QIODevice, QVariant
+from PyQt6.QtCore import pyqtProperty,Qt, QThread, pyqtSignal, QTimer, QEvent, QRect, QPointF, QPropertyAnimation, QEasingCurve, QDataStream, QIODevice, QVariant
 from PyQt6.QtWidgets import QGraphicsOpacityEffect, QDialog, QAbstractItemView

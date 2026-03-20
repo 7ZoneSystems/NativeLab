@@ -13014,7 +13014,7 @@ class MainWindow(QMainWindow):
         self.ctx_slider.setRange(512, 32768)
         self.ctx_slider.setFixedWidth(140)
         self.ctx_slider.blockSignals(True)
-        self.ctx_slider.setValue(DEFAULT_CTX)
+        self.ctx_slider.setValue(DEFAULT_CTX())
         self.ctx_slider.blockSignals(False)
         self.ctx_slider.valueChanged.connect(self._on_ctx_changed)
         sb.addWidget(self.ctx_slider)

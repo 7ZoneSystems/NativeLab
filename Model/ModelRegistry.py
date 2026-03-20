@@ -19,8 +19,8 @@ class ModelConfig:
     path: str
     role: str = "general"
 
-    threads: int = field(default_factory=_default_threads())
-    ctx: int = field(default_factory=_default_ctx())
+    threads: int = field(default_factory=_default_threads)
+    ctx: int = field(default_factory=_default_ctx)
     n_predict: int = field(default_factory=_default_n_pred)
 
     temperature: float = 0.7

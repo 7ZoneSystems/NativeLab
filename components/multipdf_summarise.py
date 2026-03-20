@@ -1,28 +1,22 @@
 from imports.import_global import List, Tuple, Dict, Optional, Path, QThread, pyqtSignal, subprocess, time, datetime, json
-from core.engine_global import LlamaEngine
-from GlobalConfig.config_global import simple_hash, APP_CONFIG, REF_CACHE_DIR, RamWatchdog, get_ref_store, LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX
+from GlobalConfig.config_global import simple_hash, APP_CONFIG, REF_CACHE_DIR, LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX
+from GlobalConfig.hardwareUtil import RamWatchdog, get_ref_store
 from Model.model_global import detect_model_family
 from .jobhandler import save_paused_job, load_paused_job, delete_paused_job
-class MultiPdfSummaryWorker(QThread):
-    """
-    Summarizes multiple large PDFs with:
-    - Adaptive RAM watchdog (disk-spill when RAM low)
-    - Per-PDF chunked summarization with pause/resume support
-    - Reactive reload before final cross-document consolidation
-    """
-    file_started    = pyqtSignal(int, str, int)
-    file_progress   = pyqtSignal(int, str)
-    file_done       = pyqtSignal(int, str)
-    section_done    = pyqtSignal(int, int, str, str)
-    ram_warning     = pyqtSignal(str)
-    final_done      = pyqtSignal(str)
-    progress        = pyqtSignal(str)
-    err             = pyqtSignal(str)
-    pause_suggest   = pyqtSignal(str)   # job_id
 
-    def __init__(self, engine: "LlamaEngine", pdf_texts: List[Tuple[str, str]],
-                 session_id: str, engine2: "LlamaEngine | None" = None,
-                 resume_job_id: str = ""):
+class MultiPdfSummaryWorker(QThread):
+    file_started  = pyqtSignal(int, str, int)
+    file_progress = pyqtSignal(int, str)
+    file_done     = pyqtSignal(int, str)
+    section_done  = pyqtSignal(int, int, str, str)
+    ram_warning   = pyqtSignal(str)
+    final_done    = pyqtSignal(str)
+    progress      = pyqtSignal(str)
+    err           = pyqtSignal(str)
+    pause_suggest = pyqtSignal(str)
+
+    def __init__(self, engine, pdf_texts: List[Tuple[str, str]],
+                 session_id: str, engine2=None, resume_job_id: str = ""):
         super().__init__()
         self.engine        = engine
         self.engine2       = engine2
@@ -32,8 +26,6 @@ class MultiPdfSummaryWorker(QThread):
         self._abort        = False
         self._pause        = False
         self._disk_summaries: Dict[str, Path] = {}
-
-        # Stable job id derived from filenames so resume matches original
         names_key = "_".join(Path(fn).stem for fn, _ in pdf_texts)[:40]
         self.job_id = resume_job_id or f"mpdf_{simple_hash(names_key)}_{int(time.time())}"
 
@@ -44,41 +36,36 @@ class MultiPdfSummaryWorker(QThread):
         self._pause = True
 
     def save_state(self, next_fi: int, next_ci: int,
-                    file_summaries_so_far: List[str],
-                    running_ctx: str,
-                    completed_file_summaries: List[Tuple[str, str]]):
-        """Persist full job state to disk for resume."""
-        # Serialise disk_summaries as {filename: str_path}
+                   file_summaries_so_far: List[str],
+                   running_ctx: str,
+                   completed_file_summaries: List[Tuple[str, str]]):
         disk_paths = {fn: str(p) for fn, p in self._disk_summaries.items()}
         state = {
-            "job_id":             self.job_id,
-            "session_id":         self.session_id,
-            "filename":           f"{len(self.pdf_texts)} PDFs",
-            "total":              len(self.pdf_texts),
-            "next_fi":            next_fi,
-            "next_ci":            next_ci,
+            "job_id":                self.job_id,
+            "session_id":            self.session_id,
+            "filename":              f"{len(self.pdf_texts)} PDFs",
+            "total":                 len(self.pdf_texts),
+            "next_fi":               next_fi,
+            "next_ci":               next_ci,
+            "next_chunk":            next_ci,
             "file_summaries_so_far": file_summaries_so_far,
-            "running_ctx":        running_ctx,
-            "completed_files":    completed_file_summaries,
-            "disk_summaries":     disk_paths,
-            "pdf_texts":          [[fn, txt] for fn, txt in self.pdf_texts],
-            "model_path":         getattr(self.engine, "model_path", ""),
-            "paused_at":          datetime.now().isoformat(),
-            # For display in Config tab
-            "next_chunk":         next_ci,
+            "running_ctx":           running_ctx,
+            "completed_files":       completed_file_summaries,
+            "disk_summaries":        disk_paths,
+            "pdf_texts":             [[fn, txt] for fn, txt in self.pdf_texts],
+            "model_path":            getattr(self.engine, "model_path", ""),
+            "paused_at":             datetime.now().isoformat(),
         }
         save_paused_job(self.job_id, state)
 
     def run(self):
         cfg          = APP_CONFIG
-        CHUNK_CHARS  = int(cfg["multipdf_n_pred_sect"])   # reuse naming
         CHUNK_CHARS  = int(cfg["summary_chunk_chars"])
         CTX_CARRY    = int(cfg["summary_ctx_carry"])
         N_PRED_SECT  = int(cfg["multipdf_n_pred_sect"])
         N_PRED_FINAL = int(cfg["multipdf_n_pred_final"])
         PAUSE_THRESH = int(cfg["pause_after_chunks"])
 
-        # ── Resume state ──────────────────────────────────────────────────────
         start_fi   = 0
         start_ci   = 0
         completed_file_summaries: List[Tuple[str, str]] = []
@@ -90,62 +77,51 @@ class MultiPdfSummaryWorker(QThread):
             if state:
                 start_fi  = state.get("next_fi", 0)
                 start_ci  = state.get("next_ci", 0)
-                completed_file_summaries = [
-                    tuple(x) for x in state.get("completed_files", [])]
-                file_summaries_so_far = state.get("file_summaries_so_far", [])
-                running_ctx = state.get("running_ctx", "")
-                # Restore disk summary paths
+                completed_file_summaries = [tuple(x) for x in state.get("completed_files", [])]
+                file_summaries_so_far    = state.get("file_summaries_so_far", [])
+                running_ctx              = state.get("running_ctx", "")
                 for fn, sp in state.get("disk_summaries", {}).items():
                     p = Path(sp)
                     if p.exists():
                         self._disk_summaries[fn] = p
-                self.progress.emit(
-                    f"Resuming multi-PDF job from file {start_fi+1}, "
-                    f"chunk {start_ci+1}…")
+                self.progress.emit(f"Resuming multi-PDF job from file {start_fi+1}, chunk {start_ci+1}…")
 
         total_chunks_done = 0
 
         for fi, (filename, text) in enumerate(self.pdf_texts):
             if fi < start_fi:
-                continue   # already completed in previous run
-
+                continue
             if self._abort:
                 self.err.emit("Aborted"); return
 
-            chunks = self._split(text, CHUNK_CHARS)
+            chunks   = self._split(text, CHUNK_CHARS)
             n_chunks = len(chunks)
             self.file_started.emit(fi, filename, n_chunks)
             self.progress.emit(f"Processing '{filename}' — {n_chunks} chunks…")
 
             spilled = RamWatchdog.check_and_spill(self.session_id)
             if spilled:
-                self.ram_warning.emit(
-                    f"⚠️ Low RAM before '{filename}' — spilled cache to disk.")
+                self.ram_warning.emit(f"⚠️ Low RAM before '{filename}' — spilled cache to disk.")
 
             ci_start = start_ci if fi == start_fi else 0
             if fi > start_fi:
-                file_summaries_so_far = []   # reset for new file
+                file_summaries_so_far = []
             fam = detect_model_family(getattr(self.engine, "model_path", ""))
 
             for i in range(ci_start, n_chunks):
                 if self._abort:
                     return
-
                 if self._pause:
-                    self.save_state(fi, i, file_summaries_so_far,
-                                     running_ctx, list(completed_file_summaries))
-                    self.progress.emit(
-                        f"⏸  Paused at file {fi+1}, chunk {i+1}. State saved.")
+                    self.save_state(fi, i, file_summaries_so_far, running_ctx, list(completed_file_summaries))
+                    self.progress.emit(f"⏸  Paused at file {fi+1}, chunk {i+1}. State saved.")
                     self.err.emit(f"__PAUSED__:{self.job_id}")
                     return
 
-                # Auto-pause suggestion
                 total_chunks_done += 1
                 if total_chunks_done == PAUSE_THRESH and PAUSE_THRESH > 0:
                     remaining = sum(
                         len(self._split(t, CHUNK_CHARS)) - (i+1 if fidx == fi else 0)
-                        for fidx, (_, t) in enumerate(self.pdf_texts)
-                        if fidx >= fi
+                        for fidx, (_, t) in enumerate(self.pdf_texts) if fidx >= fi
                     )
                     if remaining > PAUSE_THRESH:
                         self.pause_suggest.emit(self.job_id)
@@ -153,12 +129,10 @@ class MultiPdfSummaryWorker(QThread):
                 if i % 5 == 0:
                     spilled = RamWatchdog.check_and_spill(self.session_id)
                     if spilled:
-                        self.ram_warning.emit(
-                            f"⚠️ RAM low at chunk {i+1} of '{filename}'.")
+                        self.ram_warning.emit(f"⚠️ RAM low at chunk {i+1} of '{filename}'.")
 
                 self.file_progress.emit(fi, f"Chunk {i+1}/{n_chunks}")
-                ctx_block = (f"Context from previous chunks:\n{running_ctx}\n\n"
-                             if running_ctx else "")
+                ctx_block = (f"Context from previous chunks:\n{running_ctx}\n\n" if running_ctx else "")
                 prompt = (
                     fam.bos + fam.user_prefix +
                     f"Summarise this document chunk. File: '{filename}' | "
@@ -169,19 +143,15 @@ class MultiPdfSummaryWorker(QThread):
                 )
                 summary = self._infer(prompt, N_PRED_SECT)
                 if summary is None:
-                    self.err.emit(f"Inference failed at chunk {i+1} of '{filename}'")
-                    return
+                    self.err.emit(f"Inference failed at chunk {i+1} of '{filename}'"); return
                 summary = summary.strip()
                 file_summaries_so_far.append(f"[Chunk {i+1}/{n_chunks}]\n{summary}")
                 running_ctx = summary[-CTX_CARRY:]
                 self.section_done.emit(i + 1, n_chunks, chunks[i], summary)
 
-                # Incremental autosave every 3 chunks
                 if (i + 1) % 3 == 0:
-                    self.save_state(fi, i + 1, file_summaries_so_far,
-                                     running_ctx, list(completed_file_summaries))
+                    self.save_state(fi, i + 1, file_summaries_so_far, running_ctx, list(completed_file_summaries))
 
-            # Per-file consolidation
             all_chunks_text = "\n\n".join(file_summaries_so_far)
             consolidate_prompt = (
                 fam.bos + fam.user_prefix +
@@ -201,17 +171,15 @@ class MultiPdfSummaryWorker(QThread):
             completed_file_summaries.append((filename, file_summary))
             self.file_done.emit(fi, file_summary)
 
-            # Reset for next file
             file_summaries_so_far = []
             running_ctx = ""
-            start_ci = 0   # only first file can have a mid-file resume offset
+            start_ci = 0
 
         if self._abort:
             return
 
         self.progress.emit("♻️  Reactive reload before final consolidation…")
-        query_hint = " ".join(fn for fn, _ in self.pdf_texts)
-        get_ref_store(self.session_id).reactive_reload(query_hint)
+        get_ref_store(self.session_id).reactive_reload(" ".join(fn for fn, _ in self.pdf_texts))
 
         self.progress.emit("📝  Final cross-document consolidation…")
         fin_eng = self.engine2 if (self.engine2 and self.engine2.is_loaded) else self.engine
@@ -238,7 +206,6 @@ class MultiPdfSummaryWorker(QThread):
             final = all_summaries_text
         self.final_done.emit(final.strip())
 
-        # Cleanup
         delete_paused_job(self.job_id)
         for dp in self._disk_summaries.values():
             try: dp.unlink()
@@ -285,8 +252,8 @@ class MultiPdfSummaryWorker(QThread):
     def infer_cli(self, eng, prompt: str, n_predict: int) -> Optional[str]:
         try:
             result = subprocess.run(
-                [LLAMA_CLI, "-m", eng.model_path, "-t", str(DEFAULT_THREADS()),
-                 "--ctx-size", str(getattr(eng, "ctx_value", DEFAULT_CTX())),
+                [LLAMA_CLI, "-m", eng.model_path, "-t", str(DEFAULT_THREADS),
+                 "--ctx-size", str(getattr(eng, "ctx_value", DEFAULT_CTX)),
                  "-n", str(n_predict), "--no-display-prompt", "--no-escape",
                  "--temp", "0.3", "--repeat-penalty", "1.15", "-p", prompt],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

@@ -1319,7 +1319,7 @@ class MainWindow(QMainWindow):
         self.ctx_slider.setRange(512, 32768)
         self.ctx_slider.setFixedWidth(140)
         self.ctx_slider.blockSignals(True)
-        self.ctx_slider.setValue(DEFAULT_CTX)
+        self.ctx_slider.setValue(DEFAULT_CTX())
         self.ctx_slider.blockSignals(False)
         self.ctx_slider.valueChanged.connect(self._on_ctx_changed)
         sb.addWidget(self.ctx_slider)
@@ -1337,7 +1337,7 @@ class MainWindow(QMainWindow):
         sb.addWidget(self.ctx_warn)
 
         self.ctx_bar = QProgressBar()
-        self.ctx_bar.setRange(0, DEFAULT_CTX)
+        self.ctx_bar.setRange(0, DEFAULT_CTX())
         self.ctx_bar.setValue(0)
         self.ctx_bar.setFixedWidth(100)
         self.ctx_bar.setFixedHeight(8)

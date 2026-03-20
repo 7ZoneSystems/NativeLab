@@ -1,6 +1,4 @@
 from imports.import_global import hashlib, psutil, HAS_PSUTIL, Dict
-from GlobalConfig.config_global import RAM_WATCHDOG_MB
-
 
 def ram_free_mb() -> float:
     if HAS_PSUTIL:
@@ -15,26 +13,24 @@ def cpu_count() -> int:
     except Exception:
         return 4
 
-
 def simple_hash(text: str) -> str:
     return hashlib.md5(text.encode("utf-8", errors="replace")).hexdigest()[:12]
-from codeparser.codeparser_global import SessionReferenceStore
-# ── Global per-session reference store cache ──────────────────────────────────
-_SESSION_REF_STORES: Dict[str, SessionReferenceStore] = {}
 
-def get_ref_store(session_id: str) -> SessionReferenceStore:
+_SESSION_REF_STORES: Dict = {}
+
+def get_ref_store(session_id: str):
+    from codeparser.codeparser_global import SessionReferenceStore
     if session_id not in _SESSION_REF_STORES:
         _SESSION_REF_STORES[session_id] = SessionReferenceStore(session_id)
     return _SESSION_REF_STORES[session_id]
 
 class RamWatchdog:
-    """Monitors RAM and triggers disk-spill or processing-pause signals."""
     triggered = False
 
     @staticmethod
     def check_and_spill(session_id: str) -> bool:
-        """Returns True if spill was triggered."""
-        if ram_free_mb() < RAM_WATCHDOG_MB():
+        from GlobalConfig.config_global import RAM_WATCHDOG_MB
+        if ram_free_mb() < RAM_WATCHDOG_MB:
             store = get_ref_store(session_id)
             store.flush_ram()
             RamWatchdog.triggered = True
