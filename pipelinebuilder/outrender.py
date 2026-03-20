@@ -1,3 +1,5 @@
+from imports.import_global import QTextEdit, QTimer
+from UI.UI_const import C
 class PipelineOutputRenderer(QTextEdit):
     """
     Read-only rich output pane used for pipeline intermediate and final output.
