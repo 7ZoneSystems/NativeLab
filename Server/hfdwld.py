@@ -1,3 +1,4 @@
+from imports.import_global import QThread, pyqtSignal, Path
 class HfSearchWorker(QThread):
     """Queries the HuggingFace API for GGUF siblings in a repo."""
     results_ready = pyqtSignal(list)
