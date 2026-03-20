@@ -1,3 +1,11 @@
+from imports.import_global import HAS_PDF,QMenu,Path,QColor,QFileDialog, QPainter, QPen, QBrush, QPainterPath, QPointF, QPolygonF, Qt, pyqtSignal, QWidget, QFont, QDataStream, QIODevice, QVariant, QInputDialog, QMessageBox, List, Optional
+from .pipblck import PipelineBlock, PipelineBlockType
+from .blck_typ import PipelineConnection
+from Server.server_global import detect_model_family
+from GlobalConfig.config_global import MODEL_ROLES
+from Model.model_global import detect_quant_type
+from .editordialogue import CodeEditorDialog, LlmLogicEditorDialog
+from UI.UI_const import C
 class PipelineCanvas(QWidget):
     """Interactive drag-and-drop pipeline canvas with curved arrows."""
 
@@ -678,7 +686,7 @@ class PipelineCanvas(QWidget):
             b.label = "⑁ Split"
 
         elif b.btype == PipelineBlockType.CUSTOM_CODE:
-            dlg = _CodeEditorDialog(b, parent=self)
+            dlg = CodeEditorDialog(b, parent=self)
             dlg.exec()
 
         self.update()
@@ -694,7 +702,7 @@ class PipelineCanvas(QWidget):
         }
         if b.btype not in _LLM_TYPES:
             return
-        dlg = _LlmLogicEditorDialog(b, parent=self)
+        dlg = LlmLogicEditorDialog(b, parent=self)
         dlg.exec()
         self.update()
 

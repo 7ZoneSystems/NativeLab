@@ -1,3 +1,4 @@
+
 class PipelineExecutionWorker(QThread):
     """
     Sequentially executes a validated pipeline graph.

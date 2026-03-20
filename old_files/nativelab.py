@@ -8703,7 +8703,7 @@ class PipelineCanvas(QWidget):
             b.label = "⑁ Split"
 
         elif b.btype == PipelineBlockType.CUSTOM_CODE:
-            dlg = _CodeEditorDialog(b, parent=self)
+            dlg = CodeEditorDialog(b, parent=self)
             dlg.exec()
 
         self.update()
@@ -8719,7 +8719,7 @@ class PipelineCanvas(QWidget):
         }
         if b.btype not in _LLM_TYPES:
             return
-        dlg = _LlmLogicEditorDialog(b, parent=self)
+        dlg = LlmLogicEditorDialog(b, parent=self)
         dlg.exec()
         self.update()
 
@@ -9995,7 +9995,7 @@ class PipelineOutputRenderer(QTextEdit):
 
 # ═════════════════════════════ LLM LOGIC EDITOR DIALOG ═══════════════════════
 
-class _LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
+class LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
     """
     Configuration dialog for LLM-backed logic blocks.
     The user writes conditions and instructions in plain English.
@@ -10301,7 +10301,7 @@ class _LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else 
 
 # ═════════════════════════════ CODE EDITOR DIALOG ════════════════════════════
 
-class _CodeEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
+class CodeEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
     """
     Full code editor for CUSTOM_CODE pipeline blocks.
     Shows available variables, validates syntax live, saves to block.metadata.

@@ -820,7 +820,7 @@ To add a new cloud provider, add an `ApiConfig` with the appropriate `base_url`,
 
 ### Adding a New Pipeline Block Type
 
-To add a new block type to the visual pipeline builder, add a `PipelineBlockType` constant and create the corresponding rendering logic in `PipelineBlock`. Add a button in `PipelineBuilderTab._build()` to make it accessible from the sidebar. If the block needs custom parameters, add a dialog class similar to `_LlmLogicEditorDialog`.
+To add a new block type to the visual pipeline builder, add a `PipelineBlockType` constant and create the corresponding rendering logic in `PipelineBlock`. Add a button in `PipelineBuilderTab._build()` to make it accessible from the sidebar. If the block needs custom parameters, add a dialog class similar to `LlmLogicEditorDialog`.
 
 ### Engine Mode Fallback
 
