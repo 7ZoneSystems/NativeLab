@@ -16,3 +16,4 @@ echo "Pushing to GitHub..."
 git push
 echo ""
 echo " Push completed successfully! "
+echo " Check for errors if any because script will still print success message even if push fails :("
