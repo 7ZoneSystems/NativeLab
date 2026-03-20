@@ -5,3 +5,4 @@ from .canvas import *
 from .editordialogue import *
 from .outrender import *
 from .executionWorker import *
+from .pipebuilder import * 

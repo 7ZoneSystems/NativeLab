@@ -1,3 +1,14 @@
+from Model.ModelRegistry import get_model_registry
+from imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
+from .pipefunctions import list_saved_pipelines, load_pipeline, save_pipeline
+from .blck_typ import PipelineBlockType 
+from core.engine_global import LlamaEngine
+from .executionWorker import PipelineExecutionWorker
+from UI.UI_const import C
+from .canvas import PipelineCanvas
+from .outrender import PipelineOutputRenderer
+from manual import make_manual_html, PIPELINE_MANUAL_HTML
+from GlobalConfig.config_global import ROLE_ICONS, PIPELINES_DIR
 class PipelineBuilderTab(QWidget):
     """
     Full-featured pipeline builder tab.
@@ -347,7 +358,7 @@ class PipelineBuilderTab(QWidget):
         te.setReadOnly(True)
         te.setFont(QFont("Inter", 11))
         te.setObjectName("chat_te")
-        te.setHtml(_PIPELINE_MANUAL_HTML)
+        te.setHtml(PIPELINE_MANUAL_HTML)
         lay.addWidget(te, 1)
 
         btn_close = QPushButton("✕  Close")
@@ -371,7 +382,7 @@ class PipelineBuilderTab(QWidget):
         te.setReadOnly(True)
         te.setFont(QFont("Inter", 11))
         te.setObjectName("chat_te")
-        te.setHtml(_make_manual_html())
+        te.setHtml(make_manual_html())
         lay.addWidget(te, 1)
         btn_close = QPushButton("✕  Close")
         btn_close.setFixedHeight(32)

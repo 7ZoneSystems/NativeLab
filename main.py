@@ -42,7 +42,7 @@ class ModelLoaderThread(QThread):
 # ─────────────────────────────────────────────────────────────────────────────
 # Pipeline Manual — rendered inside _show_manual dialog
 # ─────────────────────────────────────────────────────────────────────────────
-def _make_manual_html() -> str:
+def make_manual_html() -> str:
     BG   = C.get("bg0","#1e1e2e"); TXT  = C.get("txt","#cdd6f4")
     TXT2 = C.get("txt2","#a6adc8"); ACC  = C.get("acc","#cba6f7")
     ACC2 = C.get("acc2","#a6e3a1"); WARN = C.get("warn","#f9e2af")
@@ -442,7 +442,7 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
 
 </body></html>"""
 
-_PIPELINE_MANUAL_HTML = _make_manual_html()
+PIPELINE_MANUAL_HTML = make_manual_html()
 
 # ═════════════════════════════ MAIN WINDOW ══════════════════════════════════
 
