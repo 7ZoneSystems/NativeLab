@@ -1208,6 +1208,7 @@ class ServerTab(QWidget):
         self._refresh_resolved()
         self._update_cli_status()
         self._update_srv_status()
+
 class ModelDownloadTab(QWidget):
     """HuggingFace GGUF Model Downloader tab."""
 
@@ -1234,7 +1235,7 @@ class ModelDownloadTab(QWidget):
         scroll.setWidget(inner); outer.addWidget(scroll)
 
         # Header
-        hdr = QLabel("⬇️  HuggingFace GGUF Downloader")
+        hdr = QLabel("HuggingFace GGUF Downloader")
         hdr.setStyleSheet(
             f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
@@ -1252,8 +1253,8 @@ class ModelDownloadTab(QWidget):
         sl.setContentsMargins(16, 14, 16, 14); sl.setSpacing(10)
 
         hint = QLabel(
-            "Examples:  TheBloke/Mistral-7B-Instruct-v0.2-GGUF  ·  "
-            "bartowski/Llama-3.2-3B-Instruct-GGUF  ·  "
+            "Examples:  TheBloke/Mistral-7B-Instruct-v0.2-GGUF  "
+            "bartowski/Llama-3.2-3B-Instruct-GGUF  "
             "lmstudio-community/DeepSeek-R1-Distill-Qwen-7B-GGUF")
         hint.setWordWrap(True)
         hint.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
@@ -1264,7 +1265,7 @@ class ModelDownloadTab(QWidget):
         self.repo_edit.setPlaceholderText(
             "Enter HuggingFace repo ID  (e.g. TheBloke/Mistral-7B-Instruct-v0.2-GGUF)")
         self.repo_edit.setFixedHeight(30)
-        self.btn_search = QPushButton("🔍  Search")
+        self.btn_search = QPushButton("Search")
         self.btn_search.setObjectName("btn_send")
         self.btn_search.setFixedHeight(30); self.btn_search.setFixedWidth(100)
         self.btn_search.clicked.connect(self._do_search)
@@ -1307,7 +1308,7 @@ class ModelDownloadTab(QWidget):
         dest_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
         self.dest_edit = QLineEdit(str(MODELS_DIR.resolve()))
         self.dest_edit.setReadOnly(True)
-        btn_dest = QPushButton("Browse…")
+        btn_dest = QPushButton("Browse...")
         btn_dest.setFixedHeight(28); btn_dest.setFixedWidth(80)
         btn_dest.clicked.connect(self._browse_dest)
         dest_row.addWidget(dest_lbl)
@@ -1329,15 +1330,42 @@ class ModelDownloadTab(QWidget):
         dl_l.addWidget(self.dl_status)
 
         btn_row = QHBoxLayout(); btn_row.setSpacing(8)
-        self.btn_download = QPushButton("⬇️  Download Selected")
+
+        self.btn_download = QPushButton("Download Selected")
         self.btn_download.setObjectName("btn_send")
-        self.btn_download.setFixedHeight(32); self.btn_download.setEnabled(False)
+        self.btn_download.setFixedHeight(32)
+        self.btn_download.setEnabled(False)
         self.btn_download.clicked.connect(self._start_download)
-        self.btn_abort = QPushButton("⏹  Cancel")
+
+        self.btn_pause = QPushButton("Pause")
+        self.btn_pause.setObjectName("btn_stop")
+        self.btn_pause.setFixedHeight(32)
+        self.btn_pause.setFixedWidth(80)
+        self.btn_pause.setVisible(False)
+        self.btn_pause.clicked.connect(self._toggle_pause)
+
+        # Stops download but keeps .part file — can be resumed next session
+        self.btn_abort = QPushButton("Cancel")
         self.btn_abort.setObjectName("btn_stop")
-        self.btn_abort.setFixedHeight(32); self.btn_abort.setVisible(False)
+        self.btn_abort.setFixedHeight(32)
+        self.btn_abort.setFixedWidth(80)
+        self.btn_abort.setVisible(False)
+        self.btn_abort.setToolTip("Stop download and keep progress for resuming later")
         self.btn_abort.clicked.connect(self._abort_download)
-        btn_row.addWidget(self.btn_download); btn_row.addWidget(self.btn_abort)
+
+        # Stops download AND wipes the .part file entirely
+        self.btn_abort_delete = QPushButton("Cancel & Delete")
+        self.btn_abort_delete.setObjectName("btn_stop")
+        self.btn_abort_delete.setFixedHeight(32)
+        self.btn_abort_delete.setFixedWidth(110)
+        self.btn_abort_delete.setVisible(False)
+        self.btn_abort_delete.setToolTip("Stop download and delete the partial file")
+        self.btn_abort_delete.clicked.connect(self._abort_and_delete)
+
+        btn_row.addWidget(self.btn_download)
+        btn_row.addWidget(self.btn_pause)
+        btn_row.addWidget(self.btn_abort)
+        btn_row.addWidget(self.btn_abort_delete)
         btn_row.addStretch()
         dl_l.addLayout(btn_row)
         root.addWidget(dc); root.addStretch()
@@ -1355,12 +1383,25 @@ class ModelDownloadTab(QWidget):
     def _card() -> QFrame:
         f = QFrame(); f.setObjectName("tab_card"); return f
 
+    @staticmethod
+    def _fmt_bytes(b: int) -> str:
+        return f"{b/1e9:.2f} GB" if b >= 1e9 else f"{b/1e6:.1f} MB"
+
+    def _reset_dl_ui(self, status: str = "No download in progress."):
+        self.btn_download.setVisible(True)
+        self.btn_download.setEnabled(True)
+        self.btn_pause.setVisible(False)
+        self.btn_pause.setText("Pause")
+        self.btn_abort.setVisible(False)
+        self.btn_abort_delete.setVisible(False)
+        self.dl_status.setText(status)
+
     # ── actions ───────────────────────────────────────────────────────────────
     def _do_search(self):
         repo = self.repo_edit.text().strip()
         if not repo:
-            self.search_status.setText("⚠️  Enter a repo ID first."); return
-        self.search_status.setText("🔍  Querying HuggingFace API…")
+            self.search_status.setText("[WARN]  Enter a repo ID first."); return
+        self.search_status.setText("Querying HuggingFace API...")
         self.btn_search.setEnabled(False)
         self.results_list.clear(); self._files = []
         self.btn_download.setEnabled(False)
@@ -1377,8 +1418,9 @@ class ModelDownloadTab(QWidget):
         self._files = files
         self.results_list.clear()
         if not files:
-            self.search_status.setText("⚠️  No GGUF files found in this repo."); return
-        self.search_status.setText(f"✅  Found {len(files)} GGUF file(s).")
+            self.search_status.setText("[WARN]  No GGUF files found in this repo.")
+            return
+        self.search_status.setText(f"[OK]  Found {len(files)} GGUF file(s).")
         for fdata in files:
             fname  = fdata.get("rfilename", "?")
             size   = fdata.get("size", 0)
@@ -1394,7 +1436,7 @@ class ModelDownloadTab(QWidget):
 
     def _on_search_err(self, msg: str):
         self.btn_search.setEnabled(True)
-        self.search_status.setText(f"❌  Error: {msg}")
+        self.search_status.setText(f"[FAIL]  Error: {msg}")
 
     def _on_file_selected(self, item, _=None):
         if not item:
@@ -1428,35 +1470,68 @@ class ModelDownloadTab(QWidget):
         fname = fdata.get("rfilename", "")
         repo  = self.repo_edit.text().strip()
         dest  = Path(self.dest_edit.text())
+
         self.btn_download.setVisible(False)
+        self.btn_pause.setVisible(True)
+        self.btn_pause.setText("Pause")
         self.btn_abort.setVisible(True)
+        self.btn_abort_delete.setVisible(True)
         self.dl_progress.setValue(0)
-        self.dl_status.setText(f"Downloading  {fname}…")
-        self._dl_worker = HfDownloadWorker(repo, fname, dest)
+        self.dl_status.setText(f"Downloading  {fname}...")
+
+        self._dl_worker = HfDownloadWorker(
+            repo, fname, dest,
+            expected_size=fdata.get("size", 0)
+        )
         self._dl_worker.progress.connect(self._on_dl_progress)
         self._dl_worker.done.connect(self._on_dl_done)
         self._dl_worker.err.connect(self._on_dl_err)
+        self._dl_worker.paused.connect(self._on_dl_paused)
         self._dl_worker.start()
 
+    def _toggle_pause(self):
+        if not self._dl_worker: return
+        if self._dl_worker.is_paused():
+            self._dl_worker.resume()
+        else:
+            self._dl_worker.pause()
+
+    def _on_dl_paused(self, is_paused: bool):
+        if is_paused:
+            self.btn_pause.setText("Resume")
+            current = self.dl_status.text().replace("  [paused]", "")
+            self.dl_status.setText(current + "  [paused]")
+        else:
+            self.btn_pause.setText("Pause")
+            self.dl_status.setText(
+                self.dl_status.text().replace("  [paused]", ""))
+
     def _abort_download(self):
+        """Stop download, keep .part file so it can be resumed next session."""
         if self._dl_worker:
-            self._dl_worker.abort()
-        self.btn_download.setVisible(True); self.btn_abort.setVisible(False)
-        self.dl_status.setText("Download cancelled."); self.dl_progress.setValue(0)
+            self._dl_worker.abort(delete_part=False)
+        self.dl_progress.setValue(0)
+        self._reset_dl_ui("Download stopped. Progress saved — restart to resume.")
+
+    def _abort_and_delete(self):
+        """Stop download and wipe the partial file entirely."""
+        if self._dl_worker:
+            self._dl_worker.abort(delete_part=True)
+        self.dl_progress.setValue(0)
+        self._reset_dl_ui("Download cancelled and partial file deleted.")
 
     def _on_dl_progress(self, done: int, total: int):
         if total > 0:
             pct = int(done * 100 / total)
             self.dl_progress.setValue(pct)
             self.dl_status.setText(
-                f"⬇️  {done/1e6:.1f} / {total/1e6:.1f} MB  ({pct}%)")
+                f"{self._fmt_bytes(done)} / {self._fmt_bytes(total)}  ({pct}%)")
         else:
-            self.dl_status.setText(f"⬇️  {done/1e6:.1f} MB downloaded…")
+            self.dl_status.setText(f"{self._fmt_bytes(done)} downloaded...")
 
     def _on_dl_done(self, path: str):
-        self.btn_download.setVisible(True); self.btn_abort.setVisible(False)
         self.dl_progress.setValue(100)
-        self.dl_status.setText(f"✅  Saved to:  {path}")
+        self._reset_dl_ui(f"[OK]  Saved to:  {path}")
         get_model_registry().add(path)
         QMessageBox.information(
             self, "Download Complete",
@@ -1464,13 +1539,9 @@ class ModelDownloadTab(QWidget):
             "It has been added to your model library.")
 
     def _on_dl_err(self, msg: str):
-        self.btn_download.setVisible(True); self.btn_abort.setVisible(False)
         self.dl_progress.setValue(0)
-        self.dl_status.setText(f"❌  Error: {msg}")
-
-
-# ═════════════════════════════ MCP TAB ═══════════════════════════════════════
-
+        self._reset_dl_ui(f"[FAIL]  Error: {msg}")
+                
 class McpTab(QWidget):
     """
     MCP (Model Context Protocol) server management.
