@@ -8,7 +8,7 @@ from pathlib import Path
 block_cipher = None
 
 a = Analysis(
-    ['nativelab.py'],           # ← rename to your actual .py filename
+    ['NativeLab/main.py'],           # ← rename to your actual .py filename
     pathex=['.'],
     binaries=[
         # ── llama.cpp binaries (Linux) ─────────────────────────────────────
