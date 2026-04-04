@@ -1,12 +1,12 @@
-from imports.import_global import QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
+from nativelab.imports.import_global import QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
 from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C
 from .effects import fade_in
-from core.engine_global import ApiConfig, ApiEngine
-from Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
-from GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths
-from components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
-from Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchWorker, HfDownloadWorker, MCP_CONFIG_FILE
-from Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES
+from nativelab.core.engine_global import ApiConfig, ApiEngine
+from nativelab.Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
+from nativelab.GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths
+from nativelab.components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
+from nativelab.Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchWorker, HfDownloadWorker, MCP_CONFIG_FILE
+from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES
 class ConfigTab(QWidget):
     """Full configuration tab — all thresholds with descriptions."""
 

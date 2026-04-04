@@ -1,8 +1,8 @@
-from imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QCheckBox, QMessageBox, Qt, Path
-from Model.model_global import get_model_registry, detect_model_family
-from GlobalConfig.config_global import ROLE_ICONS
+from nativelab.imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QCheckBox, QMessageBox, Qt, Path
+from nativelab.Model.model_global import get_model_registry, detect_model_family
+from nativelab.GlobalConfig.config_global import ROLE_ICONS
 from .pipblck import PipelineBlock
-from UI.UI_const import C
+from nativelab.UI.UI_const import C
 class LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
     """
     Configuration dialog for LLM-backed logic blocks.

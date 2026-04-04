@@ -1,4 +1,4 @@
-from imports.import_global import dataclass, List, json, Dict
+from nativelab.imports.import_global import dataclass, List, json, Dict
 def _cfg():
     from GlobalConfig import config_global
     return config_global

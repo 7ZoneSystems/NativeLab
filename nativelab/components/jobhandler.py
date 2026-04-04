@@ -1,5 +1,5 @@
-from imports.import_global import Optional, List, json
-from GlobalConfig.config_global import PAUSED_JOBS_DIR
+from nativelab.imports.import_global import Optional, List, json
+from nativelab.GlobalConfig.config_global import PAUSED_JOBS_DIR
 # ── Paused job persistence ────────────────────────────────────────────────────
 
 def save_paused_job(job_id: str, state: dict):

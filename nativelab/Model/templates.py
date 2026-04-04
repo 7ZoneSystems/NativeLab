@@ -1,4 +1,4 @@
-from imports.import_global import Dict
+from nativelab.imports.import_global import Dict
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

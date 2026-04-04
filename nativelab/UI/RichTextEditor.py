@@ -1,4 +1,4 @@
-from imports.import_global import Dict, QTextBrowser, QTimer, QApplication, Qt , QPushButton, cast, QMouseEvent
+from nativelab.imports.import_global import Dict, QTextBrowser, QTimer, QApplication, Qt , QPushButton, cast, QMouseEvent
 from .UI_const import C
 class RichTextEdit(QTextBrowser):
     """

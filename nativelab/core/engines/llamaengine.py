@@ -1,11 +1,11 @@
-from imports.import_global import Optional, subprocess, time, json, Path, QThread, HAS_PSUTIL, psutil
-from components.components_global import detect_model_family
-from Model.model_global import get_model_registry
-from core.streamer_global import ServerStreamWorker, CliStreamWorker
-from GlobalConfig.config_global import (
+from nativelab.imports.import_global import Optional, subprocess, time, json, Path, QThread, HAS_PSUTIL, psutil
+from nativelab.components.components_global import detect_model_family
+from nativelab.Model.model_global import get_model_registry
+from nativelab.core.streamer_global import ServerStreamWorker, CliStreamWorker
+from nativelab.GlobalConfig.config_global import (
     LLAMA_CLI, LLAMA_SERVER, DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, APP_CONFIG
 )
-from Server.server_global import free_port, SERVER_CONFIG, PORT_RANGE_START, PORT_RANGE_END
+from nativelab.Server.server_global import free_port, SERVER_CONFIG, PORT_RANGE_START, PORT_RANGE_END
 
 
 class LlamaEngine:

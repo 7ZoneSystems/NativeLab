@@ -1,4 +1,4 @@
-from imports.import_global import QThread, pyqtSignal, time, subprocess, Optional
+from nativelab.imports.import_global import QThread, pyqtSignal, time, subprocess, Optional
 class CliStreamWorker(QThread):
     token  = pyqtSignal(str)
     done   = pyqtSignal(float)

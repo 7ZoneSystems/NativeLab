@@ -1,7 +1,7 @@
-from imports.import_global import Optional, List, Dict, json, QThread
-from core.streamer_global import ApiStreamWorker
-from GlobalConfig.config_global import DEFAULT_N_PRED
-from Model.model_global import ApiConfig
+from nativelab.imports.import_global import Optional, List, Dict, json, QThread
+from nativelab.core.streamer_global import ApiStreamWorker
+from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED
+from nativelab.Model.model_global import ApiConfig
 class ApiEngine:
     def __init__(self):
         self.model_path:           str               = ""

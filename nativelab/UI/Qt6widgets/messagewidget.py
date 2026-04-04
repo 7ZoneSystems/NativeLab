@@ -1,4 +1,4 @@
-from imports.import_global import Optional, Qt, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QPushButton, QSizePolicy, QTextCursor, QTimer, QApplication
+from nativelab.imports.import_global import Optional, Qt, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QPushButton, QSizePolicy, QTextCursor, QTimer, QApplication
 class MessageWidget(QWidget):
     _COLLAPSE_PX = 260
 
@@ -37,7 +37,7 @@ class MessageWidget(QWidget):
         bl.setSpacing(6)
 
         # ── header row ───────────────────────────────────────────────────────
-        from UI.buildUI import C
+        from nativelab.UI.buildUI import C
         hdr = QHBoxLayout(); hdr.setSpacing(8)
         name_text  = "You" if role == "user" else (
                      "⚡ System" if role == "system_note" else (
@@ -72,7 +72,7 @@ class MessageWidget(QWidget):
         hdr.addWidget(self._copy_btn)
 
         # ── body (RichTextEdit) ───────────────────────────────────────────────
-        from UI.RichTextEditor import RichTextEdit
+        from nativelab.UI.RichTextEditor import RichTextEdit
         self.te = RichTextEdit()
         self.te.setObjectName("bubble_te")
         self.te.setFrameShape(QFrame.Shape.NoFrame)
@@ -108,8 +108,8 @@ class MessageWidget(QWidget):
 
     # ── rendering ─────────────────────────────────────────────────────────────
     def _render_html(self, text: str):
-        from UI.md_to_html import md_to_html
-        from UI.buildUI import C
+        from nativelab.UI.md_to_html import md_to_html
+        from nativelab.UI.buildUI import C
         html = md_to_html(text, code_store=self.te._code_blocks)
         self.te.setHtml(
             f'<div style="color:{C["txt"]};font-size:13px;'
@@ -120,7 +120,7 @@ class MessageWidget(QWidget):
         QTimer.singleShot(60, self._maybe_add_expander)
 
     def _maybe_add_expander(self):
-        from UI.buildUI import C
+        from nativelab.UI.buildUI import C
         doc = self.te.document()
         natural_h = int(doc.size().height()) + 6 if doc else 0
         if natural_h > self._COLLAPSE_PX + 60 and not self._collapsible:

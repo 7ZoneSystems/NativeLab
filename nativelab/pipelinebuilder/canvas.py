@@ -1,11 +1,11 @@
-from imports.import_global import HAS_PDF,QMenu,Path,QColor,QFileDialog, QPainter, QPen, QBrush, QPainterPath, QPointF, QPolygonF, Qt, pyqtSignal, QWidget, QFont, QDataStream, QIODevice, QVariant, QInputDialog, QMessageBox, List, Optional
+from nativelab.imports.import_global import HAS_PDF,QMenu,Path,QColor,QFileDialog, QPainter, QPen, QBrush, QPainterPath, QPointF, QPolygonF, Qt, pyqtSignal, QWidget, QFont, QDataStream, QIODevice, QVariant, QInputDialog, QMessageBox, List, Optional
 from .pipblck import PipelineBlock, PipelineBlockType
 from .blck_typ import PipelineConnection
-from Server.server_global import detect_model_family
-from GlobalConfig.config_global import MODEL_ROLES
-from Model.model_global import detect_quant_type
+from nativelab.Server.server_global import detect_model_family
+from nativelab.GlobalConfig.config_global import MODEL_ROLES
+from nativelab.Model.model_global import detect_quant_type
 from .editordialogue import CodeEditorDialog, LlmLogicEditorDialog
-from UI.UI_const import C
+from nativelab.UI.UI_const import C
 class PipelineCanvas(QWidget):
     """Interactive drag-and-drop pipeline canvas with curved arrows."""
 

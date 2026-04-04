@@ -1,9 +1,9 @@
-from imports.import_global import List, Dict, Tuple, Path, threading, pickle, re, dataclass, json
-from GlobalConfig.config_global import ram_free_mb, simple_hash
-from GlobalConfig.const import REF_CACHE_DIR
+from nativelab.imports.import_global import List, Dict, Tuple, Path, threading, pickle, re, dataclass, json
+from nativelab.GlobalConfig.config_global import ram_free_mb, simple_hash
+from nativelab.GlobalConfig.const import REF_CACHE_DIR
 from .parser.parsefinal import ParsedScript
 from .scriptparser import ScriptParser
-from Model.templates import SCRIPT_LANGUAGES
+from nativelab.Model.templates import SCRIPT_LANGUAGES
 
 def _cfg():
     from GlobalConfig import config_global

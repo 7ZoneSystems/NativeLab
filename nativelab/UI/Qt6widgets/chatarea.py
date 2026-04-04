@@ -1,9 +1,9 @@
 from __future__ import annotations
-from imports.import_global import TYPE_CHECKING, Qt, Any, QFrame, List, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTimer
+from nativelab.imports.import_global import TYPE_CHECKING, Qt, Any, QFrame, List, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTimer
 from .chatmodule import _ui
 
 if TYPE_CHECKING:
-    from UI.UI_global import MessageWidget, ThinkingBlock
+    from nativelab.UI.UI_global import MessageWidget, ThinkingBlock
 class PauseBanner(QFrame):
     status_lbl: QLabel
     spinner:    QLabel

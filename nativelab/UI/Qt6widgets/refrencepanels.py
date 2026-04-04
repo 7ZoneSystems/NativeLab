@@ -1,7 +1,7 @@
-from imports.import_global import HAS_PDF, PdfReader, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QMenu, QFileDialog, QColor, QTimer, pyqtSignal, QMessageBox, QTabWidget, QFrame, Qt, Path
+from nativelab.imports.import_global import HAS_PDF, PdfReader, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QMenu, QFileDialog, QColor, QTimer, pyqtSignal, QMessageBox, QTabWidget, QFrame, Qt, Path
 from codeparser.codeparser_global import ScriptSmartReference, SessionReferenceStore
-from GlobalConfig.config_global import SCRIPT_EXTENSIONS_FILTER, RAM_WATCHDOG_MB, get_ref_store, ram_free_mb
-from UI.buildUI import C
+from nativelab.GlobalConfig.config_global import SCRIPT_EXTENSIONS_FILTER, RAM_WATCHDOG_MB, get_ref_store, ram_free_mb
+from nativelab.UI.buildUI import C
 
 class ReferencePanelV2(QWidget):
     """

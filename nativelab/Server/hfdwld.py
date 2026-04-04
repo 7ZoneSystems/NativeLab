@@ -1,5 +1,5 @@
 # hfwld.py - HuggingFace GGUF download workers
-from imports.import_global import QThread, pyqtSignal, Path
+from nativelab.imports.import_global import QThread, pyqtSignal, Path
 import threading
 
 

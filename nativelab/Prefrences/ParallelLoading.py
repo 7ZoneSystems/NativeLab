@@ -1,5 +1,5 @@
-from imports.import_global import dataclass, List, json, field
-from GlobalConfig.config_global import PARALLEL_PREFS_FILE
+from nativelab.imports.import_global import dataclass, List, json, field
+from nativelab.GlobalConfig.config_global import PARALLEL_PREFS_FILE
 @dataclass
 class ParallelPrefs:
     enabled:           bool = False

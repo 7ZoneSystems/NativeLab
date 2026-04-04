@@ -1,4 +1,4 @@
-from imports.import_global import Dict, dataclass, Path, json, field
+from nativelab.imports.import_global import Dict, dataclass, Path, json, field
 from .model_family import *
 # ═════════════════════════════ MODEL REGISTRY ═══════════════════════════════
 def _cfg():
@@ -72,7 +72,7 @@ class ModelRegistry:
         self._load()
 
     def _load(self):
-        from GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
+        from nativelab.GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
         if CUSTOM_MODELS_FILE.exists():
             try:
                 self._custom = json.loads(CUSTOM_MODELS_FILE.read_text())
@@ -86,7 +86,7 @@ class ModelRegistry:
                 self._configs = {}
 
     def save(self):
-        from GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
+        from nativelab.GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
         CUSTOM_MODELS_FILE.parent.mkdir(parents=True, exist_ok=True)
         MODEL_CONFIGS_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -118,7 +118,7 @@ class ModelRegistry:
         self.save()
 
     def all_models(self) -> List[Dict]:
-        from GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
+        from nativelab.GlobalConfig.config_global import DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, CUSTOM_MODELS_FILE, MODEL_CONFIGS_FILE, MODELS_DIR
         seen:   set        = set()
         models: List[Dict] = []
         if MODELS_DIR.exists():

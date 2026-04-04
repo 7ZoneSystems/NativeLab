@@ -1,4 +1,4 @@
-from imports.import_global import _sys
+from nativelab.imports.import_global import _sys
 from pathlib import Path
 from .hardwareUtil import cpu_count
 _sys.path.append(str(Path(__file__).resolve().parents[1]))

@@ -1,6 +1,6 @@
-from imports.import_global import Dict, List, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont
-from UI.buildUI import C
-from Server.server_global import Session
+from nativelab.imports.import_global import Dict, List, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont
+from nativelab.UI.buildUI import C
+from nativelab.Server.server_global import Session
 class SessionSidebar(QWidget):
     session_selected = pyqtSignal(str)
     new_session      = pyqtSignal()
@@ -9,7 +9,7 @@ class SessionSidebar(QWidget):
     session_exported = pyqtSignal(str)
 
     def __init__(self):
-        from UI.buildUI import C
+        from nativelab.UI.buildUI import C
         super().__init__()
         self.setMinimumWidth(180)
         self.setMaximumWidth(300)

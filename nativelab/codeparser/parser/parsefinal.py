@@ -1,4 +1,4 @@
-from imports.import_global import List, Tuple, re, dataclass, field
+from nativelab.imports.import_global import List, Tuple, re, dataclass, field
 from .typeparser import ParsedItem
 @dataclass
 class ParsedScript:

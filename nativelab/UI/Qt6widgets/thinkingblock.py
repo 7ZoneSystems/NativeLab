@@ -1,4 +1,4 @@
-from imports.import_global import List, QTextEdit, QFont, Optional, Qt, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QPushButton, QSizePolicy, QTextCursor, QTimer, QApplication
+from nativelab.imports.import_global import List, QTextEdit, QFont, Optional, Qt, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QPushButton, QSizePolicy, QTextCursor, QTimer, QApplication
 
 class ThinkingBlock(QWidget):
     def __init__(self, total_chunks: int):
@@ -49,14 +49,14 @@ class ThinkingBlock(QWidget):
         self._toggle_btn.setText(f"▶  🧠 Thinking…  ({num} / {total} sections complete)")
 
     def add_phase(self, label: str):
-        from UI.buildUI import C       
+        from nativelab.UI.buildUI import C       
         msg = f"\n═══ {label} ═══\n"
         self._entries.append(msg)
         self._te.append(f'<span style="color:{C["acc"]}">{msg}</span>')
 
     def mark_done(self):
         try:
-            from UI.buildUI import C
+            from nativelab.UI.buildUI import C
             self._toggle_btn.setText(
                 f"▼  ✅  Done  —  {self._done} / {self._total} steps")
             self._toggle_btn.setStyleSheet(

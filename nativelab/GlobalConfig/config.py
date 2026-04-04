@@ -1,4 +1,4 @@
-from imports.import_global import Path, _sys, re, os
+from nativelab.imports.import_global import Path, _sys, re, os
 _BASE = Path(getattr(_sys, "_MEIPASS", Path(".")))
 _EXT  = ".exe" if __import__("platform").system() == "Windows" else ""
 
@@ -86,7 +86,7 @@ def get_default_ctx() -> int:
 def get_default_n_pred() -> int:
     from .binaryResolve import APP_CONFIG
     return int(APP_CONFIG["default_n_predict"])
-from Model.model_global import SCRIPT_LANGUAGES
+from nativelab.Model.model_global import SCRIPT_LANGUAGES
 SCRIPT_EXTENSIONS_FILTER = (
     "Source files ("
     + " ".join(f"*{ext}" for ext in SCRIPT_LANGUAGES.keys())

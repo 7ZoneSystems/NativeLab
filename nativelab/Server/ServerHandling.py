@@ -1,6 +1,6 @@
-from imports.import_global import HAS_PSUTIL, json, psutil, socket, _platform, subprocess, Path, dataclass, field, datetime, List
-from GlobalConfig.config_global import SERVER_CONFIG_FILE, SESSIONS_DIR
-from Model.model_global import detect_model_family, FAMILY_TEMPLATES, ModelFamily
+from nativelab.imports.import_global import HAS_PSUTIL, json, psutil, socket, _platform, subprocess, Path, dataclass, field, datetime, List
+from nativelab.GlobalConfig.config_global import SERVER_CONFIG_FILE, SESSIONS_DIR
+from nativelab.Model.model_global import detect_model_family, FAMILY_TEMPLATES, ModelFamily
 
 @dataclass
 class ServerConfig:

@@ -1,4 +1,4 @@
-from imports.import_global import QThread, pyqtSignal, json, time
+from nativelab.imports.import_global import QThread, pyqtSignal, json, time
 class ApiStreamWorker(QThread):
     """Streams tokens from any OpenAI-compatible or Anthropic API endpoint."""
     token = pyqtSignal(str)

@@ -1,6 +1,6 @@
-from core.engines.llamaengine import LlamaEngine
-from imports.import_global import QThread,Path, pyqtSignal, List, Dict, time, Optional, json, HAS_PDF
-from Model.model_global import detect_model_family, get_model_registry
+from nativelab.core.engines.llamaengine import LlamaEngine
+from nativelab.imports.import_global import QThread,Path, pyqtSignal, List, Dict, time, Optional, json, HAS_PDF
+from nativelab.Model.model_global import detect_model_family, get_model_registry
 from .blck_typ import PipelineConnection, PipelineBlockType
 from .pipblck import PipelineBlock
 class PipelineExecutionWorker(QThread):

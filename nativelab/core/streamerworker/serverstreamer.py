@@ -1,5 +1,5 @@
-from imports.import_global import QThread, pyqtSignal, json, time, List, Optional
-from GlobalConfig.config_global import DEFAULT_N_PRED, APP_CONFIG
+from nativelab.imports.import_global import QThread, pyqtSignal, json, time, List, Optional
+from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED, APP_CONFIG
 
 class ServerStreamWorker(QThread):
     token = pyqtSignal(str)

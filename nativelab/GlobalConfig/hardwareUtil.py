@@ -1,4 +1,4 @@
-from imports.import_global import hashlib, psutil, HAS_PSUTIL, Dict
+from nativelab.imports.import_global import hashlib, psutil, HAS_PSUTIL, Dict
 
 def ram_free_mb() -> float:
     if HAS_PSUTIL:
@@ -29,7 +29,7 @@ class RamWatchdog:
 
     @staticmethod
     def check_and_spill(session_id: str) -> bool:
-        from GlobalConfig.config_global import RAM_WATCHDOG_MB
+        from nativelab.GlobalConfig.config_global import RAM_WATCHDOG_MB
         if ram_free_mb() < RAM_WATCHDOG_MB:
             store = get_ref_store(session_id)
             store.flush_ram()

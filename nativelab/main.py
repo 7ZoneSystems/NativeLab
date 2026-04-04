@@ -13,17 +13,17 @@ v2 New Features:
   · All existing v1 features preserved
 """
 #import 
-from imports.import_global import *
-from GlobalConfig.config_global import *
-from Model.model_global import *
-from UI.UI_global import *
-from Prefrences.prefrence_global import *
-from Server.server_global import *
-from core.streamer_global import *
-from components.components_global import *
-from core.engine_global import *
-from codeparser.codeparser_global import *
-from pipelinebuilder.pipe_global import *
+from nativelab.imports.import_global import *
+from nativelab.GlobalConfig.config_global import *
+from nativelab.Model.model_global import *
+from nativelab.UI.UI_global import *
+from nativelab.Prefrences.prefrence_global import *
+from nativelab.Server.server_global import *
+from nativelab.core.streamer_global import *
+from nativelab.components.components_global import *
+from nativelab.core.engine_global import *
+from nativelab.codeparser.codeparser_global import *
+from nativelab.pipelinebuilder.pipe_global import *
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
     log      = pyqtSignal(str, str)

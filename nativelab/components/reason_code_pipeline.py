@@ -1,6 +1,6 @@
-from imports.import_global import QThread, pyqtSignal, subprocess, time, json
-from Model.model_global import detect_model_family
-from GlobalConfig.config_global import LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX
+from nativelab.imports.import_global import QThread, pyqtSignal, subprocess, time, json
+from nativelab.Model.model_global import detect_model_family
+from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX
 class PipelineWorker(QThread):
     """
     Multi-engine structural insight → coding pipeline.

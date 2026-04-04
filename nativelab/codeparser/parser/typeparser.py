@@ -1,4 +1,4 @@
-from imports.import_global import List, dataclass, field
+from nativelab.imports.import_global import List, dataclass, field
 
 @dataclass
 class ParsedItem:

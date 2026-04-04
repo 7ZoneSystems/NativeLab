@@ -1,4 +1,4 @@
-from imports.import_global import dataclass
+from nativelab.imports.import_global import dataclass
 class PipelineBlockType:
     INPUT        = "input"
     OUTPUT       = "output"

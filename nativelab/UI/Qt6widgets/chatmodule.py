@@ -1,9 +1,9 @@
-from imports.import_global import HAS_PDF, Qt, PdfReader, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSplitter, QPropertyAnimation, QEasingCurve, pyqtSignal
+from nativelab.imports.import_global import HAS_PDF, Qt, PdfReader, QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QSplitter, QPropertyAnimation, QEasingCurve, pyqtSignal
 def _ui():
     from UI import UI_global
     return UI_global
-from UI.Qt6widgets.refrencepanels import ReferencePanelV2
-from GlobalConfig.config_global import RamWatchdog
+from nativelab.UI.Qt6widgets.refrencepanels import ReferencePanelV2
+from nativelab.GlobalConfig.config_global import RamWatchdog
 from .chatarea import ChatArea
 from .inputbar import InputBar
 class ChatModule(QWidget):

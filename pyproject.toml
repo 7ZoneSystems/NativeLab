@@ -11,7 +11,8 @@ requires-python = ">=3.9"
 
 dependencies = [
     "psutil==7.2.2",
-    "PyPDF2==3.0.1"
+    "PyPDF2==3.0.1",
+    "PyQt6==6.10.2"
 ]
 
 [project.optional-dependencies]
@@ -22,8 +23,9 @@ gui = [
 [project.scripts]
 nativelab = "nativelab.main:main"
 
-[tool.setuptools]
-packages = ["nativelab"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["nativelab*"]
 
 [tool.setuptools.package-data]
 nativelab = ["*.png", "*.ico"]

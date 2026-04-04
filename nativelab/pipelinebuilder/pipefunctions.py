@@ -1,5 +1,5 @@
-from imports.import_global import json, List, Dict
-from GlobalConfig.config_global import PIPELINES_DIR
+from nativelab.imports.import_global import json, List, Dict
+from nativelab.GlobalConfig.config_global import PIPELINES_DIR
 from .blck_typ import PipelineConnection
 from .pipblck import PipelineBlock
 def _pipeline_to_dict(blocks: list, connections: list) -> dict:

@@ -1,5 +1,5 @@
-from imports.import_global import List, field, dataclass, Dict, Path, Tuple, re
-from GlobalConfig.config import QUANT_REGEX, GGUF_QUANT_PATTERNS 
+from nativelab.imports.import_global import List, field, dataclass, Dict, Path, Tuple, re
+from nativelab.GlobalConfig.config import QUANT_REGEX, GGUF_QUANT_PATTERNS 
 @dataclass
 class ModelFamily:
     """Detected model family with prompt template configuration."""

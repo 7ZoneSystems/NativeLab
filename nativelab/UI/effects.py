@@ -1,4 +1,4 @@
-from imports.import_global import Qt,pyqtProperty, QWidget, QGraphicsOpacityEffect, QPropertyAnimation, QEasingCurve, QPainter, QColor
+from nativelab.imports.import_global import Qt,pyqtProperty, QWidget, QGraphicsOpacityEffect, QPropertyAnimation, QEasingCurve, QPainter, QColor
 def fade_in(widget: QWidget, duration: int = 180):
     """Fade a widget in. Skipped if widget has its own paintEvent (avoids QPainter conflicts)."""
     # PipelineCanvas and other custom-painted widgets must not get opacity effects
@@ -37,7 +37,7 @@ class FadeOverlay(QWidget):
     alpha = pyqtProperty(int, _get_alpha, _set_alpha)
 
     def paintEvent(self, _):
-        from UI.buildUI import C
+        from nativelab.UI.buildUI import C
         p = QPainter(self)
         col = QColor(C["bg0"])
         col.setAlpha(self._alpha)

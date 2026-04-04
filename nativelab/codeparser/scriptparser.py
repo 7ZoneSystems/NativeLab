@@ -1,7 +1,7 @@
-from imports.import_global import Path, re, ast, json
+from nativelab.imports.import_global import Path, re, ast, json
 from .parser.typeparser import ParsedItem
 from .refrenceengine import ParsedScript
-from Model.templates import SCRIPT_LANGUAGES
+from nativelab.Model.templates import SCRIPT_LANGUAGES
 class ScriptParser:
     """
     Multi-language script parser.

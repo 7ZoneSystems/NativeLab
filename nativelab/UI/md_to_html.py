@@ -1,4 +1,4 @@
-from imports.import_global import Optional, Dict, re
+from nativelab.imports.import_global import Optional, Dict, re
 from .UI_const import C
 def md_to_html(text: str,
                 code_store: Optional[Dict[str, str]] = None) -> str:

@@ -1,14 +1,14 @@
-from Model.ModelRegistry import get_model_registry
-from imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
+from nativelab.Model.ModelRegistry import get_model_registry
+from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
 from .pipefunctions import list_saved_pipelines, load_pipeline, save_pipeline
 from .blck_typ import PipelineBlockType 
-from core.engine_global import LlamaEngine
+from nativelab.core.engine_global import LlamaEngine
 from .executionWorker import PipelineExecutionWorker
-from UI.UI_const import C
+from nativelab.UI.UI_const import C
 from .canvas import PipelineCanvas
 from .outrender import PipelineOutputRenderer
 from manual import make_manual_html, PIPELINE_MANUAL_HTML
-from GlobalConfig.config_global import ROLE_ICONS, PIPELINES_DIR
+from nativelab.GlobalConfig.config_global import ROLE_ICONS, PIPELINES_DIR
 class PipelineBuilderTab(QWidget):
     """
     Full-featured pipeline builder tab.

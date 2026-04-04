@@ -1,4 +1,4 @@
-from UI.UI_const import C
+from nativelab.UI.UI_const import C
 # ─────────────────────────────────────────────────────────────────────────────
 # Pipeline Manual — rendered inside _show_manual dialog
 # ─────────────────────────────────────────────────────────────────────────────

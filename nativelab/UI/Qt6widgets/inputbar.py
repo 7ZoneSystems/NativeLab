@@ -1,7 +1,7 @@
-from imports.import_global import Qt, QEvent, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit, QTimer, pyqtSignal
-from UI.UI_global import C
-from GlobalConfig.config_global import DEFAULT_MODEL, MODELS_DIR
-from Model.model_global import detect_model_family, detect_quant_type, quant_info, get_model_registry
+from nativelab.imports.import_global import Qt, QEvent, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit, QTimer, pyqtSignal
+from nativelab.UI.UI_global import C
+from nativelab.GlobalConfig.config_global import DEFAULT_MODEL, MODELS_DIR
+from nativelab.Model.model_global import detect_model_family, detect_quant_type, quant_info, get_model_registry
 
 class InputBar(QWidget):
     send_requested       = pyqtSignal(str)

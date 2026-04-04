@@ -1,4 +1,4 @@
-from imports.import_global import Path, Optional, QRect
+from nativelab.imports.import_global import Path, Optional, QRect
 from .blck_typ import PipelineBlockType
 
 class PipelineBlock:

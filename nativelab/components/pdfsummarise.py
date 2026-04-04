@@ -1,7 +1,7 @@
-from imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime, json
-from components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
-from Model.model_global import MODE_SECTION_INSTRUCTIONS, MODE_FINAL_INSTRUCTIONS
-from GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS, APP_CONFIG, simple_hash
+from nativelab.imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime, json
+from nativelab.components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
+from nativelab.Model.model_global import MODE_SECTION_INSTRUCTIONS, MODE_FINAL_INSTRUCTIONS
+from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS, APP_CONFIG, simple_hash
 
 class ChunkedSummaryWorker(QThread):
     section_done  = pyqtSignal(int, int, str, str)
