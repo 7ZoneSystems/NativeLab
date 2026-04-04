@@ -6,13 +6,16 @@ def _cfg():
     return config_global
 
 def _default_ctx():
-    return _cfg().DEFAULT_CTX
+    v = _cfg().DEFAULT_CTX
+    return v() if callable(v) else int(v)
 
 def _default_threads():
-    return _cfg().DEFAULT_THREADS
+    v = _cfg().DEFAULT_THREADS
+    return v() if callable(v) else int(v)
 
 def _default_n_pred():
-    return _cfg().DEFAULT_N_PRED
+    v = _cfg().DEFAULT_N_PRED
+    return v() if callable(v) else int(v)
 
 @dataclass
 class ModelConfig:
@@ -31,10 +34,13 @@ class ModelConfig:
     def to_dict(self) -> Dict:
         return {
             "path": self.path, "role": self.role,
-            "threads": self.threads, "ctx": self.ctx,
-            "temperature": self.temperature, "top_p": self.top_p,
-            "repeat_penalty": self.repeat_penalty, "n_predict": self.n_predict,
-            "family": self.family,
+            "threads":        int(self.threads)        if not callable(self.threads)        else int(self.threads()),
+            "ctx":            int(self.ctx)             if not callable(self.ctx)             else int(self.ctx()),
+            "n_predict":      int(self.n_predict)       if not callable(self.n_predict)       else int(self.n_predict()),
+            "temperature":    self.temperature,
+            "top_p":          self.top_p,
+            "repeat_penalty": self.repeat_penalty,
+            "family":         self.family,
         }
 
     @classmethod

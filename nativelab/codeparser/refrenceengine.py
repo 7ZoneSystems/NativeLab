@@ -31,15 +31,17 @@ class SmartReference:
     def build_index(self):
         cfg    = _cfg()
         text   = self._raw
-        step   = cfg.CHUNK_INDEX_SIZE
+        step   = cfg.CHUNK_INDEX_SIZE() if callable(cfg.CHUNK_INDEX_SIZE) else cfg.CHUNK_INDEX_SIZE
+        ram_mb = cfg.RAM_WATCHDOG_MB()  if callable(cfg.RAM_WATCHDOG_MB)  else cfg.RAM_WATCHDOG_MB
+        max_rc = cfg.MAX_RAM_CHUNKS()   if callable(cfg.MAX_RAM_CHUNKS)   else cfg.MAX_RAM_CHUNKS
         chunks = []
         i = 0
         while i < len(text):
             chunks.append(RefChunk(idx=len(chunks), text=text[i: i + step + 80]))
             i += step
         self._chunks = chunks
-        if ram_free_mb() > cfg.RAM_WATCHDOG_MB:
-            for c in chunks[:cfg.MAX_RAM_CHUNKS]:
+        if ram_free_mb() > ram_mb:
+            for c in chunks[:max_rc]:
                 self._hot[c.idx] = c.text
         else:
             self.spill_to_disk()

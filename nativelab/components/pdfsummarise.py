@@ -158,18 +158,19 @@ class ChunkedSummaryWorker(QThread):
     def _infer(self, prompt: str, n_predict: int) -> Optional[str]:
         return self._infer_with(self.engine, prompt, n_predict)
 
-    def _infer_with(self, eng, prompt: str, n_predict: int) -> Optional[str]:
-        if eng.mode == "server":
-            return self._infer_server(prompt, n_predict, eng.server_port)
-        return self.infer_cli(prompt, n_predict, eng.model_path,
-                              getattr(eng, "ctx_value", DEFAULT_CTX))
-
-    def _infer_server(self, prompt: str, n_predict: int, port: int = 0) -> Optional[str]:
+    def _infer_server(self, prompt: str, n_predict: int, port: int = 0, eng=None) -> Optional[str]:
         import http.client
-        fam = detect_model_family(getattr(self.engine, "model_path", ""))
-        if not port: port = self.engine.server_port
+        # Fix: use the actual engine being called, not always self.engine
+        active_eng = eng or self.engine
+        fam = detect_model_family(getattr(active_eng, "model_path", ""))
+        if not port:
+            port = active_eng.server_port
+
+        # Fix: dynamic timeout scaled to prompt size
+        dynamic_timeout = min(120 + len(prompt) // 100, 900)
+
         try:
-            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=300)
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=dynamic_timeout)
             body = json.dumps({
                 "prompt": prompt, "n_predict": n_predict,
                 "stream": False, "temperature": 0.3, "top_p": 0.9,
@@ -177,25 +178,50 @@ class ChunkedSummaryWorker(QThread):
             })
             conn.request("POST", "/completion", body, {"Content-Type": "application/json"})
             r = conn.getresponse()
-            if r.status != 200: return None
+            if r.status != 200:
+                self.err.emit(f"Server returned HTTP {r.status}")
+                return None
             d = json.loads(r.read().decode("utf-8", errors="replace"))
             return d.get("content", "")
-        except Exception:
+        except Exception as e:
+            self.err.emit(f"Server inference error: {type(e).__name__}: {e}")
             return None
 
+
     def infer_cli(self, prompt: str, n_predict: int,
-                  model_path: str = "", ctx: int = 0) -> Optional[str]:
+                model_path: str = "", ctx: int = 0) -> Optional[str]:
         if not ctx: ctx = DEFAULT_CTX
         if not model_path: model_path = self.engine.model_path
-        try:
-            result = subprocess.run(
-                [LLAMA_CLI, "-m", model_path, "-t", str(DEFAULT_THREADS),
-                 "--ctx-size", str(ctx), "-n", str(n_predict),
-                 "--no-display-prompt", "--no-escape",
-                 "--temp", "0.3", "--repeat-penalty", "1.15", "-p", prompt],
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL, timeout=300,
-            )
-            return result.stdout.decode("utf-8", errors="replace")
-        except Exception:
-            return None
+
+        dynamic_timeout = min(120 + len(prompt) // 100, 900)
+
+        for attempt in range(2):
+            try:
+                result = subprocess.run(
+                    [LLAMA_CLI, "-m", model_path, "-t", str(DEFAULT_THREADS),
+                    "--ctx-size", str(ctx), "-n", str(n_predict),
+                    "--no-display-prompt", "--no-escape",
+                    "--temp", "0.3", "--repeat-penalty", "1.15", "-p", prompt],
+                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL, timeout=dynamic_timeout,
+                )
+                return result.stdout.decode("utf-8", errors="replace")
+            except subprocess.TimeoutExpired:
+                if attempt == 0:
+                    self.progress.emit(f"⚠️ CLI timed out, retrying with reduced n_predict…")
+                    n_predict = max(n_predict // 2, 128)
+                else:
+                    self.err.emit(f"CLI inference timed out after retry (prompt len={len(prompt)})")
+                    return None
+            except Exception as e:
+                self.err.emit(f"CLI inference error: {type(e).__name__}: {e}")
+                return None
+
+
+    def _infer_with(self, eng, prompt: str, n_predict: int) -> Optional[str]:
+        if eng.mode == "server":
+            # Fix: pass eng through so _infer_server uses the right model
+            return self._infer_server(prompt, n_predict, eng.server_port, eng=eng)
+        return self.infer_cli(prompt, n_predict,
+                            getattr(eng, "model_path", ""),
+                            getattr(eng, "ctx_value", DEFAULT_CTX))

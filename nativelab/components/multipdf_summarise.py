@@ -233,9 +233,21 @@ class MultiPdfSummaryWorker(QThread):
 
     def _infer_server(self, eng, prompt: str, n_predict: int) -> Optional[str]:
         import http.client
+        import threading
         fam = detect_model_family(getattr(eng, "model_path", ""))
+        
+        warned = False
+        def _warn_if_slow():
+            time.sleep(300)  # 5 minutes
+            nonlocal warned
+            warned = True
+            self.progress.emit("⚠️ Response is taking longer than usual. You may retry if needed.")
+
+        t = threading.Thread(target=_warn_if_slow, daemon=True)
+        t.start()
+
         try:
-            conn = http.client.HTTPConnection("127.0.0.1", eng.server_port, timeout=400)
+            conn = http.client.HTTPConnection("127.0.0.1", eng.server_port, timeout=None)
             body = json.dumps({
                 "prompt": prompt, "n_predict": n_predict, "stream": False,
                 "temperature": 0.3, "top_p": 0.9, "repeat_penalty": 1.15,
@@ -246,19 +258,33 @@ class MultiPdfSummaryWorker(QThread):
             if r.status != 200: return None
             d = json.loads(r.read().decode("utf-8", errors="replace"))
             return d.get("content", "")
-        except Exception:
+        except Exception as e:
+            self.err.emit(f"Server inference error: {e}")
             return None
 
     def infer_cli(self, eng, prompt: str, n_predict: int) -> Optional[str]:
+        import threading
+        
+        warned = False
+        def _warn_if_slow():
+            time.sleep(300)  # 5 minutes
+            nonlocal warned
+            warned = True
+            self.progress.emit("⚠️ Response is taking longer than usual. You may retry if needed.")
+
+        t = threading.Thread(target=_warn_if_slow, daemon=True)
+        t.start()
+
         try:
             result = subprocess.run(
                 [LLAMA_CLI, "-m", eng.model_path, "-t", str(DEFAULT_THREADS),
-                 "--ctx-size", str(getattr(eng, "ctx_value", DEFAULT_CTX)),
-                 "-n", str(n_predict), "--no-display-prompt", "--no-escape",
-                 "--temp", "0.3", "--repeat-penalty", "1.15", "-p", prompt],
+                "--ctx-size", str(getattr(eng, "ctx_value", DEFAULT_CTX)),
+                "-n", str(n_predict), "--no-display-prompt", "--no-escape",
+                "--temp", "0.3", "--repeat-penalty", "1.15", "-p", prompt],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL, timeout=400,
+                stdin=subprocess.DEVNULL, timeout=None,
             )
             return result.stdout.decode("utf-8", errors="replace")
-        except Exception:
+        except Exception as e:
+            self.err.emit(f"CLI inference error: {e}")
             return None

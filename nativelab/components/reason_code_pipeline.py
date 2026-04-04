@@ -171,11 +171,19 @@ class PipelineWorker(QThread):
         return self._infer_cli(eng, prompt, n_predict, token_cb)
 
     def _infer_server(self, eng, prompt: str,
-                      n_predict: int, token_cb=None):
+                    n_predict: int, token_cb=None):
         import http.client
+        import socket
         fam = detect_model_family(getattr(eng, "model_path", ""))
+        
+        # Dynamic connect timeout; streaming read gets its own per-chunk timeout
+        connect_timeout = min(120 + len(prompt) // 100, 600)
+        STREAM_READ_TIMEOUT = 60  # seconds to wait for next token before giving up
+
         try:
-            conn = http.client.HTTPConnection("127.0.0.1", eng.server_port, timeout=600)
+            conn = http.client.HTTPConnection(
+                "127.0.0.1", eng.server_port, timeout=connect_timeout
+            )
             body = json.dumps({
                 "prompt":         prompt,
                 "n_predict":      n_predict,
@@ -185,20 +193,31 @@ class PipelineWorker(QThread):
                 "repeat_penalty": 1.1,
                 "stop":           fam.stop_tokens,
             })
-            conn.request("POST", "/completion", body, {"Content-Type": "application/json"})
+            conn.request("POST", "/completion", body,
+                        {"Content-Type": "application/json"})
             r = conn.getresponse()
             if r.status != 200:
+                self.err.emit(f"Server returned HTTP {r.status}")
                 return None
+
+            # Set per-read timeout on the underlying socket
+            r.fp.raw._sock.settimeout(STREAM_READ_TIMEOUT)
+
             result = []
             buf = b""
             while not self._abort:
-                b = r.read(1)
+                try:
+                    b = r.read(1)
+                except socket.timeout:
+                    self.err.emit("Stream stalled — no token received within "
+                                f"{STREAM_READ_TIMEOUT}s")
+                    break
                 if not b:
                     break
                 buf += b
                 if b == b"\n":
                     line = buf.decode("utf-8", errors="replace").strip()
-                    buf  = b""
+                    buf = b""
                     if line.startswith("data: "):
                         try:
                             d = json.loads(line[6:])
@@ -212,19 +231,27 @@ class PipelineWorker(QThread):
                         except json.JSONDecodeError:
                             pass
             return "".join(result)
-        except Exception:
+        except Exception as e:
+            self.err.emit(f"Server inference error: {type(e).__name__}: {e}")
             return None
 
+
     def _infer_cli(self, eng, prompt: str,
-                   n_predict: int, token_cb=None):
+                n_predict: int, token_cb=None):
+        import select
+        import sys
+
+        dynamic_timeout = min(120 + len(prompt) // 100, 900)
+        TOKEN_STALL_TIMEOUT = 45  # seconds with no output before giving up
+
         try:
             proc = subprocess.Popen(
                 [LLAMA_CLI, "-m", eng.model_path,
-                 "-t", str(DEFAULT_THREADS),
-                 "--ctx-size", str(getattr(eng, "ctx_value", DEFAULT_CTX)),
-                 "-n", str(n_predict),
-                 "--no-display-prompt", "--no-escape",
-                 "-p", prompt],
+                "-t", str(DEFAULT_THREADS),
+                "--ctx-size", str(getattr(eng, "ctx_value", DEFAULT_CTX)),
+                "-n", str(n_predict),
+                "--no-display-prompt", "--no-escape",
+                "-p", prompt],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,
@@ -233,6 +260,17 @@ class PipelineWorker(QThread):
             result = []
             if proc.stdout is not None:
                 while not self._abort:
+                    # Wait up to TOKEN_STALL_TIMEOUT for data (Unix only)
+                    if sys.platform != "win32":
+                        ready, _, _ = select.select(
+                            [proc.stdout], [], [], TOKEN_STALL_TIMEOUT
+                        )
+                        if not ready:
+                            self.err.emit(
+                                f"CLI process stalled — no output for "
+                                f"{TOKEN_STALL_TIMEOUT}s"
+                            )
+                            break
                     b = proc.stdout.read(1)
                     if not b:
                         break
@@ -240,7 +278,15 @@ class PipelineWorker(QThread):
                     result.append(c)
                     if token_cb:
                         token_cb(c)
+
             proc.terminate()
+            proc.wait(timeout=5)  # prevent zombie processes
             return "".join(result)
-        except Exception:
+        except Exception as e:
+            self.err.emit(f"CLI inference error: {type(e).__name__}: {e}")
+            try:
+                proc.kill()
+                proc.wait(timeout=3)
+            except Exception:
+                pass
             return None

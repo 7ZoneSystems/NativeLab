@@ -32,6 +32,9 @@ APP_CONFIG_DEFAULTS = {
     "default_n_predict":      512,
     "tps_display":            True,
     "auto_spill_on_start":    False,
+    "stream_socket_timeout":  32000,   # seconds before a silent read errors
+    "stream_stall_timeout":   32000,    # seconds of no tokens before giving up  
+    "stream_max_buf_bytes":   65536, # max line buffer size
 }
 # ─── Config descriptions ──────────────────────────────────────────────────────
 CONFIG_FIELD_META = {

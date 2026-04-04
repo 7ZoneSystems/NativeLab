@@ -483,7 +483,7 @@ class MainWindow(QMainWindow):
         self._multi_pdf_worker:  Optional[QThread] = None
         self._pause_banner: Optional[QWidget] = None
         self._summarizing_active: bool = False
-        self.current_ctx = DEFAULT_CTX
+        self.current_ctx = DEFAULT_CTX()
         self._ctx_reload_timer = QTimer(self)
         self._ctx_reload_timer.setSingleShot(True)
         self._ctx_reload_timer.timeout.connect(self._apply_new_context)
@@ -574,7 +574,7 @@ class MainWindow(QMainWindow):
         if not self.engine.is_loaded:
             return
         new_ctx = self.ctx_slider.value()
-        if new_ctx == getattr(self.engine, "ctx_value", DEFAULT_CTX):
+        if new_ctx == getattr(self.engine, "ctx_value", DEFAULT_CTX()):
             return
         if new_ctx > 8192:
             ram_estimate = (new_ctx / 1024) * 0.5
@@ -585,7 +585,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
             if result != QMessageBox.StandardButton.Yes:
-                loaded_ctx = getattr(self.engine, "ctx_value", DEFAULT_CTX)
+                loaded_ctx = getattr(self.engine, "ctx_value", DEFAULT_CTX())
                 self.ctx_slider.blockSignals(True)
                 self.ctx_slider.setValue(loaded_ctx)
                 self.ctx_slider.blockSignals(False)
@@ -862,12 +862,12 @@ class MainWindow(QMainWindow):
         dv1.setStyleSheet(f"border:none;border-top:1px solid {C['bdr']};margin:2px 0;")
         cfg_card_l.addWidget(dv1)
 
-        self.cfg_threads = QLineEdit(str(DEFAULT_THREADS))
+        self.cfg_threads = QLineEdit(str(DEFAULT_THREADS()))
         self.cfg_threads.setFixedWidth(64); self.cfg_threads.setFixedHeight(28)
         self.cfg_threads.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cfg_card_l.addLayout(_field_row("Threads:", self.cfg_threads))
 
-        self.cfg_ctx = QLineEdit(str(DEFAULT_CTX))
+        self.cfg_ctx = QLineEdit(str(DEFAULT_CTX()))
         self.cfg_ctx.setFixedWidth(80); self.cfg_ctx.setFixedHeight(28)
         self.cfg_ctx.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cfg_card_l.addLayout(_field_row("Context (tokens):", self.cfg_ctx))
@@ -1324,7 +1324,7 @@ class MainWindow(QMainWindow):
         self.ctx_slider.valueChanged.connect(self._on_ctx_changed)
         sb.addWidget(self.ctx_slider)
 
-        self.ctx_input = QLineEdit(str(DEFAULT_CTX))
+        self.ctx_input = QLineEdit(str(DEFAULT_CTX())) 
         self.ctx_input.setFixedWidth(60)
         self.ctx_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ctx_input.editingFinished.connect(self._on_ctx_input_changed)
@@ -1344,7 +1344,7 @@ class MainWindow(QMainWindow):
         self.ctx_bar.setTextVisible(False)
         sb.addWidget(self.ctx_bar)
 
-        self.ctx_lbl = QLabel(f"0 / {DEFAULT_CTX}")
+        self.ctx_lbl = QLabel(f"0 / {DEFAULT_CTX()}")
         self.ctx_lbl.setStyleSheet(f"color:{C['txt2']};padding:0 8px;")
         sb.addWidget(self.ctx_lbl)
 
@@ -1695,7 +1695,7 @@ class MainWindow(QMainWindow):
         is_coding  = active_eng is self.coding_engine
         eng_label  = "💻 Coding engine" if is_coding else active_eng.status_text
 
-        ctx_chars = getattr(active_eng, "ctx_value", DEFAULT_CTX) * 4
+        ctx_chars = getattr(active_eng, "ctx_value", DEFAULT_CTX()) * 4
         prompt    = self.active.build_prompt(
             model_path=active_eng.model_path,
             max_chars=ctx_chars
@@ -1796,7 +1796,7 @@ class MainWindow(QMainWindow):
             # Fallback: no insight engines, just run coding engine directly
             self._log("WARN", "No insight engines available — running coding engine directly")
             active_eng = self.coding_engine
-            ctx_chars  = getattr(active_eng, "ctx_value", DEFAULT_CTX) * 4
+            ctx_chars  = getattr(active_eng, "ctx_value", DEFAULT_CTX()) * 4
             prompt     = self.active.build_prompt(model_path=active_eng.model_path, max_chars=ctx_chars)
             cfg_pred   = get_model_registry().get_config(active_eng.model_path).n_predict
             self._stream_w = self.chat_area.add_message("assistant", "", ts, tag="💻 Coding")
@@ -2109,7 +2109,7 @@ class MainWindow(QMainWindow):
         if not text.strip():
             QMessageBox.warning(self, "Empty PDF", "No text could be extracted."); return
 
-        ctx_chars   = getattr(self.engine, "ctx_value", DEFAULT_CTX) * 3
+        ctx_chars   = getattr(self.engine, "ctx_value", DEFAULT_CTX()) * 3
         DIRECT_LIMIT = min(ctx_chars, 6000)
 
         if len(text) <= DIRECT_LIMIT:

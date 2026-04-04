@@ -59,7 +59,8 @@ class ServerConfig:
 
 
 SERVER_CONFIG = ServerConfig.load()
-
+PORT_RANGE_START = SERVER_CONFIG.port_range_lo
+PORT_RANGE_END   = SERVER_CONFIG.port_range_hi
 
 def detect_gpus() -> list:
     """
@@ -72,7 +73,7 @@ def detect_gpus() -> list:
         out = subprocess.check_output(
             ["nvidia-smi", "--query-gpu=name,memory.total",
              "--format=csv,noheader,nounits"],
-            timeout=5, stderr=subprocess.DEVNULL).decode().strip()
+            timeout=20, stderr=subprocess.DEVNULL).decode().strip()
         for i, line in enumerate(out.splitlines()):
             parts = [p.strip() for p in line.split(",")]
             vram  = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else 0
@@ -103,7 +104,7 @@ def detect_gpus() -> list:
     if not gpus:
         try:
             out = subprocess.check_output(
-                ["vulkaninfo", "--summary"], timeout=5,
+                ["vulkaninfo", "--summary"], timeout=20,
                 stderr=subprocess.DEVNULL).decode()
             for line in out.splitlines():
                 if "deviceName" in line:
