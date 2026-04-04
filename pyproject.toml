@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nativelab"
+version = "0.1.0"
+description = "NativeLab AI framework"
+readme = "README.md"
+requires-python = ">=3.9"
+
+dependencies = [
+    "psutil==7.2.2",
+    "PyPDF2==3.0.1"
+]
+
+[project.optional-dependencies]
+gui = [
+    "PyQt6==6.10.2"
+]
+
+[project.scripts]
+nativelab = "nativelab.main:main"
+
+[tool.setuptools]
+packages = ["nativelab"]
+
+[tool.setuptools.package-data]
+nativelab = ["*.png", "*.ico"]
