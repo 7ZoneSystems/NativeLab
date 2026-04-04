@@ -1,10 +1,153 @@
-# Native Lab Pro v2
+# NativeLab v0.1.0
 
 **A fully local, privacy-first LLM desktop application powered by llama.cpp**
 
 ---
 
-## Table of Contents
+## Top section for pip users :D
+
+---
+
+## Installation
+
+Install NativeLab from PyPI:
+
+```bash
+pip install nativelab
+```
+
+---
+
+## First-Time Setup
+
+After installation, create a dedicated workspace folder for NativeLab. This folder will store:
+
+* Models
+* Config files
+* Runtime data
+
+Example:
+
+```bash
+mkdir ~/nativelab_workspace
+cd ~/nativelab_workspace
+```
+
+---
+
+## Folder Structure
+
+Inside your workspace, create the following structure:
+
+```text
+nativelab_workspace/
+├── llama/
+│   └── bin/
+├── models/
+├── configs/
+```
+
+---
+
+## Adding LLaMA Binaries
+
+Download or build `llama.cpp` binaries.
+
+Then place them inside:
+
+```text
+nativelab_workspace/llama/bin/
+```
+
+Example:
+
+```text
+llama/bin/
+├── llama-cli
+├── llama-server
+```
+
+> Ensure binaries are executable:
+
+```bash
+chmod +x llama/bin/*
+```
+
+---
+
+## Running NativeLab
+
+From anywhere in your system:
+
+```bash
+nativelab
+```
+
+NativeLab will:
+
+* Detect your workspace
+* Load binaries from `llama/bin/`
+* Initialize models and UI
+
+---
+
+## Recommended Workflow
+
+1. Install NativeLab
+2. Create workspace folder
+3. Add llama binaries
+4. Launch app
+5. Load or download models
+
+---
+
+## Troubleshooting
+
+### PyQt6 Missing
+
+If you see:
+
+```text
+ModuleNotFoundError: PyQt6
+```
+
+Reinstall:
+
+```bash
+pip install nativelab
+```
+
+---
+
+### LLaMA Binary Not Found
+
+Ensure:
+
+```text
+llama/bin/llama-cli
+```
+
+exists and is executable.
+
+---
+
+### Permission Issues
+
+Run:
+
+```bash
+chmod -R +x llama/bin/
+```
+
+---
+
+## Notes
+
+* NativeLab is fully local — no data leaves your machine
+* Works offline once models are available
+* Designed for modular AI pipelines and experimentation
+
+---
 
 1. [Overview](#overview)
 2. [What's New in v2](#whats-new-in-v2)
