@@ -26,3 +26,4 @@ app_config.json
 localllm/
 .vscode/
 test/
+llama/
