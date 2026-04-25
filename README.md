@@ -1,4 +1,4 @@
-# NativeLab v0.1.0
+# NativeLab v0.1.3
 
 **A fully local, privacy-first LLM desktop application powered by llama.cpp**
 
@@ -129,6 +129,8 @@ llama/bin/llama-cli
 
 exists and is executable.
 
+---
+## NEW : ADDED LLAMA DOWNLOADER IN DOWNLOADS TAB SO YOU DONY NEED TO WORRY :D
 ---
 
 ### Permission Issues
