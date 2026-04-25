@@ -14,7 +14,13 @@ if not Path(LLAMA_CLI_DEFAULT).exists():
 LLAMA_CLI    = LLAMA_CLI_DEFAULT
 LLAMA_SERVER = LLAMA_SERVER_DEFAULT
 
-DEFAULT_MODEL      = "./localllm/mistral-7b-instruct-v0.2.Q5_K_M.gguf"
+def refresh_binary_paths():
+    global LLAMA_CLI, LLAMA_SERVER
+    from nativelab.Server.server_global import SERVER_CONFIG
+    LLAMA_CLI    = SERVER_CONFIG.cli_path    or LLAMA_CLI_DEFAULT
+    LLAMA_SERVER = SERVER_CONFIG.server_path or LLAMA_SERVER_DEFAULT
+
+DEFAULT_MODEL      = "mistral-7b-instruct-v0.2.Q5_K_M.gguf"
 def DEFAULT_CTX() -> int:
     return 2048
 

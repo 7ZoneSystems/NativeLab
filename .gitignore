@@ -25,3 +25,4 @@ chat_refs/
 app_config.json
 localllm/
 .vscode/
+test/

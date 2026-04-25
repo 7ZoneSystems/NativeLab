@@ -1,10 +1,13 @@
+import sys
+print("LLAMAENGINE LOADED FROM:", __file__, file=sys.stderr, flush=True)
 from nativelab.imports.import_global import Optional, subprocess, time, json, Path, QThread, HAS_PSUTIL, psutil
 from nativelab.components.components_global import detect_model_family
 from nativelab.Model.model_global import get_model_registry
 from nativelab.core.streamer_global import ServerStreamWorker, CliStreamWorker
 from nativelab.GlobalConfig.config_global import (
-    LLAMA_CLI, LLAMA_SERVER, DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, APP_CONFIG
+    DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, APP_CONFIG
 )
+import nativelab.GlobalConfig.binaryResolve as _binres
 from nativelab.Server.server_global import free_port, SERVER_CONFIG, PORT_RANGE_START, PORT_RANGE_END
 
 
@@ -28,18 +31,28 @@ class LlamaEngine:
         self.model_path = model_path
         self._log = log_cb or (lambda m: None)
         self.ctx_value = ctx
-
+        print(f"LOAD CALLED: {model_path!r}", file=sys.stderr, flush=True)
+        import os
+        self._log(f"[DEBUG] model_path = {model_path!r}")
+        self._log(f"[DEBUG] resolved   = {Path(model_path).resolve()}")
+        self._log(f"[DEBUG] cwd        = {os.getcwd()}")
+        self._log(f"[DEBUG] exists     = {Path(model_path).exists()}")
+        self._log(f"[DEBUG] _binres.LLAMA_SERVER = {_binres.LLAMA_SERVER!r}")
+        self._log(f"[DEBUG] srv config  = {SERVER_CONFIG.server_path!r}")
+        self._log(f"[DEBUG] _server_bin = {(SERVER_CONFIG.server_path or _binres.LLAMA_SERVER)!r}")
+        self._log(f"[DEBUG] srv exists  = {Path(SERVER_CONFIG.server_path or _binres.LLAMA_SERVER).exists()}")
         if not Path(model_path).exists():
             self._log(f"[ERROR] Model not found: {model_path}")
             return False
-
-        if Path(LLAMA_SERVER).exists():
+        _server_bin = SERVER_CONFIG.server_path or _binres.LLAMA_SERVER
+        _cli_bin    = SERVER_CONFIG.cli_path    or _binres.LLAMA_CLI
+        if Path(_server_bin).exists():
             ok = self._start_server(model_path, threads, ctx)
             if ok:
                 return True
             self._log("[WARN] Server start failed — falling back to llama-cli mode")
 
-        if Path(LLAMA_CLI).exists():
+        if Path(_cli_bin).exists():
             self._log("[INFO] Using llama-cli (per-prompt) mode")
             self.mode = "cli"
             return True
@@ -62,8 +75,9 @@ class LlamaEngine:
             )
 
         _extra_cli = SERVER_CONFIG.extra_cli_args.split() if SERVER_CONFIG.extra_cli_args else []
+        _cli_bin = SERVER_CONFIG.cli_path or _binres.LLAMA_CLI
         cmd = [
-            LLAMA_CLI, "-m", self.model_path,
+            _cli_bin, "-m", self.model_path,
             "-t", str(DEFAULT_THREADS()), "--ctx-size", str(self.ctx_value),
             "-n", str(n_predict), "--no-display-prompt", "--no-escape",
             "-p", prompt,
@@ -191,8 +205,9 @@ class LlamaEngine:
         # ── 3. Launch a fresh server ──
         self.server_port = free_port()
         _extra_srv = SERVER_CONFIG.extra_server_args.split() if SERVER_CONFIG.extra_server_args else []
+        _server_bin = SERVER_CONFIG.server_path or _binres.LLAMA_SERVER
         cmd = [
-            LLAMA_SERVER, "-m", model_path,
+            _server_bin, "-m", model_path,
             "-t", str(threads), "--ctx-size", str(ctx),
             "--port", str(self.server_port),
             "--host", SERVER_CONFIG.host or "127.0.0.1",
@@ -202,7 +217,7 @@ class LlamaEngine:
 
         # Log to a temp file instead of DEVNULL so failures are diagnosable
         import tempfile
-        log_path = Path(tempfile.gettempdir()) / f"llama_server_{self.server_port}.log"
+        log_path = Path(tempfile.gettempdir()) / f"_binres.LLAMA_SERVER_{self.server_port}.log"
         self._log(f"[INFO] Server output → {log_path}")
 
         try:

@@ -1,6 +1,8 @@
 from nativelab.imports.import_global import Path, json, Dict
 from .config import LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT
 from .const import APP_CONFIG_DEFAULTS, APP_CONFIG_FILE
+LLAMA_CLI    = LLAMA_CLI_DEFAULT
+LLAMA_SERVER = LLAMA_SERVER_DEFAULT
 def refresh_binary_paths():
     """Re-read SERVER_CONFIG and update module-level LLAMA_CLI / LLAMA_SERVER."""
     from nativelab.Server.server_global import SERVER_CONFIG  # local import
