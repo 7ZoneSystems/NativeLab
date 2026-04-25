@@ -26,4 +26,5 @@ app_config.json
 localllm/
 .vscode/
 test/
-llama/
+nativelab/llama/
+llama/bin/
