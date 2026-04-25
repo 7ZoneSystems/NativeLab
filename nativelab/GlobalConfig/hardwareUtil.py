@@ -30,7 +30,7 @@ class RamWatchdog:
     @staticmethod
     def check_and_spill(session_id: str) -> bool:
         from nativelab.GlobalConfig.config_global import RAM_WATCHDOG_MB
-        if ram_free_mb() < RAM_WATCHDOG_MB:
+        if ram_free_mb() < RAM_WATCHDOG_MB():
             store = get_ref_store(session_id)
             store.flush_ram()
             RamWatchdog.triggered = True
