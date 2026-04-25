@@ -6,6 +6,7 @@ from nativelab.Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
 from nativelab.GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths
 from nativelab.components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
 from nativelab.Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchWorker, HfDownloadWorker, MCP_CONFIG_FILE
+from nativelab.Server.hfdwld import LlamaCppReleaseFetcher, LlamaCppDownloadWorker
 from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES
 class ConfigTab(QWidget):
     """Full configuration tab — all thresholds with descriptions."""
@@ -1217,8 +1218,10 @@ class ModelDownloadTab(QWidget):
         self._search_worker: Optional[HfSearchWorker] = None
         self._dl_worker:     Optional[HfDownloadWorker] = None
         self._files: list = []
+        self._llama_fetcher:  Optional[LlamaCppReleaseFetcher] = None
+        self._llama_dl:       Optional[LlamaCppDownloadWorker] = None
+        self._llama_releases: list = []
         self._build()
-
     # ── build ─────────────────────────────────────────────────────────────────
     def _build(self):
         outer = QVBoxLayout(self)
@@ -1368,7 +1371,96 @@ class ModelDownloadTab(QWidget):
         btn_row.addWidget(self.btn_abort_delete)
         btn_row.addStretch()
         dl_l.addLayout(btn_row)
-        root.addWidget(dc); root.addStretch()
+        root.addWidget(dc)
+        root.addSpacing(18)
+
+        # ── LLAMA.CPP BINARIES ────────────────────────────────────────────────
+        root.addWidget(self._section("⚙️  LLAMA.CPP RUNTIME"))
+        lc = self._card(); ll = QVBoxLayout(lc)
+        ll.setContentsMargins(16, 14, 16, 14); ll.setSpacing(10)
+
+        lcpp_note = QLabel(
+            "Download llama.cpp prebuilt binaries directly from GitHub releases.\n"
+            "They will be installed to ./llama/bin/ in your launch directory and\n"
+            "picked up automatically by the Server tab.")
+        lcpp_note.setWordWrap(True)
+        lcpp_note.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        ll.addWidget(lcpp_note)
+
+        fetch_row = QHBoxLayout(); fetch_row.setSpacing(8)
+        self.btn_fetch_llama = QPushButton("🔍  Fetch Latest Releases")
+        self.btn_fetch_llama.setObjectName("btn_send")
+        self.btn_fetch_llama.setFixedHeight(30)
+        self.btn_fetch_llama.clicked.connect(self._fetch_llama_releases)
+        self.llama_fetch_status = QLabel("")
+        self.llama_fetch_status.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        fetch_row.addWidget(self.btn_fetch_llama)
+        fetch_row.addWidget(self.llama_fetch_status)
+        fetch_row.addStretch()
+        ll.addLayout(fetch_row)
+
+        # Release picker
+        rel_row = QHBoxLayout(); rel_row.setSpacing(8)
+        rel_lbl = QLabel("Release:")
+        rel_lbl.setFixedWidth(60)
+        rel_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.combo_llama_release = QComboBox()
+        self.combo_llama_release.setFixedHeight(28)
+        self.combo_llama_release.setEnabled(False)
+        self.combo_llama_release.currentIndexChanged.connect(self._on_llama_release_changed)
+        rel_row.addWidget(rel_lbl)
+        rel_row.addWidget(self.combo_llama_release, 1)
+        ll.addLayout(rel_row)
+
+        # Asset picker
+        asset_row = QHBoxLayout(); asset_row.setSpacing(8)
+        asset_lbl = QLabel("Build:")
+        asset_lbl.setFixedWidth(60)
+        asset_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.combo_llama_asset = QComboBox()
+        self.combo_llama_asset.setFixedHeight(28)
+        self.combo_llama_asset.setEnabled(False)
+        asset_row.addWidget(asset_lbl)
+        asset_row.addWidget(self.combo_llama_asset, 1)
+        ll.addLayout(asset_row)
+
+        # Progress + status
+        self.llama_progress = QProgressBar()
+        self.llama_progress.setRange(0, 100); self.llama_progress.setValue(0)
+        self.llama_progress.setFixedHeight(10); self.llama_progress.setTextVisible(False)
+        self.llama_progress.setStyleSheet(
+            f"QProgressBar{{background:{C['bg2']};border:1px solid {C['bdr']};"
+            f"border-radius:4px;}}"
+            f"QProgressBar::chunk{{background:{C['ok']};border-radius:4px;}}")
+        ll.addWidget(self.llama_progress)
+
+        self.llama_dl_status = QLabel("Not installed.")
+        self.llama_dl_status.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        ll.addWidget(self.llama_dl_status)
+
+        # Check current install
+        _llama_bin = Path("./llama/bin")
+        _has_server = any(_llama_bin.glob("llama-server*")) if _llama_bin.exists() else False
+        if _has_server:
+            self.llama_dl_status.setText(f"✅  llama.cpp already installed at {_llama_bin.resolve()}")
+
+        llama_btn_row = QHBoxLayout(); llama_btn_row.setSpacing(8)
+        self.btn_install_llama = QPushButton("⬇️  Download & Install")
+        self.btn_install_llama.setObjectName("btn_send")
+        self.btn_install_llama.setFixedHeight(32)
+        self.btn_install_llama.setEnabled(False)
+        self.btn_install_llama.clicked.connect(self._install_llama)
+        self.btn_abort_llama = QPushButton("Cancel")
+        self.btn_abort_llama.setObjectName("btn_stop")
+        self.btn_abort_llama.setFixedHeight(32)
+        self.btn_abort_llama.setFixedWidth(80)
+        self.btn_abort_llama.setVisible(False)
+        self.btn_abort_llama.clicked.connect(self._abort_llama)
+        llama_btn_row.addWidget(self.btn_install_llama)
+        llama_btn_row.addWidget(self.btn_abort_llama)
+        llama_btn_row.addStretch()
+        ll.addLayout(llama_btn_row)
+        root.addWidget(lc); root.addStretch()
 
     # ── helpers ───────────────────────────────────────────────────────────────
     @staticmethod
@@ -1541,6 +1633,108 @@ class ModelDownloadTab(QWidget):
     def _on_dl_err(self, msg: str):
         self.dl_progress.setValue(0)
         self._reset_dl_ui(f"[FAIL]  Error: {msg}")
+
+    # ── llama.cpp downloader ──────────────────────────────────────────────────
+
+    def _fetch_llama_releases(self):
+        self.btn_fetch_llama.setEnabled(False)
+        self.llama_fetch_status.setText("Fetching releases from GitHub…")
+        self.combo_llama_release.setEnabled(False)
+        self.combo_llama_asset.setEnabled(False)
+        self.btn_install_llama.setEnabled(False)
+        self._llama_releases = []
+        if self._llama_fetcher:
+            try: self._llama_fetcher.quit()
+            except Exception: pass
+        self._llama_fetcher = LlamaCppReleaseFetcher()
+        self._llama_fetcher.results_ready.connect(self._on_llama_releases)
+        self._llama_fetcher.err.connect(self._on_llama_fetch_err)
+        self._llama_fetcher.start()
+
+    def _on_llama_releases(self, releases: list):
+        self.btn_fetch_llama.setEnabled(True)
+        self._llama_releases = releases
+        self.combo_llama_release.blockSignals(True)
+        self.combo_llama_release.clear()
+        for rel in releases:
+            self.combo_llama_release.addItem(rel["tag"])
+        self.combo_llama_release.blockSignals(False)
+        self.combo_llama_release.setEnabled(True)
+        if releases:
+            self.llama_fetch_status.setText(f"Found {len(releases)} release(s).")
+            self._on_llama_release_changed(0)
+        else:
+            self.llama_fetch_status.setText("No compatible releases found for your platform.")
+
+    def _on_llama_fetch_err(self, msg: str):
+        self.btn_fetch_llama.setEnabled(True)
+        self.llama_fetch_status.setText(f"Error: {msg}")
+
+    def _on_llama_release_changed(self, idx: int):
+        self.combo_llama_asset.clear()
+        if not self._llama_releases or idx >= len(self._llama_releases):
+            return
+        assets = self._llama_releases[idx]["assets"]
+        for a in assets:
+            size_s = f"{a['size']/1e6:.0f} MB" if a["size"] else ""
+            self.combo_llama_asset.addItem(f"{a['name']}  {size_s}", a)
+        self.combo_llama_asset.setEnabled(True)
+        self.btn_install_llama.setEnabled(True)
+
+    def _install_llama(self):
+        idx = self.combo_llama_asset.currentIndex()
+        if idx < 0: return
+        asset = self.combo_llama_asset.itemData(idx)
+        if not asset: return
+
+        self.btn_install_llama.setEnabled(False)
+        self.btn_abort_llama.setVisible(True)
+        self.llama_progress.setValue(0)
+        self.llama_dl_status.setText(f"Starting download of {asset['name']}…")
+
+        dest = Path("./llama")
+        dest.mkdir(exist_ok=True)
+        self._llama_dl = LlamaCppDownloadWorker(
+            url=asset["url"], filename=asset["name"],
+            dest_dir=dest, expected_size=asset.get("size", 0))
+        self._llama_dl.progress.connect(self._on_llama_progress)
+        self._llama_dl.status.connect(lambda m: self.llama_dl_status.setText(m))
+        self._llama_dl.done.connect(self._on_llama_done)
+        self._llama_dl.err.connect(self._on_llama_err)
+        self._llama_dl.start()
+
+    def _abort_llama(self):
+        if self._llama_dl:
+            self._llama_dl.abort()
+        self.btn_abort_llama.setVisible(False)
+        self.btn_install_llama.setEnabled(True)
+        self.llama_dl_status.setText("Download cancelled.")
+        self.llama_progress.setValue(0)
+
+    def _on_llama_progress(self, done: int, total: int):
+        if total > 0:
+            self.llama_progress.setValue(int(done * 100 / total))
+            self.llama_dl_status.setText(
+                f"{done/1e6:.1f} MB / {total/1e6:.1f} MB  ({int(done*100/total)}%)")
+
+    def _on_llama_done(self, path: str):
+        self.llama_progress.setValue(100)
+        self.btn_abort_llama.setVisible(False)
+        self.btn_install_llama.setEnabled(True)
+        self.llama_dl_status.setText(f"✅  Installed to {path}")
+        self._llama_dl = None
+        QMessageBox.information(
+            self, "llama.cpp Installed",
+            f"Binaries installed to:\n{path}\n\n"
+            "Go to the Server tab, leave the binary paths blank,\n"
+            "and reload your model — they will be picked up automatically.")
+
+    def _on_llama_err(self, msg: str):
+        self.llama_progress.setValue(0)
+        self.btn_abort_llama.setVisible(False)
+        self.btn_install_llama.setEnabled(True)
+        self.llama_dl_status.setText(f"❌  Error: {msg}")
+        self._llama_dl = None
                 
 class McpTab(QWidget):
     """
