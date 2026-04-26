@@ -1,4 +1,4 @@
-# NativeLab v0.2.3 BETA
+# NativeLab v0.2.5 BETA
 
 **A fully local, privacy-first LLM desktop application powered by llama.cpp**
 
