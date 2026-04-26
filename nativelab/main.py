@@ -16,6 +16,7 @@ v2 New Features:
 from nativelab.imports.import_global import *
 from nativelab.GlobalConfig.config_global import *
 from nativelab.Model.model_global import *
+import importlib.resources as pkg_resources
 from nativelab.UI.UI_global import *
 from nativelab.Prefrences.prefrence_global import *
 from nativelab.Server.server_global import *
@@ -2704,8 +2705,9 @@ class MainWindow(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
-    app.setApplicationName("Native Lab Pro")
-    app.setWindowIcon(QIcon('icon.png'))
+    app.setApplicationName("NativeLab")
+    icon_path = pkg_resources.files(nativelab) / "icon.png"
+    app.setWindowIcon(QIcon(str(icon_path)))
     _fnt = QFont("Inter")
     if not _fnt.exactMatch():
         _fnt = QFont("Segoe UI")
