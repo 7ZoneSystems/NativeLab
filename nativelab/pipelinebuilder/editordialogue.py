@@ -3,7 +3,7 @@ from nativelab.Model.model_global import get_model_registry, detect_model_family
 from nativelab.GlobalConfig.config_global import ROLE_ICONS
 from .pipblck import PipelineBlock
 from nativelab.UI.UI_const import C
-class LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
+class LlmLogicEditorDialog(QDialog):
     """
     Configuration dialog for LLM-backed logic blocks.
     The user writes conditions and instructions in plain English.
@@ -85,11 +85,7 @@ class LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else o
     }
 
     def __init__(self, block: "PipelineBlock", parent=None):
-        try:
-            from PyQt6.QtWidgets import QDialog
-            super().__init__(parent)
-        except Exception:
-            return
+        super().__init__(parent)
         self._block = block
         info = self._TYPE_INFO.get(block.btype, {})
         self.setWindowTitle(f"{info.get('icon','🧠')} — {block.label}")
@@ -306,7 +302,7 @@ class LlmLogicEditorDialog(QDialog if hasattr(__builtins__, '__import__') else o
         self._block.label = f"{_icon} {_preview}"
         self.accept()
 
-class CodeEditorDialog(QDialog if hasattr(__builtins__, '__import__') else object):
+class CodeEditorDialog(QDialog):
     """
     Full code editor for CUSTOM_CODE pipeline blocks.
     Shows available variables, validates syntax live, saves to block.metadata.
@@ -339,11 +335,8 @@ log(f"Word count: {word_count}")
 # result = f"[Processed]\\n{text}"
 """
 
-    def __init__(self, block: "PipelineBlock", parent=None):
-        try:            
-            super().__init__(parent)
-        except Exception:
-            return
+    def __init__(self, block: "PipelineBlock", parent=None):             
+        super().__init__(parent)
         self._block = block
         self.setWindowTitle(f"⌥ Code Editor — {block.label}")
         self.setMinimumSize(760, 560)

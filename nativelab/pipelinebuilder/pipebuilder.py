@@ -4,6 +4,7 @@ from .pipefunctions import list_saved_pipelines, load_pipeline, save_pipeline
 from .blck_typ import PipelineBlockType 
 from nativelab.core.engine_global import LlamaEngine
 from .executionWorker import PipelineExecutionWorker
+from .flowpreview import FlowPreviewController
 from nativelab.UI.UI_const import C
 from .canvas import PipelineCanvas
 from .outrender import PipelineOutputRenderer
@@ -149,6 +150,17 @@ class PipelineBuilderTab(QWidget):
         self.btn_load_pipeline.setFixedHeight(28)
         self.btn_load_pipeline.clicked.connect(self._load_pipeline)
         sb_l.addWidget(self.btn_load_pipeline)
+
+        self.btn_preview = QPushButton("▶  Preview Flow")
+        self.btn_preview.setFixedHeight(28)
+        self.btn_preview.setStyleSheet(
+            f"QPushButton{{background:transparent;color:{C['pipeline']};"
+            f"border:1px solid {C['pipeline']};border-radius:6px;"
+            f"font-size:11px;font-weight:600;}}"
+            f"QPushButton:hover{{background:{C['pipeline']};color:{C['bg1']};}}")
+        self.btn_preview.clicked.connect(self._toggle_flow_preview)
+        sb_l.addWidget(self.btn_preview)
+        self._preview_ctrl: Optional[FlowPreviewController] = None
 
         hint = QLabel(
             "Tip: draw a connection from a\n"
@@ -636,6 +648,44 @@ class PipelineBuilderTab(QWidget):
                     placeholder=f"Live context arriving at ◈ '{b.label}' will appear here…")
                 idx = self.output_tabs.addTab(te, f"◈ {b.label[:14]}")
                 self._inter_tabs[b.bid] = idx
+
+    # ── flow preview ──────────────────────────────────────────────────────────
+
+    def _toggle_flow_preview(self):
+        if self._preview_ctrl is not None:
+            self._stop_flow_preview(); return
+        if not self.canvas.blocks or not self.canvas.connections:
+            QMessageBox.information(
+                self, "Preview Flow",
+                "Add blocks and connect them before previewing."); return
+        if not any(b.btype == PipelineBlockType.INPUT for b in self.canvas.blocks):
+            QMessageBox.information(
+                self, "Preview Flow",
+                "Pipeline needs an ▶ INPUT block to start the preview."); return
+        self._preview_ctrl = FlowPreviewController(
+            self.canvas,
+            list(self.canvas.blocks),
+            list(self.canvas.connections),
+            parent=self)
+        self._preview_ctrl.finished.connect(self._stop_flow_preview)
+        self.btn_preview.setText("⏹  Stop Preview")
+        self.btn_preview.setStyleSheet(
+            f"QPushButton{{background:{C['pipeline']};color:{C['bg1']};"
+            f"border:1px solid {C['pipeline']};border-radius:6px;"
+            f"font-size:11px;font-weight:600;}}"
+            f"QPushButton:hover{{background:{C['acc2']};color:{C['bg1']};}}")
+        self._preview_ctrl.start()
+
+    def _stop_flow_preview(self):
+        if self._preview_ctrl is not None:
+            self._preview_ctrl.stop()
+            self._preview_ctrl = None
+        self.btn_preview.setText("▶  Preview Flow")
+        self.btn_preview.setStyleSheet(
+            f"QPushButton{{background:transparent;color:{C['pipeline']};"
+            f"border:1px solid {C['pipeline']};border-radius:6px;"
+            f"font-size:11px;font-weight:600;}}"
+            f"QPushButton:hover{{background:{C['pipeline']};color:{C['bg1']};}}")
 
     def _log(self, msg: str):
         ts = datetime.now().strftime("%H:%M:%S")

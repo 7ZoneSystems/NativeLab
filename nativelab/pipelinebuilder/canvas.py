@@ -31,6 +31,7 @@ class PipelineCanvas(QWidget):
         self._hover_port:     Optional[str]           = None
         self._selected:       Optional[PipelineBlock] = None
         self._drop_preview:   Optional[tuple]         = None  # (x, y) ghost position
+        self.preview_dots:    list                    = []    # set by FlowPreviewController
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._ctx_menu)
@@ -160,6 +161,32 @@ class PipelineCanvas(QWidget):
                 self._draw_arrow(p, fb, conn.from_port,
                                  tb, conn.to_port,
                                  conn.is_loop, conn.loop_times)
+
+        # ── flow-preview animated dots ────────────────────────────────────────
+        if self.preview_dots:
+            p.save()
+            p.setPen(Qt.PenStyle.NoPen)
+            for _dot in list(self.preview_dots):
+                _fb = self._block_by_id(_dot.conn.from_block_id)
+                _tb = self._block_by_id(_dot.conn.to_block_id)
+                if _fb is None or _tb is None:
+                    continue
+                _sx, _sy = _fb.port_pos(_dot.conn.from_port)
+                _ex, _ey = _tb.port_pos(_dot.conn.to_port)
+                _path = self._make_path(_sx, _sy, _ex, _ey,
+                                        _dot.conn.from_port, _dot.conn.to_port)
+                _pt   = _path.pointAtPercent(min(_dot.t, 1.0))
+                _col  = QColor(_dot.color)
+                # outer glow
+                _glow = QColor(_col)
+                _glow.setAlpha(55)
+                p.setBrush(QBrush(_glow))
+                p.drawEllipse(_pt, _dot.radius + 3, _dot.radius + 3)
+                # solid dot
+                _col.setAlpha(220)
+                p.setBrush(QBrush(_col))
+                p.drawEllipse(_pt, _dot.radius, _dot.radius)
+            p.restore()
 
         # ── preview arrow ─────────────────────────────────────────────────────
         if self._connect_from and self._connect_preview:
@@ -478,6 +505,27 @@ class PipelineCanvas(QWidget):
                     self.update()
                     return
             self.update()
+
+    def mouseDoubleClickEvent(self, event):
+        px = int(event.position().x())
+        py = int(event.position().y())
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        for b in reversed(self.blocks):
+            port = b.port_at(px, py)
+            if port:
+                before = len(self.connections)
+                self.connections = [
+                    c for c in self.connections
+                    if not (
+                        (c.from_block_id == b.bid and c.from_port == port) or
+                        (c.to_block_id   == b.bid and c.to_port   == port)
+                    )
+                ]
+                if len(self.connections) < before:
+                    self.blocks_changed.emit()
+                self.update()
+                return
 
     # Logic block types that may fan-out to multiple targets
     _LOGIC_BTYPES = {
@@ -831,9 +879,40 @@ class PipelineCanvas(QWidget):
                     queue.append(c.to_block_id)
         return False
 
+    def _conn_at(self, px: int, py: int,
+                 thresh: int = 8) -> "Optional[PipelineConnection]":
+        """Return the first connection whose bezier arc passes within thresh px of (px, py)."""
+        for conn in self.connections:
+            fb = self._block_by_id(conn.from_block_id)
+            tb = self._block_by_id(conn.to_block_id)
+            if fb is None or tb is None:
+                continue
+            sx, sy = fb.port_pos(conn.from_port)
+            ex, ey = tb.port_pos(conn.to_port)
+            path   = self._make_path(sx, sy, ex, ey,
+                                     conn.from_port, conn.to_port)
+            for i in range(32):
+                pt = path.pointAtPercent(i / 31)
+                if abs(pt.x() - px) <= thresh and abs(pt.y() - py) <= thresh:
+                    return conn
+        return None
+
     def _ctx_menu(self, pos):
         px, py = pos.x(), pos.y()
         menu   = QMenu(self)
+
+        # ── arrow hit-test (checked before blocks so thin lines are clickable) ──
+        conn_target  = self._conn_at(px, py)
+        act_del_conn = None
+        if conn_target:
+            fb = self._block_by_id(conn_target.from_block_id)
+            tb = self._block_by_id(conn_target.to_block_id)
+            fl = fb.label if fb else "?"
+            tl = tb.label if tb else "?"
+            act_del_conn = menu.addAction(
+                f"🗑  Delete Arrow  ({fl} → {tl})")
+            menu.addSeparator()
+
         target = next((b for b in reversed(self.blocks)
                        if b.contains(px, py)), None)
 
@@ -862,6 +941,13 @@ class PipelineCanvas(QWidget):
         act_clr = menu.addAction("🗑  Clear All Blocks & Connections")
         chosen  = menu.exec(self.mapToGlobal(pos))
         if not chosen:
+            return
+
+        if act_del_conn and chosen == act_del_conn:
+            if conn_target in self.connections:
+                self.connections.remove(conn_target)
+                self.blocks_changed.emit()
+                self.update()
             return
 
         if target:

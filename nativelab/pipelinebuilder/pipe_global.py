@@ -6,3 +6,4 @@ from .editordialogue import *
 from .outrender import *
 from .executionWorker import *
 from .pipebuilder import * 
+from .flowpreview import *

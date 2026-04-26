@@ -163,11 +163,11 @@ class PipelineExecutionWorker(QThread):
                 self.step_done.emit(bid, current_text)
                 # Only enqueue the arm matching branch_taken
                 for conn in adj.get(bid, []):
-                    bl = getattr(conn, "branch_label", "")
-                    # E=TRUE, W=FALSE; if no label treat all as pass-through
-                    take = (not bl) or (bl == branch_taken) or (
-                        bl == "TRUE" and branch_taken == "TRUE") or (
-                        bl == "FALSE" and branch_taken == "FALSE")
+                    # from_port E → TRUE arm, W → FALSE arm; N/S = pass-through
+                    port = conn.from_port
+                    take = (port not in ("E", "W")) or (
+                        port == "E" and branch_taken == "TRUE") or (
+                        port == "W" and branch_taken == "FALSE")
                     if take:
                         key = f"{conn.from_block_id}->{conn.to_block_id}"
                         visits = visit_counts.get(key, 0)
@@ -175,7 +175,7 @@ class PipelineExecutionWorker(QThread):
                         if visits < limit:
                             visit_counts[key] = visits + 1
                             queue.append((conn.to_block_id, current_text))
-                continue   # skip generic enqueue below
+                continue  
 
             elif b.btype == PipelineBlockType.SWITCH:
                 self.step_started.emit(bid, b.label)
@@ -196,9 +196,12 @@ class PipelineExecutionWorker(QThread):
                     f"⑃  SWITCH '{b.label}': key='{switch_key}'")
                 current_text = context
                 self.step_done.emit(bid, current_text)
+                # port_labels maps from_port → arm key, e.g. {"E":"yes","W":"no"}
+                _port_labels = b.metadata.get("port_labels", {})
                 _matched = False
                 for conn in adj.get(bid, []):
-                    bl = getattr(conn, "branch_label", "")
+                    # resolve arm key: metadata label → from_port letter → "default"
+                    bl = _port_labels.get(conn.from_port, conn.from_port)
                     if bl == switch_key or bl == "default" or not bl:
                         _matched = True
                         key = f"{conn.from_block_id}->{conn.to_block_id}"
@@ -344,10 +347,11 @@ class PipelineExecutionWorker(QThread):
                 current_text = context
                 self.step_done.emit(bid, current_text)
                 for conn in adj.get(bid, []):
-                    bl = getattr(conn, "branch_label", "")
-                    take = (not bl) or (bl == branch_taken) or (
-                        bl == "TRUE" and branch_taken == "TRUE") or (
-                        bl == "FALSE" and branch_taken == "FALSE")
+                    # from_port E → TRUE arm, W → FALSE arm; N/S = pass-through
+                    port = conn.from_port
+                    take = (port not in ("E", "W")) or (
+                        port == "E" and branch_taken == "TRUE") or (
+                        port == "W" and branch_taken == "FALSE")
                     if take:
                         key = f"{conn.from_block_id}->{conn.to_block_id}"
                         visits = visit_counts.get(key, 0)
@@ -397,9 +401,10 @@ class PipelineExecutionWorker(QThread):
                     f"🧠  LLM-SWITCH '{b.label}': classified as '{_match}' (raw: '{raw[:60]}')")
                 current_text = context
                 self.step_done.emit(bid, current_text)
+                _port_labels = b.metadata.get("port_labels", {})
                 _matched_any = False
                 for conn in adj.get(bid, []):
-                    bl = getattr(conn, "branch_label", "")
+                    bl = _port_labels.get(conn.from_port, conn.from_port)
                     if bl.lower() == _match.lower() or bl == "default" or not bl:
                         _matched_any = True
                         key = f"{conn.from_block_id}->{conn.to_block_id}"
@@ -519,12 +524,12 @@ class PipelineExecutionWorker(QThread):
                 self.step_done.emit(bid, current_text)
                 # Route by band or 'score' label (raw score string)
                 for conn in adj.get(bid, []):
-                    bl = getattr(conn, "branch_label", "")
+                    # from_port E → LOW, S → MID, W → HIGH; N = raw score pass-through
+                    port = conn.from_port
                     take = (
-                        not bl                               # unlabelled → always
-                        or bl.upper() == band                # LOW / MID / HIGH
-                        or bl == arm_target                  # E / S / W
-                        or bl.lower() == "score"             # raw score as text
+                        port == arm_target          # E/S/W matches band
+                        or port == "N"              # N port → raw score value
+                        or port not in ("E","S","W","N")  # unknown port → always pass
                     )
                     if take:
                         key = f"{conn.from_block_id}->{conn.to_block_id}"
@@ -532,8 +537,7 @@ class PipelineExecutionWorker(QThread):
                         limit  = conn.loop_times if conn.is_loop else 1
                         if visits < limit:
                             visit_counts[key] = visits + 1
-                            # 'score' label receives the numeric string
-                            out_txt = str(score) if bl.lower() == "score" else current_text
+                            out_txt = str(score) if port == "N" else current_text
                             queue.append((conn.to_block_id, out_txt))
                 continue
 
