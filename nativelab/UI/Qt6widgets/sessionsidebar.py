@@ -19,15 +19,11 @@ class SessionSidebar(QWidget):
         root.setSpacing(10)
 
         hdr = QLabel("CONVERSATIONS")
-        hdr.setStyleSheet(
-            f"color:{C['txt3']};font-size:10px;font-weight:700;"
-            f"letter-spacing:1.4px;padding:4px 6px 2px;")
+        hdr.setObjectName("sec_lbl")
         root.addWidget(hdr)
 
         self.new_btn = QPushButton("＋  New Chat")
         self.new_btn.setObjectName("btn_new")
-        self.new_btn.setStyleSheet(
-            f"color:#ffffff;font-size:10px;font-weight:700;")
         self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.new_btn.clicked.connect(self.new_session)
         root.addWidget(self.new_btn)
@@ -68,7 +64,7 @@ class SessionSidebar(QWidget):
         for date in sorted(grouped.keys(), reverse=True):
             di = QListWidgetItem(f"  📅  {date}")
             di.setFlags(Qt.ItemFlag.NoItemFlags)
-            di.setForeground(QColor(C["txt2"]))
+            di.setData(Qt.ItemDataRole.ForegroundRole, QColor(C["txt2"]))
             f = di.font(); f.setPointSize(10); di.setFont(f)
             self.lst.addItem(di)
             for s in grouped[date]:
@@ -76,10 +72,10 @@ class SessionSidebar(QWidget):
                 item  = QListWidgetItem(f"    {title}")
                 item.setData(Qt.ItemDataRole.UserRole, s.id)
                 if s.id == self._active:
-                    item.setForeground(QColor(C["acc"]))
+                    item.setData(Qt.ItemDataRole.ForegroundRole, QColor(C["acc"]))
                     fo = item.font(); fo.setBold(True); item.setFont(fo)
                 elif s.id == self._busy:
-                    item.setForeground(QColor(C["pipeline"]))   # cyan = actively processing
+                    item.setData(Qt.ItemDataRole.ForegroundRole, QColor(C["pipeline"]))
                     item.setToolTip("⚡ Processing…")
                     fo = item.font(); fo.setBold(True); item.setFont(fo)
                 self.lst.addItem(item)
@@ -118,7 +114,7 @@ class LogConsole(QWidget):
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(14, 8, 14, 6)
         lbl = QLabel("🐞  Debug Console")
-        lbl.setStyleSheet(f"color:{C['txt']};font-weight:700;font-size:13px;")
+        lbl.setObjectName("ref_hdr")
         clr = QPushButton("Clear")
         clr.setFixedSize(70, 28)
         clr.clicked.connect(lambda: self.te.clear())
