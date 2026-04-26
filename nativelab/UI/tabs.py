@@ -1985,6 +1985,7 @@ class McpTab(QWidget):
 API_REGISTRY = ApiRegistry()
 
 class ApiModelsTab(QWidget):
+    
     """Tab for connecting to cloud/local API models. Once verified, treated as a normal engine."""
     api_model_loaded = pyqtSignal(object)   # emits ApiEngine
 
@@ -1997,8 +1998,7 @@ class ApiModelsTab(QWidget):
     @staticmethod
     def _sec_lbl(text: str) -> QLabel:
         lb = QLabel(text)
-        lb.setStyleSheet(
-            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1.2px;")
+        lb.setObjectName("sec_lbl")
         return lb
 
     @staticmethod
@@ -2006,33 +2006,24 @@ class ApiModelsTab(QWidget):
         e = QLineEdit()
         e.setPlaceholderText(placeholder)
         e.setFixedHeight(32)
+        e.setObjectName("input")
         if pw:
             e.setEchoMode(QLineEdit.EchoMode.Password)
-        e.setStyleSheet(
-            f"QLineEdit{{background:{C['bg1']};border:1px solid {C['bdr']};"
-            f"border-radius:6px;color:{C['txt']};padding:0 10px;font-size:12px;}}"
-            f"QLineEdit:focus{{border-color:{C['acc']};}}")
         return e
 
     @staticmethod
     def _combo_style() -> str:
-        return (f"QComboBox{{background:{C['bg1']};border:1px solid {C['bdr']};"
-                f"border-radius:6px;color:{C['txt']};padding:0 10px;font-size:12px;}}"
-                f"QComboBox::drop-down{{border:none;width:22px;}}"
-                f"QComboBox QAbstractItemView{{background:{C['bg2']};color:{C['txt']};"
-                f"selection-background-color:{C['acc']};}}")
+        # No longer used — combos are styled via QSS objectName "combo"
+        return ""
 
     @staticmethod
     def _action_btn(label: str, color: str) -> QPushButton:
         b = QPushButton(label)
         b.setFixedHeight(34)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
-        b.setStyleSheet(
-            f"QPushButton{{background:transparent;color:{color};"
-            f"border:1px solid {color};border-radius:7px;"
-            f"font-size:11px;font-weight:600;padding:0 16px;}}"
-            f"QPushButton:hover{{background:{color};color:#fff;}}"
-            f"QPushButton:disabled{{color:{C['txt3']};border-color:{C['bdr']};}}")
+        b.setObjectName("outline_btn")
+        # Store the semantic color role as a dynamic property so QSS can target it
+        b.setProperty("btn_color", color)
         return b
 
     def _build(self):
@@ -2055,14 +2046,10 @@ class ApiModelsTab(QWidget):
         card_scroll.setWidgetResizable(True)
         card_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         card_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        card_scroll.setStyleSheet(
-            f"QScrollArea{{background:{C['bg2']};border:1px solid {C['bdr']};"
-            f"border-radius:10px;}}"
-            f"QScrollBar:vertical{{background:{C['bg1']};width:6px;border-radius:3px;}}"
-            f"QScrollBar::handle:vertical{{background:{C['bdr2']};border-radius:3px;}}"
-            f"QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{{height:0px;}}")
+        card_scroll.setObjectName("card_scroll")
+
         card = QWidget()
-        card.setStyleSheet(f"QWidget{{background:{C['bg2']};border:none;}}")
+        card.setObjectName("card_inner")
         cl = QVBoxLayout(card)
         cl.setContentsMargins(18, 16, 18, 16)
         cl.setSpacing(12)
@@ -2075,7 +2062,7 @@ class ApiModelsTab(QWidget):
         lp.addWidget(QLabel("Provider"))
         self.combo_provider = QComboBox()
         self.combo_provider.setFixedHeight(32)
-        self.combo_provider.setStyleSheet(self._combo_style())
+        self.combo_provider.setObjectName("combo")
         for p in API_PROVIDERS:
             self.combo_provider.addItem(p)
         self.combo_provider.currentTextChanged.connect(self._on_provider_changed)
@@ -2087,7 +2074,7 @@ class ApiModelsTab(QWidget):
         self.combo_model = QComboBox()
         self.combo_model.setFixedHeight(32)
         self.combo_model.setEditable(True)
-        self.combo_model.setStyleSheet(self._combo_style())
+        self.combo_model.setObjectName("combo")
         lm.addWidget(self.combo_model)
         r1.addLayout(lm, 2)
         cl.addLayout(r1)
@@ -2129,18 +2116,13 @@ class ApiModelsTab(QWidget):
         cl.addLayout(r4)
 
         # ── Prompt format section ─────────────────────────────────────────────
-        sep_pf = QFrame(); sep_pf.setFrameShape(QFrame.Shape.HLine)
-        sep_pf.setStyleSheet(f"color:{C['bdr']};")
+        sep_pf = QFrame()
+        sep_pf.setFrameShape(QFrame.Shape.HLine)
         cl.addWidget(sep_pf)
 
         pf_hdr = QHBoxLayout()
         pf_lbl = self._sec_lbl("PROMPT FORMAT")
         self.chk_custom_prompt = QCheckBox("Use custom format")
-        self.chk_custom_prompt.setStyleSheet(
-            f"QCheckBox{{color:{C['txt2']};font-size:11px;}}"
-            f"QCheckBox::indicator{{width:14px;height:14px;border:1px solid {C['bdr']};"
-            f"border-radius:3px;background:{C['bg1']};}}"
-            f"QCheckBox::indicator:checked{{background:{C['acc']};border-color:{C['acc']};}}")
         self.chk_custom_prompt.toggled.connect(self._toggle_prompt_format)
         pf_hdr.addWidget(pf_lbl)
         pf_hdr.addStretch()
@@ -2158,7 +2140,7 @@ class ApiModelsTab(QWidget):
         tl2.addWidget(QLabel("Template Preset"))
         self.combo_template = QComboBox()
         self.combo_template.setFixedHeight(32)
-        self.combo_template.setStyleSheet(self._combo_style())
+        self.combo_template.setObjectName("combo")
         for key, val in PROMPT_TEMPLATES.items():
             self.combo_template.addItem(val["label"], key)
         self.combo_template.currentIndexChanged.connect(self._on_template_changed)
@@ -2172,10 +2154,6 @@ class ApiModelsTab(QWidget):
         self.inp_system = QTextEdit()
         self.inp_system.setFixedHeight(64)
         self.inp_system.setPlaceholderText("System prompt / instruction prefix (optional)")
-        self.inp_system.setStyleSheet(
-            f"QTextEdit{{background:{C['bg1']};border:1px solid {C['bdr']};"
-            f"border-radius:6px;color:{C['txt']};padding:6px 10px;font-size:11px;}}"
-            f"QTextEdit:focus{{border-color:{C['acc']};}}")
         spl.addWidget(self.inp_system)
         pfw.addLayout(spl)
 
@@ -2206,8 +2184,8 @@ class ApiModelsTab(QWidget):
 
         # Buttons + status
         br = QHBoxLayout(); br.setSpacing(10)
-        self.btn_test = self._action_btn("⚡  Test & Load", C["ok"])
-        self.btn_save = self._action_btn("💾  Save Config",  C["acc"])
+        self.btn_test = self._action_btn("⚡  Test & Load", "ok")
+        self.btn_save = self._action_btn("💾  Save Config",  "acc")
         self.btn_test.clicked.connect(self._test_and_load)
         self.btn_save.clicked.connect(self._save_config)
         br.addWidget(self.btn_test)
@@ -2216,7 +2194,7 @@ class ApiModelsTab(QWidget):
         cl.addLayout(br)
 
         self.lbl_status = QLabel("● Not connected")
-        self.lbl_status.setStyleSheet(f"color:{C['txt3']};font-size:11px;")
+        self.lbl_status.setObjectName("api_status")
         cl.addWidget(self.lbl_status)
         root.addWidget(card_scroll, 2)
 
@@ -2225,9 +2203,7 @@ class ApiModelsTab(QWidget):
 
         saved_scroll = QScrollArea()
         saved_scroll.setWidgetResizable(True)
-        saved_scroll.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        saved_scroll.setStyleSheet("QScrollArea{border:none;background:transparent;}")
+        saved_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.saved_container = QWidget()
         self.saved_vbox = QVBoxLayout(self.saved_container)
         self.saved_vbox.setContentsMargins(0, 4, 0, 4)
@@ -2289,7 +2265,9 @@ class ApiModelsTab(QWidget):
     def _run_test(self, cfg: ApiConfig):
         self.btn_test.setEnabled(False)
         self.lbl_status.setText("⏳  Testing connection…")
-        self.lbl_status.setStyleSheet(f"color:{C['warn']};font-size:11px;")
+        self.lbl_status.setProperty("state", "warn")
+        self.lbl_status.style().unpolish(self.lbl_status)
+        self.lbl_status.style().polish(self.lbl_status)
 
         class _T(QThread):
             finished = pyqtSignal(bool, str, object)
@@ -2308,19 +2286,22 @@ class ApiModelsTab(QWidget):
         cfg = self._collect_config()
         if not cfg.model_id:
             self.lbl_status.setText("⚠  Select or enter a model ID first")
-            self.lbl_status.setStyleSheet(f"color:{C['warn']};font-size:11px;")
+            self.lbl_status.setProperty("state", "warn")
+            self.lbl_status.style().unpolish(self.lbl_status)
+            self.lbl_status.style().polish(self.lbl_status)
             return
         self._run_test(cfg)
 
     def _on_test_done(self, ok: bool, msg: str, engine):
         self.btn_test.setEnabled(True)
+        state = "ok" if ok else "err"
+        prefix = "✓" if ok else "✗"
+        self.lbl_status.setText(f"{prefix}  {msg}")
+        self.lbl_status.setProperty("state", state)
+        self.lbl_status.style().unpolish(self.lbl_status)
+        self.lbl_status.style().polish(self.lbl_status)
         if ok:
-            self.lbl_status.setText(f"✓  {msg}")
-            self.lbl_status.setStyleSheet(f"color:{C['ok']};font-size:11px;")
             self.api_model_loaded.emit(engine)
-        else:
-            self.lbl_status.setText(f"✗  {msg}")
-            self.lbl_status.setStyleSheet(f"color:{C['err']};font-size:11px;")
         self._tester = None
 
     def _save_config(self):
@@ -2343,9 +2324,7 @@ class ApiModelsTab(QWidget):
                  "Mistral": "🌊", "Together AI": "🤝", "OpenRouter": "🔀",
                  "Ollama": "🦙", "Custom": "🔧"}
         card = QFrame()
-        card.setStyleSheet(
-            f"QFrame{{background:{C['bg2']};border:1px solid {C['bdr']};"
-            f"border-radius:8px;}}")
+        card.setObjectName("card")
         cl = QHBoxLayout(card)
         cl.setContentsMargins(14, 10, 14, 10)
         cl.setSpacing(10)
@@ -2358,23 +2337,20 @@ class ApiModelsTab(QWidget):
         prov_display = getattr(cfg, "custom_provider_name", "") or cfg.provider
         fmt_badge    = "  ·  🎨 custom fmt" if getattr(cfg, "use_custom_prompt", False) else ""
         s = QLabel(f"{prov_display}  ·  {cfg.model_id}{fmt_badge}")
-        s.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        s.setObjectName("txt2_small")
         il.addWidget(t); il.addWidget(s)
         cl.addLayout(il, 1)
 
-        def _sb(label, color):
+        def _sb(label, role):
             b = QPushButton(label)
             b.setFixedHeight(28)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setStyleSheet(
-                f"QPushButton{{background:transparent;color:{color};"
-                f"border:1px solid {color};border-radius:6px;"
-                f"font-size:10px;font-weight:600;padding:0 10px;}}"
-                f"QPushButton:hover{{background:{color};color:#fff;}}")
+            b.setObjectName("outline_btn")
+            b.setProperty("btn_color", role)
             return b
 
-        bl = _sb("▶  Load", C["ok"])
-        bd = _sb("🗑", C["err"])
+        bl = _sb("▶  Load", "ok")
+        bd = _sb("🗑", "err")
         bl.clicked.connect(lambda _, c=cfg: self._load_saved(c))
         bd.clicked.connect(lambda _, c=cfg: self._delete_saved(c))
         cl.addWidget(bl); cl.addWidget(bd)
