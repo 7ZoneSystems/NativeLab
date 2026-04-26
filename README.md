@@ -228,18 +228,18 @@ All v1 features — session management, PDF summarization, reference injection, 
 The application is organized into several distinct layers that work together.
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
+┌─────────────────────────────────────────────────────────────────────-┐
 │                          MainWindow (PyQt6)                          │
-│  ┌──────────────┐  ┌──────────────────────────────────────────────┐ │
-│  │ SessionSidebar│  │                 QTabWidget                   │ │
-│  │              │  │  ┌──────┬───────┬───────┬───────┬─────────┐  │ │
-│  │ (chat list)  │  │  │ Chat │Models │Config │Server │Pipeline │  │ │
-│  └──────────────┘  │  │      │       │       │       │ Builder │  │ │
+│  ┌──────────────┐   ┌──────────────────────────────────────────────┐ │
+│  │SessionSidebar│   │                 QTabWidget                   │ │
+│  │              │   │  ┌──────┬───────┬───────┬───────┬─────────┐  │ │
+│  │ (chat list)  │   │  │ Chat │Models │Config │Server │Pipeline │  │ │
+│  └──────────────┘   │  │      │       │       │       │ Builder │  │ │
 │                     │  ├──────┼───────┼───────┼───────┼─────────┤  │ │
 │                     │  │ MCP  │  DL   │Appear.│ Logs  │         │  │ │
 │                     │  └──────┴───────┴───────┴───────┴─────────┘  │ │
 │                     └──────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────────-┘
          │
          ▼
 ┌─────────────────────────────────┐
@@ -978,3 +978,132 @@ All inference (streaming tokens, summarization, pipeline stages, HuggingFace dow
 ### Stray Process Cleanup
 
 On shutdown, `_kill_stray_llama_servers()` is called to terminate any orphaned `llama-server` processes from previous crashed sessions, in addition to cleanly shutting down all currently managed engines.
+
+## Project Structure 
+```
+  ├── CODE_OF_CONDUCT.md
+  ├── comt.sh
+  ├── CONTRIBUTING.md
+  ├── dist
+  │   ├── nativelab-0.1.0-py3-none-any.whl
+  │   ├── nativelab-0.1.0.tar.gz
+  │   ├── nativelab-0.1.1-py3-none-any.whl
+  │   ├── nativelab-0.1.1.tar.gz
+  │   ├── nativelab-0.1.2-py3-none-any.whl
+  │   ├── nativelab-0.1.2.tar.gz
+  │   ├── nativelab-0.1.3-py3-none-any.whl
+  │   ├── nativelab-0.1.3.tar.gz
+  │   ├── nativelab-0.1.4-py3-none-any.whl
+  │   ├── nativelab-0.1.4.tar.gz
+  │   ├── nativelab-0.1.5-py3-none-any.whl
+  │   └── nativelab-0.1.5.tar.gz
+  ├── .github
+  │   ├── ISSUE_TEMPLATE
+  │   │   ├── bug_report.md
+  │   │   └── feature_request.md
+  │   ├── PULL_REQUEST_TEMPLATE.md
+  │   └── workflows
+  │       └── build-mac.yml
+  ├── .gitignore
+  ├── index.html
+  ├── LICENSE
+  ├── nativelab
+  │   ├── codeparser
+  │   │   ├── codeparser_global.py
+  │   │   ├── __init__.py
+  │   │   ├── parser
+  │   │   │   ├── __init__.py
+  │   │   │   ├── parsefinal.py
+  │   │   │   └── typeparser.py
+  │   │   ├── refrenceengine.py
+  │   │   └── scriptparser.py
+  │   ├── components
+  │   │   ├── components_global.py
+  │   │   ├── __init__.py
+  │   │   ├── jobhandler.py
+  │   │   ├── multipdf_summarise.py
+  │   │   ├── pdfsummarise.py
+  │   │   └── reason_code_pipeline.py
+  │   ├── core
+  │   │   ├── engine_global.py
+  │   │   ├── engines
+  │   │   │   ├── apiengine.py
+  │   │   │   ├── __init__.py
+  │   │   │   └── llamaengine.py
+  │   │   ├── __init__.py
+  │   │   ├── streamer_global.py
+  │   │   └── streamerworker
+  │   │       ├── apistreamer.py
+  │   │       ├── clistreamer.py
+  │   │       ├── __init__.py
+  │   │       └── serverstreamer.py
+  │   ├── GlobalConfig
+  │   │   ├── binaryResolve.py
+  │   │   ├── config_global.py
+  │   │   ├── config.py
+  │   │   ├── const.py
+  │   │   ├── hardwareUtil.py
+  │   │   └── __init__.py
+  │   ├── icon.ico
+  │   ├── icon.png
+  │   ├── imports
+  │   │   ├── import_global.py
+  │   │   ├── __init__.py
+  │   │   ├── optional_lib.py
+  │   │   ├── pyqt_lib.py
+  │   │   └── standard_lib.py
+  │   ├── main.py
+  │   ├── manual.py
+  │   ├── Model
+  │   │   ├── APImodels.py
+  │   │   ├── __init__.py
+  │   │   ├── model_family.py
+  │   │   ├── model_global.py
+  │   │   ├── ModelRegistry.py
+  │   │   └── templates.py
+  │   ├── pipelinebuilder
+  │   │   ├── blck_typ.py
+  │   │   ├── canvas.py
+  │   │   ├── editordialogue.py
+  │   │   ├── executionWorker.py
+  │   │   ├── __init__.py
+  │   │   ├── outrender.py
+  │   │   ├── pipblck.py
+  │   │   ├── pipebuilder.py
+  │   │   ├── pipefunctions.py
+  │   │   └── pipe_global.py
+  │   ├── Prefrences
+  │   │   ├── __init__.py
+  │   │   ├── ParallelLoading.py
+  │   │   └── prefrence_global.py
+  │   ├── Server
+  │   │   ├── hfdwld.py
+  │   │   ├── __init__.py
+  │   │   ├── server_global.py
+  │   │   └── ServerHandling.py
+  │   └── UI
+  │       ├── buildUI.py
+  │       ├── effects.py
+  │       ├── __init__.py
+  │       ├── md_to_html.py
+  │       ├── Qt6widgets
+  │       │   ├── chatarea.py
+  │       │   ├── chatmodule.py
+  │       │   ├── __init__.py
+  │       │   ├── inputbar.py
+  │       │   ├── messagewidget.py
+  │       │   ├── refrencepanels.py
+  │       │   ├── sessionsidebar.py
+  │       │   └── thinkingblock.py
+  │       ├── RichTextEditor.py
+  │       ├── tabs.py
+  │       ├── UI_const.py
+  │       ├── UI_global.py
+  │       └── widgets.py
+  ├── NativeLab.spec
+  ├── pyproject.toml
+  ├── README.md
+  ├── requirements.txt
+  ├── SECURITY.md
+  ├── setup.html
+```
