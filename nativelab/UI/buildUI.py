@@ -763,7 +763,90 @@ QTextEdit#log_te span.log_msg {{
 QLabel#status_badge[state="idle"]  {{ color:{c['txt3']}; }}
 QLabel#status_badge[state="ok"]    {{ color:{c['ok']}; }}
 QLabel#status_badge[state="warn"]  {{ color:{c['warn']}; }}
-"""
+
+/* ══════════════════════════════════════════════════════════════════
+   Labs Tab
+   ══════════════════════════════════════════════════════════════════ */
+
+QWidget#labs_sidebar {{
+    background:{c['bg1']};
+    border-right:1px solid {c['bdr']};
+}}
+QLabel#labs_sidebar_hdr {{
+    color:{c['txt3']};
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:1.2px;
+    padding:14px 16px 6px 16px;
+    background:transparent;
+}}
+QListWidget#labs_nav {{
+    background:transparent;
+    border:none;
+    outline:none;
+    padding:0 6px;
+}}
+QListWidget#labs_nav::item {{
+    padding:9px 10px;
+    border-radius:7px;
+    margin:1px 0;
+    color:{c['txt2']};
+    font-size:13px;
+    font-weight:500;
+}}
+QListWidget#labs_nav::item:selected {{
+    background:{c['acc_dim']};
+    color:{c['acc']};
+    font-weight:600;
+}}
+QListWidget#labs_nav::item:hover:!selected {{
+    background:{c['highlight']};
+    color:{c['txt']};
+}}
+QStackedWidget#labs_stack {{
+    background:{c['bg0']};
+}}
+QLabel#labs_panel_header {{
+    font-size:16px;
+    font-weight:bold;
+    margin-bottom:4px;
+    color:{c['txt']};
+    background:transparent;
+}}
+QPushButton#labs_generate_btn {{
+    background:{c['acc']};
+    color:#ffffff;
+    border:none;
+    font-weight:600;
+    border-radius:8px;
+    font-size:13px;
+    letter-spacing:0.15px;
+    min-height:38px;
+    padding:0 24px;
+}}
+QPushButton#labs_generate_btn:hover  {{ background:{c['acc2']}; color:#ffffff; }}
+QPushButton#labs_generate_btn:pressed {{ background:{c['glow']}; }}
+QPushButton#labs_generate_btn:disabled {{
+    background:{c['bg3']};
+    color:{c['txt3']};
+    border:1px solid {c['bdr']};
+}}
+QTextEdit#labs_preview_te {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr']};
+    border-radius:9px;
+    padding:10px 14px;
+    font-size:12px;
+    selection-background-color:{c['acc_dim']};
+}}
+QTextEdit#labs_preview_te:focus {{
+    border-color:{c['bdr2']};
+    background:{c['surface2']};
+}}
+ """
+
+
 
 API_MODELS_QSS_BLOCK = """
 /* ══════════════════════════════════════════════════════
@@ -944,6 +1027,103 @@ QLabel#api_status[state="ok"] {{
 }}
 QLabel#api_status[state="err"] {{
     color:{c['err']};
+}}
+"""
+LABS_QSS_BLOCK = """
+QWidget#labs_sidebar {{
+    background:{c['bg1']};
+    border-right:1px solid {c['bdr']};
+}}
+ 
+/* Section header inside the sidebar */
+QLabel#labs_sidebar_hdr {{
+    color:{c['txt3']};
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:1.2px;
+    padding:14px 16px 6px 16px;
+    background:transparent;
+}}
+ 
+/* Nav list — inherits global QListWidget but we tune spacing */
+QListWidget#labs_nav {{
+    background:transparent;
+    border:none;
+    outline:none;
+    padding:0 6px;
+}}
+QListWidget#labs_nav::item {{
+    padding:9px 10px;
+    border-radius:7px;
+    margin:1px 0;
+    color:{c['txt2']};
+    font-size:13px;
+    font-weight:500;
+}}
+QListWidget#labs_nav::item:selected {{
+    background:{c['acc_dim']};
+    color:{c['acc']};
+    border:1px solid {c['acc_dim']};
+    font-weight:600;
+}}
+QListWidget#labs_nav::item:hover:!selected {{
+    background:{c['highlight']};
+    color:{c['txt']};
+}}
+ 
+/* Stacked content area */
+QStackedWidget#labs_stack {{
+    background:{c['bg0']};
+}}
+ 
+/* Panel header label */
+QLabel#labs_panel_header {{
+    font-size:16px;
+    font-weight:bold;
+    margin-bottom:4px;
+    color:{c['txt']};
+    background:transparent;
+}}
+ 
+/* Primary generate button — accent filled */
+QPushButton#labs_generate_btn {{
+    background:{c['acc']};
+    color:#ffffff;
+    border:none;
+    font-weight:600;
+    border-radius:8px;
+    font-size:13px;
+    letter-spacing:0.15px;
+    min-height:38px;
+    padding:0 24px;
+}}
+QPushButton#labs_generate_btn:hover {{
+    background:{c['acc2']};
+    color:#ffffff;
+}}
+QPushButton#labs_generate_btn:pressed {{
+    background:{c['glow']};
+}}
+QPushButton#labs_generate_btn:disabled {{
+    background:{c['bg3']};
+    color:{c['txt3']};
+    border:1px solid {c['bdr']};
+}}
+ 
+/* Live-preview text area — monospaced, subtle surface */
+QTextEdit#labs_preview_te {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr']};
+    border-radius:9px;
+    padding:10px 14px;
+    font-size:12px;
+    line-height:1.6;
+    selection-background-color:{c['acc_dim']};
+}}
+QTextEdit#labs_preview_te:focus {{
+    border-color:{c['bdr2']};
+    background:{c['surface2']};
 }}
 """
 QSS = build_qss(C)

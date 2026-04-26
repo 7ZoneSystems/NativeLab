@@ -329,6 +329,10 @@ class MainWindow(QMainWindow):
         central.setLayout(ml)
         self.setCentralWidget(central)
 
+        # ── Labs tab ──
+        self.labs_tab = LabsTab()
+        self.tabs.addTab(self.labs_tab, "⌬  Labs")
+        
     # ── models tab ───────────────────────────────────────────────────────────
 
     def _build_models_tab(self) -> QWidget:

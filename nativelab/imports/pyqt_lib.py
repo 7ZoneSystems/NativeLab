@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QListWidgetItem, QSplitter, QTabWidget, QScrollArea, QFrame,
     QComboBox, QProgressBar, QMenu, QMessageBox, QInputDialog,
     QSizePolicy, QLineEdit, QSlider, QCheckBox, QGroupBox, QTextBrowser, QColorDialog,
-    QSpinBox, 
+    QSpinBox,QStackedWidget
 )
 from PyQt6.QtGui import (
     QFont, QColor, QTextCursor,QMouseEvent, QAction, QKeySequence, QIcon, QPainter, QPen, QBrush, QColor, QPainterPath, QPolygonF, QLinearGradient

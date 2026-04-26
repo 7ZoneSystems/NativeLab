@@ -1,4 +1,4 @@
-from nativelab.imports.import_global import QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
+from nativelab.imports.import_global import QStackedWidget,QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
 from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C,set_theme
 from .effects import fade_in
 from nativelab.core.engine_global import ApiConfig, ApiEngine
@@ -8,6 +8,7 @@ from nativelab.components.components_global import list_paused_jobs, delete_paus
 from nativelab.Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchWorker, HfDownloadWorker, MCP_CONFIG_FILE
 from nativelab.Server.hfdwld import LlamaCppReleaseFetcher, LlamaCppDownloadWorker
 from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES
+from nativelab.UI.labs_tab import *
 class ConfigTab(QWidget):
     """Full configuration tab — all thresholds with descriptions."""
 
@@ -1308,7 +1309,7 @@ class ModelDownloadTab(QWidget):
         dest_lbl.setObjectName("txt2")
         self.dest_edit = QLineEdit(str(MODELS_DIR.resolve()))
         self.dest_edit.setReadOnly(True)
-        btn_dest = QPushButton("Browse...")
+        btn_dest = QPushButton("Browse")
         btn_dest.setFixedHeight(28); btn_dest.setFixedWidth(80)
         btn_dest.clicked.connect(self._browse_dest)
         dest_row.addWidget(dest_lbl)
@@ -2388,3 +2389,415 @@ class ApiModelsTab(QWidget):
         if ans == QMessageBox.StandardButton.Yes:
             API_REGISTRY.remove(cfg.name)
             self._refresh_saved()
+
+class LabsTab(QWidget):
+    """
+    Labs Tab — sidebar navigation + stacked content panels.
+
+    Usage
+    -----
+    In your main window, after loading an LLM engine, call:
+        self.labs_tab.set_engine(engine)
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._panels: dict[str, QWidget] = {}
+        self._build()
+
+    # ── external API ─────────────────────────────────────────────────────────
+    def set_engine(self, engine: ApiEngine):
+        """Forward the engine to every panel that accepts one."""
+        for panel in self._panels.values():
+            if hasattr(panel, "set_engine"):
+                panel.set_engine(engine)
+
+    # ── build ─────────────────────────────────────────────────────────────────
+    def _build(self):
+        root = QHBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        # ── left sidebar ──────────────────────────────────────────────────────
+        sidebar = QWidget()
+        sidebar.setObjectName("labs_sidebar")
+        sidebar.setFixedWidth(172)
+        sb_layout = QVBoxLayout(sidebar)
+        sb_layout.setContentsMargins(0, 0, 0, 0)
+        sb_layout.setSpacing(0)
+
+        labs_lbl = QLabel("LABS")
+        labs_lbl.setObjectName("labs_sidebar_hdr")
+        sb_layout.addWidget(labs_lbl)
+
+        self.nav_list = QListWidget()
+        self.nav_list.setObjectName("labs_nav")
+        self.nav_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.nav_list.setSpacing(2)
+
+        for name, icon, _ in _LABS:
+            item = QListWidgetItem(f"  {icon}  {name}")
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            self.nav_list.addItem(item)
+
+        self.nav_list.currentRowChanged.connect(self._on_nav_changed)
+        sb_layout.addWidget(self.nav_list)
+        sb_layout.addStretch()
+        root.addWidget(sidebar)
+
+        # ── right content area ────────────────────────────────────────────────
+        self.stack = QStackedWidget()
+        self.stack.setObjectName("labs_stack")
+
+        for name, _, PanelClass in _LABS:
+            panel = PanelClass()
+            self._panels[name] = panel
+            self.stack.addWidget(panel)
+
+        root.addWidget(self.stack, 1)
+
+        # Select first item
+        self.nav_list.setCurrentRow(0)
+
+    def _on_nav_changed(self, row: int):
+        if 0 <= row < self.stack.count():
+            self.stack.setCurrentIndex(row)
+
+class PyToDocPanel(QWidget):
+    """
+    UI panel for the py-to-doc lab.
+
+    Layout (all styled via QSS objectNames — no inline C[] colors):
+      - File / output settings card
+      - Options card (checkboxes)
+      - Custom prompts card
+      - Generate button
+      - Live log + preview cards
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._worker:  Optional[PyToDocWorker] = None
+        self._engine:  Optional[ApiEngine]     = None   # set externally
+        self._build()
+
+    # ── external API ─────────────────────────────────────────────────────────
+    def set_engine(self, engine: ApiEngine):
+        """Call this when an LLM engine is loaded in the main window."""
+        self._engine = engine
+
+    # ── build ─────────────────────────────────────────────────────────────────
+    def _build(self):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setObjectName("chat_scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        inner = QWidget()
+        inner.setObjectName("chat_container")
+        root = QVBoxLayout(inner)
+        root.setContentsMargins(22, 18, 22, 22)
+        root.setSpacing(0)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+
+        # ── header ────────────────────────────────────────────────────────────
+        hdr = QLabel("📄  py-to-doc")
+        hdr.setObjectName("labs_panel_header")
+        root.addWidget(hdr)
+
+        sub = QLabel(
+            "Convert a Python file into structured README-style documentation "
+            "using your loaded LLM.  Classes and functions are fed individually "
+            "for precise, well-scoped output."
+        )
+        sub.setWordWrap(True)
+        sub.setObjectName("txt2_small")
+        sub.setStyleSheet("margin-bottom:18px;")
+        root.addWidget(sub)
+
+        # ── card: file settings ───────────────────────────────────────────────
+        root.addWidget(self._section_label("FILE SETTINGS"))
+        file_card = self._card()
+        fc = QVBoxLayout(file_card)
+        fc.setContentsMargins(16, 14, 16, 14)
+        fc.setSpacing(10)
+
+        # Python file picker
+        self.inp_src = QLineEdit()
+        self.inp_src.setPlaceholderText("Select Python file to document…")
+        self.inp_src.setReadOnly(True)
+        self.inp_src.setFixedHeight(30)
+        btn_browse_src = QPushButton("Browse…")
+        btn_browse_src.setFixedHeight(30)
+        btn_browse_src.setFixedWidth(80)
+        btn_browse_src.clicked.connect(self._browse_src)
+        fc.addLayout(self._field_row("Python file:", self.inp_src, btn_browse_src))
+
+        # Output path picker
+        self.inp_out_dir = QLineEdit()
+        self.inp_out_dir.setPlaceholderText("Select output folder…")
+        self.inp_out_dir.setReadOnly(True)
+        self.inp_out_dir.setFixedHeight(30)
+        btn_browse_out = QPushButton("Browse…")
+        btn_browse_out.setFixedHeight(30)
+        btn_browse_out.setFixedWidth(80)
+        btn_browse_out.clicked.connect(self._browse_out)
+        fc.addLayout(self._field_row("Output folder:", self.inp_out_dir, btn_browse_out))
+
+        # Output filename
+        self.inp_out_name = QLineEdit("README.md")
+        self.inp_out_name.setFixedHeight(30)
+        fc.addLayout(self._field_row("Output filename:", self.inp_out_name))
+
+        root.addWidget(file_card)
+        root.addSpacing(14)
+
+        # ── card: options ─────────────────────────────────────────────────────
+        root.addWidget(self._section_label("OPTIONS"))
+        opt_card = self._card()
+        oc = QVBoxLayout(opt_card)
+        oc.setContentsMargins(16, 14, 16, 14)
+        oc.setSpacing(8)
+
+        self.chk_globals    = QCheckBox("Include module-level (global) functions")
+        self.chk_reset_fn   = QCheckBox("Reset LLM context after each function")
+        self.chk_reset_cls  = QCheckBox("Reset LLM context after each class")
+
+        self.chk_reset_fn.setChecked(True)   # safe default
+        for chk in (self.chk_globals, self.chk_reset_fn, self.chk_reset_cls):
+            oc.addWidget(chk)
+
+        root.addWidget(opt_card)
+        root.addSpacing(14)
+
+        # ── card: custom prompts ──────────────────────────────────────────────
+        root.addWidget(self._section_label("CUSTOM PROMPTS  (leave blank for defaults)"))
+        prompt_card = self._card()
+        pc = QVBoxLayout(prompt_card)
+        pc.setContentsMargins(16, 14, 16, 14)
+        pc.setSpacing(10)
+
+        self.inp_prompt_overview  = self._prompt_edit(
+            "Overview prompt…", DEFAULT_OVERVIEW_PROMPT)
+        self.inp_prompt_class     = self._prompt_edit(
+            "Class description prompt…", DEFAULT_CLASS_PROMPT)
+        self.inp_prompt_function  = self._prompt_edit(
+            "Function description prompt…", DEFAULT_FUNC_PROMPT)
+
+        for label, widget in (
+            ("Overview prompt:",  self.inp_prompt_overview),
+            ("Class prompt:",     self.inp_prompt_class),
+            ("Function prompt:",  self.inp_prompt_function),
+        ):
+            lbl = QLabel(label)
+            lbl.setObjectName("txt2_small")
+            pc.addWidget(lbl)
+            pc.addWidget(widget)
+
+        root.addWidget(prompt_card)
+        root.addSpacing(18)
+
+        # ── generate button ───────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        self.btn_generate = QPushButton("⚙️  Generate Documentation")
+        self.btn_generate.setObjectName("labs_generate_btn")
+        self.btn_generate.setMinimumHeight(38)
+        self.btn_generate.clicked.connect(self._run_py_to_doc)
+        self.btn_abort = QPushButton("⏹  Abort")
+        self.btn_abort.setObjectName("btn_stop")
+        self.btn_abort.setFixedHeight(38)
+        self.btn_abort.setVisible(False)
+        self.btn_abort.clicked.connect(self._abort)
+        btn_row.addWidget(self.btn_generate, 1)
+        btn_row.addWidget(self.btn_abort)
+        root.addLayout(btn_row)
+        root.addSpacing(14)
+
+        # ── card: log ─────────────────────────────────────────────────────────
+        root.addWidget(self._section_label("PIPELINE LOG"))
+        log_card = self._card()
+        lc = QVBoxLayout(log_card)
+        lc.setContentsMargins(14, 10, 14, 12)
+
+        self.log_te = QTextEdit()
+        self.log_te.setObjectName("log_te")
+        self.log_te.setReadOnly(True)
+        self.log_te.setFixedHeight(130)
+        self.log_te.setFont(QFont("Consolas", 10))
+        lc.addWidget(self.log_te)
+        root.addWidget(log_card)
+        root.addSpacing(14)
+
+        # ── card: live preview ────────────────────────────────────────────────
+        root.addWidget(self._section_label("LIVE OUTPUT PREVIEW"))
+        prev_card = self._card()
+        pvc = QVBoxLayout(prev_card)
+        pvc.setContentsMargins(14, 10, 14, 12)
+
+        self.preview_te = QTextEdit()
+        self.preview_te.setObjectName("labs_preview_te")
+        self.preview_te.setReadOnly(True)
+        self.preview_te.setMinimumHeight(260)
+        self.preview_te.setFont(QFont("Consolas", 10))
+        self.preview_te.setPlaceholderText(
+            "Generated documentation will stream here in real time…")
+        pvc.addWidget(self.preview_te)
+
+        btn_copy = QPushButton("📋  Copy to Clipboard")
+        btn_copy.setFixedHeight(28)
+        btn_copy.clicked.connect(
+            lambda: self.preview_te.selectAll() or self.preview_te.copy())
+        pvc.addWidget(btn_copy)
+        root.addWidget(prev_card)
+
+        root.addStretch()
+
+    # ── widget helpers ────────────────────────────────────────────────────────
+    @staticmethod
+    def _section_label(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(
+            "font-size:12px;font-weight:bold;"
+            "letter-spacing:0.5px;padding:0;margin-bottom:2px;"
+        )
+        return lbl
+
+    @staticmethod
+    def _card() -> QFrame:
+        f = QFrame()
+        f.setObjectName("tab_card")
+        return f
+
+    @staticmethod
+    def _field_row(label_text: str, widget, btn=None) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        lbl = QLabel(label_text)
+        lbl.setObjectName("txt2")
+        lbl.setFixedWidth(110)
+        row.addWidget(lbl)
+        row.addWidget(widget, 1)
+        if btn:
+            row.addWidget(btn)
+        return row
+
+    @staticmethod
+    def _prompt_edit(placeholder: str, default_text: str) -> QTextEdit:
+        te = QTextEdit()
+        te.setPlaceholderText(placeholder)
+        te.setPlainText(default_text)
+        te.setFixedHeight(68)
+        return te
+
+    # ── actions ───────────────────────────────────────────────────────────────
+    def _browse_src(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Python File",
+            str(Path(self.inp_src.text()).parent if self.inp_src.text() else Path.home()),
+            "Python Files (*.py);;All Files (*)"
+        )
+        if path:
+            self.inp_src.setText(path)
+            # Auto-fill output folder to same directory
+            if not self.inp_out_dir.text():
+                self.inp_out_dir.setText(str(Path(path).parent))
+
+    def _browse_out(self):
+        p = QFileDialog.getExistingDirectory(
+            self, "Select Output Folder",
+            self.inp_out_dir.text() or str(Path.home())
+        )
+        if p:
+            self.inp_out_dir.setText(p)
+
+    def _log(self, msg: str):
+        self.log_te.append(msg)
+        self.log_te.verticalScrollBar().setValue(
+            self.log_te.verticalScrollBar().maximum())
+
+    def _on_chunk(self, text: str):
+        """Append streamed text to the live preview."""
+        cursor = self.preview_te.textCursor()
+        cursor.movePosition(cursor.MoveOperation.End)
+        cursor.insertText(text)
+        self.preview_te.setTextCursor(cursor)
+        self.preview_te.verticalScrollBar().setValue(
+            self.preview_te.verticalScrollBar().maximum())
+
+    def _abort(self):
+        if self._worker:
+            self._worker.abort()
+        self._log("[aborted by user]")
+        self._set_running(False)
+
+    def _set_running(self, running: bool):
+        self.btn_generate.setEnabled(not running)
+        self.btn_abort.setVisible(running)
+
+    # ── main handler ─────────────────────────────────────────────────────────
+    def _run_py_to_doc(self):
+        src      = self.inp_src.text().strip()
+        out_dir  = self.inp_out_dir.text().strip()
+        out_name = self.inp_out_name.text().strip()
+
+        # ── validation ────────────────────────────────────────────────────────
+        if not src or not Path(src).is_file():
+            QMessageBox.warning(self, "Missing File",
+                                "Please select a valid Python source file.")
+            return
+        if not out_dir:
+            QMessageBox.warning(self, "Missing Output Folder",
+                                "Please select an output folder.")
+            return
+        if not out_name:
+            out_name = "README.md"
+            self.inp_out_name.setText(out_name)
+
+        # ── reset UI ──────────────────────────────────────────────────────────
+        self.log_te.clear()
+        self.preview_te.clear()
+        self._set_running(True)
+
+        # ── build worker ──────────────────────────────────────────────────────
+        self._worker = PyToDocWorker(
+            file_path          = src,
+            out_path           = out_dir,
+            out_name           = out_name,
+            include_globals    = self.chk_globals.isChecked(),
+            reset_per_function = self.chk_reset_fn.isChecked(),
+            reset_per_class    = self.chk_reset_cls.isChecked(),
+            prompt_overview    = self.inp_prompt_overview.toPlainText().strip(),
+            prompt_class       = self.inp_prompt_class.toPlainText().strip(),
+            prompt_function    = self.inp_prompt_function.toPlainText().strip(),
+            engine             = self._engine,
+        )
+        self._worker.log_msg.connect(self._log)
+        self._worker.chunk.connect(self._on_chunk)
+        self._worker.done.connect(self._on_done)
+        self._worker.error.connect(self._on_error)
+        self._worker.start()
+
+    def _on_done(self):
+        self._set_running(False)
+        out = Path(self.inp_out_dir.text()) / self.inp_out_name.text()
+        self._log(f"✅  Done  →  {out}")
+        QMessageBox.information(
+            self, "Documentation Generated",
+            f"README saved to:\n{out}"
+        )
+        self._worker = None
+
+    def _on_error(self, msg: str):
+        self._set_running(False)
+        self._log(f"❌  Error: {msg}")
+        QMessageBox.critical(self, "Pipeline Error", msg)
+        self._worker = None
+_LABS = [
+    ("py-to-doc", "📄", PyToDocPanel),
+]
