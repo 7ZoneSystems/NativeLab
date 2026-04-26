@@ -1,4 +1,4 @@
-# NativeLab v0.1.6
+# NativeLab v0.1.7
 
 **A fully local, privacy-first LLM desktop application powered by llama.cpp**
 
