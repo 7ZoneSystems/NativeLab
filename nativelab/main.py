@@ -43,8 +43,6 @@ class ModelLoaderThread(QThread):
 # Pipeline Manual — rendered inside _show_manual dialog
 # ─────────────────────────────────────────────────────────────────────────────
 
-PIPELINE_MANUAL_HTML = make_manual_html()
-
 # ═════════════════════════════ MAIN WINDOW ══════════════════════════════════
 
 class MainWindow(QMainWindow):
@@ -319,7 +317,7 @@ class MainWindow(QMainWindow):
 
         # ── Logs tab ──
         self.log_console = LogConsole()
-        self.tabs.addTab(self.log_console, "🐞  Logs")
+        self.tabs.addTab(self.log_console, " Logs")
         self.appearance_tab = AppearanceTab()
         self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
         self.tabs.addTab(self.appearance_tab, "🎨  Appearance")
