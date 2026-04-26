@@ -78,6 +78,19 @@ class MessageWidget(QWidget):
         self.te.setFrameShape(QFrame.Shape.NoFrame)
         self.te.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.te.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        from nativelab.UI.buildUI import C as _C
+        from PyQt6.QtGui import QPalette, QColor as _QC
+        _bg_key = ("usr" if role == "user"
+                   else "rsn" if (role == "pipeline_intermediate" or tag == "🧠 Reasoning")
+                   else "cod" if "Coding" in (tag or "")
+                   else "ast")
+        _pal = self.te.palette()
+        _pal.setColor(QPalette.ColorRole.Base,   _QC(_C[_bg_key]))
+        _pal.setColor(QPalette.ColorRole.Window, _QC(_C[_bg_key]))
+        _pal.setColor(QPalette.ColorRole.Text,   _QC(_C["txt"]))
+        self.te.setPalette(_pal)
+        self.te.setAutoFillBackground(True)
+        self.te.setStyleSheet("QTextBrowser{border:none;}")
         self.te.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
         doc = self.te.document()
@@ -110,7 +123,9 @@ class MessageWidget(QWidget):
     def _render_html(self, text: str):
         from nativelab.UI.md_to_html import md_to_html
         from nativelab.UI.buildUI import C
-        html = md_to_html(text, code_store=self.te._code_blocks)
+        from PyQt6.QtGui import QColor as _QC
+        self.te.setTextColor(_QC(C["txt"]))
+        html = md_to_html(text, code_store=self.te._code_blocks, colors=C)
         self.te.setHtml(
             f'<div style="color:{C["txt"]};font-size:13px;'
             f'line-height:1.65;font-family:Segoe UI,Inter,sans-serif;">'
@@ -172,8 +187,13 @@ class MessageWidget(QWidget):
     def _flush_pending(self):
         if not self._pending_txt:
             return
+        from nativelab.UI.buildUI import C
+        from PyQt6.QtGui import QColor as _QC, QTextCharFormat
         cur = self.te.textCursor()
+        fmt = QTextCharFormat()
+        fmt.setForeground(_QC(C["txt"]))
         cur.movePosition(QTextCursor.MoveOperation.End)
+        cur.setCharFormat(fmt)
         cur.insertText(self._pending_txt)
         self._pending_txt = ""
         self.te.setTextCursor(cur)

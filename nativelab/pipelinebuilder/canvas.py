@@ -142,8 +142,7 @@ class PipelineCanvas(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         # ── background ───────────────────────────────────────────────────────
-        p.fillRect(self.rect(), QColor(C["bg0"]))
-
+        p.fillRect(self.rect(), QColor(C["bg1"]))
         # ── grid dots ────────────────────────────────────────────────────────
         grid_c = QColor(C["bdr"])
         grid_c.setAlpha(80)

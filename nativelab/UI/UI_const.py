@@ -55,7 +55,35 @@ C_LIGHT = {
     "pipeline": "#0e7490",
 }
 # Active palette — driven by CURRENT_THEME set at top of file
-C = C_LIGHT if CURRENT_THEME == "light" else C_DARK
+C = {}
+
+C = {}
+
+def set_theme(theme: str, light_custom=None, dark_custom=None):
+    global CURRENT_THEME
+    CURRENT_THEME = theme
+
+    if light_custom:
+        C_LIGHT.update(light_custom)
+    if dark_custom:
+        C_DARK.update(dark_custom)
+
+    C.clear()
+    C.update(C_LIGHT if theme == "light" else C_DARK)
+
+    # FORCE UI REFRESH (THIS FIXES CANVAS)
+    try:
+        from PyQt6.QtWidgets import QApplication
+        for w in QApplication.allWidgets():
+            if hasattr(w, "refresh_theme"):
+                w.refresh_theme()
+            elif hasattr(w, "update"):
+                w.update()
+    except Exception:
+        pass
+
+set_theme(CURRENT_THEME)
+
 
 # Typography constants
 FONT_UI   = "'Inter','Segoe UI','SF Pro Display',system-ui,-apple-system,sans-serif"

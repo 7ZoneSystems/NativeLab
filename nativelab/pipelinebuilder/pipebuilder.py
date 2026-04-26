@@ -28,6 +28,12 @@ class PipelineBuilderTab(QWidget):
     def update_engine(self, engine: "LlamaEngine"):
         self._engine = engine
 
+    def refresh_theme(self):
+        if hasattr(self, "canvas"):
+            self.canvas.update()
+        self._on_blocks_changed()
+        self._update_server_badge()
+
     def _build(self):
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -42,9 +48,7 @@ class PipelineBuilderTab(QWidget):
 
         def _sec(text: str) -> QLabel:
             lbl = QLabel(text)
-            lbl.setStyleSheet(
-                f"color:{C['txt3']};font-size:9px;"
-                f"font-weight:700;letter-spacing:1.1px;")
+            lbl.setObjectName("txt3_tiny")
             return lbl
 
         def _block_btn(icon_label: str, btype: str, color: str) -> QPushButton:
@@ -58,9 +62,10 @@ class PipelineBuilderTab(QWidget):
             btn.clicked.connect(lambda _, bt=btype: self._add_block(bt))
             return btn
 
+        # ── CHANGED: removed color:{C['txt']} — text color now driven by QSS
         hdr = QLabel("🔗  Pipeline Builder")
-        hdr.setStyleSheet(
-            f"color:{C['txt']};font-size:12px;font-weight:700;")
+        hdr.setObjectName("pipeline_hdr")
+        hdr.setStyleSheet("font-size:12px;font-weight:700;")
         sb_l.addWidget(hdr)
 
         sep0 = QFrame(); sep0.setFrameShape(QFrame.Shape.HLine)
@@ -100,9 +105,7 @@ class PipelineBuilderTab(QWidget):
             "Conditions & instructions written\n"
             "in plain English — evaluated by\n"
             "the block's attached LLM model.")
-        _llm_note.setStyleSheet(
-            f"color:{C['txt3']};font-size:9px;"
-            f"padding:4px 2px;line-height:1.5;")
+        _llm_note.setObjectName("txt3_block")
         sb_l.addWidget(_llm_note)
         sb_l.addWidget(_block_btn("🧠  LLM IF / ELSE",   PipelineBlockType.LLM_IF,        "#a855f7"))
         sb_l.addWidget(_block_btn("🧠  LLM SWITCH",      PipelineBlockType.LLM_SWITCH,     "#7c3aed"))
@@ -154,9 +157,7 @@ class PipelineBuilderTab(QWidget):
             "Model→Model requires an\n"
             "Intermediate block in between.")
         hint.setWordWrap(True)
-        hint.setStyleSheet(
-            f"color:{C['txt3']};font-size:9px;"
-            f"padding:6px 4px;line-height:1.6;")
+        hint.setObjectName("txt3_block")
         sb_l.addWidget(hint)
 
         sb_l.addStretch()
@@ -207,10 +208,14 @@ class PipelineBuilderTab(QWidget):
         ]
         for col, txt in legend_items:
             lbl = QLabel(txt)
+            # ── CHANGED: removed background:{C['bg2']} — background now driven
+            #    by QSS via objectName. Per-block `col` is semantic (not theme),
+            #    so it is kept as an inline color for the text.
+            lbl.setObjectName("legend_pill")
             lbl.setStyleSheet(
                 f"color:{col};font-size:10px;font-weight:600;"
                 f"padding:1px 6px;"
-                f"background:{C['bg2']};border-radius:4px;")
+                f"border-radius:4px;")
             tb_l.addWidget(lbl)
         centre_l.addWidget(toolbar)
 
@@ -221,8 +226,10 @@ class PipelineBuilderTab(QWidget):
         pill_outer_l.setContentsMargins(8, 3, 8, 3)
         pill_outer_l.setSpacing(0)
 
+        # ── CHANGED: removed inline color from _pill_icon; objectName drives it
         _pill_icon = QLabel("⚡")
-        _pill_icon.setStyleSheet(f"color:{C['txt3']};font-size:10px;padding-right:4px;")
+        _pill_icon.setObjectName("txt3_xs")
+        _pill_icon.setStyleSheet("padding-right:4px;")
         pill_outer_l.addWidget(_pill_icon)
 
         self._pill_scroll = QScrollArea()
@@ -248,9 +255,9 @@ class PipelineBuilderTab(QWidget):
 
         canvas_scroll = QScrollArea()
         canvas_scroll.setWidgetResizable(False)
-        canvas_scroll.setObjectName("chat_scroll")
         self.canvas = PipelineCanvas()
         self.canvas.blocks_changed.connect(self._on_blocks_changed)
+        self.canvas.update()
         canvas_scroll.setWidget(self.canvas)
         centre_l.addWidget(canvas_scroll, 1)
 
@@ -265,9 +272,10 @@ class PipelineBuilderTab(QWidget):
         rp_l.setSpacing(7)
 
         exec_hdr_row = QHBoxLayout(); exec_hdr_row.setSpacing(6)
+        # ── CHANGED: removed color:{C['txt']} — text color now driven by QSS
         exec_hdr = QLabel("▶  Execute Pipeline")
-        exec_hdr.setStyleSheet(
-            f"color:{C['txt']};font-size:12px;font-weight:700;")
+        exec_hdr.setObjectName("pipeline_hdr")
+        exec_hdr.setStyleSheet("font-size:12px;font-weight:700;")
         exec_hdr_row.addWidget(exec_hdr, 1)
         btn_manual = QPushButton("📖 Manual")
         btn_manual.setFixedHeight(24)
@@ -280,18 +288,19 @@ class PipelineBuilderTab(QWidget):
         exec_hdr_row.addWidget(btn_manual)
         rp_l.addLayout(exec_hdr_row)
 
-        # Server status badge (auto-refreshed every 2.5 s)
+        # Server status badge — state-driven via QSS property, not inline color
         self.server_badge = QLabel("⚪  Engine status unknown")
-        self.server_badge.setStyleSheet(
-            f"color:{C['txt3']};font-size:10px;padding:2px 7px;"
-            f"background:{C['bg2']};border-radius:4px;")
+        self.server_badge.setObjectName("status_badge")
+        self.server_badge.setProperty("state", "idle")
         rp_l.addWidget(self.server_badge)
         self._badge_timer = QTimer(self)
         self._badge_timer.timeout.connect(self._update_server_badge)
         self._badge_timer.start(2500)
 
+        # ── CHANGED: removed color:{C['txt2']} — objectName drives the color
         input_lbl = QLabel("Input text:")
-        input_lbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        input_lbl.setObjectName("txt2")
+        input_lbl.setStyleSheet("font-size:11px;")
         rp_l.addWidget(input_lbl)
 
         self.input_edit = QTextEdit()
@@ -480,22 +489,21 @@ class PipelineBuilderTab(QWidget):
             self._log(f"🗑  Pipeline '{choice}' deleted.")
 
     def _update_server_badge(self):
+        # ── CHANGED: replaced three setStyleSheet(f"color:{C[...]}...") calls
+        #    with setProperty("state", ...) + unpolish/polish so QSS drives all
+        #    color. States exposed to QSS: "idle" | "ok" | "warn".
         eng = self._engine
         if not eng or not eng.is_loaded:
             self.server_badge.setText("⚪  No model loaded")
-            self.server_badge.setStyleSheet(
-                f"color:{C['txt3']};font-size:10px;padding:2px 7px;"
-                f"background:{C['bg2']};border-radius:4px;")
+            self.server_badge.setProperty("state", "idle")
         elif eng.mode == "server":
             self.server_badge.setText(f"🟢  Server · port {eng.server_port}")
-            self.server_badge.setStyleSheet(
-                f"color:{C['ok']};font-size:10px;padding:2px 7px;"
-                f"background:{C['bg2']};border-radius:4px;")
+            self.server_badge.setProperty("state", "ok")
         else:
             self.server_badge.setText("🟡  CLI mode — will switch on run")
-            self.server_badge.setStyleSheet(
-                f"color:{C['warn']};font-size:10px;padding:2px 7px;"
-                f"background:{C['bg2']};border-radius:4px;")
+            self.server_badge.setProperty("state", "warn")
+        self.server_badge.style().unpolish(self.server_badge)
+        self.server_badge.style().polish(self.server_badge)
 
     def _add_block(self, btype: str):
         count = sum(1 for b in self.canvas.blocks if b.btype == btype)
@@ -585,7 +593,8 @@ class PipelineBuilderTab(QWidget):
         _pill_blocks = [b for b in self.canvas.blocks if b.btype in _PILL_BTYPES]
         if not _pill_blocks:
             _empty = QLabel("No model or logic blocks yet — drag from sidebar or click buttons")
-            _empty.setStyleSheet(f"color:{C['txt3']};font-size:9px;padding:2px 6px;")
+            _empty.setObjectName("txt3_block")
+            _empty.setStyleSheet("padding:2px 6px;")
             self._pill_layout.insertWidget(0, _empty)
         else:
             for _pb in _pill_blocks:
@@ -631,8 +640,8 @@ class PipelineBuilderTab(QWidget):
     def _log(self, msg: str):
         ts = datetime.now().strftime("%H:%M:%S")
         self.exec_log.append(
-            f'<span style="color:{C["txt2"]}">[{ts}]</span> '
-            f'<span style="color:{C["txt"]}">{msg}</span>')
+            f'<span class="log_ts">[{ts}]</span> '
+            f'<span class="log_msg">{msg}</span>')
 
     # ── execution ─────────────────────────────────────────────────────────────
 

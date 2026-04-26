@@ -32,6 +32,9 @@ QWidget {{
 QFrame        {{ background:transparent; }}
 QScrollArea   {{ background:transparent; border:none; }}
 QStackedWidget{{ background:{c['bg0']}; }}
+QTabWidget > QStackedWidget {{ background:{c['bg0']}; }}
+QTabWidget > QStackedWidget > QWidget {{ background:{c['bg0']}; }}
+QAbstractScrollArea#bubble_te > QWidget {{ background:transparent; }}
 QSplitter     {{ background:{c['bg0']}; }}
 /* log console text area */
 QTextEdit#log_te {{
@@ -217,7 +220,7 @@ QTabWidget::pane {{ border:none; background:{c['bg0']}; }}
 QTabBar {{ background:transparent; }}
 QTabBar::tab {{
     background:transparent;
-    color:{c['txt2']};
+    color:{c['txt']};
     padding:10px 22px;
     border:none;
     border-bottom:2px solid transparent;
@@ -340,7 +343,7 @@ QSplitter::handle:horizontal {{ width:1px; }}
 QSplitter::handle:vertical   {{ height:1px; }}
 
 /* ── Labels ──────────────────────────────────────── */
-QLabel {{ background:transparent; color:{c['txt2']}; font-size:13px; }}
+QLabel {{ background:transparent; color:{c['txt']}; font-size:13px; }}
 
 /* ── Tooltips ────────────────────────────────────── */
 QToolTip {{
@@ -379,7 +382,7 @@ QFrame#tab_card {{
 }}
 QFrame#tab_card QLabel {{
     background:transparent;
-    color:{c['txt2']};
+    color:{c['txt']};
 }}
 
 /* ── Code / mode toggle buttons in InputBar ────────────── */
@@ -463,7 +466,7 @@ QTabWidget#ref_tabs::pane {{
 }}
 QTabWidget#ref_tabs QTabBar::tab {{
     background:{c['bg2']};
-    color:{c['txt2']};
+    color:{c['txt']};
     padding:5px 12px;
     border-radius:4px 4px 0 0;
     font-size:10px;
@@ -545,12 +548,9 @@ QLabel#ram_badge_lbl {{
 QPushButton {{
     outline:none;
 }}
-QTabBar {{
-    background:{c['bg1']};
-}}
-QTabBar::scroller {{
-    background:{c['bg1']};
-}}
+QTabBar {{ background:{c['bg1']}; }}
+QTabBar::scroller {{ background:{c['bg1']}; }}
+QTabBar QToolButton {{ background:{c['bg1']}; border:none; color:{c['txt2']}; }}
 
 /* ── Appearance tab ─────────────────────────────────────── */
 QWidget#appearance_bar {{
@@ -672,6 +672,84 @@ QTextBrowser#bubble_te {{
     padding:0;
     line-height:1.7;
 }}
+QLabel#txt2 {{
+    color:{c['txt2']};
+    font-size:12px;
+}}
+QLabel#txt2_small {{
+    color:{c['txt2']};
+    font-size:11px;
+}}
+QLabel#txt2_xs {{
+    color:{c['txt2']};
+    font-size:10px;
+}}
+QLabel#txt3_xs {{
+    color:{c['txt3']};
+    font-size:10px;
+}}
+/* ===== GPU badge ===== */
+
+QLabel#gpu_badge {{
+    font-size:11px;
+    padding:5px 10px;
+    border-radius:5px;
+    background:{c['bg2']};
+}}
+
+/* States */
+QLabel#gpu_badge[state="cuda"],
+QLabel#gpu_badge[state="metal"] {{
+    color:{c['ok']};
+}}
+QLabel#gpu_badge[state="vulkan"] {{
+    color:{c['warn']};
+}}
+QLabel#gpu_badge[state="none"] {{
+    color:{c['txt2']};
+}}
+/* ===== Resolved paths box ===== */
+
+QLabel#resolved_box {{
+    color:{c['txt2']};
+    font-size:10px;
+    padding:6px 8px;
+    background:{c['bg2']};
+    border-radius:5px;
+}}
+/* ===== Pipeline / sidebar text system ===== */
+QLabel#txt3_tiny {{
+    color:{c['txt3']};
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:1.1px;
+}}
+
+QLabel#txt3_block {{
+    color:{c['txt3']};
+    font-size:9px;
+    padding:4px 2px;
+}}
+
+/* Badge system (like resolved box) */
+QLabel#status_badge {{
+    font-size:10px;
+    padding:2px 7px;
+    border-radius:4px;
+    background:{c['bg2']};
+}}
+/* Log panel */
+QTextEdit#log_te span.log_ts {{
+    color: {c['txt2']};
+}}
+
+QTextEdit#log_te span.log_msg {{
+    color: {c['txt']};
+}}
+
+QLabel#status_badge[state="idle"]  {{ color:{c['txt3']}; }}
+QLabel#status_badge[state="ok"]    {{ color:{c['ok']}; }}
+QLabel#status_badge[state="warn"]  {{ color:{c['warn']}; }}
 """
 
 QSS = build_qss(C)

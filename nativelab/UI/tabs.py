@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
-from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C
+from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C,set_theme
 from .effects import fade_in
 from nativelab.core.engine_global import ApiConfig, ApiEngine
 from nativelab.Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
@@ -36,13 +36,14 @@ class ConfigTab(QWidget):
 
         # Header
         hdr = QLabel("⚙️  App Configuration")
-        hdr.setStyleSheet(f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
+        hdr.setStyleSheet("font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
         sub = QLabel(
             "All thresholds and defaults are persisted to app_config.json. "
             "Hover over any field for a full description. Changes take effect immediately.")
         sub.setWordWrap(True)
-        sub.setStyleSheet(f"color:{C['txt2']};font-size:11px;margin-bottom:16px;")
+        sub.setObjectName("txt2_small")
+        sub.setStyleSheet("margin-bottom:16px;")
         root.addWidget(sub)
 
         # Group fields by category
@@ -60,7 +61,7 @@ class ConfigTab(QWidget):
             root.addSpacing(10)
             cat_lbl = QLabel(cat_title)
             cat_lbl.setStyleSheet(
-                f"color:{C['txt']};font-size:12px;font-weight:bold;"
+                "font-size:12px;font-weight:bold;"
                 f"letter-spacing:0.4px;padding:2px 0;")
             root.addWidget(cat_lbl)
 
@@ -82,7 +83,7 @@ class ConfigTab(QWidget):
         root.addSpacing(14)
         pj_lbl = QLabel("⏸  Paused Summarization Jobs")
         pj_lbl.setStyleSheet(
-            f"color:{C['txt']};font-size:12px;font-weight:bold;padding:2px 0;")
+            "font-size:12px;font-weight:bold;padding:2px 0;")
         root.addWidget(pj_lbl)
 
         pj_card = QFrame()
@@ -95,7 +96,7 @@ class ConfigTab(QWidget):
             "Summarization jobs paused mid-way are saved here. "
             "Select a job and click Resume to continue from where it left off.")
         pj_desc.setWordWrap(True)
-        pj_desc.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        pj_desc.setObjectName("txt2_small")
         pj_l.addWidget(pj_desc)
 
         self.paused_jobs_list = QListWidget()
@@ -139,7 +140,7 @@ class ConfigTab(QWidget):
 
         top_row = QHBoxLayout(); top_row.setSpacing(10)
         lbl = QLabel(meta.get("label", key))
-        lbl.setStyleSheet(f"color:{C['txt']};font-size:12px;font-weight:600;")
+        lbl.setStyleSheet("font-size:12px;font-weight:600;")
         lbl.setFixedWidth(230)
         top_row.addWidget(lbl)
 
@@ -161,7 +162,7 @@ class ConfigTab(QWidget):
         # Range hint
         if ftype != "bool":
             rng_lbl = QLabel(f"({meta.get('min', 0)} – {meta.get('max', '∞')})")
-            rng_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+            rng_lbl.setObjectName("txt2_xs")
             top_row.addWidget(rng_lbl)
         top_row.addStretch()
         fl.addLayout(top_row)
@@ -169,9 +170,8 @@ class ConfigTab(QWidget):
         # Description
         desc = QLabel(meta.get("desc", ""))
         desc.setWordWrap(True)
-        desc.setStyleSheet(
-            f"color:{C['txt2']};font-size:10px;padding-left:2px;"
-            f"line-height:1.5;")
+        desc.setObjectName("txt2_xs")
+        desc.setStyleSheet("padding-left:2px;")
         fl.addWidget(desc)
 
         frame.setLayout(fl)
@@ -262,7 +262,7 @@ class ParallelLoadingDialog(QWidget):
         # ── enable toggle ──────────────────────────────────────────────────────
         top_row = QHBoxLayout(); top_row.setSpacing(10)
         self.chk_enable = QCheckBox("Enable Parallel Model Loading")
-        self.chk_enable.setStyleSheet(f"color:{C['txt']};font-weight:600;font-size:12px;")
+        self.chk_enable.setStyleSheet("font-weight:600;font-size:12px;")
         self.chk_enable.setChecked(self._prefs.enabled)
         self.chk_enable.toggled.connect(self._on_toggle)
         top_row.addWidget(self.chk_enable)
@@ -290,7 +290,7 @@ class ParallelLoadingDialog(QWidget):
 
         # ── auto-load role checkboxes ──────────────────────────────────────────
         auto_lbl = QLabel("Auto-load these roles on startup:")
-        auto_lbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        auto_lbl.setStyleSheet("font-size:11px;")
         root.addWidget(auto_lbl)
 
         self._role_checks: Dict[str, QCheckBox] = {}
@@ -313,7 +313,7 @@ class ParallelLoadingDialog(QWidget):
         # ── pipeline mode ──────────────────────────────────────────────────────
         pipeline_row = QHBoxLayout(); pipeline_row.setSpacing(10)
         self.chk_pipeline = QCheckBox("🔗  Enable Reasoning → Coding Pipeline Mode")
-        self.chk_pipeline.setStyleSheet(f"color:{C['txt']};font-size:12px;")
+        self.chk_pipeline.setStyleSheet("font-size:12px;")
         self.chk_pipeline.setChecked(self._prefs.pipeline_mode)
         self.chk_pipeline.setEnabled(self._prefs.enabled)
         self.chk_pipeline.toggled.connect(self._save)
@@ -328,7 +328,7 @@ class ParallelLoadingDialog(QWidget):
             "Only activates when the prompt looks like a coding request."
         )
         pipeline_desc.setWordWrap(True)
-        pipeline_desc.setStyleSheet(f"color:{C['txt2']};font-size:11px;padding-left:4px;")
+        pipeline_desc.setStyleSheet("font-size:11px;padding-left:4px;")
         root.addWidget(pipeline_desc)
 
         # ── RAM estimate helper ────────────────────────────────────────────────
@@ -338,7 +338,7 @@ class ParallelLoadingDialog(QWidget):
 
         self.ram_estimate_lbl = QLabel("")
         self.ram_estimate_lbl.setWordWrap(True)
-        self.ram_estimate_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        self.ram_estimate_lbl.setStyleSheet("font-size:10px;")
         root.addWidget(self.ram_estimate_lbl)
         self._update_ram_estimate()
 
@@ -699,7 +699,7 @@ class ServerTab(QWidget):
         # ── Header ────────────────────────────────────────────────────────────
         hdr = QLabel("🖥️  Server & Binary Configuration")
         hdr.setStyleSheet(
-            f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
+            "font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
 
         os_lbl = QLabel(
@@ -708,8 +708,8 @@ class ServerTab(QWidget):
             f"<code>{self._cfg.default_server_name}</code>)")
         os_lbl.setTextFormat(Qt.TextFormat.RichText)
         os_lbl.setWordWrap(True)
-        os_lbl.setStyleSheet(
-            f"color:{C['txt2']};font-size:11px;margin-bottom:14px;")
+        os_lbl.setObjectName("txt2_small")
+        os_lbl.setStyleSheet("margin-bottom:14px;")
         root.addWidget(os_lbl)
 
         # ── Binary paths card ────────────────────────────────────────────────
@@ -723,7 +723,7 @@ class ServerTab(QWidget):
         cli_row = QHBoxLayout(); cli_row.setSpacing(8)
         cli_lbl = QLabel("llama-cli path:")
         cli_lbl.setFixedWidth(130)
-        cli_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        cli_lbl.setObjectName("txt2")
         self.cli_edit = QLineEdit()
         self.cli_edit.setPlaceholderText(
             f"Leave blank to use built-in default  ({LLAMA_CLI_DEFAULT})")
@@ -746,7 +746,7 @@ class ServerTab(QWidget):
         srv_row = QHBoxLayout(); srv_row.setSpacing(8)
         srv_lbl = QLabel("llama-server path:")
         srv_lbl.setFixedWidth(130)
-        srv_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        srv_lbl.setObjectName("txt2")
         self.srv_edit = QLineEdit()
         self.srv_edit.setPlaceholderText(
             f"Leave blank to use built-in default  ({LLAMA_SERVER_DEFAULT})")
@@ -768,9 +768,7 @@ class ServerTab(QWidget):
         # Resolved paths display
         self._resolved_lbl = QLabel("")
         self._resolved_lbl.setWordWrap(True)
-        self._resolved_lbl.setStyleSheet(
-            f"color:{C['txt2']};font-size:10px;padding:6px 8px;"
-            f"background:{C['bg2']};border-radius:5px;")
+        self._resolved_lbl.setObjectName("resolved_box")
         bin_l.addWidget(self._resolved_lbl)
         self._refresh_resolved()
 
@@ -788,12 +786,12 @@ class ServerTab(QWidget):
             r = QHBoxLayout(); r.setSpacing(8)
             lbl = QLabel(label_text)
             lbl.setFixedWidth(160)
-            lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+            lbl.setObjectName("txt2")
             r.addWidget(lbl)
             r.addWidget(widget)
             if hint:
                 hl = QLabel(hint)
-                hl.setStyleSheet(f"color:{C['txt3']};font-size:10px;")
+                hl.setObjectName("txt3_xs")
                 r.addWidget(hl)
             r.addStretch()
             return r
@@ -815,9 +813,9 @@ class ServerTab(QWidget):
         port_row = QHBoxLayout(); port_row.setSpacing(8)
         port_lbl = QLabel("Port Range:")
         port_lbl.setFixedWidth(160)
-        port_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        port_lbl.setObjectName("txt2")
         dash = QLabel("–")
-        dash.setStyleSheet(f"color:{C['txt2']};")
+        dash.setObjectName("txt2")
         port_row.addWidget(port_lbl)
         port_row.addWidget(self.port_lo_edit)
         port_row.addWidget(dash)
@@ -856,9 +854,8 @@ class ServerTab(QWidget):
             badge_txt = "⚪  No GPU detected — CPU-only mode"
             badge_col = C["txt2"]
         gpu_badge = QLabel(badge_txt)
-        gpu_badge.setStyleSheet(
-            f"color:{badge_col};font-size:11px;"
-            f"background:{C['bg2']};border-radius:5px;padding:5px 10px;")
+        gpu_badge.setObjectName("gpu_badge")
+        gpu_badge.setProperty("state", gpu_type)
         gpu_l.addWidget(gpu_badge)
 
         # GPU list (NVIDIA only shows VRAM)
@@ -866,7 +863,7 @@ class ServerTab(QWidget):
             for g in self._detected_gpus:
                 vram_s = f"  —  {g['vram_mb']} MB VRAM" if g["vram_mb"] else ""
                 gl = QLabel(f"  [{g['idx']}]  {g['name']}{vram_s}")
-                gl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+                gl.setObjectName("txt2_xs")
                 gpu_l.addWidget(gl)
 
         sep_gpu = QFrame(); sep_gpu.setFrameShape(QFrame.Shape.HLine)
@@ -877,7 +874,7 @@ class ServerTab(QWidget):
         # Enable GPU checkbox
         enable_row = QHBoxLayout(); enable_row.setSpacing(10)
         self.chk_gpu = QCheckBox("Enable GPU offloading  (--ngl flag)")
-        self.chk_gpu.setStyleSheet(f"color:{C['txt']};font-weight:600;font-size:12px;")
+        self.chk_gpu.setStyleSheet("font-weight:600;font-size:12px;")
         self.chk_gpu.setChecked(self._cfg.enable_gpu)
         self.chk_gpu.setEnabled(bool(self._detected_gpus))
         enable_row.addWidget(self.chk_gpu); enable_row.addStretch()
@@ -887,7 +884,7 @@ class ServerTab(QWidget):
         ngl_row = QHBoxLayout(); ngl_row.setSpacing(8)
         ngl_lbl = QLabel("GPU layers  (--ngl):")
         ngl_lbl.setFixedWidth(160)
-        ngl_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        ngl_lbl.setObjectName("txt2")
         self.spin_ngl = QSpinBox()
         self.spin_ngl.setRange(-1, 999); self.spin_ngl.setValue(self._cfg.ngl)
         self.spin_ngl.setFixedWidth(80); self.spin_ngl.setFixedHeight(28)
@@ -906,7 +903,7 @@ class ServerTab(QWidget):
         mgpu_row = QHBoxLayout(); mgpu_row.setSpacing(8)
         mgpu_lbl = QLabel("Main GPU  (--main-gpu):")
         mgpu_lbl.setFixedWidth(160)
-        mgpu_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        mgpu_lbl.setObjectName("txt2")
         self.combo_main_gpu = QComboBox()
         self.combo_main_gpu.setFixedHeight(28); self.combo_main_gpu.setFixedWidth(220)
         if self._detected_gpus:
@@ -925,7 +922,7 @@ class ServerTab(QWidget):
         ts_row = QHBoxLayout(); ts_row.setSpacing(8)
         ts_lbl = QLabel("Tensor split  (--ts):")
         ts_lbl.setFixedWidth(160)
-        ts_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        ts_lbl.setObjectName("txt2")
         self.ts_edit = QLineEdit(self._cfg.tensor_split)
         self.ts_edit.setFixedHeight(28)
         self.ts_edit.setPlaceholderText(
@@ -955,13 +952,13 @@ class ServerTab(QWidget):
             "Additional flags appended to every llama-cli or llama-server launch.\n"
             "Separate multiple flags with spaces.  Example: --numa --no-mmap")
         flag_note.setWordWrap(True)
-        flag_note.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        flag_note.setObjectName("txt2_small")
         flag_l.addWidget(flag_note)
 
         cli_flag_row = QHBoxLayout(); cli_flag_row.setSpacing(8)
         cfl = QLabel("llama-cli extra flags:")
         cfl.setFixedWidth(160)
-        cfl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        cfl.setObjectName("txt2")
         self.extra_cli_edit = QLineEdit(self._cfg.extra_cli_args)
         self.extra_cli_edit.setPlaceholderText("e.g.  --numa  --no-mmap")
         cli_flag_row.addWidget(cfl)
@@ -971,7 +968,7 @@ class ServerTab(QWidget):
         srv_flag_row = QHBoxLayout(); srv_flag_row.setSpacing(8)
         sfl = QLabel("llama-server extra flags:")
         sfl.setFixedWidth(160)
-        sfl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        sfl.setObjectName("txt2")
         self.extra_srv_edit = QLineEdit(self._cfg.extra_server_args)
         self.extra_srv_edit.setPlaceholderText("e.g.  --numa  --flash-attn")
         srv_flag_row.addWidget(sfl)
@@ -990,7 +987,7 @@ class ServerTab(QWidget):
 
         test_note = QLabel(
             "Click Test to run the binary with --version and verify it works.")
-        test_note.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        test_note.setObjectName("txt2_small")
         test_l.addWidget(test_note)
 
         test_row = QHBoxLayout(); test_row.setSpacing(8)
@@ -1038,7 +1035,7 @@ class ServerTab(QWidget):
     def _section(text: str) -> QLabel:
         lbl = QLabel(text)
         lbl.setStyleSheet(
-            f"color:{C['txt']};font-size:12px;font-weight:bold;"
+            "font-size:12px;font-weight:bold;"
             f"letter-spacing:0.5px;padding:0;margin-bottom:2px;")
         return lbl
 
@@ -1049,7 +1046,7 @@ class ServerTab(QWidget):
     @staticmethod
     def _hint(text: str) -> QLabel:
         lbl = QLabel(text)
-        lbl.setStyleSheet(f"color:{C['txt3']};font-size:10px;")
+        lbl.setObjectName("txt3_xs")
         return lbl
 
     def _update_cli_status(self):
@@ -1240,7 +1237,7 @@ class ModelDownloadTab(QWidget):
         # Header
         hdr = QLabel("HuggingFace GGUF Downloader")
         hdr.setStyleSheet(
-            f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
+            "font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
         sub = QLabel(
             "Enter any HuggingFace repo ID to browse its GGUF files and download "
@@ -1308,7 +1305,7 @@ class ModelDownloadTab(QWidget):
         dest_row = QHBoxLayout(); dest_row.setSpacing(8)
         dest_lbl = QLabel("Save to:")
         dest_lbl.setFixedWidth(60)
-        dest_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        dest_lbl.setObjectName("txt2")
         self.dest_edit = QLineEdit(str(MODELS_DIR.resolve()))
         self.dest_edit.setReadOnly(True)
         btn_dest = QPushButton("Browse...")
@@ -1384,7 +1381,7 @@ class ModelDownloadTab(QWidget):
             "They will be installed to ./llama/bin/ in your launch directory and\n"
             "picked up automatically by the Server tab.")
         lcpp_note.setWordWrap(True)
-        lcpp_note.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        lcpp_note.setObjectName("txt2_small")
         ll.addWidget(lcpp_note)
 
         fetch_row = QHBoxLayout(); fetch_row.setSpacing(8)
@@ -1403,7 +1400,7 @@ class ModelDownloadTab(QWidget):
         rel_row = QHBoxLayout(); rel_row.setSpacing(8)
         rel_lbl = QLabel("Release:")
         rel_lbl.setFixedWidth(60)
-        rel_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        rel_lbl.setObjectName("txt2")
         self.combo_llama_release = QComboBox()
         self.combo_llama_release.setFixedHeight(28)
         self.combo_llama_release.setEnabled(False)
@@ -1416,7 +1413,7 @@ class ModelDownloadTab(QWidget):
         asset_row = QHBoxLayout(); asset_row.setSpacing(8)
         asset_lbl = QLabel("Build:")
         asset_lbl.setFixedWidth(60)
-        asset_lbl.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        asset_lbl.setObjectName("txt2")
         self.combo_llama_asset = QComboBox()
         self.combo_llama_asset.setFixedHeight(28)
         self.combo_llama_asset.setEnabled(False)
@@ -1467,7 +1464,7 @@ class ModelDownloadTab(QWidget):
     def _section(text: str) -> QLabel:
         lbl = QLabel(text)
         lbl.setStyleSheet(
-            f"color:{C['txt']};font-size:12px;font-weight:bold;"
+            "font-size:12px;font-weight:bold;"
             f"letter-spacing:0.5px;padding:0;margin-bottom:2px;")
         return lbl
 
@@ -1779,7 +1776,7 @@ class McpTab(QWidget):
         # Header
         hdr = QLabel("🔌  MCP — Model Context Protocol")
         hdr.setStyleSheet(
-            f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
+            "font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
         sub = QLabel(
             "MCP connects your LLM to external tools and data sources "
@@ -1832,7 +1829,7 @@ class McpTab(QWidget):
         def _lrow(label: str, widget, width=100):
             r = QHBoxLayout(); r.setSpacing(8)
             l = QLabel(label); l.setFixedWidth(width)
-            l.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+            l.setObjectName("txt2")
             r.addWidget(l); r.addWidget(widget, 1); return r
 
         self.add_name = QLineEdit()
@@ -1882,7 +1879,7 @@ class McpTab(QWidget):
     def _section(text: str) -> QLabel:
         lbl = QLabel(text)
         lbl.setStyleSheet(
-            f"color:{C['txt']};font-size:12px;font-weight:bold;"
+            "font-size:12px;font-weight:bold;"
             f"letter-spacing:0.5px;padding:0;margin-bottom:2px;")
         return lbl
 
@@ -2044,13 +2041,13 @@ class ApiModelsTab(QWidget):
         root.setSpacing(14)
 
         hdr = QLabel("🌐  API Models")
-        hdr.setStyleSheet(f"color:{C['txt']};font-size:15px;font-weight:700;")
+        hdr.setStyleSheet("font-size:15px;font-weight:700;")
         root.addWidget(hdr)
 
         sub = QLabel("Connect to any OpenAI-compatible or Anthropic endpoint. "
                      "Once verified, the API model is treated exactly like a local model.")
         sub.setWordWrap(True)
-        sub.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        sub.setObjectName("txt2_small")
         root.addWidget(sub)
 
         # ── Connection card (scrollable so custom-format fields never overlap) ─
@@ -2357,7 +2354,7 @@ class ApiModelsTab(QWidget):
         il = QVBoxLayout(); il.setSpacing(2)
         t = QLabel(f"{icon}  <b>{cfg.name}</b>")
         t.setTextFormat(Qt.TextFormat.RichText)
-        t.setStyleSheet(f"color:{C['txt']};font-size:12px;")
+        t.setStyleSheet("font-size:12px;")
         prov_display = getattr(cfg, "custom_provider_name", "") or cfg.provider
         fmt_badge    = "  ·  🎨 custom fmt" if getattr(cfg, "use_custom_prompt", False) else ""
         s = QLabel(f"{prov_display}  ·  {cfg.model_id}{fmt_badge}")

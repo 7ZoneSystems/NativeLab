@@ -494,15 +494,12 @@ class MainWindow(QMainWindow):
         self._build_status_bar()
         # Load saved custom palettes before applying stylesheet
         global C_LIGHT, C_DARK, C, QSS
-        if "custom_light_palette" in APP_CONFIG:
-            C_LIGHT = {**C_LIGHT, **APP_CONFIG["custom_light_palette"]}
-        if "custom_dark_palette" in APP_CONFIG:
-            C_DARK = {**C_DARK, **APP_CONFIG["custom_dark_palette"]}
-        if "custom_light_palette" in APP_CONFIG or "custom_dark_palette" in APP_CONFIG:
-            C   = dict(C_LIGHT) if CURRENT_THEME == "light" else dict(C_DARK)
-            QSS = build_qss(C)
-        _qss = build_qss(C)
-        self.setStyleSheet(_qss)
+        set_theme(
+            CURRENT_THEME,
+            APP_CONFIG.get("custom_light_palette"),
+            APP_CONFIG.get("custom_dark_palette"),
+        )
+        self.setStyleSheet(build_qss(C))
         self.appearance_tab.load_palette(C_LIGHT if CURRENT_THEME == "light" else C_DARK)
 
         if self.sessions:

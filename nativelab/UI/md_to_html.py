@@ -1,7 +1,7 @@
 from nativelab.imports.import_global import Optional, Dict, re
-from .UI_const import C
 def md_to_html(text: str,
-                code_store: Optional[Dict[str, str]] = None) -> str:
+                code_store: Optional[Dict[str, str]] = None,
+                colors: Optional[Dict[str, str]] = None) -> str:
     """
     Markdown → HTML for Qt's limited renderer.
 
@@ -10,6 +10,7 @@ def md_to_html(text: str,
     text       : raw markdown / plain text from the model
     code_store : dict that will be filled with {block_id: raw_code}.
                  Pass the RichTextEdit's ._code_blocks dict so copy works.
+    colors     : dict of color values for theming. If None, uses default theme.
 
     Qt renderer constraints
     ───────────────────────
@@ -21,6 +22,10 @@ def md_to_html(text: str,
     JavaScript / onclick
     CSS pseudo-elements, :hover
     """
+    if colors is None:
+        from .UI_const import C
+        colors = C
+
     if code_store is None:
         code_store = {}
 
@@ -89,12 +94,12 @@ def md_to_html(text: str,
                     display)
 
         # Table-based layout (Qt supports tables reliably)
-        _cb  = C["bg2"]
-        _tb  = C["bg1"]
-        _bdr = C["bdr"]
-        _ctxt = C["txt"]
-        _dim = C["txt3"]
-        _lnk = C["acc"]
+        _cb  = colors["bg2"]
+        _tb  = colors["bg1"]
+        _bdr = colors["bdr"]
+        _ctxt = colors["txt"]
+        _dim = colors["txt3"]
+        _lnk = colors["acc"]
 
         html = (
             f'<table width="100%" cellpadding="0" cellspacing="0" '
@@ -123,10 +128,10 @@ def md_to_html(text: str,
             f'</tr>'
 
             f'<tr>'
-            f'<td colspan="2" style="padding:10px 14px;">'
+            f'<td colspan="2" style="padding:10px 14px;background:{_cb};">'
             f'<pre style="margin:0;'
             f'font-family:Consolas,&quot;Courier New&quot;,monospace;'
-            f'font-size:12px;color:{_ctxt};'
+            f'font-size:12px;color:{_ctxt};background:{_cb};'
             f'white-space:pre-wrap;line-height:1.6;">'
             f'{display}</pre>'
             f'</td>'
@@ -138,9 +143,9 @@ def md_to_html(text: str,
     text = re.sub(r'```(\w*)\n?(.*?)```', _fenced, text, flags=re.DOTALL)
 
     # ── Inline code ──────────────────────────────────────────────────────────
-    _ic_bg  = C["bg2"]
-    _ic_acc = C["acc"]
-    _h_col  = C["acc"]
+    _ic_bg  = colors["bg2"]
+    _ic_acc = colors["acc"]
+    _h_col  = colors["acc"]
     text = re.sub(
         r'`([^`\n]+)`',
         lambda m: (f'<code style="background:{_ic_bg};border-radius:3px;'
@@ -165,8 +170,8 @@ def md_to_html(text: str,
     text = re.sub(r'\*(.+?)\*',         r'<i>\1</i>',          text)
 
     # ── Horizontal rules ─────────────────────────────────────────────────────
-    _bdr_c = C["bdr"]
-    _bull  = C["acc"]
+    _bdr_c = colors["bdr"]
+    _bull  = colors["acc"]
     text = re.sub(
         r'^---+$',
         rf'<table width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0;">'
