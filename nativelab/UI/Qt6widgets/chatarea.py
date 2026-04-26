@@ -22,10 +22,8 @@ class ChatArea(QScrollArea):
 
         # ── empty-state placeholder ───────────────────────────────────────────
         self._placeholder = QLabel("Hi, message me up\nwhen you are ready.")
+        self._placeholder.setObjectName("txt2_XXL")
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._placeholder.setStyleSheet(
-            f"color:{_ui().C['txt3']};font-size:22px;font-weight:300;"
-            f"letter-spacing:0.4px;padding:60px 40px;")
         self._vbox.addStretch()
         self._vbox.addWidget(self._placeholder, 0, Qt.AlignmentFlag.AlignCenter)
         self._vbox.addStretch()

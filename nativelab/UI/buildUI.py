@@ -1,4 +1,4 @@
-from .UI_const import C
+from nativelab.UI.UI_const import C
 def build_qss(c: dict) -> str:
     """Generate a complete Qt stylesheet from a colour palette dict."""
     _FUI = "'Inter','Segoe UI','SF Pro Display',system-ui,-apple-system,sans-serif"
@@ -256,11 +256,14 @@ QComboBox QAbstractItemView {{
     border:1px solid {c['bdr2']};
     border-radius:8px;
     padding:4px;
+    margin:1px;
     selection-background-color:{rgba(0.20)};
     outline:none;
     font-size:13px;
 }}
 QComboBox::drop-down {{ border:none; width:22px; }}
+QComboBox QAbstractItemView::item {{ border-radius:6px; padding:6px 10px; }}
+QAbstractItemView {{ background:{c['surface']}; border:1px solid {c['bdr2']}; border-radius:8px; }}
 
 /* ── Sliders ─────────────────────────────────────── */
 QSlider::groove:horizontal {{
@@ -344,6 +347,12 @@ QSplitter::handle:vertical   {{ height:1px; }}
 
 /* ── Labels ──────────────────────────────────────── */
 QLabel {{ background:transparent; color:{c['txt']}; font-size:13px; }}
+
+/* ── ComboBox popup container fix ───────────────── */
+QComboBox + QFrame, QComboBox + QWidget {{
+    background:transparent;
+    border:none;
+}}
 
 /* ── Tooltips ────────────────────────────────────── */
 QToolTip {{
@@ -676,6 +685,10 @@ QLabel#txt2 {{
     color:{c['txt2']};
     font-size:12px;
 }}
+QLabel#txt2_XXL {{
+    color:{c['txt2']};
+    font-size:20px;
+}}
 QLabel#txt2_small {{
     color:{c['txt2']};
     font-size:11px;
@@ -752,4 +765,185 @@ QLabel#status_badge[state="ok"]    {{ color:{c['ok']}; }}
 QLabel#status_badge[state="warn"]  {{ color:{c['warn']}; }}
 """
 
+API_MODELS_QSS_BLOCK = """
+/* ══════════════════════════════════════════════════════
+   ApiModelsTab — objectName-based styles
+   ══════════════════════════════════════════════════════ */
+
+/* Section header labels  (e.g. "NEW CONNECTION", "SAVED CONFIGS") */
+QLabel#sec_lbl {{
+    color:{c['txt3']};
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:1.2px;
+    background:transparent;
+}}
+
+/* Secondary/muted small text  (e.g. subtitle, card sub-lines) */
+QLabel#txt2_small {{
+    color:{c['txt2']};
+    font-size:11px;
+    background:transparent;
+}}
+
+/* All text inputs in this tab */
+QLineEdit#input {{
+    background:{c['bg1']};
+    border:1px solid {c['bdr']};
+    border-radius:6px;
+    color:{c['txt']};
+    padding:0 10px;
+    font-size:12px;
+}}
+QLineEdit#input:focus {{
+    border-color:{c['acc']};
+    background:{c['surface2']};
+}}
+QLineEdit#input:disabled {{
+    color:{c['txt3']};
+    background:{c['bg3']};
+}}
+
+/* Multi-line text edit (system-prompt area) — inherits global QTextEdit,
+   but this tightens the border-radius to match the compact card style */
+QWidget#card_inner QTextEdit {{
+    background:{c['bg1']};
+    border:1px solid {c['bdr']};
+    border-radius:6px;
+    color:{c['txt']};
+    padding:6px 10px;
+    font-size:11px;
+}}
+QWidget#card_inner QTextEdit:focus {{
+    border-color:{c['acc']};
+}}
+
+/* Combo boxes */
+QComboBox#combo {{
+    background:{c['bg1']};
+    border:1px solid {c['bdr']};
+    border-radius:6px;
+    color:{c['txt']};
+    padding:0 10px;
+    font-size:12px;
+}}
+QComboBox#combo:hover {{
+    border-color:{c['bdr2']};
+    background:{c['surface2']};
+}}
+QComboBox#combo:focus {{
+    border-color:{c['acc']};
+}}
+QComboBox#combo::drop-down {{
+    border:none;
+    width:22px;
+}}
+QComboBox#combo QAbstractItemView {{
+    background:{c['bg2']};
+    color:{c['txt']};
+    selection-background-color:{c['acc_dim']};
+    border:1px solid {c['bdr2']};
+    border-radius:6px;
+    padding:3px;
+    margin:1px;
+    outline:none;
+    font-size:12px;
+}}
+
+/* Outline action buttons  (color role stored in btn_color property) */
+QPushButton#outline_btn {{
+    background:transparent;
+    border:1px solid {c['bdr2']};
+    border-radius:7px;
+    color:{c['txt2']};
+    font-size:11px;
+    font-weight:600;
+    padding:0 16px;
+}}
+QPushButton#outline_btn:hover {{
+    background:{c['bdr2']};
+    color:{c['txt']};
+}}
+QPushButton#outline_btn:disabled {{
+    color:{c['txt3']};
+    border-color:{c['bdr']};
+}}
+
+/* Semantic color variants via btn_color property */
+QPushButton#outline_btn[btn_color="ok"] {{
+    color:{c['ok']};
+    border-color:{c['ok']};
+}}
+QPushButton#outline_btn[btn_color="ok"]:hover {{
+    background:{c['ok']};
+    color:#ffffff;
+}}
+QPushButton#outline_btn[btn_color="acc"] {{
+    color:{c['acc']};
+    border-color:{c['acc']};
+}}
+QPushButton#outline_btn[btn_color="acc"]:hover {{
+    background:{c['acc']};
+    color:#ffffff;
+}}
+QPushButton#outline_btn[btn_color="err"] {{
+    color:{c['err']};
+    border-color:{c['err']};
+}}
+QPushButton#outline_btn[btn_color="err"]:hover {{
+    background:{c['err']};
+    color:#ffffff;
+}}
+
+/* Saved-config card frames */
+QFrame#card {{
+    background:{c['bg2']};
+    border:1px solid {c['bdr']};
+    border-radius:8px;
+}}
+QFrame#card QLabel {{
+    background:transparent;
+}}
+
+/* Connection card scroll area */
+QScrollArea#card_scroll {{
+    background:{c['bg2']};
+    border:1px solid {c['bdr']};
+    border-radius:10px;
+}}
+QScrollArea#card_scroll > QWidget > QWidget {{
+    background:{c['bg2']};
+}}
+QScrollArea#card_scroll QScrollBar:vertical {{
+    background:{c['bg1']};
+    width:6px;
+    border-radius:3px;
+}}
+QScrollArea#card_scroll QScrollBar::handle:vertical {{
+    background:{c['bdr2']};
+    border-radius:3px;
+}}
+QScrollArea#card_scroll QScrollBar::add-line:vertical,
+QScrollArea#card_scroll QScrollBar::sub-line:vertical {{
+    height:0px;
+}}
+
+/* Status label  — state property drives color */
+QLabel#api_status {{
+    font-size:11px;
+    background:transparent;
+}}
+QLabel#api_status[state=""] {{
+    color:{c['txt3']};
+}}
+QLabel#api_status[state="warn"] {{
+    color:{c['warn']};
+}}
+QLabel#api_status[state="ok"] {{
+    color:{c['ok']};
+}}
+QLabel#api_status[state="err"] {{
+    color:{c['err']};
+}}
+"""
 QSS = build_qss(C)
