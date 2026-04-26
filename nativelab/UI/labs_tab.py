@@ -1,20 +1,6 @@
-"""
-labs_tab.py — NativeLab  ·  Labs Tab
-=====================================
-Contains:
-  • LabsTab          — sidebar + stacked panel host (drop into main window)
-  • PyToDocPanel     — py-to-doc lab: AST → LLM → structured README
-  • PyToDocWorker    — QThread that runs the full documentation pipeline
-
-UI follows existing objectName-based QSS conventions (no inline C[] colors).
-Add LABS_QSS_BLOCK to buildUI.py's build_qss() return string to get theming.
-"""
-
 from __future__ import annotations
 
 import ast
-import os
-import textwrap
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
