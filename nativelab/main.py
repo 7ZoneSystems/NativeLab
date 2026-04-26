@@ -2590,9 +2590,10 @@ class MainWindow(QMainWindow):
     def _toggle_theme(self):
         global CURRENT_THEME, C, QSS
         CURRENT_THEME = "dark" if CURRENT_THEME == "light" else "light"
-        C   = C_LIGHT if CURRENT_THEME == "light" else C_DARK
-        QSS = build_qss(C)
-        self.setStyleSheet(QSS)
+        from nativelab.UI.UI_const import set_theme, C
+
+        set_theme(CURRENT_THEME)           
+        self.setStyleSheet(build_qss(C)) 
         APP_CONFIG["theme"] = CURRENT_THEME
         save_app_config(APP_CONFIG)
         self._update_theme_action_label()

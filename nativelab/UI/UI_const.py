@@ -78,7 +78,7 @@ def set_theme(theme: str, light_custom=None, dark_custom=None):
             if hasattr(w, "refresh_theme"):
                 w.refresh_theme()
             elif hasattr(w, "update"):
-                w.update()
+                w.update()        
     except Exception:
         pass
 
