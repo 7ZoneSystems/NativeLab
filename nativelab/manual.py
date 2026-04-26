@@ -61,12 +61,6 @@ def make_manual_html() -> str:
                 f'margin:0 0 6px;letter-spacing:0.8px;">{title}</p>'
                 f'{body_html}</div>')
 
-    # ── Pre-defined code-display strings that contain backslash literals ─────
-    # Backslashes inside f-string {} expressions are a SyntaxError in Python
-    # < 3.12, so any string that must display a literal \n is defined here.
-    _sort_lines_code = r"result = '\n'.join(sorted(text.split('\n')))"
-    # ─────────────────────────────────────────────────────────────────────────
-
     return f"""<html><body style="background:{BG};color:{TXT};
 font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
 
@@ -203,10 +197,10 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
    f'<b>Draw two arrows</b> from this block, then label each one {code("TRUE")} and {code("FALSE")} when prompted.')}
 {example_box("CONDITION EXAMPLES",
     p(f'{code("len(text) > 500")} — route long responses to a summariser<br>'
-      f'{code("'error' in text.lower()")} — catch error messages<br>'
-      f'{code("text.strip().startswith('```'")} — detect code output<br>'
+      f'{code("\'error\' in text.lower()")} — catch error messages<br>'
+      f'{code("text.strip().startswith(\'```\'")} — detect code output<br>'
       f'{code("len(text.split()) < 20")} — detect very short answers<br>'
-      f'{code("'yes' in text.lower()[:50]")} — check if model said yes'))}
+      f'{code("\'yes\' in text.lower()[:50]")} — check if model said yes'))}
 {note("The expression has access to: len, str, int, float, bool, list, dict, any, all, min, max, abs, isinstance. No file or network access.")}
 
 {h3(badge("⑃ SWITCH", "#f97316") + " SWITCH")}
@@ -219,10 +213,10 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
    f'When drawing each outgoing arrow you will be asked to type the <b>branch label</b> — this must exactly match what the expression can return (case-insensitive).<br>'
    f'Add a {code("default")} labelled arrow to catch unmatched keys.')}
 {example_box("EXPRESSION EXAMPLES",
-    p(f'{code("'long' if len(text) > 400 else 'short'")} — length-based routing<br>'
-      f'{code("'code' if text.strip().startswith('```') else 'prose'")} — format detection<br>'
-      f'{code("text.split(':')[0].strip().lower()")} — route on first word / prefix<br>'
-      f'{code("'positive' if text.count('!') > 2 else 'neutral'")} — punctuation heuristic'))}
+    p(f'{code("\'long\' if len(text) > 400 else \'short\'")} — length-based routing<br>'
+      f'{code("\'code\' if text.strip().startswith(\'```\') else \'prose\'")} — format detection<br>'
+      f'{code("text.split(\':\')[0].strip().lower()")} — route on first word / prefix<br>'
+      f'{code("\'positive\' if text.count(\'!\') > 2 else \'neutral\'")} — punctuation heuristic'))}
 
 {h3(badge("⊘ FILTER", "#84cc16") + " FILTER")}
 {p("A gate. If the condition is TRUE the text continues through the pipeline unchanged. If FALSE the pipeline terminates immediately with a [FILTER DROPPED] message.")}
@@ -279,9 +273,9 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
 {note("No file I/O, no network access, no os/subprocess. The exec() is sandboxed. If your code raises an exception the pipeline stops with the error message shown in the Log tab.")}
 {example_box("CODE EXAMPLES",
     p(f'{code("result = text.upper()")} — uppercase<br>'
-      f'{code(_sort_lines_code)} — sort lines<br>'
-      f'{code("result = str(len(text.split())) + ' words: ' + text")} — prepend word count<br>'
-      f'{code("import_count = metadata.get('runs', 0) + 1; metadata['runs'] = import_count; log(f'Run #{import_count}')")} — stateful counter'))}
+      f'{code("result = \'\\n\'.join(sorted(text.split(\'\\n\')))")} — sort lines<br>'
+      f'{code("result = str(len(text.split())) + \' words: \' + text")} — prepend word count<br>'
+      f'{code("import_count = metadata.get(\'runs\', 0) + 1; metadata[\'runs\'] = import_count; log(f\'Run #{import_count}\')")} — stateful counter'))}
 
 {h2("🧠  LLM Logic Blocks  ( plain English conditions )")}
 {p("LLM logic blocks work identically to their Python counterparts except the condition or instruction is written in <b>plain English</b> and the attached model evaluates it. "

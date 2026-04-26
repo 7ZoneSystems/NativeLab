@@ -42,6 +42,7 @@ class ModelLoaderThread(QThread):
 # ─────────────────────────────────────────────────────────────────────────────
 # Pipeline Manual — rendered inside _show_manual dialog
 # ─────────────────────────────────────────────────────────────────────────────
+
 PIPELINE_MANUAL_HTML = make_manual_html()
 
 # ═════════════════════════════ MAIN WINDOW ══════════════════════════════════
