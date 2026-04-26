@@ -1,6 +1,7 @@
 from __future__ import annotations
 from nativelab.imports.import_global import TYPE_CHECKING, Qt, Any, QFrame, List, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTimer
 from .chatmodule import _ui
+from nativelab.UI.UI_const import C
 
 if TYPE_CHECKING:
     from nativelab.UI.UI_global import MessageWidget, ThinkingBlock

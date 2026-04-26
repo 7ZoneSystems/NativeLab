@@ -132,6 +132,9 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
    f'{kbd("Drag to port dot")} Complete a connection &#8212; creates a curved Bezier arrow.<br>'
    f'{kbd("Right-click block")} Context menu: Delete, Rename, Change Role, Configure.<br>'
    f'{kbd("Right-click canvas")} Clear all blocks and connections.<br>'
+   f'{kbd("Double-click port dot")} Instantly delete <b>all arrows</b> attached to that port.<br>'
+   f'{kbd("Right-click arrow")} Context menu &#8212; <b>Delete Arrow (A &#8594; B)</b> removes that single connection.<br>'
+   f'{kbd("&#9654; Preview Flow")} Sidebar button &#8212; animates coloured dots flowing through the pipeline so you can verify routing before running. Click again or press &#9209; Stop Preview to cancel.<br>'
    f'{kbd("Pill bar")} The horizontal strip above the canvas shows all model/logic blocks as clickable pills &#8212; click one to select it on canvas.')}
 {tip("The canvas is larger than the visible area. Use the scrollbars to pan around. Make big pipelines by spreading blocks far apart.")}
 
@@ -140,14 +143,14 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
    "Click any dot and drag to any dot on another block to create an arrow. "
    "The arrow curves automatically and adapts its control handles to the port direction.")}
 {port_table(
-    ("E  &#8594;", "Output (default)", "Text leaves the block here &#8212; connect to the next block's input"),
-    ("W  &#8592;", "Input (default)",  "Text arrives at the block here &#8212; connect from the previous block's output"),
-    ("N  &#8593;", "Alt input/output", "Use for branch merges or alternate exits on logic blocks"),
-    ("S  &#8595;", "Alt input/output", "Use for mid-score routing (LLM SCORE) or alternate splits"),
+    ("E  &#8594;", "Any direction", "On branching blocks: arrow leaving from E = TRUE / LOW arm"),
+    ("W  &#8592;", "Any direction", "On branching blocks: arrow leaving from W = FALSE / HIGH arm"),
+    ("N  &#8593;", "Any direction", "On LLM SCORE: arrow leaving from N = raw score pass-through"),
+    ("S  &#8595;", "Any direction", "On branching blocks: arrow leaving from S = MID arm / pass-through"),
 )}
-{note("For normal flow blocks (Input, Model, Output, Intermediate) only one arrow per port is allowed. "
-     "For all logic blocks and LLM logic blocks multiple arrows can fan out from the same port &#8212; this is how branching works.")}
-{tip("You can draw arrows in any direction. Input &#8594; E is just a convention. The execution engine follows the arrows regardless of port direction.")}
+{note("Execution follows <b>arrow direction</b>, not port name. The port a connection <b>leaves from</b> determines routing on branching blocks (IF/ELSE, SWITCH, LLM logic). "
+     "For plain flow blocks (Input, Model, Intermediate, Output) all ports are equivalent &#8212; connect from whichever is convenient.")}
+{tip("Use the &#9654; Preview Flow button after connecting your blocks to see exactly which path dots take &#8212; green = TRUE/pass, red = FALSE/drop, purple = SPLIT fan-out, yellow = MID/MERGE.")}
 
 {h2("&#128246;  Flow Blocks")}
 
@@ -243,7 +246,8 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
     ("W  &#8592;", "Input",                        "Receives incoming context"),
 )}
 {p(f'<b>Configure:</b> Right-click &#8594; Configure block&#8230; and type a Python expression.<br>'
-   f'<b>Draw two arrows</b> from this block, then label each one {c_true_lbl} and {c_false_lbl} when prompted.')}
+   f'<b>Draw two arrows</b> from this block: start from the <b>E port</b> for the TRUE arm and from the <b>W port</b> for the FALSE arm. '
+   f'Routing is determined by which port the arrow <i>leaves from</i> &#8212; no manual labelling needed.')}
 {example_box("CONDITION EXAMPLES",
     p(f'{c_len500} &#8212; route long responses to a summariser<br>'
       f'{c_err} &#8212; catch error messages<br>'
@@ -259,8 +263,11 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
     ("W  &#8592;",     "Input",       "Receives incoming context"),
 )}
 {p(f'<b>Configure:</b> Right-click &#8594; Configure block&#8230; and type an expression that returns a string.<br>'
-   f'When drawing each outgoing arrow you will be asked to type the <b>branch label</b> &#8212; this must exactly match what the expression can return (case-insensitive).<br>'
-   f'Add a {c_default} labelled arrow to catch unmatched keys.')}
+   f'Each outgoing arrow is matched by the <b>port it leaves from</b> (E, W, S, N). '
+   f'To map a port to a named case, add a {c_default} entry in the block metadata under {code("port_labels")} '
+   f'(e.g. {code("port_labels = {\'E\': \'positive\', \'W\': \'negative\'}")}). '
+   f'Without port_labels the port letter itself (E/W/S/N) is used as the key &#8212; make your expression return the port letter directly for the simplest setup.<br>'
+   f'Add an arm whose key is {c_default} to catch unmatched results.')}
 {example_box("EXPRESSION EXAMPLES",
     p(f'{c_longshort} &#8212; length-based routing<br>'
       f'{c_codeorprose} &#8212; format detection<br>'
@@ -342,8 +349,9 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
 {h3(badge("&#129504; LLM IF / ELSE", "#a855f7") + " LLM IF / ELSE")}
 {p("The model reads your condition and the incoming text, then answers with a single word: YES or NO.")}
 {port_table(
-    ("E  &#8594;", "Output &#8212; TRUE / YES",  "Followed when model answers YES"),
-    ("W  &#8594;", "Output &#8212; FALSE / NO",  "Followed when model answers NO"),
+    ("E  &#8594;", "Output &#8212; TRUE / YES", "Connect from E port &#8212; followed when model answers YES"),
+    ("W  &#8594;", "Output &#8212; FALSE / NO", "Connect from W port &#8212; followed when model answers NO"),
+    ("N / S",      "Pass-through",              "Arrows from N or S are always followed regardless of answer"),
 )}
 {example_box("CONDITION EXAMPLES",
     p('&bull; Does this text contain a complaint or expression of frustration?<br>'
@@ -391,11 +399,13 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
 {h3(badge("&#129504; LLM SCORE", "#d946ef") + " LLM SCORE")}
 {p("The model rates the incoming text on your criterion from 1 to 10. The score is parsed from the response and used to route to one of three band arms.")}
 {port_table(
-    ("E  &#8594;", "Output &#8212; LOW (1&#8211;3)",   "Route to escalation, retry, or human review"),
-    ("S  &#8595;", "Output &#8212; MID (4&#8211;7)",   "Route to standard processing"),
-    ("W  &#8594;", "Output &#8212; HIGH (8&#8211;10)", "Route to fast-track or direct output"),
+    ("E  &#8594;", "Output &#8212; LOW (1&#8211;3)",   "Start arrow from E port &#8212; route to escalation or retry"),
+    ("S  &#8595;", "Output &#8212; MID (4&#8211;7)",   "Start arrow from S port &#8212; route to standard processing"),
+    ("W  &#8594;", "Output &#8212; HIGH (8&#8211;10)", "Start arrow from W port &#8212; route to fast-track or direct output"),
+    ("N  &#8593;", "Raw score pass-through",           "Start arrow from N port &#8212; receives the numeric score as text"),
 )}
-{p(f'Label an outgoing arrow {c_score_lbl} to receive the raw numeric score as text instead of the original context &#8212; useful for feeding the score into a TRANSFORM or OUTPUT.')}
+{p(f'The port the arrow <b>leaves from</b> determines which score band it handles. '
+   f'Connect from N port to receive the raw numeric score string in the downstream block &#8212; useful for feeding into a TRANSFORM or OUTPUT.')}
 {example_box("CRITERION EXAMPLES",
     p('&bull; Rate the clarity and readability of this explanation (1=very unclear, 10=crystal clear)<br>'
       '&bull; Score the sentiment positivity (1=very negative, 10=very positive)<br>'
@@ -415,13 +425,27 @@ font-family:Inter,sans-serif;padding:20px 26px 30px;margin:0;line-height:1.5;">
       '&#8594; &#9632; Output'))}
 {tip("Connect a non-loop arrow from the loop body to an Output block to capture the final result after all iterations complete.")}
 
+{h2("&#9654;  Preview Flow Animation")}
+{p('Click <b>&#9654; Preview Flow</b> in the sidebar (below Load Pipeline) to animate coloured dots travelling through your pipeline along every connection arrow. '
+   'The preview starts at the INPUT block and fans out to all reachable paths simultaneously &#8212; no model is called, no text is processed. '
+   'It is a pure structural dry-run you can run at any time, even before the engine is loaded.')}
+{p('<b>Dot colour legend:</b><br>'
+   '&nbsp;&nbsp;&bull; <b style="color:#a6e3a1;">&#9679; Green</b> &#8212; normal flow / TRUE arm (E port)<br>'
+   '&nbsp;&nbsp;&bull; <b style="color:#f38ba8;">&#9679; Red</b> &#8212; FALSE arm (W port)<br>'
+   '&nbsp;&nbsp;&bull; <b style="color:#f9e2af;">&#9679; Yellow</b> &#8212; N/S arms, MERGE output<br>'
+   '&nbsp;&nbsp;&bull; <b style="color:#cba6f7;">&#9679; Purple</b> &#8212; SPLIT fan-out broadcast<br>'
+   '&nbsp;&nbsp;&bull; <b style="color:#666666;">&#9679; Grey</b> &#8212; FILTER / LLM FILTER drop path')}
+{p('For branching blocks (IF/ELSE, SWITCH, LLM logic) the preview fires <b>all</b> outgoing arms at once to show every possible route data could take. '
+   'This lets you verify the full graph structure before committing to a run.')}
+{tip("Use Preview Flow immediately after wiring a new pipeline. If dots do not reach the Output block you have a disconnected path &#8212; a missing arrow will be obvious from where the dots stop.")}
+
 {h2("&#128190;  Save &amp; Load Pipelines")}
 {p(f'Click <b>&#128190; Save Pipeline&#8230;</b> in the sidebar. Type a name &#8212; existing names are overwritten without warning.<br>'
    f'Click <b>&#128194; Load Pipeline&#8230;</b> to restore a saved pipeline. If the canvas has blocks you will be asked to confirm replacement.<br>'
    f'Pipelines are stored as JSON in {c_pip_json}.<br>'
    f'To delete: Load dialog &#8594; select <i>&#128465; Delete a pipeline&#8230;</i> option.')}
-{p('<b>What is saved per block:</b> type, position, size, model path, role, label, all metadata (prompt text, code, conditions, PDF path, etc.).<br>'
-   '<b>What is saved per connection:</b> from/to block IDs, ports, is_loop flag, loop_times, branch label.')}
+{p('<b>What is saved per block:</b> type, position, size, model path, role, label, all metadata (prompt text, code, conditions, PDF path, port_labels map, etc.).<br>'
+   '<b>What is saved per connection:</b> from/to block IDs, from/to port letters, is_loop flag, loop_times. Port letters drive all branch routing at runtime.')}
 {note("Model files are saved as absolute paths. If you move a .gguf file the pipeline will load but the model block will show 'no valid file' and validation will fail until you re-attach the model.")}
 
 {h2("&#128027;  Debugging &amp; Troubleshooting")}
