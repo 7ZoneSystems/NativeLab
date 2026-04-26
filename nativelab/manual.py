@@ -78,7 +78,7 @@ def make_manual_html() -> str:
     c_firstword      = code("text.split(':')[0].strip().lower()")
     c_punctheur      = code("'positive' if text.count('!') &gt; 2 else 'neutral'")
     c_upper          = code("result = text.upper()")
-    c_sortlines      = code("result = '\\n'.join(sorted(text.split('\\n')))")
+    c_sortlines      = code(r"result = '\n'.join(sorted(text.split('\n')))")
     c_wordcount      = code("result = str(len(text.split())) + ' words: ' + text")
     c_stateful       = code("import_count = metadata.get('runs', 0) + 1; metadata['runs'] = import_count; log(f'Run #{import_count}')")
     c_score_lbl      = code("score")
