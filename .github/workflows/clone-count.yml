@@ -1,61 +1,102 @@
 name: Track GitHub clones
 
-# Records daily clone counts to a gist so the README badge can show a live total.
-# This is the canonical recipe from https://github.com/MShawon/github-clone-count-badge —
-# the project is distributed as a Python script (main.py), not a packaged Action, so we
-# fetch + run it inline rather than referencing it with `uses:`.
-#
-# Required setup (one time):
-#   1. Create a Personal Access Token (classic) with `gist` + `repo` scope.
-#   2. Create a public gist with one file named `clone.json` (placeholder content).
-#   3. Add two repository secrets at Settings → Secrets and variables → Actions:
-#        - PERSONAL_TOKEN  →  the PAT from step 1
-#        - GIST_ID         →  the gist ID (the long hash in the gist URL)
-# See SETUP_BADGES.md for full instructions and screenshots.
-
 on:
   schedule:
-    # Daily at 00:00 UTC. GitHub clone history is retained for 14 days, so we
-    # need to fetch at least once per fortnight to keep an accurate running total.
     - cron: "0 0 * * *"
   workflow_dispatch:
 
 jobs:
   clones:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Fetch latest clone count from GitHub API
+        env:
+          PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
         run: |
-          curl --user "${{ github.actor }}:${{ secrets.PERSONAL_TOKEN }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/${{ github.repository }}/traffic/clones \
-            > clone.json
+          curl -fsSL \
+            -H "Authorization: Bearer $PERSONAL_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/traffic/clones" \
+            -o clone.json
 
-      - name: Download previous count from gist
+      - name: Download previous gist data
         run: |
-          curl https://gist.githubusercontent.com/${{ github.actor }}/${{ secrets.GIST_ID }}/raw/clone.json \
-            > clone_before.json
-          if grep -q '404: Not Found' clone_before.json; then
-            echo "Previous gist content not found — starting fresh."
-            cp clone.json clone_before.json
+          if ! curl -fsSL \
+            "https://gist.githubusercontent.com/${{ github.repository_owner }}/${{ secrets.GIST_ID }}/raw/clone.json" \
+            -o clone_before.json; then
+            echo '{"count":0,"clones":[]}' > clone_before.json
           fi
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("clone_before.json")
+          try:
+              data = json.loads(path.read_text())
+              if not isinstance(data, dict) or "clones" not in data:
+                  raise ValueError("bad json")
+          except Exception:
+              path.write_text('{"count":0,"clones":[]}')
+          PY
 
       - name: Merge cumulative total
         run: |
-          curl -sL https://raw.githubusercontent.com/MShawon/github-clone-count-badge/master/main.py \
-            > main.py
-          python3 main.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          current = json.loads(Path("clone.json").read_text())
+          before = json.loads(Path("clone_before.json").read_text())
+
+          merged = {}
+          for item in before.get("clones", []):
+              ts = item.get("timestamp")
+              if ts:
+                  merged[ts] = item
+
+          for item in current.get("clones", []):
+              ts = item.get("timestamp")
+              if ts:
+                  merged[ts] = item
+
+          output = {
+              "count": sum(int(item.get("count", 0)) for item in merged.values()),
+              "clones": sorted(merged.values(), key=lambda x: x["timestamp"])
+          }
+
+          Path("clone.json").write_text(json.dumps(output, indent=2))
+          print(json.dumps(output, indent=2))
+          PY
 
       - name: Update gist with new total
+        env:
+          PERSONAL_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}
         run: |
-          content=$(sed -e 's/\\/\\\\/g' -e 's/\t/\\t/g' -e 's/\"/\\"/g' -e 's/\r//g' "clone.json" \
-            | sed -E ':a;N;$!ba;s/\r{0,1}\n/\\n/g')
-          echo '{"description": "${{ github.repository }} clone statistics", "files": {"clone.json": {"content": "'"$content"'"}}}' \
-            > post_clone.json
-          curl -s -X PATCH \
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          content = Path("clone.json").read_text()
+
+          payload = {
+              "description": "${{ github.repository }} clone statistics",
+              "files": {
+                  "clone.json": {
+                      "content": content
+                  }
+              }
+          }
+
+          Path("post_clone.json").write_text(json.dumps(payload))
+          PY
+
+          curl -fsS -X PATCH \
             --user "${{ github.actor }}:${{ secrets.PERSONAL_TOKEN }}" \
             -H "Content-Type: application/json" \
             -d @post_clone.json \
-            https://api.github.com/gists/${{ secrets.GIST_ID }} > /dev/null
+            "https://api.github.com/gists/${{ secrets.GIST_ID }}" >/dev/null
