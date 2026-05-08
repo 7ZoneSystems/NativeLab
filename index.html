@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NativeLab — Think Locally. Work Deeply.</title>
+  <title>NativeLab — Open-source local LLM workbench</title>
   <link rel="icon" type="image/png" href="icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -532,9 +532,9 @@
     <a href="#capabilities">Features</a>
     <a href="#pipeline">Pipelines</a>
     <a href="#api">API Models</a>
-    <a href="#how">Get started</a>
-    <a href="setup.html">Setup Guide</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab/releases/download/Global/NativeLabPro_linux64_Major_featureUpdate_v4.tar.gz" target="_blank" class="nav-cta">Download(linux) →</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="nav-cta">★ Star on GitHub</a>
   </div>
 </nav>
 
@@ -548,21 +548,20 @@
       <div class="hero-icon-wrap">
         <img src="icon.png" alt="NativeLab" class="hero-icon" />
       </div>
-      <div class="hero-badge">Open Source · Runs Offline · Beta</div>
-      <h1>Your AI.<br><em>On your machine.</em><br>Answering to you.</h1>
+      <div class="hero-badge">Open Source · AGPL v3 · v0.2.7</div>
+      <h1>A local LLM<br><em>workbench</em>,<br>not a product.</h1>
       <p class="hero-sub">
-        NativeLab puts powerful language models on your desktop — no subscriptions,
-        no data leaving your device, no internet required. Build visual AI pipelines,
-        connect cloud APIs when you need them, and run any model you choose.
+        NativeLab is an open-source desktop GUI and terminal client for running
+        large language models on your own hardware. Built around llama.cpp, with
+        a visual pipeline builder, MCP support, and a Labs experimentation layer.
+        Install with one pip command on Linux, macOS, or Windows.
       </p>
       <div class="hero-actions">
-        <a href="https://github.com/7ZoneSystems/NativeLab/releases/download/Global/NativeLabPro_linux64_Major_featureUpdate_v4.tar.gz"
-           target="_blank" class="btn-primary">↓ &nbsp;Download Free (Linux)</a>
-        <a href="https://github.com/7ZoneSystems/NativeLab/releases/download/Global/NativeLabPro2_win64_beta.zip"
-           target="_blank" class="btn-primary">↓ &nbsp;Download Free (Windows)</a>
-        <a href="https://github.com/7ZoneSystems/NativeLab/releases/download/Global/NativeLab-Pro-macOS-arm64.zip"
-           target="_blank" class="btn-primary">↓ &nbsp;Download Free (MacOS)</a>
-        <a href="#capabilities" class="btn-secondary">See what it does →</a>
+        <a href="#install" class="btn-primary">↓ &nbsp;Install with pip</a>
+        <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-secondary">View source on GitHub →</a>
+      </div>
+      <div style="margin-top: 1.6rem; font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--dim);">
+        $ <span style="color: var(--sage);">pip install nativelab</span> &nbsp;·&nbsp; works on Linux, macOS, Windows
       </div>
     </div>
 
@@ -573,23 +572,23 @@
           <div class="dot dot-r"></div>
           <div class="dot dot-y"></div>
           <div class="dot dot-g"></div>
-          <span class="terminal-title">NativeLab Pro v2</span>
+          <span class="terminal-title">nativelab --cli</span>
         </div>
         <div class="terminal-body">
-          <div><span class="t-dim">model   </span><span class="t-green">DeepSeek-R1-Q5_K_M</span></div>
-          <div><span class="t-dim">api     </span><span class="t-blue">GPT-4o · connected</span></div>
-          <div><span class="t-dim">pipeline</span><span class="t-cyan">3 blocks · ready</span></div>
-          <div><span class="t-dim">status  </span><span class="t-amber">server :8642</span></div>
+          <div><span class="t-dim">$ </span><span class="t-white">pip install nativelab</span></div>
+          <div><span class="t-green">✓ </span><span class="t-dim">installed nativelab 0.2.7</span></div>
           <br>
-          <div class="t-dim">──────────────────────</div>
+          <div><span class="t-dim">$ </span><span class="t-white">nativelab --cli</span></div>
+          <div><span class="t-cyan">▸ </span><span class="t-dim">llama-server detected on :8612</span></div>
+          <div><span class="t-cyan">▸ </span><span class="t-dim">model: DeepSeek-R1-Q5_K_M.gguf</span></div>
           <br>
-          <div><span class="t-white">You › </span><span class="t-dim">Analyse PDFs and write a report.</span></div>
+          <div class="t-dim">────────────────────────────</div>
           <br>
-          <div><span class="t-cyan">◈ </span><span class="t-dim">Intermediate · block 2/3…</span></div>
-          <div><span class="t-green">✦ </span><span class="t-dim">Tokens: 2,841 / 4,096</span></div>
-          <div><span class="t-green">✦ </span><span class="t-dim">Speed: 18.4 tok/s</span></div>
+          <div><span class="t-white">you ▸ </span><span class="t-dim">explain @endpoints.py</span></div>
+          <div><span class="t-amber">bot ▸ </span><span class="t-dim">It's the shared surface</span></div>
+          <div><span class="t-dim">      every Labs panel uses…</span></div>
           <br>
-          <div><span class="t-white">Lab › </span><span class="cursor"></span></div>
+          <div><span class="t-white">you ▸ </span><span class="cursor"></span></div>
         </div>
       </div>
     </div>
@@ -601,18 +600,18 @@
 <div id="whats-new">
   <div class="new-banner-inner">
     <div class="new-banner-text">
-      <div class="new-label">✦ What's new in this release</div>
-      <h3>Pipelines, API models<br><em>&amp; a smarter interface</em></h3>
+      <div class="new-label">✦ What's new in v0.2.7</div>
+      <h3>Labs, terminal CLI<br><em>&amp; shared endpoints</em></h3>
     </div>
     <div class="new-pills">
+      <span class="new-pill">🧪 &nbsp;Labs experimentation layer</span>
+      <span class="new-pill">⌨️ &nbsp;<code>nativelab --cli</code></span>
+      <span class="new-pill">🔗 &nbsp;Shared LabEndpoints API</span>
+      <span class="new-pill">📎 &nbsp;<code>@file</code> embedding in CLI</span>
+      <span class="new-pill">🔍 &nbsp;Built-in linting (slash commands)</span>
+      <span class="new-pill">🤗 &nbsp;HuggingFace downloader</span>
       <span class="new-pill">🏗️ &nbsp;Visual Pipeline Builder</span>
-      <span class="new-pill">💾 &nbsp;Save &amp; Load Pipelines</span>
-      <span class="new-pill">🌐 &nbsp;Cloud API Models</span>
-      <span class="new-pill">🎨 &nbsp;Custom Prompt Formats</span>
-      <span class="new-pill">✨ &nbsp;Animated UI</span>
-      <span class="new-pill">🔗 &nbsp;Run Pipeline from Chat</span>
-      <span class="new-pill">📜 &nbsp;Scrollable Sidebar</span>
-      <span class="new-pill">🖱️ &nbsp;Reference Panel Slide-in</span>
+      <span class="new-pill">🌐 &nbsp;OpenAI + Anthropic endpoints</span>
     </div>
   </div>
 </div>
@@ -620,8 +619,8 @@
 <!-- ── FOR YOU ── -->
 <section id="foryou">
   <p class="section-label">Who it's for</p>
-  <h2>Built for work that<br><em>demands privacy</em> and depth</h2>
-  <p class="section-intro">NativeLab is for anyone who thinks carefully, works with sensitive material, or simply wants an AI that doesn't phone home.</p>
+  <h2>Built for the people<br><em>using it themselves.</em></h2>
+  <p class="section-intro">NativeLab started as a tool the maintainers wanted for their own work. It's grown to serve a few kinds of people well — see if any of these sound like you.</p>
 
   <div class="audience-grid">
     <div class="audience-card fade-up">
@@ -674,124 +673,126 @@
       <div class="cap-item active" onclick="selectCap(0, this)">
         <span class="cap-num">01</span>
         <div>
-          <div class="cap-text-head">Talk to your PDFs</div>
-          <div class="cap-text-sub">Ask questions across one or many documents at once</div>
+          <div class="cap-text-head">Desktop GUI &amp; Terminal CLI</div>
+          <div class="cap-text-sub">PyQt6 desktop app and a Claude-Code-style terminal client</div>
         </div>
       </div>
       <div class="cap-item" onclick="selectCap(1, this)">
         <span class="cap-num">02</span>
         <div>
-          <div class="cap-text-head">Visual Pipeline Builder</div>
-          <div class="cap-text-sub">Drag, drop, and wire models together on a live canvas</div>
+          <div class="cap-text-head">Labs experimentation layer</div>
+          <div class="cap-text-sub">Drop-in panels share a single endpoint API for engine access</div>
         </div>
       </div>
       <div class="cap-item" onclick="selectCap(2, this)">
         <span class="cap-num">03</span>
         <div>
-          <div class="cap-text-head">Cloud API Models</div>
-          <div class="cap-text-sub">Connect GPT-4o, Claude, Groq, Mistral — same interface as local</div>
+          <div class="cap-text-head">Visual Pipeline Builder</div>
+          <div class="cap-text-sub">20+ block types — drag, drop, wire, save</div>
         </div>
       </div>
       <div class="cap-item" onclick="selectCap(3, this)">
         <span class="cap-num">04</span>
         <div>
-          <div class="cap-text-head">Reasoning → Code Pipeline</div>
-          <div class="cap-text-sub">Chain a reasoning model into a coding model automatically</div>
+          <div class="cap-text-head">API + local mixing</div>
+          <div class="cap-text-sub">OpenAI &amp; Anthropic endpoints alongside local GGUFs</div>
         </div>
       </div>
       <div class="cap-item" onclick="selectCap(4, this)">
         <span class="cap-num">05</span>
         <div>
-          <div class="cap-text-head">Reference Library</div>
-          <div class="cap-text-sub">Attach documents to any chat for persistent, searchable context</div>
+          <div class="cap-text-head">Talk to your PDFs</div>
+          <div class="cap-text-sub">References, RAG, and multi-document synthesis</div>
         </div>
       </div>
       <div class="cap-item" onclick="selectCap(5, this)">
         <span class="cap-num">06</span>
         <div>
-          <div class="cap-text-head">Pause &amp; Resume Long Jobs</div>
-          <div class="cap-text-sub">Save mid-summarization and pick up exactly where you left off</div>
+          <div class="cap-text-head">Auto family detection</div>
+          <div class="cap-text-sub">20+ chat templates picked from filename, no config</div>
         </div>
       </div>
       <div class="cap-item" onclick="selectCap(6, this)">
         <span class="cap-num">07</span>
         <div>
-          <div class="cap-text-head">Export &amp; Session History</div>
-          <div class="cap-text-sub">Save conversations as JSON, Markdown, or plain text</div>
+          <div class="cap-text-head">HuggingFace downloader</div>
+          <div class="cap-text-sub">Search any GGUF repo and pull files without leaving the app</div>
         </div>
       </div>
     </div>
 
     <div class="caps-detail">
       <div class="detail-card active" id="detail-0">
-        <h3>Talk to your documents</h3>
-        <p>Load one PDF or a whole folder. NativeLab chunks, indexes, and feeds relevant passages into the model automatically — no manual copy-pasting. Ask questions naturally and it finds the right sections.</p>
-        <p>Multi-PDF mode summarises each document separately, then synthesises a final answer across all of them. Ideal for literature reviews, legal discovery, or comparing research papers.</p>
+        <h3>Two clients, one engine</h3>
+        <p>Run NativeLab as a polished PyQt6 desktop app or as a terminal client with <code>nativelab --cli</code>. Both share the same engine layer, so a model loaded in one can be used from the other.</p>
+        <p>The CLI runs an interactive setup wizard the first time, downloads a model from HuggingFace, and drops you into a chat REPL with <code>@file</code> embedding, slash commands, and built-in linting via pyflakes / flake8 / pylint.</p>
         <div class="detail-badge">
-          <span class="badge">PDF ingestion</span>
-          <span class="badge">Multi-document synthesis</span>
-          <span class="badge clay">Context-aware chunking</span>
+          <span class="badge">PyQt6 GUI</span>
+          <span class="badge blue"><code>nativelab --cli</code></span>
+          <span class="badge clay">Slash commands</span>
+          <span class="badge"><code>@file</code> embedding</span>
         </div>
       </div>
       <div class="detail-card" id="detail-1">
+        <h3>Labs — the experimentation layer</h3>
+        <p>The <code>nativelab/labs/</code> package is a sandbox for new features. Every lab panel receives a single <code>LabEndpoints</code> instance and uses it for all engine interaction — status reads, model swap, context change, and synchronous LLM calls (auto-routing API → server → CLI).</p>
+        <p>Add a feature by dropping <code>nativelab/labs/&lt;feature&gt;.py</code> with a <code>QWidget</code> panel and registering it. The same endpoint surface powers the CLI, so anything you build in Labs works from the terminal too.</p>
+        <div class="detail-badge">
+          <span class="badge gold">LabEndpoints API</span>
+          <span class="badge">Drop-in panels</span>
+          <span class="badge clay">Reverse routing</span>
+        </div>
+      </div>
+      <div class="detail-card" id="detail-2">
         <h3>Visual Pipeline Builder</h3>
-        <p>A full drag-and-drop canvas where you build AI workflows by connecting blocks. Drop in an Input, wire it through Reference or Knowledge context, pass it to a Model block, carry results through an Intermediate block, and collect everything in the Output.</p>
-        <p>Every connection is a smooth curve you draw yourself. Build loops that repeat automatically, watch each stage stream live in its own tab, and save any pipeline to reload with one click. Run saved pipelines directly from the chat window — no tab-switching needed.</p>
+        <p>A node-based editor with 20+ block types: I/O (Input, Output, Model, Intermediate), Context (Reference, Knowledge, PDF), Logic (IF/ELSE, SWITCH, FILTER, TRANSFORM, MERGE, SPLIT, Custom Code), and LLM-logic blocks (LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-TRANSFORM, LLM-SCORE).</p>
+        <p>Every connection is a smooth curve you draw yourself. Build loops with iteration counts, watch each stage stream live in its own tab, save pipelines as JSON, and reload them with one click. Run saved pipelines directly from chat.</p>
         <div class="detail-badge">
           <span class="badge blue">Drag-and-drop canvas</span>
-          <span class="badge">7 block types</span>
+          <span class="badge">20+ block types</span>
           <span class="badge clay">Save &amp; reload</span>
           <span class="badge">Loop support</span>
         </div>
       </div>
-      <div class="detail-card" id="detail-2">
-        <h3>Cloud API Models</h3>
-        <p>Connect to OpenAI, Anthropic, Groq, Mistral, Together AI, OpenRouter, Ollama, or any custom endpoint from the new API Models tab. Pick a provider, paste your key, and click Test &amp; Load. A 1-token check confirms it works before any real request is sent.</p>
-        <p>Once loaded, the cloud model behaves exactly like a local one — it appears in chat, works inside pipelines, and shows in the status bar. Keys are stored only on your machine. Save configs to reload instantly next session.</p>
-        <div class="detail-badge">
-          <span class="badge blue">8 providers built-in</span>
-          <span class="badge">1-token verification</span>
-          <span class="badge clay">Custom endpoints</span>
-          <span class="badge">Saved configs</span>
-        </div>
-      </div>
       <div class="detail-card" id="detail-3">
-        <h3>Reasoning into Code</h3>
-        <p>Assign a reasoning model and a coding model. When you submit a coding task, the reasoning model thinks through intent and architecture first, then passes a concise brief to the coding model to generate the implementation.</p>
-        <p>You see the full chain of thought in the chat — nothing is hidden. Better code, less back-and-forth. Build this flow visually in the Pipeline Builder or let it trigger automatically from a single prompt.</p>
+        <h3>API + local mixing</h3>
+        <p>Connect any OpenAI-compatible (<code>/chat/completions</code>) or Anthropic (<code>/v1/messages</code>) endpoint from the API Models tab — works with hosted services and self-hosted servers like LM Studio, Ollama, and vLLM. Paste your key, click Test &amp; Load, and a 1-token check confirms it works before any real request is sent.</p>
+        <p>Once loaded, an API model behaves exactly like a local one — it appears in chat, works inside pipelines, and shows in the status bar. Keys are stored only on your machine.</p>
         <div class="detail-badge">
-          <span class="badge">Two-model chain</span>
-          <span class="badge clay">Visible reasoning trace</span>
-          <span class="badge">Auto-detects coding tasks</span>
+          <span class="badge blue">OpenAI-compatible</span>
+          <span class="badge">Anthropic <code>/v1/messages</code></span>
+          <span class="badge clay">1-token verification</span>
+          <span class="badge">Local keys only</span>
         </div>
       </div>
       <div class="detail-card" id="detail-4">
-        <h3>Reference Library</h3>
-        <p>Build a persistent knowledge base for any chat session. Attach PDFs, notes, or text files as references — they're indexed once and retrieved semantically every time you ask something relevant.</p>
-        <p>The reference panel slides in smoothly from the right edge when you need it and stays out of the way when you don't. Think of it as giving your AI a bookshelf separate from the active conversation.</p>
+        <h3>Talk to your documents</h3>
+        <p>Attach PDFs, plain text, or source files to a session. Top-K relevant chunks are auto-injected as <code>[REFERENCE: …]</code> blocks before each prompt. Long PDFs get split, summarised section-by-section with carry-over context, then consolidated — pause/resume to disk between chunks.</p>
+        <p>Source code gets AST-level parsing for Python and regex parsers for 20+ other languages, extracting imports, classes, functions, constants, and types.</p>
         <div class="detail-badge">
-          <span class="badge">Semantic retrieval</span>
-          <span class="badge clay">Persistent index</span>
-          <span class="badge gold">Per-session libraries</span>
+          <span class="badge">Top-K RAG</span>
+          <span class="badge clay">Multi-PDF synthesis</span>
+          <span class="badge gold">AST script parser</span>
         </div>
       </div>
       <div class="detail-card" id="detail-5">
-        <h3>Pause &amp; Resume</h3>
-        <p>Summarising a 200-page document? You don't have to sit and wait. NativeLab pauses mid-job, saves exactly which chunks have been processed and what's been generated, and lets you pick up precisely where you left off — even after restarting the app.</p>
+        <h3>Auto family detection</h3>
+        <p>NativeLab recognises 20+ chat templates from the filename — DeepSeek, DeepSeek-R1, Mistral, Mixtral, LLaMA-2/3, Phi-3/3.5, Qwen/ChatML, Gemma, CodeLlama, Falcon, Vicuna, OpenChat, Neural-Chat, Starling, Yi, Zephyr, Solar, Orca, Command-R — and applies the correct prompt format automatically.</p>
+        <p>Every quantization is detected too, from legacy <code>Q4_0</code> through K-quants and imatrix variants, with colour-coded quality tiers in the model list.</p>
         <div class="detail-badge">
-          <span class="badge">State serialization</span>
-          <span class="badge clay">Auto-pause threshold</span>
-          <span class="badge">Persistent job queue</span>
+          <span class="badge">20+ families</span>
+          <span class="badge clay">Quant detection</span>
+          <span class="badge">Per-model params</span>
         </div>
       </div>
       <div class="detail-card" id="detail-6">
-        <h3>Sessions &amp; Exports</h3>
-        <p>Every conversation is a session with its own history, title, and context window usage indicator. Export to JSON for programmatic use, Markdown for notes and documentation, or plain text for anything else.</p>
-        <p>Nothing is locked in. Your conversations are yours.</p>
+        <h3>HuggingFace downloader</h3>
+        <p>Search any GGUF repo, browse files with sizes, and download into your models folder — without leaving the app. Network drops? Resume where you left off.</p>
+        <p>The CLI's setup wizard uses the same downloader, so first-time terminal users can grab a model interactively without touching a browser.</p>
         <div class="detail-badge">
-          <span class="badge">JSON · Markdown · TXT</span>
-          <span class="badge clay">Context usage meter</span>
-          <span class="badge">Sidebar history</span>
+          <span class="badge">Search any repo</span>
+          <span class="badge clay">Resume on drop</span>
+          <span class="badge gold">Used by GUI &amp; CLI</span>
         </div>
       </div>
     </div>
@@ -951,57 +952,89 @@
 
 <!-- ── PHILOSOPHY ── -->
 <section id="philosophy">
-  <p class="section-label">Why it exists</p>
-  <h2>AI should be a tool,<br><em>not a subscription.</em></h2>
-  <p class="section-intro">We built NativeLab because powerful inference shouldn't require cloud accounts, billing cycles, or trusting a third party with your data.</p>
+  <p class="section-label">Project principles</p>
+  <h2>A workbench,<br><em>not a product.</em></h2>
+  <p class="section-intro">NativeLab is open source, AGPL v3 licensed, and developed in the open on GitHub. The principles below are the ones the codebase is structured around — they're how we evaluate every PR and every new feature.</p>
 
   <div class="pillars">
     <div class="pillar">
-      <div class="pillar-num">01 — PRIVACY</div>
-      <h4>Air-gapped by design</h4>
-      <p>No telemetry. No account required. Everything runs on your CPU and RAM by default. When you choose to connect a cloud API, that's your deliberate decision — nothing dials out without your say-so.</p>
+      <div class="pillar-num">01 — OPEN SOURCE</div>
+      <h4>Read it, fork it, audit it</h4>
+      <p>The entire codebase lives on GitHub under AGPL v3. Issues and PRs are welcome — see <a href="https://github.com/7ZoneSystems/NativeLab/blob/main/CONTRIBUTING.md" target="_blank" style="color:var(--gold);">CONTRIBUTING.md</a>. The Labs layer is the lowest-friction place to add a new feature.</p>
     </div>
     <div class="pillar">
-      <div class="pillar-num">02 — OWNERSHIP</div>
+      <div class="pillar-num">02 — LOCAL-FIRST</div>
+      <h4>No telemetry, no accounts</h4>
+      <p>Everything runs on your CPU and RAM by default. When you choose to connect a cloud API, that's your deliberate decision — nothing dials out without your say-so. No accounts, no billing, no usage limits.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">03 — TRANSPARENT</div>
+      <h4>Every knob is visible</h4>
+      <p>Threads, context size, prompt templates, API formats, sampling parameters — all exposed in the UI and the config files. Nothing happens behind the scenes that you can't see, change, or disable.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num">04 — UNOPINIONATED</div>
       <h4>Your models, your rules</h4>
-      <p>Download any GGUF model and drop it in. Connect any API endpoint. Define your own prompt format. You're not locked into one vendor's model family or one company's judgment about what you should be able to ask.</p>
+      <p>Drop in any GGUF model. Connect any OpenAI-compatible or Anthropic-compatible endpoint. Define your own prompt format. You're not locked into one vendor's model family or one company's judgment about what you should be able to ask.</p>
     </div>
-    <div class="pillar">
-      <div class="pillar-num">03 — TRANSPARENCY</div>
-      <h4>Open source, fully</h4>
-      <p>The entire codebase is on GitHub. Read it, fork it, audit it. Every parameter — threads, context size, prompt templates, API formats — is exposed in the UI. Nothing happens behind the scenes that you can't see.</p>
+  </div>
+
+  <div style="margin-top: 4.5rem; padding: 2rem 2.4rem; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; display: flex; flex-wrap: wrap; gap: 2rem; justify-content: space-between; align-items: center;">
+    <div>
+      <p style="font-family: 'Instrument Serif', serif; font-size: 1.4rem; color: #e8e4d8; line-height: 1.3; margin-bottom: 0.4rem;">Built by <em style="font-style: italic; color: var(--gold);">7ZoneSystems</em> and contributors.</p>
+      <p style="font-size: 0.88rem; color: #8a8780; font-weight: 300; max-width: 500px;">NativeLab is community-driven. File an issue, send a PR, or read the architecture docs to see how it all fits together.</p>
     </div>
-    <div class="pillar">
-      <div class="pillar-num">04 — RELIABILITY</div>
-      <h4>Works without internet</h4>
-      <p>Field work, travel, restricted networks — NativeLab runs wherever your laptop runs. When online, API models extend your capability without replacing the local foundation.</p>
+    <div style="display: flex; gap: 0.8rem; flex-wrap: wrap;">
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" style="background: var(--gold); color: var(--ink); padding: 0.7rem 1.4rem; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 0.85rem;">★ &nbsp;GitHub</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank" style="background: transparent; color: #ccc; border: 1px solid #444; padding: 0.7rem 1.4rem; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 0.85rem;">Issues</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab/blob/main/CONTRIBUTING.md" target="_blank" style="background: transparent; color: #ccc; border: 1px solid #444; padding: 0.7rem 1.4rem; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 0.85rem;">Contributing</a>
     </div>
   </div>
 </section>
 
-<!-- ── HOW IT WORKS ── -->
-<section id="how">
-  <p class="section-label">Getting started</p>
-  <h2>Up and running<br><em>in four steps</em></h2>
-  <p class="section-intro">No Docker, no Python environment, no cloud account required to start. Just download, add a model, and go.</p>
+<!-- ── INSTALL ── -->
+<section id="install">
+  <p class="section-label">Install &amp; run</p>
+  <h2>One command,<br><em>any platform</em></h2>
+  <p class="section-intro">NativeLab ships as a pure Python package on PyPI. Install with pip — exactly the same on Linux, macOS, and Windows. Requires Python 3.10 or newer.</p>
 
-  <div class="steps">
-    <div class="step fade-up">
-      <h4>Download NativeLab</h4>
-      <p>Grab the latest Beta release from GitHub. Available for Windows and Linux. Comes bundled with everything it needs — no extra installs.</p>
+  <div style="margin-top: 3rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+
+    <div style="background: #141414; color: #e5e5e5; border-radius: 12px; padding: 1.6rem 1.8rem; font-family: 'DM Mono', monospace;">
+      <div style="font-family: 'DM Sans', sans-serif; font-size: 0.78rem; color: #888; margin-bottom: 0.9rem; letter-spacing: 0.06em;">▸ &nbsp;LINUX · MACOS · WINDOWS</div>
+      <div style="font-size: 0.86rem; line-height: 2;">
+        <div><span style="color: #555;">$</span> pip install <span style="color: #34d399;">nativelab</span></div>
+        <div><span style="color: #555;">$</span> nativelab <span style="color: #888;"># desktop GUI</span></div>
+        <div><span style="color: #555;">$</span> nativelab --cli <span style="color: #888;"># terminal client</span></div>
+      </div>
     </div>
-    <div class="step fade-up">
-      <h4>Add a model</h4>
-      <p>Drop any <code>.gguf</code> file into the <code>/localllm</code> folder — NativeLab detects the family and sets up templates automatically. Or skip this entirely and connect a cloud API model from the API Models tab instead.</p>
+
+    <div style="background: var(--paper); border: 1px solid var(--border); border-radius: 12px; padding: 1.6rem 1.8rem;">
+      <h4 style="font-family: 'Instrument Serif', serif; font-size: 1.25rem; color: var(--ink); margin-bottom: 0.6rem;">First-time setup wizard</h4>
+      <p style="font-size: 0.88rem; color: var(--dim); line-height: 1.7; font-weight: 300;">
+        On first launch, the GUI's Download tab installs llama.cpp binaries and pulls a GGUF
+        model — no manual setup. The CLI runs an interactive wizard that finds
+        <code style="font-size: 0.82rem;">llama-server</code>, downloads a model, and drops you into a chat REPL.
+      </p>
     </div>
-    <div class="step fade-up">
-      <h4>Configure to your hardware</h4>
-      <p>Set threads, context size, and generation length in the Config tab. RAM usage and context fill are shown live. Nothing runs until you're ready.</p>
+
+    <div style="background: var(--paper); border: 1px solid var(--border); border-radius: 12px; padding: 1.6rem 1.8rem;">
+      <h4 style="font-family: 'Instrument Serif', serif; font-size: 1.25rem; color: var(--ink); margin-bottom: 0.6rem;">Build from source</h4>
+      <p style="font-size: 0.88rem; color: var(--dim); line-height: 1.7; font-weight: 300; margin-bottom: 0.7rem;">
+        Clone the repository and install in editable mode if you'd like to hack on it.
+      </p>
+      <div style="font-family: 'DM Mono', monospace; font-size: 0.78rem; background: var(--warm); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.8rem; color: var(--sage);">
+        git clone github.com/7ZoneSystems/NativeLab<br>
+        cd NativeLab &amp;&amp; pip install -e .
+      </div>
     </div>
-    <div class="step fade-up">
-      <h4>Chat, build, or connect</h4>
-      <p>Open a chat session, build a pipeline on the canvas, attach documents, or connect a cloud API. Everything persists between restarts — sessions, pipelines, API configs, references.</p>
-    </div>
+
+  </div>
+
+  <div style="margin-top: 2.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+    <a href="https://pypi.org/project/nativelab/" target="_blank" class="btn-primary">View on PyPI →</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-secondary">Source on GitHub →</a>
+    <a href="setup.html" class="btn-secondary">Full setup guide →</a>
   </div>
 </section>
 
@@ -1056,12 +1089,22 @@
 
   <div class="req-grid">
     <div class="req-card">
+      <h4>🐍 Runtime</h4>
+      <ul>
+        <li>Python 3.10 or newer</li>
+        <li>PyQt6 (auto-installed)</li>
+        <li>llama.cpp binaries</li>
+      </ul>
+      <p class="note">GUI's Download tab fetches llama.cpp for you</p>
+    </div>
+    <div class="req-card">
       <h4>🖥️ Operating System</h4>
       <ul>
-        <li>Windows 10 / 11</li>
         <li>Linux (most distros)</li>
-        <li>macOS support planned</li>
+        <li>macOS (Intel &amp; Apple Silicon)</li>
+        <li>Windows 10 / 11</li>
       </ul>
+      <p class="note">Same <code>pip install</code> on every platform</p>
     </div>
     <div class="req-card">
       <h4>🧠 Memory (RAM)</h4>
@@ -1075,7 +1118,7 @@
     <div class="req-card">
       <h4>💾 Storage</h4>
       <ul>
-        <li>~200 MB for the app</li>
+        <li>~200 MB for the package</li>
         <li>2–8 GB per GGUF model</li>
         <li>Space for sessions, pipelines &amp; references</li>
       </ul>
@@ -1085,9 +1128,9 @@
       <ul>
         <li>Any modern multi-core CPU</li>
         <li>More threads = faster generation</li>
-        <li>GPU acceleration: planned</li>
+        <li>GPU offload via llama.cpp <code>ngl</code></li>
       </ul>
-      <p class="note">12 threads default, fully configurable</p>
+      <p class="note">Threads &amp; GPU layers fully configurable</p>
     </div>
     <div class="req-card">
       <h4>🌐 Internet</h4>
@@ -1105,7 +1148,7 @@
 <section id="setup-callout" style="background: var(--ink); padding: 5rem 5vw;">
   <div style="max-width:900px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:2.5rem;">
     <div>
-      <p style="font-size:0.75rem; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; color:#8a937d; margin-bottom:0.8rem;">Already downloaded?</p>
+      <p style="font-size:0.75rem; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; color:#8a937d; margin-bottom:0.8rem;">Already installed?</p>
       <h2 style="font-family:'Instrument Serif',serif; font-size:clamp(1.8rem,3.5vw,2.6rem); color:#fff; line-height:1.15; margin-bottom:0.9rem;">Get your first model<br><em style="font-style:italic; color:var(--gold);">running in 5 minutes.</em></h2>
       <p style="font-size:0.95rem; color:#9e9b92; font-weight:300; line-height:1.8; max-width:480px;">The setup guide walks you through installing llama.cpp, linking it in the Server tab, and choosing the right model for your hardware — with one-click copy for every HuggingFace repo ID.</p>
     </div>
@@ -1115,13 +1158,13 @@
       </a>
       <div style="display:flex; gap:1.5rem;">
         <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#555;">
-          <span style="color:var(--gold);">①</span> Install llama.cpp
+          <span style="color:var(--gold);">①</span> pip install nativelab
         </div>
         <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#555;">
-          <span style="color:var(--gold);">②</span> Link in Server tab
+          <span style="color:var(--gold);">②</span> Install llama.cpp
         </div>
         <div style="display:flex; align-items:center; gap:0.5rem; font-size:0.8rem; color:#555;">
-          <span style="color:var(--gold);">③</span> Download a model
+          <span style="color:var(--gold);">③</span> Pick a GGUF model
         </div>
       </div>
     </div>
@@ -1249,15 +1292,15 @@
 
 <div class="header">
   <div class="header-inner">
-    <div class="label">Feature Comparison Matrix &nbsp;&middot;&nbsp; v2.0 &nbsp;&middot;&nbsp; March 2026</div>
-    <h1>NativeLab Pro <span>v2</span> vs The Field</h1>
-    <p class="subtitle">A comprehensive breakdown of NativeLab Pro v2 against LM Studio, AnythingLLM, Jan AI, and GPT4All &mdash; covering core capabilities, hardware support, visual pipeline tooling, and overall developer experience.</p>
-    <div class="build-badge"><div class="dot"></div> v2.0 &nbsp;&middot;&nbsp; March 2026 &nbsp;&middot;&nbsp; 14,000+ LOC &nbsp;&middot;&nbsp; Single Python file</div>
+    <div class="label">Feature Comparison Matrix &nbsp;&middot;&nbsp; NativeLab v0.2.7</div>
+    <h1>NativeLab <span>v0.2.7</span> vs The Field</h1>
+    <p class="subtitle">An honest comparison of NativeLab against LM Studio, AnythingLLM, Jan AI, and GPT4All &mdash; covering core capabilities, hardware support, visual pipeline tooling, and overall developer experience. Open source, AGPL v3.</p>
+    <div class="build-badge"><div class="dot"></div> v0.2.7 &nbsp;&middot;&nbsp; pip install nativelab &nbsp;&middot;&nbsp; AGPL v3</div>
   </div>
 </div>
 
 <div class="legend">
-  <div class="legend-item"><div class="dot-lg dot-nl"></div> NativeLab Pro v2</div>
+  <div class="legend-item"><div class="dot-lg dot-nl"></div> NativeLab v0.2.7</div>
   <div class="legend-item"><div class="dot-lg dot-lms"></div> LM Studio</div>
   <div class="legend-item"><div class="dot-lg dot-any"></div> AnythingLLM</div>
   <div class="legend-item"><div class="dot-lg dot-jan"></div> Jan AI</div>
@@ -1288,7 +1331,7 @@
 
   <div class="section-header">
     <div class="col-head">Feature</div>
-    <div class="col-head nl">NativeLab<br>Pro v2</div>
+    <div class="col-head nl">NativeLab<br>v0.2.7</div>
     <div class="col-head lms">LM<br>Studio</div>
     <div class="col-head any">Anything<br>LLM</div>
     <div class="col-head jan">Jan<br>AI</div>
@@ -1303,8 +1346,8 @@
   <div class="row" data-cat="core"><div class="cell"><div class="feat-name">No account required</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
   <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Windows</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
   <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Linux</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">macOS</div></div><div class="cell"><span class="yes">&#10003;</span><span class="released" style="margin-left:7px">v2.0</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Zero-config beginner setup<em>Pre-built binaries, double-click to launch</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
+  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">macOS</div></div><div class="cell"><span class="yes">&#10003;</span><span class="released" style="margin-left:7px">v0.2.7</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
+  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Zero-config beginner setup<em>One-line <code>pip install nativelab</code> on every platform</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
   <div class="row" data-cat="core"><div class="cell"><div class="feat-name">In-app model download<em>HuggingFace repo search, quantization badges, live progress</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
   <div class="row" data-cat="core"><div class="cell"><div class="feat-name">SafeTensor model support<em>Modern .safetensor format alongside GGUF</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
 
@@ -1419,18 +1462,18 @@
 
   <!-- RELEASE BANNER -->
   <div class="release-banner">
-    <strong>v2.0 Release &mdash; March 2026 &nbsp;&middot;&nbsp;</strong>
-    GPU auto-detection &middot; CUDA &middot; Apple Metal &middot; Vulkan &middot; Multi-GPU tensor split &middot; HuggingFace model download &middot; SafeTensor support &middot; Multi-MCP server management &middot; Vector RAG pipeline block &middot; 7 Python logic blocks &middot; 5 LLM logic blocks &middot; Visual agentic pipelines &middot; Ghost drag-drop preview &middot; Pill scroll bar &middot; Branch label badges &middot; In-app pipeline manual &middot; macOS binaries &middot; 22 bug fixes.
+    <strong>v0.2.7 release &nbsp;&middot;&nbsp;</strong>
+    Labs experimentation layer &middot; <code>nativelab --cli</code> terminal client &middot; shared LabEndpoints API &middot; <code>@file</code> embedding in CLI &middot; built-in linting (pyflakes / flake8 / pylint) &middot; HuggingFace downloader &middot; visual pipeline builder with 20+ block types &middot; OpenAI &amp; Anthropic endpoint support &middot; auto family detection for 20+ chat templates &middot; pause/resume long summarization jobs &middot; reactive RAM watchdog.
   </div>
 
   <!-- SUMMARY CARDS -->
   <div class="summary">
     <div class="card nl">
-      <div class="card-name">NativeLab Pro v2</div>
+      <div class="card-name">NativeLab v0.2.7</div>
       <div class="card-score" style="color:var(--nl)">62+</div>
       <div class="card-score-label">features tracked</div>
       <div class="card-tag">Best for power users, pipeline builders, agentic AI workflows, privacy-critical environments, and long-document research on modest hardware.</div>
-      <span class="card-oss oss-yes">Open Source &middot; Free</span>
+      <span class="card-oss oss-yes">Open Source &middot; AGPL v3</span>
     </div>
     <div class="card lms">
       <div class="card-name">LM Studio</div>
@@ -1463,7 +1506,7 @@
   </div>
 
   <div class="footer">
-    <span>NativeLab Pro v2 &nbsp;&middot;&nbsp; Feature Comparison &nbsp;&middot;&nbsp; March 2026 &nbsp;&middot;&nbsp; github.com/7zonesystems/NativeLab</span>
+    <span>NativeLab v0.2.7 &nbsp;&middot;&nbsp; Feature Comparison &nbsp;&middot;&nbsp; github.com/7ZoneSystems/NativeLab</span>
     <span>&#9733; Exclusive = no equivalent feature found in any compared tool &nbsp;|&nbsp; &#9881; In progress = under active development</span>
   </div>
 
@@ -1489,33 +1532,35 @@
 
 <!-- ── CTA ── -->
 <section id="cta">
-  <p class="section-label">Open source · Free forever</p>
-  <h2>Own your AI.<br><em>Start today.</em></h2>
-  <p>Download NativeLab Beta and bring local AI to your workflow. Build pipelines, connect cloud APIs, or run fully offline. No account. No credit card. No data leaving your machine.</p>
+  <p class="section-label">Open source · AGPL v3</p>
+  <h2>Run it locally.<br><em>Read the source.</em></h2>
+  <p>NativeLab is a community-driven, open-source project. Install with a single pip command, contribute on GitHub, or fork it and make it your own. No account. No credit card. No telemetry.</p>
   <div class="cta-actions">
-    <a href="https://github.com/7ZoneSystems/NativeLab/releases/download/Global/NativeLabPro_linux64_Major_featureUpdate_v4.tar.gz" target="_blank" class="btn-primary">
-      ↓ &nbsp;Download Linux
-    </a>
-    <a href="https://github.com/7ZoneSystems/NativeLab/releases/download/Global/NativeLabPro2_win64_beta.zip" target="_blank" class="btn-primary">
-      ↓ &nbsp;Download Windows
-    </a>
-    <a href="https://github.com/7ZoneSystems/NativeLab/releases/download/Global/NativeLab-Pro-macOS-arm64.zip" target="_blank" class="btn-primary">
-      ↓ &nbsp;Download MacOS
+    <a href="https://pypi.org/project/nativelab/" target="_blank" class="btn-primary">
+      ↓ &nbsp;pip install nativelab
     </a>
     <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-secondary">
-      View on GitHub →
+      ★ &nbsp;Star on GitHub
+    </a>
+    <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank" class="btn-secondary">
+      Issues &amp; discussions →
     </a>
   </div>
+  <p style="margin-top: 2rem; font-family: 'DM Mono', monospace; font-size: 0.82rem; color: rgba(255,255,255,0.55);">
+    Linux · macOS · Windows &nbsp;·&nbsp; Python 3.10+ &nbsp;·&nbsp; PyPI: nativelab
+  </p>
 </section>
 
 <!-- ── FOOTER ── -->
 <footer>
   <span class="footer-brand">NativeLab</span>
-  <span>Open source · Beta · 7ZoneSystems</span>
-  <div style="display:flex;gap:1.5rem;">
+  <span>Open source · AGPL v3 · Maintained by 7ZoneSystems &amp; contributors</span>
+  <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
     <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab/releases" target="_blank">Releases</a>
+    <a href="https://pypi.org/project/nativelab/" target="_blank">PyPI</a>
     <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank">Issues</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab/blob/main/CONTRIBUTING.md" target="_blank">Contributing</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab/blob/main/LICENSE" target="_blank">License</a>
     <a href="setup.html">Setup Guide</a>
   </div>
 </footer>

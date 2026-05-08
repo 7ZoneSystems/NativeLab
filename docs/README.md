@@ -25,7 +25,7 @@ Welcome. The docs are organised so each page covers a single concern — pick th
 
 | Page | Topic |
 |---|---|
-| [features.md](features.md) | Full feature catalogue + v0.2.5 changelog. |
+| [features.md](features.md) | Full feature catalogue + v0.2.7 changelog. |
 | [architecture.md](architecture.md) | Layered design, engine layer, project structure. |
 | [labs.md](labs.md) | The Labs experimentation layer + how to add a feature. |
 | [models.md](models.md) | Model registry, family detection, quants, API models. |
