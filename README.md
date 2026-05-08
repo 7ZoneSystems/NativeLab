@@ -19,8 +19,8 @@
 [![Last commit](https://img.shields.io/github/last-commit/7ZoneSystems/NativeLab?logo=github&color=brightgreen)](https://github.com/7ZoneSystems/NativeLab/commits/main)
 [![Issues](https://img.shields.io/github/issues/7ZoneSystems/NativeLab?logo=github)](https://github.com/7ZoneSystems/NativeLab/issues)
 [![Contributors](https://img.shields.io/github/contributors/7ZoneSystems/NativeLab?logo=github)](https://github.com/7ZoneSystems/NativeLab/graphs/contributors)
-<!-- CLONES_BADGE_PLACEHOLDER — replace GIST_ID after running .github/workflows/clone-count.yml. See SETUP_BADGES.md. -->
-[![GitHub clones](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/7ZoneSystems/33a9ac91ae3e3c895eb5d07391b456e3/raw/clone.json&logo=github&label=clones)](https://github.com/7ZoneSystems/NativeLab)
+[![GitHub clones](https://img.shields.io/badge/dynamic/json?color=success&label=clones&query=count&url=https://gist.githubusercontent.com/7ZoneSystems/33a9ac91ae3e3c895eb5d07391b456e3/raw/clone.json&logo=github)](https://github.com/7ZoneSystems/NativeLab)
+[![GitHub uniques](https://img.shields.io/badge/dynamic/json?color=success&label=unique%20cloners&query=uniques&url=https://gist.githubusercontent.com/7ZoneSystems/33a9ac91ae3e3c895eb5d07391b456e3/raw/clone.json&logo=github)](https://github.com/7ZoneSystems/NativeLab)
 
 </div>
 

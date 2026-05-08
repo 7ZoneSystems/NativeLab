@@ -30,3 +30,4 @@ nativelab/llama/
 llama/bin/
 
 .env
+SETUP_BADGES.md
