@@ -7,12 +7,13 @@
 **A fully local, privacy-first LLM workbench powered by llama.cpp — desktop GUI, terminal CLI, and an experimentation layer.**
 
 [![PyPI version](https://img.shields.io/pypi/v/nativelab.svg?logo=pypi&logoColor=white&color=3775A9)](https://pypi.org/project/nativelab/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/nativelab.svg?logo=pypi&logoColor=white&color=3775A9)](https://pypi.org/project/nativelab/)
 ![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
-[![Python versions](https://img.shields.io/pypi/pyversions/NativeLab.svg?logo=python&logoColor=white&color=3776AB)](https://pypi.org/project/nativelab/)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL_v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](#)
 [![Powered by llama.cpp](https://img.shields.io/badge/powered%20by-llama.cpp-orange)](https://github.com/ggerganov/llama.cpp)
 [![GitHub stars](https://img.shields.io/github/stars/7ZoneSystems/NativeLab?style=social)](https://github.com/7ZoneSystems/NativeLab/stargazers)
+[![GitHub PRs](https://img.shields.io/github/issues-pr/7ZoneSystems/NativeLab?color=black)](https://github.com/7ZoneSystems/NativeLab/pulls)
 [![Last commit](https://img.shields.io/github/last-commit/7ZoneSystems/NativeLab?logo=github&color=brightgreen)](https://github.com/7ZoneSystems/NativeLab/commits/main)
 [![Issues](https://img.shields.io/github/issues/7ZoneSystems/NativeLab?logo=github)](https://github.com/7ZoneSystems/NativeLab/issues)
 [![Contributors](https://img.shields.io/github/contributors/7ZoneSystems/NativeLab?logo=github)](https://github.com/7ZoneSystems/NativeLab/graphs/contributors)
