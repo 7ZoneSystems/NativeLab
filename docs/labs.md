@@ -1,8 +1,8 @@
-# Labs — the experimentation layer
+# Labs - the experimentation layer
 
 The `nativelab/labs/` package is where new features land. It exists to let you ship experiments without touching `MainWindow`, engine internals, or the streaming workers.
 
-> **TL;DR** — drop a `QWidget` panel into `nativelab/labs/<feature>.py`, register it in `LAB_FEATURES`, and you get engine status, model swap, context change, and synchronous LLM calls for free.
+> **TL;DR** - drop a `QWidget` panel into `nativelab/labs/<feature>.py`, register it in `LAB_FEATURES`, and you get engine status, model swap, context change, and synchronous LLM calls for free.
 
 ---
 
@@ -11,7 +11,7 @@ The `nativelab/labs/` package is where new features land. It exists to let you s
 ```
 nativelab/labs/
 ├── __init__.py        re-exports LabEndpoints, LabsTab, LAB_FEATURES, …
-├── endpoints.py       LabEndpoints — the shared surface
+├── endpoints.py       LabEndpoints - the shared surface
 ├── labs_tab.py        sidebar + stacked panels (LabsTab + LAB_FEATURES list)
 └── pytodoc.py         first feature: py-to-doc README generator
 ```
@@ -67,7 +67,7 @@ reply = endpoints.call_llm(
 )
 ```
 
-### Reverse routing — ask the host to change state
+### Reverse routing - ask the host to change state
 
 ```python
 endpoints.request_load_model("/path/to/other.gguf")  # → True/False
@@ -177,21 +177,21 @@ Before Labs, adding a feature touched `MainWindow` (engine refs), `tabs.py` (UI 
 
 The labs surface is intentionally narrow:
 
-- **Read state** — no state mutation through reads.
-- **`call_llm`** — one synchronous call, one return value, no QThread choreography.
-- **Reverse routing** — three explicit hooks; no direct engine handles leak out.
-- **Signals** — engine changes notify panels without panels polling.
+- **Read state** - no state mutation through reads.
+- **`call_llm`** - one synchronous call, one return value, no QThread choreography.
+- **Reverse routing** - three explicit hooks; no direct engine handles leak out.
+- **Signals** - engine changes notify panels without panels polling.
 
-If you find yourself wanting to import an engine class, a streaming worker, or `MainWindow` from inside a lab feature — stop. The feature should either work through `endpoints.call_llm` or the surface needs a new method. PRs to extend `LabEndpoints` are welcome and easy to review precisely *because* the surface is small.
+If you find yourself wanting to import an engine class, a streaming worker, or `MainWindow` from inside a lab feature - stop. The feature should either work through `endpoints.call_llm` or the surface needs a new method. PRs to extend `LabEndpoints` are welcome and easy to review precisely *because* the surface is small.
 
 ---
 
 ## How the CLI uses the same surface
 
-`nativelab/cli/chat.py` builds a `LabEndpoints` exactly like `MainWindow` does — different reverse-route hooks (synchronous CLI behavior instead of GUI dialog flows), same call semantics. That's why `/load`, `/ctx`, and `/unload` from the REPL behave identically to a lab feature requesting the same change in the GUI: they're literally the same code path.
+`nativelab/cli/chat.py` builds a `LabEndpoints` exactly like `MainWindow` does - different reverse-route hooks (synchronous CLI behavior instead of GUI dialog flows), same call semantics. That's why `/load`, `/ctx`, and `/unload` from the REPL behave identically to a lab feature requesting the same change in the GUI: they're literally the same code path.
 
 ```python
-# nativelab/cli/chat.py — the relevant snippet
+# nativelab/cli/chat.py - the relevant snippet
 endpoints.bind_engines(
     llama_provider=lambda: eng,
     api_provider  =lambda: api,

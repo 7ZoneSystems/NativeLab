@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NativeLab — Setup Guide</title>
+  <title>NativeLab - Setup Guide</title>
   <link rel="icon" type="image/png" href="../nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -1057,14 +1057,14 @@
   <div class="video-section-inner">
     <p class="section-label">Video Walkthrough</p>
     <h2>Watch the full<br><em>setup in action</em></h2>
-    <p>See every step demonstrated live — from downloading llama.cpp to running your first conversation locally. No cloud, no account, everything on your machine.</p>
+    <p>See every step demonstrated live - from downloading llama.cpp to running your first conversation locally. No cloud, no account, everything on your machine.</p>
 
     <div class="video-wrapper fade-up">
       <div class="video-chrome">
         <div class="video-chrome-dot" style="background:#ff5f57"></div>
         <div class="video-chrome-dot" style="background:#ffbd2e"></div>
         <div class="video-chrome-dot" style="background:#28c840"></div>
-        <span class="video-chrome-title">NativeLab — Complete Setup Walkthrough</span>
+        <span class="video-chrome-title">NativeLab - Complete Setup Walkthrough</span>
       </div>
 
       <div class="video-thumb" id="videoThumb" onclick="loadVideo()" title="Click to play">
@@ -1098,7 +1098,7 @@
       <div class="video-footer">
         <div class="video-footer-label">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff2b2b"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 00.5 6.19C0 8.03 0 12 0 12s0 3.97.5 5.81a3.02 3.02 0 002.12 2.14C4.46 20.5 12 20.5 12 20.5s7.54 0 9.38-.55a3.02 3.02 0 002.12-2.14C24 15.97 24 12 24 12s0-3.97-.5-5.81zM9.75 15.52V8.48L15.5 12l-5.75 3.52z"/></svg>
-          <strong>NativeLab — Full Setup</strong> &nbsp;· 7ZoneSystems
+          <strong>NativeLab - Full Setup</strong> &nbsp;· 7ZoneSystems
         </div>
         <a href="https://youtu.be/9l0IlSkI-IM" target="_blank" class="video-yt-link">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.19a3.02 3.02 0 00-2.12-2.14C19.54 3.5 12 3.5 12 3.5s-7.54 0-9.38.55A3.02 3.02 0 00.5 6.19C0 8.03 0 12 0 12s0 3.97.5 5.81a3.02 3.02 0 002.12 2.14C4.46 20.5 12 20.5 12 20.5s7.54 0 9.38-.55a3.02 3.02 0 002.12-2.14C24 15.97 24 12 24 12s0-3.97-.5-5.81zM9.75 15.52V8.48L15.5 12l-5.75 3.52z"/></svg>
@@ -1177,40 +1177,40 @@
 
     <div id="os-win" class="os-panel active fade-up">
       <div class="callout warn">
-        <div class="callout-label">Windows — Choose the right build</div>
+        <div class="callout-label">Windows - Choose the right build</div>
         Download <strong>avx2</strong> if your CPU is from 2013 or later (Intel Haswell+ / AMD Ryzen). Use <strong>avx</strong> for older machines. If you have an NVIDIA GPU, grab the <strong>cuda</strong> variant for much faster inference.
       </div>
       <ol style="padding-left:1.4rem; font-size:0.92rem; color:var(--ink); line-height:2.2;">
         <li>Download <code>llama-bXXXX-bin-win-avx2-x64.zip</code></li>
-        <li>Extract the zip — you'll get a folder of <code>.exe</code> files</li>
+        <li>Extract the zip - you'll get a folder of <code>.exe</code> files</li>
         <li>Note the path to <code>llama-cli.exe</code> and <code>llama-server.exe</code></li>
-        <li>No installer needed — just remember where they are</li>
+        <li>No installer needed - just remember where they are</li>
       </ol>
     </div>
 
     <div id="os-mac" class="os-panel fade-up">
       <div class="callout warn">
-        <div class="callout-label">macOS — Apple Silicon vs Intel</div>
-        Download <strong>arm64</strong> for any Mac with an M1/M2/M3/M4 chip. Download <strong>x64</strong> for older Intel-based Macs. Apple Silicon chips have unified memory — this means much better performance per GB than standard RAM.
+        <div class="callout-label">macOS - Apple Silicon vs Intel</div>
+        Download <strong>arm64</strong> for any Mac with an M1/M2/M3/M4 chip. Download <strong>x64</strong> for older Intel-based Macs. Apple Silicon chips have unified memory - this means much better performance per GB than standard RAM.
       </div>
       <ol style="padding-left:1.4rem; font-size:0.92rem; color:var(--ink); line-height:2.2;">
         <li>Download <code>llama-bXXXX-bin-macos-arm64.zip</code> (M-series) or <code>x64</code> (Intel)</li>
-        <li>Unzip the archive — you'll get a folder of binaries</li>
-        <li>On first run, macOS may show a security warning — go to <strong>System Settings &gt; Privacy &amp; Security</strong> and click <strong>Allow Anyway</strong></li>
+        <li>Unzip the archive - you'll get a folder of binaries</li>
+        <li>On first run, macOS may show a security warning - go to <strong>System Settings &gt; Privacy &amp; Security</strong> and click <strong>Allow Anyway</strong></li>
         <li>Note the path to <code>llama-cli</code> and <code>llama-server</code></li>
       </ol>
     </div>
 
     <div id="os-lnx" class="os-panel fade-up">
       <div class="callout warn">
-        <div class="callout-label">Linux — Ubuntu / Debian recommended</div>
+        <div class="callout-label">Linux - Ubuntu / Debian recommended</div>
         Download the <strong>ubuntu-x64</strong> build for most distros. If you have an NVIDIA GPU with CUDA drivers installed, grab the <strong>cuda</strong> variant for hardware acceleration.
       </div>
       <ol style="padding-left:1.4rem; font-size:0.92rem; color:var(--ink); line-height:2.2;">
         <li>Download <code>llama-bXXXX-bin-ubuntu-x64.tar.gz</code></li>
         <li>Extract: <code>tar -xzf llama-bXXXX-bin-ubuntu-x64.tar.gz</code></li>
         <li>Make executable: <code>chmod +x llama-cli llama-server</code></li>
-        <li>Note the full path — e.g. <code>/home/user/llama/llama-cli</code></li>
+        <li>Note the full path - e.g. <code>/home/user/llama/llama-cli</code></li>
       </ol>
     </div>
 
@@ -1232,7 +1232,7 @@
         <div class="hw-ram">2013–2018</div>
         <div class="hw-tier">Modern CPU</div>
         <div class="hw-models">
-          <span class="hw-model-tag">avx2 — recommended</span>
+          <span class="hw-model-tag">avx2 - recommended</span>
           <span class="hw-model-tag">Haswell / Ryzen 1st gen</span>
         </div>
         <div class="hw-note">Great for 7B–13B models on CPU. Most common setup.</div>
@@ -1241,7 +1241,7 @@
         <div class="hw-ram">2019–now</div>
         <div class="hw-tier">Newer CPU</div>
         <div class="hw-models">
-          <span class="hw-model-tag">avx2 — recommended</span>
+          <span class="hw-model-tag">avx2 - recommended</span>
           <span class="hw-model-tag">avx512 (server CPUs)</span>
         </div>
         <div class="hw-note">Fast inference. Ryzen 3000+, 10th-gen Intel+, Apple Silicon.</div>
@@ -1259,7 +1259,7 @@
 
     <div class="callout tip fade-up">
       <div class="callout-label">Apple Silicon tip</div>
-      M1/M2/M3/M4 Macs have <strong>unified memory</strong> — RAM and GPU memory are shared. A 16 GB M2 Mac can comfortably run a 13B model that would require a dedicated 16 GB GPU on PC. The macOS arm64 build already uses Metal acceleration automatically.
+      M1/M2/M3/M4 Macs have <strong>unified memory</strong> - RAM and GPU memory are shared. A 16 GB M2 Mac can comfortably run a 13B model that would require a dedicated 16 GB GPU on PC. The macOS arm64 build already uses Metal acceleration automatically.
     </div>
   </div>
 </section>
@@ -1352,10 +1352,10 @@
             <span class="badge-dot" style="background:#ccc;"></span> CLI Mode
           </div>
           <div class="mode-card-title">llama-cli (subprocess)</div>
-          <div class="mode-card-desc">Spawns llama-cli as a subprocess per generation. Simpler setup — no server process needed. Slower for multi-turn chat.</div>
+          <div class="mode-card-desc">Spawns llama-cli as a subprocess per generation. Simpler setup - no server process needed. Slower for multi-turn chat.</div>
           <div class="mode-features">
             <div class="mode-feature no">No persistent context</div>
-            <div class="mode-feature yes">Simpler — no port needed</div>
+            <div class="mode-feature yes">Simpler - no port needed</div>
             <div class="mode-feature no">No streaming support</div>
             <div class="mode-feature no">Not compatible with pipeline</div>
             <div class="mode-feature yes">Good for single prompts</div>
@@ -1379,11 +1379,11 @@
 
     <div class="reload-tip fade-up">
       <div class="reload-tip-header">
-        If the server is not responding — Reload from the View menu
+        If the server is not responding - Reload from the View menu
       </div>
       <div class="reload-tip-body">
         <div class="reload-panel">
-          <div class="reload-panel-label">macOS — View menu</div>
+          <div class="reload-panel-label">macOS - View menu</div>
           <div class="macos-menu">
             <div class="macos-menu-title">View</div>
             <div class="macos-menu-sep"></div>
@@ -1428,10 +1428,10 @@
 
     <div class="callout fade-up">
       <div class="callout-label">How to browse</div>
-      Click <strong>Browse</strong> next to each field. A file picker will open — navigate to the folder where you extracted llama.cpp and select the appropriate binary:
+      Click <strong>Browse</strong> next to each field. A file picker will open - navigate to the folder where you extracted llama.cpp and select the appropriate binary:
       <ul style="padding-left:1.2rem; margin-top:0.5rem; line-height:2; font-size:0.9rem;">
-        <li><strong>llama-cli</strong> — for single prompt / chat completions</li>
-        <li><strong>llama-server</strong> — for the local HTTP server (OpenAI-compatible API)</li>
+        <li><strong>llama-cli</strong> - for single prompt / chat completions</li>
+        <li><strong>llama-server</strong> - for the local HTTP server (OpenAI-compatible API)</li>
       </ul>
     </div>
 
@@ -1550,11 +1550,11 @@
     </table>
 
     <p class="section-label" style="margin-top:3rem; margin-bottom:0.6rem;">Recommended repos by hardware</p>
-    <h2 style="margin-bottom:0.5rem;">Copy — Paste — Download</h2>
+    <h2 style="margin-bottom:0.5rem;">Copy - Paste - Download</h2>
     <p style="font-size:0.9rem; color:var(--dim); margin-bottom:2rem; font-weight:300;">Click <strong>Copy</strong> on any repo ID below and paste it directly into NativeLab's Download tab search field.</p>
 
     <div class="model-category fade-up">
-      <div class="model-category-title">8 GB RAM — Light models (3B–7B, Q3/Q4)</div>
+      <div class="model-category-title">8 GB RAM - Light models (3B–7B, Q3/Q4)</div>
       <div class="model-category-desc">Runs on most laptops. Expect ~8–18 tokens/sec on a modern CPU.</div>
       <div class="model-list">
         <div class="model-entry">
@@ -1601,7 +1601,7 @@
     </div>
 
     <div class="model-category fade-up">
-      <div class="model-category-title">16 GB RAM — Mid-tier models (8B–13B, Q4/Q5)</div>
+      <div class="model-category-title">16 GB RAM - Mid-tier models (8B–13B, Q4/Q5)</div>
       <div class="model-category-desc">The sweet spot. Can run 13B at Q4 or 8B at Q5/Q6 for very high quality output.</div>
       <div class="model-list">
         <div class="model-entry">
@@ -1658,7 +1658,7 @@
     </div>
 
     <div class="model-category fade-up">
-      <div class="model-category-title">32 GB RAM — Large models (30B–34B, Q4/Q5)</div>
+      <div class="model-category-title">32 GB RAM - Large models (30B–34B, Q4/Q5)</div>
       <div class="model-category-desc">High-end desktop or workstation territory. Near-GPT-4-level quality from some models.</div>
       <div class="model-list">
         <div class="model-entry">
@@ -1695,13 +1695,13 @@
     </div>
 
     <div class="model-category fade-up">
-      <div class="model-category-title">64 GB+ RAM — Full 70B models (Q4/Q5)</div>
+      <div class="model-category-title">64 GB+ RAM - Full 70B models (Q4/Q5)</div>
       <div class="model-category-desc">Power workstations, Mac Studio / Mac Pro with 64GB unified memory. Best-in-class local inference.</div>
       <div class="model-list">
         <div class="model-entry">
           <div>
             <div class="model-repo"><span class="repo-user">bartowski/</span>Llama-3.3-70B-Instruct-GGUF</div>
-            <div style="font-size:0.78rem; color:var(--dim); margin-top:0.2rem;">Meta Llama 3.3 · 70B · Q4_K_M fits in ~42 GB — best open LLM available</div>
+            <div style="font-size:0.78rem; color:var(--dim); margin-top:0.2rem;">Meta Llama 3.3 · 70B · Q4_K_M fits in ~42 GB - best open LLM available</div>
           </div>
           <div class="model-entry-meta">
             <span class="model-size-badge">70B · ~42 GB Q4</span>
@@ -1733,7 +1733,7 @@
     <div style="font-size:3rem; margin-bottom:1rem;">*</div>
     <p style="font-size:0.78rem; font-weight:600; letter-spacing:0.12em; text-transform:uppercase; color:rgba(255,255,255,0.6); margin-bottom:0.8rem;">You're all set</p>
     <h2 style="color:#fff; margin-bottom:1rem; font-size:clamp(2rem,4vw,2.8rem);">Start your first <em style="color:var(--mist)">conversation</em></h2>
-    <p style="color:rgba(255,255,255,0.75); max-width:540px; margin: 0 auto 2.5rem; font-weight:300; font-size:1rem; line-height:1.8;">Switch to the <strong style="color:#fff">Chat</strong> tab, type a message, and the model will respond. Everything runs locally — no cloud, no account, no data leaving your machine.</p>
+    <p style="color:rgba(255,255,255,0.75); max-width:540px; margin: 0 auto 2.5rem; font-weight:300; font-size:1rem; line-height:1.8;">Switch to the <strong style="color:#fff">Chat</strong> tab, type a message, and the model will respond. Everything runs locally - no cloud, no account, no data leaving your machine.</p>
     <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
       <a href="" class="btn-secondary" style="border-color:rgba(255,255,255,0.3); color:#fff;">Back to Home</a>
       <a href="https://youtu.be/9l0IlSkI-IM" target="_blank" class="btn-primary" style="background:#ff2b2b; color:#fff; border-color:#ff2b2b;">Watch Setup Video</a>
@@ -1814,7 +1814,7 @@
       statusDot.className  = 'mode-status-dot dot-cli';
       statusText.textContent = 'llama-cli subprocess mode active';
       statusSub.textContent  = 'No persistent server · Single-shot completions · No streaming';
-      statusHint.textContent = 'Limited — switch to Server mode for full features';
+      statusHint.textContent = 'Limited - switch to Server mode for full features';
     }
   }
 

@@ -8,7 +8,7 @@ needs to expose a panel class with `LAB_NAME`, `LAB_ICON`, and a
 
 The host application calls `LabsTab.set_endpoints(endpoints)` once after the
 engines are wired; from that point on every panel reads/writes engine state
-through the shared `LabEndpoints` instance — never through `MainWindow`.
+through the shared `LabEndpoints` instance - never through `MainWindow`.
 """
 from __future__ import annotations
 

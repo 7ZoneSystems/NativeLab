@@ -70,7 +70,7 @@ def check_binaries() -> bool:
     ui.warn("No llama.cpp binary found.")
     ui.info("Download a release zip into ./llama/bin/ from "
             "https://github.com/ggml-org/llama.cpp/releases, or open the GUI "
-            "(`nativelab`) and use the Download tab — it has a one-click installer.")
+            "(`nativelab`) and use the Download tab - it has a one-click installer.")
     return ui.ask_yesno("Continue without local binaries (API-only mode)?", default=False)
 
 
@@ -185,7 +185,7 @@ def run_wizard() -> Optional[dict]:
 
     model_path = pick_or_download_model()
     if not model_path:
-        ui.warn("Skipping model selection — chat will require API setup.")
+        ui.warn("Skipping model selection - chat will require API setup.")
         ctx = 4096
     else:
         from nativelab.GlobalConfig.config_global import DEFAULT_CTX

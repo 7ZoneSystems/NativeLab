@@ -124,7 +124,7 @@ Triggers:
 - Periodically during multi-PDF processing (every 5 chunks).
 - Reactively before final consolidation passes.
 
-When triggered, `SessionReferenceStore.flush_ram()` calls `_spill_to_disk()` on every loaded reference — pickles all chunk text and clears `_hot`. Chunks reload on demand with LRU caching.
+When triggered, `SessionReferenceStore.flush_ram()` calls `_spill_to_disk()` on every loaded reference - pickles all chunk text and clears `_hot`. Chunks reload on demand with LRU caching.
 
 The **reactive reload** before final summarisation re-warms the most query-relevant chunks back into RAM if memory has freed up by then.
 

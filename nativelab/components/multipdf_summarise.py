@@ -97,11 +97,11 @@ class MultiPdfSummaryWorker(QThread):
             chunks   = self._split(text, CHUNK_CHARS)
             n_chunks = len(chunks)
             self.file_started.emit(fi, filename, n_chunks)
-            self.progress.emit(f"Processing '{filename}' — {n_chunks} chunks…")
+            self.progress.emit(f"Processing '{filename}' - {n_chunks} chunks…")
 
             spilled = RamWatchdog.check_and_spill(self.session_id)
             if spilled:
-                self.ram_warning.emit(f"⚠️ Low RAM before '{filename}' — spilled cache to disk.")
+                self.ram_warning.emit(f"⚠️ Low RAM before '{filename}' - spilled cache to disk.")
 
             ci_start = start_ci if fi == start_fi else 0
             if fi > start_fi:

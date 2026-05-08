@@ -1,4 +1,4 @@
-# NativeLab CLI — Beginner's Guide
+# NativeLab CLI - Beginner's Guide
 
 Talk to a language model that runs on **your own computer**, right from the
 terminal. No browser, no cloud account, no monthly bill. This guide assumes
@@ -13,14 +13,14 @@ you've never used a terminal LLM tool before.
 - Roughly **8 GB of RAM** for the smallest models we recommend (more is
   better for quality and speed).
 - A **terminal** (Terminal on macOS, Windows Terminal on Windows, or any
-  Linux terminal — they all work).
+  Linux terminal - they all work).
 
 You don't need to know any programming. The CLI walks you through everything
 the first time.
 
 ---
 
-## Step 1 — Open a terminal in the project folder
+## Step 1 - Open a terminal in the project folder
 
 Open your terminal and `cd` into the NativeLab folder. For example:
 
@@ -33,7 +33,7 @@ directory," and you point it at wherever you cloned NativeLab.
 
 ---
 
-## Step 2 — Launch the CLI
+## Step 2 - Launch the CLI
 
 Type this and press **Enter**:
 
@@ -42,11 +42,11 @@ python -m nativelab --cli
 ```
 
 The first time you run it, you'll see the NativeLab logo and a setup wizard.
-Don't worry — the wizard handles everything for you.
+Don't worry - the wizard handles everything for you.
 
 ---
 
-## Step 3 — The setup wizard, explained
+## Step 3 - The setup wizard, explained
 
 The wizard will ask you four things in plain English. Here's what each one
 means and what's safe to pick:
@@ -56,8 +56,8 @@ means and what's safe to pick:
 The CLI looks for two helper programs called **llama-server** and
 **llama-cli** in `./llama/bin/`. These are what actually run the model.
 
-- **If both show in green ✓** — perfect, hit any answer to continue.
-- **If they're red ✗** — open the GUI once with just `python -m nativelab`,
+- **If both show in green ✓** - perfect, hit any answer to continue.
+- **If they're red ✗** - open the GUI once with just `python -m nativelab`,
   click the **Download** tab, and let it install llama.cpp for you. Then come
   back here.
 
@@ -71,11 +71,11 @@ If the list is empty, pick **"Download a new model from HuggingFace"**.
 ### 3. "Pick a model to download"
 
 Three quick picks are pre-selected for you. If you're not sure, pick the
-first one — **Mistral 7B Instruct (~4.4 GB)**. It's a great general-purpose
+first one - **Mistral 7B Instruct (~4.4 GB)**. It's a great general-purpose
 model.
 
 The download will show a progress bar. If your internet drops, just re-run
-the wizard later — it picks up where it left off.
+the wizard later - it picks up where it left off.
 
 ### 4. "Context size"
 
@@ -84,9 +84,9 @@ numbers use more memory.
 
 Safe defaults:
 
-- **2048** — fastest, low RAM, fine for short questions.
-- **4096** — good balance. Recommended for first-timers.
-- **8192** — better for long documents, uses more RAM.
+- **2048** - fastest, low RAM, fine for short questions.
+- **4096** - good balance. Recommended for first-timers.
+- **8192** - better for long documents, uses more RAM.
 
 Just press **Enter** to accept the default if you're unsure.
 
@@ -101,7 +101,7 @@ straight to chat.
 
 ---
 
-## Step 4 — Your first chat
+## Step 4 - Your first chat
 
 You'll see a prompt that looks like this:
 
@@ -148,7 +148,7 @@ You don't need to memorize these. Just type `/help` any time.
 ## Embedding a file in your message
 
 You can paste in the contents of a file by typing **`@`** followed by the
-file path — no quotes, no spaces:
+file path - no quotes, no spaces:
 
 ```
 you ▸ Explain what @nativelab/labs/endpoints.py does in plain English.
@@ -181,7 +181,7 @@ you ▸ /lint my_script.py
 
 The CLI uses whichever linter you have installed: `pyflakes`, `flake8`, or
 `pylint`. None installed? It still catches **syntax errors** with Python's
-built-in compiler — that's the most important thing.
+built-in compiler - that's the most important thing.
 
 To install a linter:
 
@@ -194,7 +194,7 @@ pip install pyflakes        # smallest and fastest
 ## All the ways to start the CLI
 
 ```bash
-# Setup-or-chat — the one you'll use most
+# Setup-or-chat - the one you'll use most
 python -m nativelab --cli
 
 # Skip the wizard, jump straight to chat
@@ -239,7 +239,7 @@ strange system directories.
 | `./sessions/`                    | Saved chat sessions from the GUI.             |
 
 To start over from scratch, you can safely delete `./localllm/cli_prefs.json`
-— the wizard will run again next launch.
+- the wizard will run again next launch.
 
 ---
 
@@ -292,7 +292,7 @@ Once you're comfortable:
 - Try `/system "You are a code reviewer."` and paste files with `@`.
 - Set a faster default model in `/load <path>` and `/save` your favorite
   conversation as a starting template.
-- Open `nativelab/cli/cli_guide.md` (this file) any time — it's bundled with
+- Open `nativelab/cli/cli_guide.md` (this file) any time - it's bundled with
   the project so it travels with the code.
 
 Have fun. Local LLMs are quietly amazing once you get the hang of them.

@@ -9,7 +9,7 @@ from .inputbar import InputBar
 class ChatModule(QWidget):
     """
     Self-contained chat module: ChatArea + ReferencePanel + InputBar.
-    Modular — can be embedded anywhere or swapped out.
+    Modular - can be embedded anywhere or swapped out.
     """
 
     send_requested  = pyqtSignal(str, str)   # (text, ref_context)

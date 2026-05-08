@@ -131,11 +131,11 @@ class ChunkedSummaryWorker(QThread):
 
         final = self._infer_with(fin_eng, final_prompt, N_PRED_FINAL)
         if final is None:
-            self.progress.emit("⚠️ Final pass failed on secondary engine — retrying with primary…")
+            self.progress.emit("⚠️ Final pass failed on secondary engine - retrying with primary…")
             final = self._infer_with(self.engine, final_prompt, N_PRED_FINAL)
         if final is None:
-            self.progress.emit("⚠️ Final pass failed — using section summaries as fallback.")
-            final = f"[Auto-fallback — final consolidation failed]\n\n" + all_sects
+            self.progress.emit("⚠️ Final pass failed - using section summaries as fallback.")
+            final = f"[Auto-fallback - final consolidation failed]\n\n" + all_sects
 
         delete_paused_job(self.job_id + "_autosave")
         delete_paused_job(self.job_id)

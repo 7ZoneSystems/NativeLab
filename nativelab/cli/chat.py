@@ -1,7 +1,7 @@
 """Interactive chat REPL for the CLI.
 
 Reuses `LabEndpoints` so the same call paths the GUI / Labs use are exercised
-here too — local llama-server, llama-cli, or remote API.
+here too - local llama-server, llama-cli, or remote API.
 
 Built-ins
 ---------
@@ -53,7 +53,7 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
         ui.info(f"Loading model: {Path(model_path).name}")
         ok = eng.load(model_path, ctx=ctx, log_cb=lambda m: ui.info(m))
         if not ok:
-            ui.warn("Engine reported load failure — chat will run in degraded mode.")
+            ui.warn("Engine reported load failure - chat will run in degraded mode.")
 
     endpoints = LabEndpoints()
     endpoints.bind_engines(

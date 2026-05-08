@@ -1,5 +1,5 @@
 """
-Labs — experimentation layer for NativeLab.
+Labs - experimentation layer for NativeLab.
 
 Adding a new lab feature
 ------------------------

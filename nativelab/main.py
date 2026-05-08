@@ -1,5 +1,5 @@
 """
-Native Lab Pro v2 — Local LLM Desktop
+Native Lab Pro v2 - Local LLM Desktop
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 v2 New Features:
   · Full GGUF quant format detection (Q2_K → F32, IQ* imatrix quants)
@@ -41,7 +41,7 @@ class ModelLoaderThread(QThread):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Pipeline Manual — rendered inside _show_manual dialog
+# Pipeline Manual - rendered inside _show_manual dialog
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ═════════════════════════════ MAIN WINDOW ══════════════════════════════════
@@ -436,7 +436,7 @@ class MainWindow(QMainWindow):
             return row
 
         # Detected family banner (read-only, auto-set)
-        self.cfg_family_lbl = QLabel("—")
+        self.cfg_family_lbl = QLabel("-")
         self.cfg_family_lbl.setStyleSheet(
             f"color:{C['acc2']};font-size:11px;"
             f"background:{C['bg2']};border-radius:4px;padding:3px 8px;"
@@ -444,7 +444,7 @@ class MainWindow(QMainWindow):
         cfg_card_l.addLayout(_field_row("Detected Family:", self.cfg_family_lbl))
 
         # Quant type banner
-        self.cfg_quant_lbl = QLabel("—")
+        self.cfg_quant_lbl = QLabel("-")
         self.cfg_quant_lbl.setStyleSheet(
             f"color:{C['ok']};font-size:11px;"
             f"background:{C['bg2']};border-radius:4px;padding:3px 8px;"
@@ -953,13 +953,13 @@ class MainWindow(QMainWindow):
         sb.addWidget(self.ctx_lbl)
 
         sb.addPermanentWidget(self._vline())
-        self.tps_lbl = QLabel("— tok/s")
+        self.tps_lbl = QLabel("- tok/s")
         self.tps_lbl.setStyleSheet(f"color:{C['txt2']};padding:0 8px;")
         sb.addPermanentWidget(self.tps_lbl)
 
         if HAS_PSUTIL:
             sb.addPermanentWidget(self._vline())
-            self.ram_lbl = QLabel("RAM: —")
+            self.ram_lbl = QLabel("RAM: -")
             self.ram_lbl.setStyleSheet(f"color:{C['txt2']};padding:0 8px;")
             sb.addPermanentWidget(self.ram_lbl)
             self._ram_timer = QTimer(self)
@@ -1280,7 +1280,7 @@ class MainWindow(QMainWindow):
         ts = datetime.now().strftime("%H:%M")
         self.chat_area.add_message(
             "pipeline_intermediate",
-            f"◈ **{label}** — intermediate output\n\n{text}", ts)
+            f"◈ **{label}** - intermediate output\n\n{text}", ts)
 
     def _chat_pipeline_done(self, payload: str):
         import json as _json
@@ -1299,14 +1299,14 @@ class MainWindow(QMainWindow):
     # ── chat send ─────────────────────────────────────────────────────────────
 
     def _on_send_with_refs(self, text: str, ref_ctx: str):
-        """Called by ChatModule — injects reference context into prompt."""
+        """Called by ChatModule - injects reference context into prompt."""
         self._pending_ref_ctx = ref_ctx
         self._on_send(text)
 
     def _on_send(self, text: str):
         if not self.active:    self._new_session()
         if not self.engine.is_loaded:
-            self._log("WARN", "Model not yet loaded — please wait."); return
+            self._log("WARN", "Model not yet loaded - please wait."); return
         # Block sends while ANY session is generating
         if self._busy_session_id:
             current_sid = self.active.id if self.active else ""
@@ -1433,11 +1433,11 @@ class MainWindow(QMainWindow):
 
         for role, eng in engines_to_check:
             if eng.mode != "server":
-                self._log("WARN", f"{role} engine in CLI mode — attempting server upgrade…")
+                self._log("WARN", f"{role} engine in CLI mode - attempting server upgrade…")
                 ok = eng.ensure_server_or_reload(log_cb=self._log)
                 if not ok:
                     self._log("ERROR",
-                        f"{role} engine could not start server mode — aborting pipeline")
+                        f"{role} engine could not start server mode - aborting pipeline")
                     self.chat_area.add_message(
                         "assistant",
                         f"⚠️ Pipeline aborted: **{role}** engine could not start in server mode.\n"
@@ -1450,7 +1450,7 @@ class MainWindow(QMainWindow):
 
         if not insight_engines:
             # Fallback: no insight engines, just run coding engine directly
-            self._log("WARN", "No insight engines available — running coding engine directly")
+            self._log("WARN", "No insight engines available - running coding engine directly")
             active_eng = self.coding_engine
             ctx_chars  = getattr(active_eng, "ctx_value", DEFAULT_CTX()) * 4
             prompt     = self.active.build_prompt(model_path=active_eng.model_path, max_chars=ctx_chars)
@@ -1772,7 +1772,7 @@ class MainWindow(QMainWindow):
             self.input_bar.input.setPlainText(
                 f"The following is extracted from '{filename}':\n\n{text}"
                 "\n\nPlease summarise the key points.")
-            self._log("INFO", "Short document — loaded directly into prompt.")
+            self._log("INFO", "Short document - loaded directly into prompt.")
             return
 
         if not self.active: self._new_session()
@@ -1792,7 +1792,7 @@ class MainWindow(QMainWindow):
         self.input_bar.set_generating(True)
         self.input_bar.input.setEnabled(False)
         self.input_bar.input.setPlaceholderText(
-            "⏸ Summarization in progress — pause or abort above before typing…")
+            "⏸ Summarization in progress - pause or abort above before typing…")
         self._summarizing_active = True
         self.lbl_engine.setText("📄  Summarising…")
         self.lbl_engine.setStyleSheet(f"color:{C['acc']};padding:0 8px;")
@@ -2134,7 +2134,7 @@ class MainWindow(QMainWindow):
         ts = datetime.now().strftime("%H:%M")
         banner = self.chat_area.add_message(
             "assistant",
-            f"💡 **Pause available** — The summarization has processed "
+            f"💡 **Pause available** - The summarization has processed "
             f"{APP_CONFIG['pause_after_chunks']} chunks. You can pause & save "
             f"state now to resume later, or continue processing.\n\n"
             f"Click ⏸ **Pause** in the stop button area to pause, "
@@ -2151,7 +2151,7 @@ class MainWindow(QMainWindow):
             self.input_bar.input.setPlaceholderText(
                 "Type a message…  (Enter = send · Shift+Enter = newline)")
             self.input_bar.set_generating(False)
-            self.lbl_engine.setText("⏸  Paused — state saved")
+            self.lbl_engine.setText("⏸  Paused - state saved")
             self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
             self._summary_worker = None
             if hasattr(self, "config_tab"):
@@ -2319,7 +2319,7 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentWidget(self.models_tab)
 
     def closeEvent(self, event):
-        self._log("INFO", "Shutdown — stopping engine…")
+        self._log("INFO", "Shutdown - stopping engine…")
         if self._worker:
             try:
                 if hasattr(self._worker, "abort"): self._worker.abort()

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NativeLab — Features</title>
+  <title>NativeLab - Features</title>
   <meta name="description" content="The full NativeLab feature catalogue: desktop GUI, terminal CLI, Labs experimentation layer, API model support, document workflows, and supported model families." />
   <link rel="icon" type="image/png" href="../nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -176,7 +176,7 @@
   <div class="page-hero-inner">
     <p class="section-label">Features · v0.2.7</p>
     <h1>The full <em>feature catalogue</em></h1>
-    <p class="section-intro">Everything NativeLab does today — desktop GUI, terminal CLI, Labs experimentation layer, document workflows, API integrations, and the model families it auto-detects out of the box.</p>
+    <p class="section-intro">Everything NativeLab does today - desktop GUI, terminal CLI, Labs experimentation layer, document workflows, API integrations, and the model families it auto-detects out of the box.</p>
     <div class="page-hero-meta">
       <a href="https://github.com/7ZoneSystems/NativeLab/blob/main/docs/features.md" target="_blank">Read the full features doc →</a>
       <a href="pipeline.html">Pipeline-builder deep dive →</a>
@@ -189,13 +189,13 @@
 <section id="foryou">
   <p class="section-label">Who it's for</p>
   <h2>Built for the people<br><em>using it themselves.</em></h2>
-  <p class="section-intro">NativeLab started as a tool the maintainers wanted for their own work. It's grown to serve a few kinds of people well — see if any of these sound like you.</p>
+  <p class="section-intro">NativeLab started as a tool the maintainers wanted for their own work. It's grown to serve a few kinds of people well - see if any of these sound like you.</p>
 
   <div class="audience-grid">
     <div class="audience-card fade-up">
       <span class="aud-icon">🔬</span>
       <div class="aud-title">Academic Researchers</div>
-      <p class="aud-desc">Feed NativeLab your papers, drafts, and datasets. Build a pipeline that summarises sources, extracts findings, and drafts a report — all without uploading sensitive research to external servers.</p>
+      <p class="aud-desc">Feed NativeLab your papers, drafts, and datasets. Build a pipeline that summarises sources, extracts findings, and drafts a report - all without uploading sensitive research to external servers.</p>
       <span class="aud-tag">Literature review · Pipeline chains</span>
     </div>
     <div class="audience-card fade-up">
@@ -207,7 +207,7 @@
     <div class="audience-card fade-up">
       <span class="aud-icon">⚖️</span>
       <div class="aud-title">Legal &amp; Medical Professionals</div>
-      <p class="aud-desc">Analyse case documents and clinical notes without compliance risk. Everything runs on your hardware by default. When you need extra power, connect an API model — that's always your explicit choice.</p>
+      <p class="aud-desc">Analyse case documents and clinical notes without compliance risk. Everything runs on your hardware by default. When you need extra power, connect an API model - that's always your explicit choice.</p>
       <span class="aud-tag">Air-gapped · Zero telemetry</span>
     </div>
     <div class="audience-card fade-up">
@@ -235,7 +235,7 @@
 <section id="capabilities">
   <p class="section-label">What you can do</p>
   <h2>Less setup.<br><em>More thinking.</em></h2>
-  <p class="section-intro">NativeLab handles the complexity of local AI so you can focus on your work. Here's what it unlocks — click any item to see the detail.</p>
+  <p class="section-intro">NativeLab handles the complexity of local AI so you can focus on your work. Here's what it unlocks - click any item to see the detail.</p>
 
   <div class="caps-layout">
     <div class="caps-list">
@@ -257,7 +257,7 @@
         <span class="cap-num">03</span>
         <div>
           <div class="cap-text-head">Visual Pipeline Builder</div>
-          <div class="cap-text-sub">20+ block types — drag, drop, wire, save</div>
+          <div class="cap-text-sub">20+ block types - drag, drop, wire, save</div>
         </div>
       </div>
       <div class="cap-item" onclick="selectCap(3, this)">
@@ -303,8 +303,8 @@
         </div>
       </div>
       <div class="detail-card" id="detail-1">
-        <h3>Labs — the experimentation layer</h3>
-        <p>The <code>nativelab/labs/</code> package is a sandbox for new features. Every lab panel receives a single <code>LabEndpoints</code> instance and uses it for all engine interaction — status reads, model swap, context change, and synchronous LLM calls (auto-routing API → server → CLI).</p>
+        <h3>Labs - the experimentation layer</h3>
+        <p>The <code>nativelab/labs/</code> package is a sandbox for new features. Every lab panel receives a single <code>LabEndpoints</code> instance and uses it for all engine interaction - status reads, model swap, context change, and synchronous LLM calls (auto-routing API → server → CLI).</p>
         <p>Add a feature by dropping <code>nativelab/labs/&lt;feature&gt;.py</code> with a <code>QWidget</code> panel and registering it. The same endpoint surface powers the CLI, so anything you build in Labs works from the terminal too.</p>
         <div class="detail-badge">
           <span class="badge gold">LabEndpoints API</span>
@@ -326,8 +326,8 @@
       </div>
       <div class="detail-card" id="detail-3">
         <h3>API + local mixing</h3>
-        <p>Connect any OpenAI-compatible (<code>/chat/completions</code>) or Anthropic (<code>/v1/messages</code>) endpoint from the API Models tab — works with hosted services and self-hosted servers like LM Studio, Ollama, and vLLM. Paste your key, click Test &amp; Load, and a 1-token check confirms it works before any real request is sent.</p>
-        <p>Once loaded, an API model behaves exactly like a local one — it appears in chat, works inside pipelines, and shows in the status bar. Keys are stored only on your machine.</p>
+        <p>Connect any OpenAI-compatible (<code>/chat/completions</code>) or Anthropic (<code>/v1/messages</code>) endpoint from the API Models tab - works with hosted services and self-hosted servers like LM Studio, Ollama, and vLLM. Paste your key, click Test &amp; Load, and a 1-token check confirms it works before any real request is sent.</p>
+        <p>Once loaded, an API model behaves exactly like a local one - it appears in chat, works inside pipelines, and shows in the status bar. Keys are stored only on your machine.</p>
         <div class="detail-badge">
           <span class="badge blue">OpenAI-compatible</span>
           <span class="badge">Anthropic <code>/v1/messages</code></span>
@@ -337,7 +337,7 @@
       </div>
       <div class="detail-card" id="detail-4">
         <h3>Talk to your documents</h3>
-        <p>Attach PDFs, plain text, or source files to a session. Top-K relevant chunks are auto-injected as <code>[REFERENCE: …]</code> blocks before each prompt. Long PDFs get split, summarised section-by-section with carry-over context, then consolidated — pause/resume to disk between chunks.</p>
+        <p>Attach PDFs, plain text, or source files to a session. Top-K relevant chunks are auto-injected as <code>[REFERENCE: …]</code> blocks before each prompt. Long PDFs get split, summarised section-by-section with carry-over context, then consolidated - pause/resume to disk between chunks.</p>
         <p>Source code gets AST-level parsing for Python and regex parsers for 20+ other languages, extracting imports, classes, functions, constants, and types.</p>
         <div class="detail-badge">
           <span class="badge">Top-K RAG</span>
@@ -347,7 +347,7 @@
       </div>
       <div class="detail-card" id="detail-5">
         <h3>Auto family detection</h3>
-        <p>NativeLab recognises 20+ chat templates from the filename — DeepSeek, DeepSeek-R1, Mistral, Mixtral, LLaMA-2/3, Phi-3/3.5, Qwen/ChatML, Gemma, CodeLlama, Falcon, Vicuna, OpenChat, Neural-Chat, Starling, Yi, Zephyr, Solar, Orca, Command-R — and applies the correct prompt format automatically.</p>
+        <p>NativeLab recognises 20+ chat templates from the filename - DeepSeek, DeepSeek-R1, Mistral, Mixtral, LLaMA-2/3, Phi-3/3.5, Qwen/ChatML, Gemma, CodeLlama, Falcon, Vicuna, OpenChat, Neural-Chat, Starling, Yi, Zephyr, Solar, Orca, Command-R - and applies the correct prompt format automatically.</p>
         <p>Every quantization is detected too, from legacy <code>Q4_0</code> through K-quants and imatrix variants, with colour-coded quality tiers in the model list.</p>
         <div class="detail-badge">
           <span class="badge">20+ families</span>
@@ -357,7 +357,7 @@
       </div>
       <div class="detail-card" id="detail-6">
         <h3>HuggingFace downloader</h3>
-        <p>Search any GGUF repo, browse files with sizes, and download into your models folder — without leaving the app. Network drops? Resume where you left off.</p>
+        <p>Search any GGUF repo, browse files with sizes, and download into your models folder - without leaving the app. Network drops? Resume where you left off.</p>
         <p>The CLI's setup wizard uses the same downloader, so first-time terminal users can grab a model interactively without touching a browser.</p>
         <div class="detail-badge">
           <span class="badge">Search any repo</span>
@@ -373,7 +373,7 @@
 <section id="api">
   <p class="section-label">Cloud &amp; API models</p>
   <h2>Local when you need privacy.<br><em>Cloud when you need scale.</em></h2>
-  <p class="section-intro">Connect to any major AI provider — or your own server — with a single form. Once verified, an API model works exactly like a local one throughout the whole app.</p>
+  <p class="section-intro">Connect to any major AI provider - or your own server - with a single form. Once verified, an API model works exactly like a local one throughout the whole app.</p>
 
   <div class="api-layout">
     <div>
@@ -391,7 +391,7 @@
 
       <div class="prompt-box">
         <h4>🎨 &nbsp;Custom prompt formats</h4>
-        <p>Some models need a specific way of wrapping messages. Pick a preset and the fields fill in automatically — or define your own system prompt, user prefix/suffix, and assistant prefix from scratch.</p>
+        <p>Some models need a specific way of wrapping messages. Pick a preset and the fields fill in automatically - or define your own system prompt, user prefix/suffix, and assistant prefix from scratch.</p>
         <div class="tmpl-tags">
           <span class="tmpl-tag active">Default</span>
           <span class="tmpl-tag">ChatML</span>
@@ -405,7 +405,7 @@
     </div>
 
     <div>
-      <p style="font-size:1rem;color:var(--dim);font-weight:300;line-height:1.8;margin-bottom:2rem;">Adding an API model takes about 30 seconds and it's always tested with one message before anything real is sent — so you know it works before you rely on it.</p>
+      <p style="font-size:1rem;color:var(--dim);font-weight:300;line-height:1.8;margin-bottom:2rem;">Adding an API model takes about 30 seconds and it's always tested with one message before anything real is sent - so you know it works before you rely on it.</p>
       <div class="api-steps">
         <div class="api-step">
           <div class="api-step-num">1</div>
@@ -432,7 +432,7 @@
           <div class="api-step-num">4</div>
           <div>
             <h5>Use it like any other model</h5>
-            <p>It appears in chat, inside pipelines, and in the status bar. Save the config to reload it instantly next time — no re-entering keys.</p>
+            <p>It appears in chat, inside pipelines, and in the status bar. Save the config to reload it instantly next time - no re-entering keys.</p>
           </div>
         </div>
       </div>
@@ -487,7 +487,7 @@
 <section id="requirements">
   <p class="section-label">System requirements</p>
   <h2>What you<br><em>actually need</em></h2>
-  <p class="section-intro">No GPU required. NativeLab runs on CPU with standard RAM — though more RAM gives you larger models and longer contexts. API models use no local RAM at all.</p>
+  <p class="section-intro">No GPU required. NativeLab runs on CPU with standard RAM - though more RAM gives you larger models and longer contexts. API models use no local RAM at all.</p>
 
   <div class="req-grid">
     <div class="req-card">

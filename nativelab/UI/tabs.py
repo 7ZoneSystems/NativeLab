@@ -10,7 +10,7 @@ from nativelab.Server.hfdwld import LlamaCppReleaseFetcher, LlamaCppDownloadWork
 from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES
 from nativelab.labs import LabsTab, LabEndpoints
 class ConfigTab(QWidget):
-    """Full configuration tab — all thresholds with descriptions."""
+    """Full configuration tab - all thresholds with descriptions."""
 
     config_changed = pyqtSignal()
 
@@ -225,7 +225,7 @@ class ConfigTab(QWidget):
             tot   = job.get("total", "?")
             ts    = job.get("paused_at", "")[:16]
             item  = QListWidgetItem(
-                f"⏸  {fname}  —  chunk {nc}/{tot}  —  paused {ts}")
+                f"⏸  {fname}  -  chunk {nc}/{tot}  -  paused {ts}")
             item.setData(Qt.ItemDataRole.UserRole, jid)
             item.setForeground(QColor(C["warn"]))
             self.paused_jobs_list.addItem(item)
@@ -407,7 +407,7 @@ class ParallelLoadingDialog(QWidget):
         return self._prefs
 
 class AppearanceTab(QWidget):
-    """Live theme colour editor — sliders + colour picker per token."""
+    """Live theme colour editor - sliders + colour picker per token."""
 
     theme_changed = pyqtSignal(dict)   # emits updated C_LIGHT dict
 
@@ -612,7 +612,7 @@ class AppearanceTab(QWidget):
     def _pick_color(self, key: str):
         current = self._resolve_hex(self._palette.get(key, "#ffffff"))
         init = QColor(current) if current.startswith("#") else QColor("#ffffff")
-        color = QColorDialog.getColor(init, self, f"Pick colour — {self._LABELS.get(key,key)}")
+        color = QColorDialog.getColor(init, self, f"Pick colour - {self._LABELS.get(key,key)}")
         if color.isValid():
             hex_c = color.name()
             self._apply_key(key, hex_c)
@@ -852,7 +852,7 @@ class ServerTab(QWidget):
             badge_txt = f"🟡  Vulkan GPU detected  ·  {n_gpus} device(s)"
             badge_col = C["warn"]
         else:
-            badge_txt = "⚪  No GPU detected — CPU-only mode"
+            badge_txt = "⚪  No GPU detected - CPU-only mode"
             badge_col = C["txt2"]
         gpu_badge = QLabel(badge_txt)
         gpu_badge.setObjectName("gpu_badge")
@@ -862,7 +862,7 @@ class ServerTab(QWidget):
         # GPU list (NVIDIA only shows VRAM)
         if self._detected_gpus:
             for g in self._detected_gpus:
-                vram_s = f"  —  {g['vram_mb']} MB VRAM" if g["vram_mb"] else ""
+                vram_s = f"  -  {g['vram_mb']} MB VRAM" if g["vram_mb"] else ""
                 gl = QLabel(f"  [{g['idx']}]  {g['name']}{vram_s}")
                 gl.setObjectName("txt2_xs")
                 gpu_l.addWidget(gl)
@@ -1345,7 +1345,7 @@ class ModelDownloadTab(QWidget):
         self.btn_pause.setVisible(False)
         self.btn_pause.clicked.connect(self._toggle_pause)
 
-        # Stops download but keeps .part file — can be resumed next session
+        # Stops download but keeps .part file - can be resumed next session
         self.btn_abort = QPushButton("Cancel")
         self.btn_abort.setObjectName("btn_stop")
         self.btn_abort.setFixedHeight(32)
@@ -1601,7 +1601,7 @@ class ModelDownloadTab(QWidget):
         if self._dl_worker:
             self._dl_worker.abort(delete_part=False)
         self.dl_progress.setValue(0)
-        self._reset_dl_ui("Download stopped. Progress saved — restart to resume.")
+        self._reset_dl_ui("Download stopped. Progress saved - restart to resume.")
 
     def _abort_and_delete(self):
         """Stop download and wipe the partial file entirely."""
@@ -1725,7 +1725,7 @@ class ModelDownloadTab(QWidget):
             self, "llama.cpp Installed",
             f"Binaries installed to:\n{path}\n\n"
             "Go to the Server tab, leave the binary paths blank,\n"
-            "and reload your model — they will be picked up automatically.")
+            "and reload your model - they will be picked up automatically.")
 
     def _on_llama_err(self, msg: str):
         self.llama_progress.setValue(0)
@@ -1775,7 +1775,7 @@ class McpTab(QWidget):
         scroll.setWidget(inner); outer.addWidget(scroll)
 
         # Header
-        hdr = QLabel("🔌  MCP — Model Context Protocol")
+        hdr = QLabel("🔌  MCP - Model Context Protocol")
         hdr.setStyleSheet(
             "font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
@@ -1846,7 +1846,7 @@ class McpTab(QWidget):
 
         self.add_cmd = QLineEdit()
         self.add_cmd.setPlaceholderText(
-            "Command or URL — e.g.  npx -y @mcp/server-filesystem /path")
+            "Command or URL - e.g.  npx -y @mcp/server-filesystem /path")
         self.add_cmd.setFixedHeight(28)
         al.addLayout(_lrow("Command / URL:", self.add_cmd))
 
@@ -1955,7 +1955,7 @@ class McpTab(QWidget):
         if not srv: return
         if srv["transport"] == "sse":
             self._mcp_log_msg(
-                f"SSE server '{name}' — connect at: {srv['cmd']}")
+                f"SSE server '{name}' - connect at: {srv['cmd']}")
             self._refresh_list(); return
         try:
             proc = subprocess.Popen(
@@ -2014,7 +2014,7 @@ class ApiModelsTab(QWidget):
 
     @staticmethod
     def _combo_style() -> str:
-        # No longer used — combos are styled via QSS objectName "combo"
+        # No longer used - combos are styled via QSS objectName "combo"
         return ""
 
     @staticmethod
@@ -2277,7 +2277,7 @@ class ApiModelsTab(QWidget):
                 eng = ApiEngine()
                 ok  = eng.load(self.cfg)
                 self.finished.emit(ok, eng.status_text if ok else
-                                   "Connection failed — check key / URL / model ID", eng if ok else None)
+                                   "Connection failed - check key / URL / model ID", eng if ok else None)
 
         self._tester = _T(cfg)
         self._tester.finished.connect(self._on_test_done)

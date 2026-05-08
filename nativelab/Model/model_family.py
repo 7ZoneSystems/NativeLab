@@ -24,7 +24,7 @@ def detect_model_family(filename: str) -> ModelFamily:
     from .templates import FAMILY_TEMPLATES   # lazy import
 
     name = Path(filename).stem.lower()
-    # Order matters — more specific patterns first
+    # Order matters - more specific patterns first
     patterns: List[Tuple[List[str], str]] = [
         # DeepSeek variants
         (["deepseek-r1"],                         "deepseek-r1"),

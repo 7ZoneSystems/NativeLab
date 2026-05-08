@@ -50,7 +50,7 @@ class LlamaEngine:
             ok = self._start_server(model_path, threads, ctx)
             if ok:
                 return True
-            self._log("[WARN] Server start failed — falling back to llama-cli mode")
+            self._log("[WARN] Server start failed - falling back to llama-cli mode")
 
         if Path(_cli_bin).exists():
             self._log("[INFO] Using llama-cli (per-prompt) mode")
@@ -193,7 +193,7 @@ class LlamaEngine:
                     self.mode = "server"
                     self._log(f"[INFO] Reusing existing server for same model on port {test_port}")
                     return True
-                self._log(f"[INFO] Port {test_port} has a different model — skipping")
+                self._log(f"[INFO] Port {test_port} has a different model - skipping")
             except Exception:
                 pass
 
@@ -246,7 +246,7 @@ class LlamaEngine:
 
             if self.server_proc.poll() is not None:
                 self._log(
-                    f"[ERROR] llama-server exited unexpectedly — "
+                    f"[ERROR] llama-server exited unexpectedly - "
                     f"check {log_path} for details"
                 )
                 self.server_proc = None
@@ -258,7 +258,7 @@ class LlamaEngine:
                 return True
 
         self._log(
-            f"[ERROR] Server did not respond within {max_wait}s — "
+            f"[ERROR] Server did not respond within {max_wait}s - "
             f"check {log_path} for details"
         )
         try:

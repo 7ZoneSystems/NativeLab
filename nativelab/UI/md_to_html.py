@@ -62,7 +62,7 @@ def md_to_html(text: str,
             "json": "#cbcb41", "yaml": "#cc3e44",
         }.get(lang, "#a78bfa")
 
-        # Syntax highlighting (Python only — safe regex on escaped text)
+        # Syntax highlighting (Python only - safe regex on escaped text)
         display = body
         if lang in ("python", "py", ""):
             KW   = "#c792ea"; STR = "#c3e88d"; NUM = "#f78c6c"; CMT = "#546e7a"

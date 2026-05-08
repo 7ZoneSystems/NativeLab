@@ -84,7 +84,7 @@ class PipelineCanvas(QWidget):
                     elif _role_key == Qt.ItemDataRole.UserRole + 1:
                         role = str(_var.value()) if _var.isValid() else "general"
         except Exception:
-            pass  # fallback: no path decoded — block will show unconfigured
+            pass  # fallback: no path decoded - block will show unconfigured
 
         drop_x = self._snap(px - 80)
         drop_y = self._snap(py - 30)
@@ -216,7 +216,7 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.REFERENCE:    lambda: (C["acc"],      C["bg2"]),
         PipelineBlockType.KNOWLEDGE:    lambda: (C["acc2"],     C["bg2"]),
         PipelineBlockType.PDF_SUMMARY:  lambda: (C["pipeline"], C["bg2"]),
-        # Logic blocks — distinct colour family
+        # Logic blocks - distinct colour family
         PipelineBlockType.IF_ELSE:      lambda: ("#f59e0b",     C["bg2"]),
         PipelineBlockType.SWITCH:       lambda: ("#f97316",     C["bg2"]),
         PipelineBlockType.FILTER:       lambda: ("#84cc16",     C["bg2"]),
@@ -224,7 +224,7 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.MERGE:        lambda: ("#8b5cf6",     C["bg2"]),
         PipelineBlockType.SPLIT:        lambda: ("#ec4899",     C["bg2"]),
         PipelineBlockType.CUSTOM_CODE:  lambda: ("#10b981",     C["bg1"]),
-        # LLM logic blocks — warmer violet family to distinguish from code logic
+        # LLM logic blocks - warmer violet family to distinguish from code logic
         PipelineBlockType.LLM_IF:        lambda: ("#a855f7",    C["bg1"]),
         PipelineBlockType.LLM_SWITCH:    lambda: ("#7c3aed",    C["bg1"]),
         PipelineBlockType.LLM_FILTER:    lambda: ("#6366f1",    C["bg1"]),
@@ -588,7 +588,7 @@ class PipelineCanvas(QWidget):
                 c for c in self.connections
                 if not (c.from_block_id == fb.bid and c.from_port == fport)]
 
-        # For IF_ELSE — label the port so we know which branch this is
+        # For IF_ELSE - label the port so we know which branch this is
         branch_label = ""
         if fb.btype == PipelineBlockType.IF_ELSE:
             # E port = True branch, W port = False branch, S = either
@@ -607,7 +607,7 @@ class PipelineCanvas(QWidget):
             from_block_id=fb.bid, from_port=fport,
             to_block_id=tb.bid,   to_port=tport,
             is_loop=is_loop, loop_times=loop_times)
-        conn.branch_label = branch_label   # dynamic attribute — stored at runtime
+        conn.branch_label = branch_label   # dynamic attribute - stored at runtime
         self.connections.append(conn)
         self.update()
         self.blocks_changed.emit()
@@ -626,7 +626,7 @@ class PipelineCanvas(QWidget):
         if b.btype == PipelineBlockType.IF_ELSE:
             cur = b.metadata.get("condition", "")
             cond, ok = QInputDialog.getText(
-                self, f"IF / ELSE — '{b.label}'",
+                self, f"IF / ELSE - '{b.label}'",
                 "Python condition evaluated on the incoming text.\n"
                 "Variable  'text'  is the incoming string.\n\n"
                 "Examples:\n"
@@ -642,7 +642,7 @@ class PipelineCanvas(QWidget):
         elif b.btype == PipelineBlockType.SWITCH:
             cur = b.metadata.get("switch_expr", "")
             expr, ok = QInputDialog.getText(
-                self, f"SWITCH — '{b.label}'",
+                self, f"SWITCH - '{b.label}'",
                 "Python expression returning a string key.\n"
                 "Variable  'text'  is the incoming string.\n\n"
                 "Example:  'long' if len(text) > 300 else 'short'\n\n"
@@ -656,7 +656,7 @@ class PipelineCanvas(QWidget):
             cur_cond  = b.metadata.get("filter_cond", "True")
             cur_mode  = b.metadata.get("filter_mode", "pass")
             cond, ok = QInputDialog.getText(
-                self, f"FILTER — '{b.label}'",
+                self, f"FILTER - '{b.label}'",
                 "Python condition. 'text' = incoming string.\n"
                 "If TRUE → text passes to next block.\n"
                 "If FALSE → pipeline stops (text is dropped).\n\n"
@@ -668,18 +668,18 @@ class PipelineCanvas(QWidget):
 
         elif b.btype == PipelineBlockType.TRANSFORM:
             items = [
-                "prefix    — prepend fixed text",
-                "suffix    — append fixed text",
-                "replace   — find & replace substring",
-                "upper     — convert to uppercase",
-                "lower     — convert to lowercase",
-                "strip     — strip leading/trailing whitespace",
-                "truncate  — limit to N characters",
+                "prefix    - prepend fixed text",
+                "suffix    - append fixed text",
+                "replace   - find & replace substring",
+                "upper     - convert to uppercase",
+                "lower     - convert to lowercase",
+                "strip     - strip leading/trailing whitespace",
+                "truncate  - limit to N characters",
             ]
             cur_type = b.metadata.get("transform_type", "prefix")
             cur_idx  = next((i for i, s in enumerate(items) if cur_type in s), 0)
             ttype, ok = QInputDialog.getItem(
-                self, f"TRANSFORM type — '{b.label}'",
+                self, f"TRANSFORM type - '{b.label}'",
                 "Choose the transformation:", items, cur_idx, False)
             if not ok:
                 return
@@ -687,49 +687,49 @@ class PipelineCanvas(QWidget):
             b.metadata["transform_type"] = key
             if key in ("prefix", "suffix"):
                 val, ok2 = QInputDialog.getMultiLineText(
-                    self, f"TRANSFORM — {key}",
+                    self, f"TRANSFORM - {key}",
                     "Text to prepend/append:", b.metadata.get("transform_val", ""))
                 if ok2: b.metadata["transform_val"] = val
             elif key == "replace":
                 find_s, ok2 = QInputDialog.getText(
-                    self, "TRANSFORM — find",
+                    self, "TRANSFORM - find",
                     "Find this text:", text=b.metadata.get("transform_find", ""))
                 if ok2: b.metadata["transform_find"] = find_s
                 repl_s, ok3 = QInputDialog.getText(
-                    self, "TRANSFORM — replace with",
+                    self, "TRANSFORM - replace with",
                     "Replace with:", text=b.metadata.get("transform_repl", ""))
                 if ok3: b.metadata["transform_repl"] = repl_s
             elif key == "truncate":
                 n, ok2 = QInputDialog.getInt(
-                    self, "TRANSFORM — truncate",
+                    self, "TRANSFORM - truncate",
                     "Maximum characters:", value=int(b.metadata.get("transform_val", 500)),
                     min=1, max=999999)
                 if ok2: b.metadata["transform_val"] = n
             b.label = f"⟲ {key.capitalize()}"
 
         elif b.btype == PipelineBlockType.MERGE:
-            items = ["concat  — join with separator", "prepend  — put newest first",
-                     "append  — put newest last", "json    — wrap all as JSON array"]
+            items = ["concat  - join with separator", "prepend  - put newest first",
+                     "append  - put newest last", "json    - wrap all as JSON array"]
             cur  = b.metadata.get("merge_mode", "concat")
             mode, ok = QInputDialog.getItem(
-                self, f"MERGE mode — '{b.label}'", "How to merge inputs:", items,
+                self, f"MERGE mode - '{b.label}'", "How to merge inputs:", items,
                 next((i for i, s in enumerate(items) if cur in s), 0), False)
             if ok:
                 b.metadata["merge_mode"] = mode.split()[0]
                 if mode.split()[0] == "concat":
                     sep, ok2 = QInputDialog.getText(
-                        self, "MERGE — separator",
+                        self, "MERGE - separator",
                         "Separator between merged texts:", text=b.metadata.get("merge_sep", "\n\n---\n\n"))
                     if ok2: b.metadata["merge_sep"] = sep
                 b.label = f"⊕ Merge/{mode.split()[0]}"
 
         elif b.btype == PipelineBlockType.SPLIT:
             n, ok = QInputDialog.getInt(
-                self, f"SPLIT — '{b.label}'",
+                self, f"SPLIT - '{b.label}'",
                 "SPLIT broadcasts the same text to ALL outgoing connections.\n"
-                "No configuration needed — just draw multiple output arrows.\n\n"
+                "No configuration needed - just draw multiple output arrows.\n\n"
                 "Confirm / view outgoing port count:", value=1, min=1, max=20)
-            # No actual setting needed — split just fans out
+            # No actual setting needed - split just fans out
             b.label = "⑁ Split"
 
         elif b.btype == PipelineBlockType.CUSTOM_CODE:
@@ -812,13 +812,13 @@ class PipelineCanvas(QWidget):
             current_role = b.metadata.get("pdf_role", "reference")
             role, ok = QInputDialog.getItem(
                 self,
-                f"PDF Role — '{b.label}'",
+                f"PDF Role - '{b.label}'",
                 "How should this PDF relate to the prior block's output?\n\n"
                 "  reference  →  prior output = MAIN,  PDF = REFERENCE\n"
                 "  main       →  PDF = MAIN,  prior output = REFERENCE\n"
                 "  (if there is no prior block, that side is simply omitted)",
-                ["reference  —  prior is main, PDF is supporting context",
-                 "main       —  PDF is primary, prior output is supporting context"],
+                ["reference  -  prior is main, PDF is supporting context",
+                 "main       -  PDF is primary, prior output is supporting context"],
                 0 if current_role == "reference" else 1,
                 False)
             if ok:
@@ -830,7 +830,7 @@ class PipelineCanvas(QWidget):
             current_prompt   = b.metadata.get("inter_prompt", "")
             current_position = b.metadata.get("inter_position", "above")
 
-            # Step 1 — position choice
+            # Step 1 - position choice
             position, ok = QInputDialog.getItem(
                 self,
                 f"Configure ◈ '{b.label}'",
@@ -844,7 +844,7 @@ class PipelineCanvas(QWidget):
             b.metadata["inter_position"] = (
                 "above" if position.startswith("Above") else "below")
 
-            # Step 2 — prompt text
+            # Step 2 - prompt text
             prompt_text, ok2 = QInputDialog.getMultiLineText(
                 self,
                 f"Configure ◈ '{b.label}'",

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NativeLab — Visual Pipeline Builder</title>
+  <title>NativeLab - Visual Pipeline Builder</title>
   <meta name="description" content="The NativeLab visual pipeline builder: 20+ block types, drag-and-drop canvas, LLM-logic blocks, loops, save/load, and live token streaming per stage." />
   <link rel="icon" type="image/png" href="../nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -188,7 +188,7 @@
   <div class="page-hero-inner">
     <p class="section-label">Visual Pipeline Builder</p>
     <h1>Chain models together<br><em>like building blocks.</em></h1>
-    <p class="section-intro">No code, no config files. Draw a pipeline on a canvas, hit Run, and watch each stage stream its output live. The pipeline builder is the feature most users come to NativeLab for — and the one with the widest gap to other local-LLM tools. <a href="compare.html">See the comparison →</a></p>
+    <p class="section-intro">No code, no config files. Draw a pipeline on a canvas, hit Run, and watch each stage stream its output live. The pipeline builder is the feature most users come to NativeLab for - and the one with the widest gap to other local-LLM tools. <a href="compare.html">See the comparison →</a></p>
     <div class="page-hero-meta">
       <span style="color:#8a937d; font-size:0.85rem;">20+ block types · 5 LLM-logic blocks · save/load · loop-aware · live streaming</span>
     </div>
@@ -236,12 +236,12 @@
           </div>
         </div>
         <div class="pipe-legend">
-          <div class="pipe-legend-item"><div class="pip-dot" style="background:#34d399;"></div>Input — entry point</div>
-          <div class="pipe-legend-item"><div class="pip-dot" style="background:#22d3ee;"></div>Model — any loaded engine</div>
-          <div class="pipe-legend-item"><div class="pip-dot" style="background:#fbbf24;"></div>Intermediate — carry context</div>
-          <div class="pipe-legend-item"><div class="pip-dot" style="background:#f87171;"></div>Output — final result</div>
-          <div class="pipe-legend-item"><div class="pip-dot" style="background:#a78bfa;"></div>Reference — inject text or PDF</div>
-          <div class="pipe-legend-item"><div class="pip-dot" style="background:#60a5fa;"></div>API Model — any cloud endpoint</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#34d399;"></div>Input - entry point</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#22d3ee;"></div>Model - any loaded engine</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#fbbf24;"></div>Intermediate - carry context</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#f87171;"></div>Output - final result</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#a78bfa;"></div>Reference - inject text or PDF</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#60a5fa;"></div>API Model - any cloud endpoint</div>
         </div>
       </div>
     </div>
@@ -253,7 +253,7 @@
       </div>
       <div class="pipe-feat">
         <div class="pipe-feat-title">Loops that repeat automatically</div>
-        <div class="pipe-feat-desc">Connect a block back to an earlier one and NativeLab detects the loop. Set how many times it repeats — the chain runs that many passes, accumulating context each time. Shown as a cyan ↻×N arrow.</div>
+        <div class="pipe-feat-desc">Connect a block back to an earlier one and NativeLab detects the loop. Set how many times it repeats - the chain runs that many passes, accumulating context each time. Shown as a cyan ↻×N arrow.</div>
       </div>
       <div class="pipe-feat">
         <div class="pipe-feat-title">Every stage streams live</div>
@@ -261,7 +261,7 @@
       </div>
       <div class="pipe-feat">
         <div class="pipe-feat-title">Save and reload any pipeline</div>
-        <div class="pipe-feat-desc">Name a pipeline and save it. All blocks, connections, and model assignments are stored as a small JSON file on your machine. Reload with one click — everything is exactly as you left it.</div>
+        <div class="pipe-feat-desc">Name a pipeline and save it. All blocks, connections, and model assignments are stored as a small JSON file on your machine. Reload with one click - everything is exactly as you left it.</div>
       </div>
       <div class="pipe-feat">
         <div class="pipe-feat-title">Run a pipeline from chat</div>
@@ -279,7 +279,7 @@
 <section id="blocks">
   <p class="section-label">The block catalogue</p>
   <h2>20+ block types,<br><em>five categories.</em></h2>
-  <p class="section-intro">Pipelines are built from blocks you drag onto the canvas. Each block has a clear job — and the LLM-logic blocks are where NativeLab pulls ahead of every other local-LLM tool.</p>
+  <p class="section-intro">Pipelines are built from blocks you drag onto the canvas. Each block has a clear job - and the LLM-logic blocks are where NativeLab pulls ahead of every other local-LLM tool.</p>
 
   <div class="blocks-grid">
 
@@ -304,7 +304,7 @@
     </div>
 
     <div class="block-card">
-      <div class="lbl">Logic — Python</div>
+      <div class="lbl">Logic - Python</div>
       <h4>IF/ELSE · SWITCH · FILTER · TRANSFORM</h4>
       <p>Sandboxed Python expressions route the pipeline. IF returns a boolean, SWITCH returns a key, FILTER gates the flow, TRANSFORM rewrites context (prefix, suffix, replace, upper, lower, strip, truncate).</p>
       <div class="pills">
@@ -314,7 +314,7 @@
     </div>
 
     <div class="block-card">
-      <div class="lbl">Logic — Flow</div>
+      <div class="lbl">Logic - Flow</div>
       <h4>MERGE · SPLIT · Custom Code</h4>
       <p>MERGE joins multiple incoming connections (concat, prepend, append, JSON array). SPLIT broadcasts identical context to all outgoing edges. Custom Code is a sandboxed Python editor with a live syntax check and a test runner.</p>
       <div class="pills">
@@ -336,7 +336,7 @@
     <div class="block-card">
       <div class="lbl">LLM Logic</div>
       <h4>LLM-TRANSFORM · LLM-SCORE</h4>
-      <p>LLM-TRANSFORM has the model rewrite context with an output-only system prompt. LLM-SCORE rates 1–10 and routes to LOW / MID / HIGH arms — the score arm receives the raw numeric value downstream.</p>
+      <p>LLM-TRANSFORM has the model rewrite context with an output-only system prompt. LLM-SCORE rates 1–10 and routes to LOW / MID / HIGH arms - the score arm receives the raw numeric value downstream.</p>
       <div class="pills">
         <span class="block-pill exclusive">★ Exclusive</span>
         <span class="block-pill">numeric routing</span>
@@ -350,14 +350,14 @@
 <section id="examples">
   <p class="section-label">What you build with it</p>
   <h2>A few example pipelines</h2>
-  <p class="section-intro">Three patterns that show why the visual builder beats hand-rolled scripts. Each is a few minutes of dragging blocks onto the canvas — no config files, no glue code.</p>
+  <p class="section-intro">Three patterns that show why the visual builder beats hand-rolled scripts. Each is a few minutes of dragging blocks onto the canvas - no config files, no glue code.</p>
 
   <div class="ex-grid">
 
     <div class="ex-row">
       <div>
         <div class="ex-title">Reasoning → Code</div>
-        <div class="ex-desc">A reasoning model thinks through architecture first, then a coding model writes the implementation. Reasoning trace stays visible in the chat — nothing hidden.</div>
+        <div class="ex-desc">A reasoning model thinks through architecture first, then a coding model writes the implementation. Reasoning trace stays visible in the chat - nothing hidden.</div>
       </div>
       <div class="ex-flow">
         <span class="ex-pill" style="border-color:#3d5a47;color:#3d5a47;">INPUT</span>
@@ -375,7 +375,7 @@
     <div class="ex-row">
       <div>
         <div class="ex-title">Multi-PDF synthesis</div>
-        <div class="ex-desc">Read a folder of PDFs, summarise each one, then synthesise themes across all of them. Pause/resume mid-job — long documents don't have to finish in one session.</div>
+        <div class="ex-desc">Read a folder of PDFs, summarise each one, then synthesise themes across all of them. Pause/resume mid-job - long documents don't have to finish in one session.</div>
       </div>
       <div class="ex-flow">
         <span class="ex-pill" style="border-color:#3d5a47;color:#3d5a47;">INPUT</span>
@@ -395,7 +395,7 @@
     <div class="ex-row">
       <div>
         <div class="ex-title">Agentic LLM router</div>
-        <div class="ex-desc">An LLM-SWITCH classifies the user's intent, then routes to a different downstream model — fast model for chat, reasoning model for analysis, coding model for code. All visual, no Python required.</div>
+        <div class="ex-desc">An LLM-SWITCH classifies the user's intent, then routes to a different downstream model - fast model for chat, reasoning model for analysis, coding model for code. All visual, no Python required.</div>
       </div>
       <div class="ex-flow">
         <span class="ex-pill" style="border-color:#3d5a47;color:#3d5a47;">INPUT</span>
@@ -415,36 +415,36 @@
 <section id="benefits">
   <p class="section-label">Why this beats hand-rolled scripts</p>
   <h2>Pipelines you can read,<br><em>without reading code.</em></h2>
-  <p class="section-intro">A canvas of blocks shows what's happening at a glance. A Python script doesn't. That difference is why pipelines ship — and why they get reused across teammates and projects.</p>
+  <p class="section-intro">A canvas of blocks shows what's happening at a glance. A Python script doesn't. That difference is why pipelines ship - and why they get reused across teammates and projects.</p>
 
   <div class="benefit-grid">
     <div class="benefit">
-      <div class="num">01 — VISIBILITY</div>
+      <div class="num">01 - VISIBILITY</div>
       <h4>The pipeline is the diagram</h4>
-      <p>Every stage is on screen. A new teammate understands what a pipeline does in 10 seconds — no reading code, no chasing function calls. Saved pipelines are JSON, but the canvas is the source of truth.</p>
+      <p>Every stage is on screen. A new teammate understands what a pipeline does in 10 seconds - no reading code, no chasing function calls. Saved pipelines are JSON, but the canvas is the source of truth.</p>
     </div>
     <div class="benefit">
-      <div class="num">02 — DEBUGGABILITY</div>
+      <div class="num">02 - DEBUGGABILITY</div>
       <h4>Every stage streams</h4>
-      <p>Each Intermediate block gets its own live tab. When something looks wrong, you see exactly which stage produced it — and you see it as the tokens arrive, not after the whole pipeline finishes.</p>
+      <p>Each Intermediate block gets its own live tab. When something looks wrong, you see exactly which stage produced it - and you see it as the tokens arrive, not after the whole pipeline finishes.</p>
     </div>
     <div class="benefit">
-      <div class="num">03 — REUSABILITY</div>
+      <div class="num">03 - REUSABILITY</div>
       <h4>Save once, run anywhere</h4>
       <p>Saved pipelines are small JSON files. Drop one in <code>~/.nativelab/pipelines/</code> and it appears in every chat session. Run from chat without leaving the conversation.</p>
     </div>
     <div class="benefit">
-      <div class="num">04 — COMPOSITION</div>
+      <div class="num">04 - COMPOSITION</div>
       <h4>Local + cloud, in one flow</h4>
-      <p>Use a fast cloud model for the broad strokes and a private local model for the sensitive parts — all in the same pipeline. The API block looks identical to the Model block, so cloud and local compose freely.</p>
+      <p>Use a fast cloud model for the broad strokes and a private local model for the sensitive parts - all in the same pipeline. The API block looks identical to the Model block, so cloud and local compose freely.</p>
     </div>
     <div class="benefit">
-      <div class="num">05 — AGENTIC</div>
+      <div class="num">05 - AGENTIC</div>
       <h4>The model can route the flow</h4>
       <p>LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-SCORE put the model itself in the routing path. You build agentic behaviour visually, without writing prompt-orchestration code.</p>
     </div>
     <div class="benefit">
-      <div class="num">06 — UNIQUE</div>
+      <div class="num">06 - UNIQUE</div>
       <h4>No equivalent in the field</h4>
       <p>LM Studio has a single chat surface. Jan does API multiplexing. AnythingLLM does RAG. None of them have a canvas-based pipeline editor with LLM-logic blocks. <a href="compare.html" style="color:var(--gold);">See the comparison →</a></p>
     </div>

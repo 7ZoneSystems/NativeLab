@@ -1,6 +1,6 @@
 from nativelab.UI.UI_const import C
 # ─────────────────────────────────────────────────────────────────────────────
-# Pipeline Manual — rendered inside _show_manual dialog
+# Pipeline Manual - rendered inside _show_manual dialog
 # ─────────────────────────────────────────────────────────────────────────────
 def make_manual_html() -> str:
     BG   = C.get("bg0","#1e1e2e"); TXT  = C.get("txt","#cdd6f4")
@@ -67,7 +67,7 @@ def make_manual_html() -> str:
     tick3   = '```'
     tick3s  = "```'"
 
-    # code() snippets used inside p() calls — built outside f-strings
+    # code() snippets used inside p() calls - built outside f-strings
     c_len500         = code("len(text) &gt; 500")
     c_err            = code("'error' in text.lower()")
     c_startscode     = code("text.strip().startswith('```')")

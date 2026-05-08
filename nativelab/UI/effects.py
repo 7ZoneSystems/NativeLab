@@ -18,7 +18,7 @@ def fade_in(widget: QWidget, duration: int = 180):
 
 class FadeOverlay(QWidget):
     """Full-size overlay for tab-switch fade.
-    Uses its own paintEvent — never touches QGraphicsOpacityEffect,
+    Uses its own paintEvent - never touches QGraphicsOpacityEffect,
     so no QPainter conflicts with PipelineCanvas or other custom painters."""
     def __init__(self, parent: QWidget):
         super().__init__(parent)

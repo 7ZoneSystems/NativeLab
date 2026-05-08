@@ -1,4 +1,4 @@
-// Shared site behaviors — fade-up observer + active nav highlight.
+// Shared site behaviors - fade-up observer + active nav highlight.
 
 (function () {
   const observer = new IntersectionObserver(function (entries) {

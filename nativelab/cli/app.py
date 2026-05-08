@@ -24,7 +24,7 @@ from . import ui
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="nativelab --cli",
-        description="NativeLab terminal client — local LLM chat, linting, "
+        description="NativeLab terminal client - local LLM chat, linting, "
                     "and inline file embedding.",
     )
     sub = p.add_subparsers(dest="cmd")
@@ -98,7 +98,7 @@ def _cmd_status() -> int:
 
 
 def run(argv: Optional[List[str]] = None) -> int:
-    """Main entry point — accepts the post-`--cli` argv list."""
+    """Main entry point - accepts the post-`--cli` argv list."""
     argv = list(argv) if argv is not None else sys.argv[1:]
     # Strip `--cli` itself so argparse doesn't trip on it when callers
     # forward the unfiltered argv.

@@ -54,7 +54,7 @@ C_LIGHT = {
     "glow":     "#9a3412",
     "pipeline": "#0e7490",
 }
-# Active palette — driven by CURRENT_THEME set at top of file
+# Active palette - driven by CURRENT_THEME set at top of file
 C = {}
 
 C = {}

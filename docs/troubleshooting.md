@@ -47,16 +47,16 @@ You're either missing the install, or running Python from a folder where `native
 
 The CLI / GUI couldn't locate `llama-server` or `llama-cli`. Three fixes:
 
-1. **Easiest** — open the GUI, go to **⬇️ Download**, install a release.
-2. **Manual** — drop binaries into `./llama/bin/` (relative to your working dir).
-3. **Custom path** — set explicit paths in the GUI's **🖥️ Server** tab. They land in `./localllm/server_config.json`.
+1. **Easiest** - open the GUI, go to **⬇️ Download**, install a release.
+2. **Manual** - drop binaries into `./llama/bin/` (relative to your working dir).
+3. **Custom path** - set explicit paths in the GUI's **🖥️ Server** tab. They land in `./localllm/server_config.json`.
 
-### "Server start failed — falling back to llama-cli mode"
+### "Server start failed - falling back to llama-cli mode"
 
 Not fatal. The model still works, but each prompt restarts the process (slow for multi-turn). Common reasons:
 
 - The chosen port is already in use → adjust port range in **Server** tab.
-- The server binary is missing — only `llama-cli` is on disk.
+- The server binary is missing - only `llama-cli` is on disk.
 - A stale `llama-server` from a previous crash is hogging the port. The app calls `kill_stray_llama_servers()` at startup, but if that misses, `pkill llama-server` (Linux/macOS) or Task Manager (Windows) clears it.
 
 ### Permission denied on Linux/macOS
@@ -74,20 +74,20 @@ chmod -R +x ./llama/bin/
 `LlamaEngine.load()` couldn't resolve the path. Check:
 
 - The path in the model registry matches the file on disk (paths can drift if the file moved).
-- The file isn't 0 bytes (interrupted download). Re-run the wizard or re-download from the **Download** tab — `.part` files resume automatically.
+- The file isn't 0 bytes (interrupted download). Re-run the wizard or re-download from the **Download** tab - `.part` files resume automatically.
 
 ### Model loads but replies are gibberish / repeats / ignores instructions
 
 Almost always a **prompt template mismatch**. NativeLab auto-detects the family from the filename, but if the file was renamed or uses an unusual name, detection can fall back to a generic template.
 
-Quick fix: in the Models tab, edit the model and change the `family` field to match the actual model. Add a new family entry if needed — see [models.md#adding-a-new-model-family](models.md#adding-a-new-model-family).
+Quick fix: in the Models tab, edit the model and change the `family` field to match the actual model. Add a new family entry if needed - see [models.md#adding-a-new-model-family](models.md#adding-a-new-model-family).
 
 ### "Model load: Failed" with no detail
 
 Check the Logs tab. Most common causes:
 
-- Out of RAM — pick a smaller quant or lower the context.
-- Corrupted GGUF — re-download.
+- Out of RAM - pick a smaller quant or lower the context.
+- Corrupted GGUF - re-download.
 - llama.cpp version too old for the quant format (e.g. IQ-quants need a recent build).
 
 ---
@@ -99,7 +99,7 @@ Check the Logs tab. Most common causes:
 - Lower the context size (`/ctx 2048` in the CLI, slider in the GUI).
 - Use a smaller quant (Q4_K_M is the sweet spot for most hardware).
 - Enable GPU offload in the **Server** tab if you have a GPU.
-- If you're in CLI fallback mode, get the server binary working — server mode is dramatically faster for multi-turn.
+- If you're in CLI fallback mode, get the server binary working - server mode is dramatically faster for multi-turn.
 
 ### Replies are cut off mid-sentence
 
@@ -126,7 +126,7 @@ You answered "no" when asked whether to continue without local binaries. Re-run 
 
 ### CLI shows no icon at startup
 
-The icon only renders on iTerm2 / WezTerm / VS Code's terminal / Hyper / mintty / Kitty. On other terminals (gnome-terminal, xterm, plain SSH) you'll just see the ASCII banner — that's the silent fallback, not a bug.
+The icon only renders on iTerm2 / WezTerm / VS Code's terminal / Hyper / mintty / Kitty. On other terminals (gnome-terminal, xterm, plain SSH) you'll just see the ASCII banner - that's the silent fallback, not a bug.
 
 ### `@file` ref is ignored
 
@@ -194,6 +194,6 @@ Models in `./localllm/*.gguf` are preserved. Re-launch and the wizard / GUI will
 
 ## Still stuck?
 
-- Logs tab in the GUI has the full error chain — it's the most useful single place to look.
+- Logs tab in the GUI has the full error chain - it's the most useful single place to look.
 - Run with `python -u -m nativelab --cli` to see all stderr in real time.
 - Open an issue with the relevant log lines + your OS / Python version: <https://github.com/7zonesystems/NativeLab/issues>.

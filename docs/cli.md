@@ -1,8 +1,8 @@
-# CLI — `nativelab --cli`
+# CLI - `nativelab --cli`
 
 NativeLab ships with a Claude-Code-style terminal client. Same engines as the GUI, no PyQt window. Useful when you're SSH'd into a box, scripting an LLM, or just prefer a keyboard-only flow.
 
-> 🆕 **First time?** Read the much friendlier [beginner walkthrough](../nativelab/cli/cli_guide.md) — it explains the wizard question by question.
+> 🆕 **First time?** Read the much friendlier [beginner walkthrough](../nativelab/cli/cli_guide.md) - it explains the wizard question by question.
 
 ---
 
@@ -20,12 +20,12 @@ nativelab --cli status                  # print saved CLI prefs
 
 ## What the CLI does
 
-- 🚀 **Onboarding wizard** — checks `llama-server`/`llama-cli`, lets you pick or download a GGUF, asks for context size, saves prefs to `./localllm/cli_prefs.json`.
-- 💬 **Chat REPL** — slash commands for status, model swap, context change, system prompt, save, lint.
-- 📂 **`@file` embedding** — type `@path/to/file.py` in any message to inline its contents into the prompt (capped at ~60 KB per file).
-- 🔍 **Linting** — auto-detects `pyflakes` → `flake8` → `pylint`; falls back to Python's `compile()` for syntax-only checks.
-- 🖼️ **Inline icon** — renders `nativelab/icon.png` at startup using the iTerm2 / Kitty image protocols (silent fallback elsewhere).
-- 🔁 **Reverse routing** — `/load`, `/ctx`, `/unload` go through the **same** `LabEndpoints` reverse-route hooks the Labs panels use, so behavior matches the GUI exactly.
+- 🚀 **Onboarding wizard** - checks `llama-server`/`llama-cli`, lets you pick or download a GGUF, asks for context size, saves prefs to `./localllm/cli_prefs.json`.
+- 💬 **Chat REPL** - slash commands for status, model swap, context change, system prompt, save, lint.
+- 📂 **`@file` embedding** - type `@path/to/file.py` in any message to inline its contents into the prompt (capped at ~60 KB per file).
+- 🔍 **Linting** - auto-detects `pyflakes` → `flake8` → `pylint`; falls back to Python's `compile()` for syntax-only checks.
+- 🖼️ **Inline icon** - renders `nativelab/icon.png` at startup using the iTerm2 / Kitty image protocols (silent fallback elsewhere).
+- 🔁 **Reverse routing** - `/load`, `/ctx`, `/unload` go through the **same** `LabEndpoints` reverse-route hooks the Labs panels use, so behavior matches the GUI exactly.
 
 ---
 
@@ -44,13 +44,13 @@ nativelab --cli status                  # print saved CLI prefs
 | `/save <file>`     | Dump the conversation as JSON.                        |
 | `/quit`            | Exit.                                                 |
 
-`@file.py` in a message body inlines the file's contents — works for any text file (`.py`, `.md`, `.txt`, `.json`, `.yaml`, `.html`, …).
+`@file.py` in a message body inlines the file's contents - works for any text file (`.py`, `.md`, `.txt`, `.json`, `.yaml`, `.html`, …).
 
 ---
 
 ## How the CLI plugs into the rest of the app
 
-The CLI is a thin frontend. It builds a `LabEndpoints` instance — the exact same class the Labs tab uses — and routes everything through it:
+The CLI is a thin frontend. It builds a `LabEndpoints` instance - the exact same class the Labs tab uses - and routes everything through it:
 
 ```
 ┌────────────┐      ┌─────────────────┐      ┌────────────────────────┐
@@ -73,7 +73,7 @@ If you want a CLI command for a feature you've added to Labs, expose a slash com
 | `./localllm/<model>.gguf`         | Downloaded GGUF binaries (resumable `.part`). |
 | `./localllm/server_config.json`   | llama.cpp binary paths (shared with the GUI). |
 
-Removing `cli_prefs.json` is safe — the next launch just re-runs the wizard.
+Removing `cli_prefs.json` is safe - the next launch just re-runs the wizard.
 
 ---
 

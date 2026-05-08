@@ -4,7 +4,7 @@
 
 # NativeLab
 
-**A fully local, privacy-first LLM workbench powered by llama.cpp — desktop GUI, terminal CLI, and an experimentation layer.**
+**A fully local, privacy-first LLM workbench powered by llama.cpp - desktop GUI, terminal CLI, and an experimentation layer.**
 
 [![PyPI version](https://img.shields.io/pypi/v/nativelab.svg?logo=pypi&logoColor=white&color=3775A9)](https://pypi.org/project/nativelab/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/nativelab.svg?logo=pypi&logoColor=white&color=3775A9)](https://pypi.org/project/nativelab/)
@@ -34,14 +34,14 @@ nativelab --cli      # terminal client (interactive setup → chat)
 
 ## ✨ Highlights
 
-- 🖥️  **Desktop GUI** — Chat, model library, visual pipeline builder, MCP, HuggingFace downloader, Labs, theming.
-- ⌨️  **Terminal CLI** — `nativelab --cli` opens an interactive setup wizard, downloads a model, and drops you straight into a chat REPL with `@file` embedding, slash commands, and built-in linting.
-- 🧪  **Labs** — A dedicated experimentation layer with a shared endpoint API. New lab features get engine status, model swap, context change, and LLM calls for free.
-- 🔗  **Visual Pipeline Builder** — 20 node types (model, transform, branch, loop, custom Python), live execution log, save/load.
-- 🌐  **API + local mixing** — OpenAI-compatible and Anthropic endpoints work side-by-side with local GGUFs.
-- ⚡  **Parallel + pipeline mode** — Run reasoning + coding engines simultaneously and chain them automatically.
-- 🧠  **Auto family detection** — 20+ model families recognised from filename; correct prompt template applied.
-- 📦  **HuggingFace downloader** — Search any GGUF repo and pull files without leaving the app.
+- 🖥️  **Desktop GUI** - Chat, model library, visual pipeline builder, MCP, HuggingFace downloader, Labs, theming.
+- ⌨️  **Terminal CLI** - `nativelab --cli` opens an interactive setup wizard, downloads a model, and drops you straight into a chat REPL with `@file` embedding, slash commands, and built-in linting.
+- 🧪  **Labs** - A dedicated experimentation layer with a shared endpoint API. New lab features get engine status, model swap, context change, and LLM calls for free.
+- 🔗  **Visual Pipeline Builder** - 20 node types (model, transform, branch, loop, custom Python), live execution log, save/load.
+- 🌐  **API + local mixing** - OpenAI-compatible and Anthropic endpoints work side-by-side with local GGUFs.
+- ⚡  **Parallel + pipeline mode** - Run reasoning + coding engines simultaneously and chain them automatically.
+- 🧠  **Auto family detection** - 20+ model families recognised from filename; correct prompt template applied.
+- 📦  **HuggingFace downloader** - Search any GGUF repo and pull files without leaving the app.
 
 > See [docs/features.md](docs/features.md) for the full v0.2.7 changelog and [docs/architecture.md](docs/architecture.md) for the layered design.
 
@@ -55,7 +55,7 @@ The docs are split into short, focused files so you can jump straight to what yo
 |---|---|
 | [docs/README.md](docs/README.md) | Documentation index with one-line summaries. |
 | [docs/installation.md](docs/installation.md) | Install, llama.cpp setup, first-time workspace. |
-| [docs/cli.md](docs/cli.md) | `nativelab --cli` — quick reference + link to the beginner guide. |
+| [docs/cli.md](docs/cli.md) | `nativelab --cli` - quick reference + link to the beginner guide. |
 | [docs/features.md](docs/features.md) | What's new in v0.2.7 + the full feature catalogue. |
 | [docs/architecture.md](docs/architecture.md) | Layered architecture, project structure, data flow. |
 | [docs/labs.md](docs/labs.md) | The Labs experimentation layer + how to add a feature. |
@@ -80,7 +80,7 @@ pip install nativelab
 nativelab
 ```
 
-The first launch opens the desktop app. Use the **Download** tab to install llama.cpp binaries and grab a GGUF model — no manual setup required.
+The first launch opens the desktop app. Use the **Download** tab to install llama.cpp binaries and grab a GGUF model - no manual setup required.
 
 ### CLI
 
@@ -100,7 +100,7 @@ The CLI runs an interactive wizard the first time:
 you ▸ explain what @nativelab/labs/endpoints.py does
 bot ▸ It's the shared surface every Labs panel uses to talk to engines…
 you ▸ /lint nativelab/cli/chat.py
-✓  [pyflakes]  nativelab/cli/chat.py — clean
+✓  [pyflakes]  nativelab/cli/chat.py - clean
 you ▸ /quit
 ```
 
@@ -108,7 +108,7 @@ Full beginner walkthrough: [nativelab/cli/cli_guide.md](nativelab/cli/cli_guide.
 
 ---
 
-## 🧪 Labs — the experimentation layer
+## 🧪 Labs - the experimentation layer
 
 The `nativelab/labs/` package is a sandbox for new features. Every lab panel receives a single `LabEndpoints` instance and uses it for **all** engine interaction:
 
@@ -120,10 +120,10 @@ endpoints.status_text     # "🟢 Server  :8612"
 endpoints.model_path      # "/abs/path/to/mistral-7b.Q4_K_M.gguf"
 endpoints.snapshot()      # {model_name, ctx_value, server_port, …}
 
-# Synchronous LLM call — auto-routes API > server > CLI
+# Synchronous LLM call - auto-routes API > server > CLI
 endpoints.call_llm(messages=[...], system_prompt="…")
 
-# Reverse routing — ask the host app to change state
+# Reverse routing - ask the host app to change state
 endpoints.request_load_model("/path/to/other.gguf")
 endpoints.request_context(8192)
 endpoints.request_unload()
@@ -137,7 +137,7 @@ Add a lab feature by dropping `nativelab/labs/<feature>.py` with a `QWidget` pan
 
 - **Python 3.10+**
 - **PyQt6** (installed automatically as a dependency)
-- **llama.cpp binaries** — `llama-server` / `llama-cli`. The GUI's Download tab installs these for you, or you can drop them in `./llama/bin/`.
+- **llama.cpp binaries** - `llama-server` / `llama-cli`. The GUI's Download tab installs these for you, or you can drop them in `./llama/bin/`.
 - Optional: `psutil` (RAM monitor), `PyPDF2` (PDF summarization), `pyflakes` / `flake8` / `pylint` (CLI lint).
 
 Detailed instructions in [docs/installation.md](docs/installation.md).
@@ -154,7 +154,7 @@ For security disclosures, see [SECURITY.md](SECURITY.md).
 
 ## 📜 License
 
-AGPL v3 — see [LICENSE](LICENSE). NativeLab depends on [llama.cpp](https://github.com/ggerganov/llama.cpp) (MIT) and [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) (GPL/commercial).
+AGPL v3 - see [LICENSE](LICENSE). NativeLab depends on [llama.cpp](https://github.com/ggerganov/llama.cpp) (MIT) and [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) (GPL/commercial).
 
 ---
 

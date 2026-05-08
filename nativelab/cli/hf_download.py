@@ -46,13 +46,13 @@ def quick_picks() -> List[dict]:
     return [
         {"repo": "TheBloke/Mistral-7B-Instruct-v0.2-GGUF",
          "file": "mistral-7b-instruct-v0.2.Q4_K_M.gguf",
-         "label": "Mistral 7B Instruct (Q4_K_M, ~4.4 GB) — solid general-purpose"},
+         "label": "Mistral 7B Instruct (Q4_K_M, ~4.4 GB) - solid general-purpose"},
         {"repo": "Qwen/Qwen2.5-3B-Instruct-GGUF",
          "file": "qwen2.5-3b-instruct-q4_k_m.gguf",
-         "label": "Qwen 2.5 3B Instruct (Q4_K_M, ~2 GB) — fast, low RAM"},
+         "label": "Qwen 2.5 3B Instruct (Q4_K_M, ~2 GB) - fast, low RAM"},
         {"repo": "bartowski/Phi-3.5-mini-instruct-GGUF",
          "file": "Phi-3.5-mini-instruct-Q4_K_M.gguf",
-         "label": "Phi-3.5 Mini (Q4_K_M, ~2.4 GB) — strong for size"},
+         "label": "Phi-3.5 Mini (Q4_K_M, ~2.4 GB) - strong for size"},
     ]
 
 
@@ -87,7 +87,7 @@ def download_gguf(repo_id: str, filename: str, dest_dir: Path,
         with urllib.request.urlopen(head_req, timeout=30) as r:
             url = r.url
     except Exception:
-        pass  # use the original URL — the next request will follow redirects
+        pass  # use the original URL - the next request will follow redirects
 
     bar = ui.ProgressBar(prefix=f"  {filename}")
 
@@ -130,7 +130,7 @@ def download_gguf(repo_id: str, filename: str, dest_dir: Path,
                 raise RuntimeError(
                     f"Download failed after {MAX_RETRIES} attempts: {e}"
                 ) from e
-            ui.warn(f"Network blip ({e}) — retrying in {RETRY_WAIT}s "
+            ui.warn(f"Network blip ({e}) - retrying in {RETRY_WAIT}s "
                     f"(attempt {attempt + 1}/{MAX_RETRIES})")
             time.sleep(RETRY_WAIT)
 

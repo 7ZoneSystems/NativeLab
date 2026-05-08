@@ -5,9 +5,9 @@ This module is the *only* surface that lab features should use to talk to the
 rest of the application. Every lab panel receives a `LabEndpoints` instance and
 goes through it for:
 
-  • Read state — server status, current model, ctx size, mode, family
-  • LLM calls  — synchronous `call_llm(...)` that picks API > server > CLI
-  • Reverse routing — request the host app to change context, load a model,
+  • Read state - server status, current model, ctx size, mode, family
+  • LLM calls  - synchronous `call_llm(...)` that picks API > server > CLI
+  • Reverse routing - request the host app to change context, load a model,
     unload, ensure the server is up, etc.
 
 Lab features therefore stay decoupled from `MainWindow` internals: they don't

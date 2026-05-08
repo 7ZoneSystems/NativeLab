@@ -50,11 +50,11 @@ class ServerStreamWorker(QThread):
             buf = b""
             # Fix: read in chunks instead of byte-by-byte
             while not self._abort:
-                # Stall detection — emit error if no token for stall_timeout seconds
+                # Stall detection - emit error if no token for stall_timeout seconds
                 if time.time() - last_token_at > stall_timeout:
-                    self.err.emit(f"Stream stalled — no tokens for {stall_timeout}s"); return
+                    self.err.emit(f"Stream stalled - no tokens for {stall_timeout}s"); return
 
-                chunk = r.read(64)   # 64 bytes per read — balanced latency vs syscall cost
+                chunk = r.read(64)   # 64 bytes per read - balanced latency vs syscall cost
                 if not chunk:
                     break
 
@@ -62,7 +62,7 @@ class ServerStreamWorker(QThread):
 
                 # Guard against runaway buffer
                 if len(buf) > max_buf:
-                    self.err.emit("Stream buffer overflow — possible malformed response"); return
+                    self.err.emit("Stream buffer overflow - possible malformed response"); return
 
                 # Process all complete lines in the buffer
                 while b"\n" in buf:

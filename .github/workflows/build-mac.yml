@@ -1,7 +1,7 @@
 # .github/workflows/build-mac.yml
 # ──────────────────────────────────────────────────────────────────────────────
-# Native Lab Pro — macOS Build via GitHub Actions
-# llama.cpp binaries NOT bundled — user selects their own build via the UI
+# Native Lab Pro - macOS Build via GitHub Actions
+# llama.cpp binaries NOT bundled - user selects their own build via the UI
 # ──────────────────────────────────────────────────────────────────────────────
 
 name: Build macOS App
@@ -28,7 +28,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          # llama-cpp-python removed — user supplies their own llama.cpp binaries
+          # llama-cpp-python removed - user supplies their own llama.cpp binaries
           echo "[INFO] Installing UI and utility dependencies..."
           pip install PyQt6 PyPDF2 psutil
           echo "[INFO] Installing PyInstaller..."
@@ -124,7 +124,7 @@ jobs:
       - name: Ensure icon.icns exists
         run: |
           if [ ! -f "icon.icns" ]; then
-            echo "[WARN] icon.icns not found — generating placeholder from icon.png"
+            echo "[WARN] icon.icns not found - generating placeholder from icon.png"
             if [ -f "icon.png" ]; then
               mkdir -p icon.iconset
               sips -z 16  16   icon.png --out icon.iconset/icon_16x16.png
@@ -135,11 +135,11 @@ jobs:
               iconutil -c icns icon.iconset -o icon.icns
               echo "[INFO] icon.icns generated from icon.png"
             else
-              echo "[WARN] No icon.png — build will use default PyInstaller icon"
+              echo "[WARN] No icon.png - build will use default PyInstaller icon"
               touch icon.icns
             fi
           else
-            echo "[INFO] icon.icns found — using existing"
+            echo "[INFO] icon.icns found - using existing"
           fi
 
       - name: Build .app with PyInstaller

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NativeLab — Open-source local LLM workbench</title>
+  <title>NativeLab - Open-source local LLM workbench</title>
   <meta name="description" content="An open-source desktop GUI and terminal client for running local LLMs. Visual pipeline builder, MCP, OpenAI &amp; Anthropic endpoints, Labs experimentation layer. pip install nativelab." />
   <link rel="icon" type="image/png" href="nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -367,24 +367,24 @@
 <section id="why">
   <p class="section-label">Why NativeLab</p>
   <h2>What you get here<br><em>that you don't elsewhere</em></h2>
-  <p class="section-intro">There are plenty of local-LLM apps. NativeLab differs on a handful of capabilities that the others either don't have, charge for, or hide behind a closed source. Here's the honest list — see the <a href="web_page/compare.html" style="color:var(--clay);">full comparison matrix</a> for line-by-line detail.</p>
+  <p class="section-intro">There are plenty of local-LLM apps. NativeLab differs on a handful of capabilities that the others either don't have, charge for, or hide behind a closed source. Here's the honest list - see the <a href="web_page/compare.html" style="color:var(--clay);">full comparison matrix</a> for line-by-line detail.</p>
 
   <div class="why-grid">
     <div class="why-card fade-up">
       <span class="why-card-icon">🏗️</span>
       <h4>Visual pipeline builder</h4>
-      <p>Drag-and-drop canvas with 20+ block types — Input, Model, Reference, Intermediate, MERGE, SPLIT, IF/ELSE, LLM-IF, LLM-SCORE, Custom Code. Loops with iteration counts. Live token streaming per stage.</p>
+      <p>Drag-and-drop canvas with 20+ block types - Input, Model, Reference, Intermediate, MERGE, SPLIT, IF/ELSE, LLM-IF, LLM-SCORE, Custom Code. Loops with iteration counts. Live token streaming per stage.</p>
       <span class="vs">No equivalent in LM Studio · Jan · GPT4All</span>
     </div>
     <div class="why-card fade-up">
       <span class="why-card-icon">🧠</span>
       <h4>LLM-logic blocks</h4>
-      <p>Five blocks where the model itself routes the pipeline — LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-TRANSFORM, LLM-SCORE. Build agentic flows visually, no code.</p>
+      <p>Five blocks where the model itself routes the pipeline - LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-TRANSFORM, LLM-SCORE. Build agentic flows visually, no code.</p>
       <span class="vs">Exclusive to NativeLab</span>
     </div>
     <div class="why-card fade-up">
       <span class="why-card-icon">🧪</span>
-      <h4>Labs — drop-in panels</h4>
+      <h4>Labs - drop-in panels</h4>
       <p>Add a new feature by dropping one Python file into <code>nativelab/labs/</code>. Every panel gets the same endpoint API for engine status, model swap, context change, and LLM calls.</p>
       <span class="vs">Exclusive to NativeLab</span>
     </div>
@@ -417,7 +417,7 @@
 <section id="pipeline-teaser">
   <p class="section-label">The headline feature</p>
   <h2>Chain models together<br><em>like building blocks.</em></h2>
-  <p class="section-intro">No code, no config files. Draw a pipeline on a canvas, hit Run, and watch each stage stream its output live. The pipeline builder is what most users come to NativeLab for — it's also where the gap to other tools is widest.</p>
+  <p class="section-intro">No code, no config files. Draw a pipeline on a canvas, hit Run, and watch each stage stream its output live. The pipeline builder is what most users come to NativeLab for - it's also where the gap to other tools is widest.</p>
 
   <div class="teaser-layout">
     <div class="teaser-canvas">
@@ -459,7 +459,7 @@
       </div>
       <div class="teaser-bullet">
         <h5>Loops detected automatically</h5>
-        <p>Connect a block back to an earlier one and NativeLab detects the cycle. Set how many times to repeat — it accumulates context each pass.</p>
+        <p>Connect a block back to an earlier one and NativeLab detects the cycle. Set how many times to repeat - it accumulates context each pass.</p>
       </div>
       <div class="teaser-bullet">
         <h5>Every stage streams live</h5>
@@ -467,7 +467,7 @@
       </div>
       <div class="teaser-bullet">
         <h5>Run from chat</h5>
-        <p>Hit the 🔗 Pipeline button next to Send. Pick a saved pipeline and it runs on your current message — each stage appears as its own labelled bubble.</p>
+        <p>Hit the 🔗 Pipeline button next to Send. Pick a saved pipeline and it runs on your current message - each stage appears as its own labelled bubble.</p>
       </div>
       <div style="margin-top: 0.6rem;">
         <a href="web_page/pipeline.html" style="color: var(--gold); text-decoration: none; font-weight: 500; font-size: 0.95rem;">Read the full pipeline guide →</a>
@@ -480,7 +480,7 @@
 <section id="install">
   <p class="section-label">Install &amp; run</p>
   <h2>One command,<br><em>any platform</em></h2>
-  <p class="section-intro">NativeLab ships as a pure Python package on PyPI. Install with pip — exactly the same on Linux, macOS, and Windows. Requires Python 3.10 or newer.</p>
+  <p class="section-intro">NativeLab ships as a pure Python package on PyPI. Install with pip - exactly the same on Linux, macOS, and Windows. Requires Python 3.10 or newer.</p>
 
   <div class="install-grid">
 
@@ -495,7 +495,7 @@
 
     <div class="install-card-light">
       <h4>First-time setup wizard</h4>
-      <p>On first launch, the GUI's Download tab installs llama.cpp binaries and pulls a GGUF model — no manual setup. The CLI runs an interactive wizard that finds <code>llama-server</code>, downloads a model, and drops you into a chat REPL.</p>
+      <p>On first launch, the GUI's Download tab installs llama.cpp binaries and pulls a GGUF model - no manual setup. The CLI runs an interactive wizard that finds <code>llama-server</code>, downloads a model, and drops you into a chat REPL.</p>
     </div>
 
     <div class="install-card-light">

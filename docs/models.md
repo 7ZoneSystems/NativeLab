@@ -1,6 +1,6 @@
 # Models
 
-Everything about the model side of NativeLab — registries, prompt templates, quantizations, roles, and API providers.
+Everything about the model side of NativeLab - registries, prompt templates, quantizations, roles, and API providers.
 
 ---
 
@@ -58,7 +58,7 @@ Editable per-file from the Models tab in the GUI. Defaults come from `app_config
 
 ## Auto family detection
 
-`detect_model_family()` matches filename substrings in priority order to pick the right `ModelFamily` template. `FAMILY_TEMPLATES` (in `nativelab/Model/templates.py`) ships with 20+ families — each holds the BOS/EOS, system slot, user/assistant prefixes/suffixes, and stop tokens for that family's chat format.
+`detect_model_family()` matches filename substrings in priority order to pick the right `ModelFamily` template. `FAMILY_TEMPLATES` (in `nativelab/Model/templates.py`) ships with 20+ families - each holds the BOS/EOS, system slot, user/assistant prefixes/suffixes, and stop tokens for that family's chat format.
 
 A few examples:
 
@@ -69,12 +69,12 @@ A few examples:
 | **Mistral / Mixtral** | `[INST] {u} [/INST]`                                     | `<s>` / `</s>`                                           |
 | **LLaMA-2**       | `[INST] <<SYS>>\n{system}\n<</SYS>>\n\n{u} [/INST]`          | `<s>` / `</s>`                                           |
 | **LLaMA-3**       | `<\|start_header_id\|>user<\|end_header_id\|>\n\n{u}<\|eot_id\|>` | `<\|begin_of_text\|>`                              |
-| **Phi / Phi-3**   | `<\|user\|>\n{u}<\|end\|>\n<\|assistant\|>\n`                | —                                                        |
-| **Qwen / ChatML / Yi / Orca** | `<\|im_start\|>user\n{u}<\|im_end\|>\n<\|im_start\|>assistant\n` | —                                              |
-| **Gemma**         | `<start_of_turn>user\n{u}<end_of_turn>\n<start_of_turn>model\n` | —                                                     |
-| **Command-R**     | `<\|START_OF_TURN_TOKEN\|><\|USER_TOKEN\|>{u}<\|END_OF_TURN_TOKEN\|>…` | —                                                |
+| **Phi / Phi-3**   | `<\|user\|>\n{u}<\|end\|>\n<\|assistant\|>\n`                | -                                                        |
+| **Qwen / ChatML / Yi / Orca** | `<\|im_start\|>user\n{u}<\|im_end\|>\n<\|im_start\|>assistant\n` | -                                              |
+| **Gemma**         | `<start_of_turn>user\n{u}<end_of_turn>\n<start_of_turn>model\n` | -                                                     |
+| **Command-R**     | `<\|START_OF_TURN_TOKEN\|><\|USER_TOKEN\|>{u}<\|END_OF_TURN_TOKEN\|>…` | -                                                |
 
-Full list — DeepSeek (+R1), Mistral, Mixtral, LLaMA-2, LLaMA-3, Phi, Phi-3, Phi-3.5, Qwen, ChatML, Gemma, CodeLlama, Falcon, Vicuna, OpenChat, Neural-Chat, Starling, Yi, Zephyr, Solar, Orca, Command-R.
+Full list - DeepSeek (+R1), Mistral, Mixtral, LLaMA-2, LLaMA-3, Phi, Phi-3, Phi-3.5, Qwen, ChatML, Gemma, CodeLlama, Falcon, Vicuna, OpenChat, Neural-Chat, Starling, Yi, Zephyr, Solar, Orca, Command-R.
 
 The detected family is shown next to every model in the Models tab and in the CLI's `/status` output.
 
@@ -84,13 +84,13 @@ The detected family is shown next to every model in the Models tab and in the CL
 
 `detect_quant_type()` recognises every quant in current llama.cpp builds.
 
-**imatrix importance quants** — `IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ2_M`, `IQ3_XXS`, `IQ3_XS`, `IQ3_S`, `IQ3_M`, `IQ4_XS`, `IQ4_NL`.
+**imatrix importance quants** - `IQ1_S`, `IQ1_M`, `IQ2_XXS`, `IQ2_XS`, `IQ2_S`, `IQ2_M`, `IQ3_XXS`, `IQ3_XS`, `IQ3_S`, `IQ3_M`, `IQ4_XS`, `IQ4_NL`.
 
-**K-quants** — `Q2_K`, `Q3_K_S/M/L`, `Q4_K_S/M`, `Q5_K_S/M`, `Q6_K`.
+**K-quants** - `Q2_K`, `Q3_K_S/M/L`, `Q4_K_S/M`, `Q5_K_S/M`, `Q6_K`.
 
-**Legacy** — `Q4_0/1`, `Q5_0/1`, `Q8_0`.
+**Legacy** - `Q4_0/1`, `Q5_0/1`, `Q8_0`.
 
-**Float** — `F16`, `F32`, `BF16`.
+**Float** - `F16`, `F32`, `BF16`.
 
 Each quant maps to a quality tier with a color label:
 
@@ -143,7 +143,7 @@ Stored in `api_models.json` and managed via `ApiRegistry`.
 
 ## Adding a new model family
 
-Add an entry to `FAMILY_TEMPLATES` (`nativelab/Model/templates.py`) and a matching pattern in `detect_model_family()`. Patterns are checked in order — put more specific ones (e.g. `phi-3.5`) before more general ones (`phi`).
+Add an entry to `FAMILY_TEMPLATES` (`nativelab/Model/templates.py`) and a matching pattern in `detect_model_family()`. Patterns are checked in order - put more specific ones (e.g. `phi-3.5`) before more general ones (`phi`).
 
 ```python
 FAMILY_TEMPLATES["myfamily"] = ModelFamily(

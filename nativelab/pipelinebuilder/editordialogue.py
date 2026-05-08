@@ -57,14 +57,14 @@ class LlmLogicEditorDialog(QDialog):
             "about": (
                 "The model rewrites or transforms the incoming text according to your "
                 "instruction. The result replaces the context for all downstream blocks. "
-                "Be specific — the model will follow your instruction precisely."
+                "Be specific - the model will follow your instruction precisely."
             ),
             "label":       "Transformation instruction:",
             "placeholder": "e.g.  Summarise this in three bullet points\n"
                            "e.g.  Rewrite in a formal professional tone\n"
                            "e.g.  Extract only the action items as a numbered list\n"
                            "e.g.  Translate to Spanish",
-            "branch_hint": "Single output — transformed text flows to all connected blocks.",
+            "branch_hint": "Single output - transformed text flows to all connected blocks.",
         },
         "llm_score": {
             "icon":  "🧠 LLM SCORE",
@@ -88,7 +88,7 @@ class LlmLogicEditorDialog(QDialog):
         super().__init__(parent)
         self._block = block
         info = self._TYPE_INFO.get(block.btype, {})
-        self.setWindowTitle(f"{info.get('icon','🧠')} — {block.label}")
+        self.setWindowTitle(f"{info.get('icon','🧠')} - {block.label}")
         self.setMinimumSize(640, 480)
         self.resize(700, 530)
         self._build(info)
@@ -121,7 +121,7 @@ class LlmLogicEditorDialog(QDialog):
         root.addWidget(hint_lbl)
 
         # ── Model selector ────────────────────────────────────────────────────
-        model_lbl = QLabel("MODEL  (required — evaluated at runtime):")
+        model_lbl = QLabel("MODEL  (required - evaluated at runtime):")
         model_lbl.setStyleSheet(
             f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1px;")
         root.addWidget(model_lbl)
@@ -142,7 +142,7 @@ class LlmLogicEditorDialog(QDialog):
         if _models:
             self.model_combo.setCurrentIndex(_sel_idx)
         else:
-            self.model_combo.addItem("⚠️  No models registered — add one in Models tab", "")
+            self.model_combo.addItem("⚠️  No models registered - add one in Models tab", "")
 
         btn_browse_model = QPushButton("Browse…")
         btn_browse_model.setFixedHeight(30); btn_browse_model.setFixedWidth(80)
@@ -311,9 +311,9 @@ class CodeEditorDialog(QDialog):
     # Available variable documentation shown to user
     _VAR_DOCS = [
         ("text",    "str",  "The incoming context string from the previous block."),
-        ("result",  "str",  "Write your output here — the pipeline continues with this."),
-        ("metadata","dict", "Block metadata dict (read/write — persists across runs)."),
-        ("log",     "fn",   "log('message') — writes to the pipeline execution log."),
+        ("result",  "str",  "Write your output here - the pipeline continues with this."),
+        ("metadata","dict", "Block metadata dict (read/write - persists across runs)."),
+        ("log",     "fn",   "log('message') - writes to the pipeline execution log."),
     ]
 
     _TEMPLATE = """\
@@ -338,7 +338,7 @@ log(f"Word count: {word_count}")
     def __init__(self, block: "PipelineBlock", parent=None):             
         super().__init__(parent)
         self._block = block
-        self.setWindowTitle(f"⌥ Code Editor — {block.label}")
+        self.setWindowTitle(f"⌥ Code Editor - {block.label}")
         self.setMinimumSize(760, 560)
         self.resize(820, 620)
         self._build()

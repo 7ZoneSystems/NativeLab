@@ -27,7 +27,7 @@ When a file is added (PDF, plain text, or `.py` treated as text), it's processed
 
 ### `ScriptSmartReference`
 
-Source files get richer treatment via `ScriptParser` (see below). The structured index — imports, classes, functions, signatures, docstrings, decorators — drives much sharper retrieval than naive text chunking.
+Source files get richer treatment via `ScriptParser` (see below). The structured index - imports, classes, functions, signatures, docstrings, decorators - drives much sharper retrieval than naive text chunking.
 
 ### `SessionReferenceStore`
 
@@ -45,13 +45,13 @@ Python (AST), JavaScript / JSX, TypeScript / TSX, SQL, Rust, Go, C, C++, Java, K
 
 ### Extracted entities
 
-- **Imports** — every import / require / use / include with resolved names.
-- **Functions** — full signature, decorators, line numbers, body text, docstring.
-- **Classes / structs** — base classes, methods, line ranges, docstrings.
-- **Constants** — uppercase names + `#define` macros.
-- **Types** — TS interface/type aliases, Rust trait/impl, Go interfaces.
-- **SQL objects** — CREATE TABLE/VIEW/PROCEDURE/INDEX, CTEs.
-- **Config keys** — top-level keys for JSON/YAML/TOML.
+- **Imports** - every import / require / use / include with resolved names.
+- **Functions** - full signature, decorators, line numbers, body text, docstring.
+- **Classes / structs** - base classes, methods, line ranges, docstrings.
+- **Constants** - uppercase names + `#define` macros.
+- **Types** - TS interface/type aliases, Rust trait/impl, Go interfaces.
+- **SQL objects** - CREATE TABLE/VIEW/PROCEDURE/INDEX, CTEs.
+- **Config keys** - top-level keys for JSON/YAML/TOML.
 
 ### `ParsedScript.build_context()`
 
@@ -66,7 +66,7 @@ For documents that don't fit in the context window.
 ### `ChunkedSummaryWorker`
 
 1. Splits text into chunks of `summary_chunk_chars`, breaking on paragraph boundaries when possible.
-2. For each chunk, prepends a "running context" — the last `summary_ctx_carry` characters of the previous summary — to maintain continuity.
+2. For each chunk, prepends a "running context" - the last `summary_ctx_carry` characters of the previous summary - to maintain continuity.
 3. Sends `chunk + context` to the model and collects a section summary.
 4. Auto-saves state to `paused_jobs/` every 3 chunks.
 5. Final pass synthesizes all section summaries into one cohesive document summary.
@@ -77,7 +77,7 @@ If a dedicated summarization or reasoning engine is loaded, it runs the final co
 
 Click **⏹ Stop** mid-job to snapshot state (raw text, completed summaries, running context, progress, model path) to `paused_jobs/{job_id}.json`. The Config tab lists paused jobs with **▶ Resume Job**.
 
-The app also auto-suggests pausing after `pause_after_chunks` chunks if many remain — useful for long jobs split across sessions.
+The app also auto-suggests pausing after `pause_after_chunks` chunks if many remain - useful for long jobs split across sessions.
 
 ---
 
@@ -89,7 +89,7 @@ The app also auto-suggests pausing after `pause_after_chunks` chunks if many rem
 2. Produce a per-file consolidated summary.
 3. Final cross-document pass identifies themes, differences, and connections.
 
-Integrated with the RAM watchdog (checks every 5 chunks; spills caches when free memory drops). Pause/resume works identically — the snapshot includes the list of PDF texts, current file index, and chunk position.
+Integrated with the RAM watchdog (checks every 5 chunks; spills caches when free memory drops). Pause/resume works identically - the snapshot includes the list of PDF texts, current file index, and chunk position.
 
 ---
 
@@ -113,9 +113,9 @@ Activates automatically when **all** of these hold:
 
 Flow for a coding prompt:
 
-**Stage 1 — structural insights.** Each non-coding engine produces a structured architectural analysis: purpose, recommended pattern, components, data flow, edge cases, suggested libraries. No code yet. Each engine streams into its own chat bubble in real time.
+**Stage 1 - structural insights.** Each non-coding engine produces a structured architectural analysis: purpose, recommended pattern, components, data flow, edge cases, suggested libraries. No code yet. Each engine streams into its own chat bubble in real time.
 
-**Stage 2 — code generation.** The coding engine receives a prompt containing all stage-1 insights as a labelled context block, followed by the original request, then generates the implementation.
+**Stage 2 - code generation.** The coding engine receives a prompt containing all stage-1 insights as a labelled context block, followed by the original request, then generates the implementation.
 
 This typically produces better-structured code than asking a coding model directly, because architectural planning is done by models that may be stronger reasoners.
 
@@ -131,10 +131,10 @@ Pipelines are saved as JSON in `~/.native_lab/pipelines/` and loadable from with
 
 A 1400×900+ infinite workspace with 20px snap-to-grid.
 
-- **Place** — click any block button in the sidebar, or drag a model directly from the model list onto the canvas.
-- **Select / move** — click a block; drag anywhere; snaps to grid on release.
-- **Connect** — hover a block until ports appear, click-drag from a port to another block's port.
-- **Delete** — right-click for a context menu.
+- **Place** - click any block button in the sidebar, or drag a model directly from the model list onto the canvas.
+- **Select / move** - click a block; drag anywhere; snaps to grid on release.
+- **Connect** - hover a block until ports appear, click-drag from a port to another block's port.
+- **Delete** - right-click for a context menu.
 
 Connection rules: model→model is blocked (use an Intermediate block); duplicate connections silently ignored; non-logic blocks have one outgoing connection per port; logic blocks fan out.
 
@@ -183,7 +183,7 @@ Each makes a real inference call. Configurable model, max tokens, temperature, a
 | **🧠 LLM-TRANSFORM** | Rewrites/reformats incoming text. |
 | **🧠 LLM-SCORE** | 1–10 score routes LOW (1–3) → E, MID (4–7) → S, HIGH (8–10) → W. Label an arrow `score` to receive the raw number. |
 
-Use 0.5B–1.5B models for routing — they only need to output a word or a number, so they're fast and accurate at this.
+Use 0.5B–1.5B models for routing - they only need to output a word or a number, so they're fast and accurate at this.
 
 ### Loop edges
 
@@ -207,8 +207,8 @@ Click **▶ Run Pipeline**. `PipelineExecutionWorker` (a `QThread`) processes bl
 
 ### Save / load
 
-- **💾 Save Pipeline…** — name + write to `~/.native_lab/pipelines/{name}.json`.
-- **📂 Load Pipeline…** — list with delete; clearing prompt if canvas non-empty.
+- **💾 Save Pipeline…** - name + write to `~/.native_lab/pipelines/{name}.json`.
+- **📂 Load Pipeline…** - list with delete; clearing prompt if canvas non-empty.
 
 Persisted per block: type, position, size, model path, role, label, all metadata. Per connection: source/target ports, `is_loop`, `loop_times`, branch label.
 
@@ -217,19 +217,19 @@ Persisted per block: type, position, size, model path, role, label, all metadata
 - Tiny models (0.5B–1.5B) for all LLM logic blocks.
 - Large models only for actual generation (Model, LLM-TRANSFORM).
 - TRANSFORM before expensive model calls keeps context short.
-- Each loop iteration is a full call — `3 models × 5 loops = 15` requests.
+- Each loop iteration is a full call - `3 models × 5 loops = 15` requests.
 - Routing block max-tokens can be as low as 16 (yes/no needs nothing more).
 
 ---
 
 ## MCP
 
-The MCP tab manages **Model Context Protocol** servers — extending the LLM with filesystem, web, database, or custom-tool access.
+The MCP tab manages **Model Context Protocol** servers - extending the LLM with filesystem, web, database, or custom-tool access.
 
 ### Server types
 
-- **Stdio** — launched as child processes by the app; lifecycle managed (start/stop/restart). Communicate over stdin/stdout.
-- **SSE** — connect over HTTP (Server-Sent Events). You supply the URL of an already-running server.
+- **Stdio** - launched as child processes by the app; lifecycle managed (start/stop/restart). Communicate over stdin/stdout.
+- **SSE** - connect over HTTP (Server-Sent Events). You supply the URL of an already-running server.
 
 ### Configuration
 
@@ -249,4 +249,4 @@ Enter a repo ID (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`) and click **Sear
 
 Select a file and click **Download**. Streams directly to your models folder with a progress bar. If the target exists, you're warned before overwriting. `HfSearchWorker` and `HfDownloadWorker` (QThread subclasses) keep the UI responsive.
 
-The CLI's wizard does the same thing — `nativelab/cli/hf_download.py` is a synchronous version of the same logic with resume + retry.
+The CLI's wizard does the same thing - `nativelab/cli/hf_download.py` is a synchronous version of the same logic with resume + retry.

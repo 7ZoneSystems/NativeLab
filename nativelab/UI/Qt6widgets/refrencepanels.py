@@ -6,8 +6,8 @@ from nativelab.UI.buildUI import C
 class ReferencePanelV2(QWidget):
     """
     Collapsible reference sidebar v2:
-      • 📄 Documents tab  — PDF, text, .py plain (unchanged)
-      • 💻 Scripts tab    — any source file with full AST parsing
+      • 📄 Documents tab  - PDF, text, .py plain (unchanged)
+      • 💻 Scripts tab    - any source file with full AST parsing
       • Multi-PDF summarize button
     """
     refs_changed = pyqtSignal()

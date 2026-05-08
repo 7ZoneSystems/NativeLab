@@ -58,7 +58,7 @@ class ThinkingBlock(QWidget):
         try:
             from nativelab.UI.buildUI import C
             self._toggle_btn.setText(
-                f"▼  ✅  Done  —  {self._done} / {self._total} steps")
+                f"▼  ✅  Done  -  {self._done} / {self._total} steps")
             self._toggle_btn.setStyleSheet(
                 f"QPushButton{{background:rgba(28,184,138,0.10);color:{C['ok']};"
                 f"border:1px solid rgba(28,184,138,0.24);border-radius:8px;"

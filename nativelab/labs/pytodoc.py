@@ -30,11 +30,11 @@ from .endpoints import LabEndpoints
 DEFAULT_OVERVIEW_PROMPT = (
     "Generate a structured overview of this Python file. "
     "Describe its purpose, key components, and overall design. "
-    "Keep to 2–4 sentences. Use plain prose — do not add headings."
+    "Keep to 2–4 sentences. Use plain prose - do not add headings."
 )
 DEFAULT_CLASS_PROMPT = (
     "Describe this Python class concisely. Cover its purpose, key attributes, "
-    "and what it is responsible for. Do NOT list methods — they will be "
+    "and what it is responsible for. Do NOT list methods - they will be "
     "documented separately. Keep to 2–4 sentences."
 )
 DEFAULT_FUNC_PROMPT = (
@@ -137,7 +137,7 @@ class PyToDocWorker(QThread):
 
     def _call_llm(self, system_prompt: str, code: str) -> str:
         if self.endpoints is None or not self.endpoints.is_loaded:
-            return "(no LLM engine loaded — load a model first)"
+            return "(no LLM engine loaded - load a model first)"
 
         user_content = f"{system_prompt}\n\n```python\n{code}\n```"
         self._history.append({"role": "user", "content": user_content})

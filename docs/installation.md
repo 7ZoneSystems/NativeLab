@@ -25,7 +25,7 @@ nativelab --cli --help
 
 ## 2. Pick a workspace folder
 
-NativeLab keeps everything in the **current working directory** — no hidden config files in your home directory. Create a folder you'll use as the default working dir:
+NativeLab keeps everything in the **current working directory** - no hidden config files in your home directory. Create a folder you'll use as the default working dir:
 
 ```bash
 mkdir ~/nativelab
@@ -40,7 +40,7 @@ Anything NativeLab writes (models, sessions, configs, paused jobs) lands here. M
 
 You need `llama-server` and `llama-cli` somewhere on disk. There are three ways to get them:
 
-### Option A — Use the GUI's built-in installer (easiest)
+### Option A - Use the GUI's built-in installer (easiest)
 
 ```bash
 nativelab
@@ -48,7 +48,7 @@ nativelab
 
 In the desktop app, open the **⬇️ Download** tab. Pick the latest llama.cpp release for your platform and click Install. Binaries land in `./llama/bin/` automatically.
 
-### Option B — Download a release zip manually
+### Option B - Download a release zip manually
 
 Grab the right archive from <https://github.com/ggml-org/llama.cpp/releases> and extract it into `./llama/bin/`:
 
@@ -65,7 +65,7 @@ On Linux/macOS, make them executable:
 chmod -R +x llama/bin/
 ```
 
-### Option C — Build from source
+### Option C - Build from source
 
 ```bash
 git clone https://github.com/ggerganov/llama.cpp
@@ -104,7 +104,7 @@ The wizard offers three pre-vetted starter models or lets you enter any HF repo 
 
 Drop any `.gguf` file into `./localllm/`, or use the **Browse GGUF…** button in the GUI's Models tab.
 
-> **Sizing rough guide** — 7B Q4 ≈ 4.5 GB RAM · 13B Q5 ≈ 9.5 GB · 70B Q4 ≈ 38 GB. GPU offload (Server tab) reduces RAM by moving layers to VRAM.
+> **Sizing rough guide** - 7B Q4 ≈ 4.5 GB RAM · 13B Q5 ≈ 9.5 GB · 70B Q4 ≈ 38 GB. GPU offload (Server tab) reduces RAM by moving layers to VRAM.
 
 ---
 

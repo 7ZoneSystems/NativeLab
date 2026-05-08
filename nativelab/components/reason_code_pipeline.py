@@ -7,7 +7,7 @@ class PipelineWorker(QThread):
 
     Stage 1 (parallel):  Every active non-coding engine is asked to give a
                          *structural-level insight* about the user's coding
-                         request — no code, just intent, architecture and design.
+                         request - no code, just intent, architecture and design.
                          Each engine runs sequentially (llama.cpp single-process
                          constraint) but their outputs are collected and labelled.
 
@@ -33,7 +33,7 @@ class PipelineWorker(QThread):
 
     INSIGHT_PROMPT_TEMPLATE = (
         "You are a senior software architect reviewing a coding request.\n"
-        "Your task: provide STRUCTURAL INSIGHT ONLY — no code, no pseudocode.\n\n"
+        "Your task: provide STRUCTURAL INSIGHT ONLY - no code, no pseudocode.\n\n"
         "Describe:\n"
         "1. High-level purpose and user intent\n"
         "2. Recommended architecture / design pattern (e.g. class hierarchy, "
@@ -209,7 +209,7 @@ class PipelineWorker(QThread):
                 try:
                     b = r.read(1)
                 except socket.timeout:
-                    self.err.emit("Stream stalled — no token received within "
+                    self.err.emit("Stream stalled - no token received within "
                                 f"{STREAM_READ_TIMEOUT}s")
                     break
                 if not b:
@@ -267,7 +267,7 @@ class PipelineWorker(QThread):
                         )
                         if not ready:
                             self.err.emit(
-                                f"CLI process stalled — no output for "
+                                f"CLI process stalled - no output for "
                                 f"{TOKEN_STALL_TIMEOUT}s"
                             )
                             break

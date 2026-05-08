@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# NativeLab.spec — PyInstaller build for Native Lab Pro v2
+# NativeLab.spec - PyInstaller build for Native Lab Pro v2
 # Build command:  pyinstaller NativeLab.spec
 
 import sys
@@ -59,12 +59,12 @@ exe = EXE(
     pyz,
     a.scripts,
     [],
-    exclude_binaries=True,       # onedir mode — binaries stay separate
+    exclude_binaries=True,       # onedir mode - binaries stay separate
     name='NativeLabPro',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,                    # compress — set False if UPX not installed
+    upx=True,                    # compress - set False if UPX not installed
     console=False,               # no black console window on launch
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -82,7 +82,7 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[
-        'vcruntime140.dll',      # never UPX these — breaks them
+        'vcruntime140.dll',      # never UPX these - breaks them
         'python3*.dll',
         'Qt6*.dll',
     ],

@@ -105,15 +105,15 @@ class HfDownloadWorker(QThread):
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
                 self._download_loop(final_url, part)
-                break   # clean finish — exit retry loop
+                break   # clean finish - exit retry loop
             except _AbortedError as e:
                 if e.delete_part:
                     try: part.unlink()
                     except Exception: pass
-                return   # exit silently either way — not an error
+                return   # exit silently either way - not an error
             except Exception as exc:
                 if attempt >= self.MAX_RETRIES:
-                    # Genuine failure — keep .part so user can resume next session
+                    # Genuine failure - keep .part so user can resume next session
                     self.err.emit(str(exc))
                     return
                 time.sleep(self.RETRY_WAIT)
@@ -158,7 +158,7 @@ class HfDownloadWorker(QThread):
             if resume_from and r.status == 206:   # server honoured Range
                 total = resume_from + (int(cl) if cl else 0)
             else:
-                # Server ignored Range (e.g. returned 200) — start fresh
+                # Server ignored Range (e.g. returned 200) - start fresh
                 total       = self._expected_size or (int(cl) if cl and int(cl) > 0 else 0)
                 resume_from = 0
 
@@ -312,10 +312,10 @@ class LlamaCppDownloadWorker(QThread):
             _bin_name = bin_src.name.lower() if bin_src else ""
             # Warn if arm64 binary on x86 or vice versa
             if "aarch64" in str(bin_src).lower() and "x86" in _machine:
-                self.err.emit("Downloaded ARM64 build but running on x86_64 — pick the x64 build instead")
+                self.err.emit("Downloaded ARM64 build but running on x86_64 - pick the x64 build instead")
                 return
             if "x64" in str(bin_src).lower() and "aarch64" in _machine:
-                self.err.emit("Downloaded x64 build but running on ARM64 — pick the aarch64 build instead")
+                self.err.emit("Downloaded x64 build but running on ARM64 - pick the aarch64 build instead")
                 return
 
             self.status.emit("Installing to ./llama/bin/…")

@@ -1,15 +1,15 @@
 """
-flowpreview.py — animated dot flow preview for the Pipeline Canvas.
+flowpreview.py - animated dot flow preview for the Pipeline Canvas.
 
 Dots spawn at the INPUT block and travel along connections until they
 reach OUTPUT or exhaust all reachable paths.
 
 Color legend (matches canvas port routing):
-  green  (#a6e3a1) — normal / TRUE arm (E-port)
-  red    (#f38ba8) — FALSE arm (W-port)
-  yellow (#f9e2af) — N/S arms, MERGE output
-  purple (#cba6f7) — SPLIT fan-out
-  grey   (#555555) — FILTER drop-path
+  green  (#a6e3a1) - normal / TRUE arm (E-port)
+  red    (#f38ba8) - FALSE arm (W-port)
+  yellow (#f9e2af) - N/S arms, MERGE output
+  purple (#cba6f7) - SPLIT fan-out
+  grey   (#555555) - FILTER drop-path
 """
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 from nativelab.UI.UI_const import C
@@ -136,7 +136,7 @@ class FlowPreviewController(QObject):
 
             dest = self._blocks.get(dot.conn.to_block_id)
             if dest is None or dest.btype == PipelineBlockType.OUTPUT:
-                continue   # reached terminal — no children
+                continue   # reached terminal - no children
 
             outgoing = self._adj.get(dest.bid, [])
             if not outgoing:
@@ -171,7 +171,7 @@ class FlowPreviewController(QObject):
                     new_spawns.append((c, _cm))
 
             else:
-                # Normal sequential — inherit colour
+                # Normal sequential - inherit colour
                 for c in outgoing:
                     new_spawns.append((c, dot.color))
 

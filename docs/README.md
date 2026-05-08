@@ -6,7 +6,7 @@
 
 </div>
 
-Welcome. The docs are organised so each page covers a single concern — pick the one that matches what you're trying to do and skip the rest.
+Welcome. The docs are organised so each page covers a single concern - pick the one that matches what you're trying to do and skip the rest.
 
 ---
 
@@ -16,7 +16,7 @@ Welcome. The docs are organised so each page covers a single concern — pick th
 |---|---|
 | [installation.md](installation.md) | First-time install, llama.cpp setup, workspace folder layout. |
 | [cli.md](cli.md) | You want to use the terminal client (`nativelab --cli`). |
-| [../nativelab/cli/cli_guide.md](../nativelab/cli/cli_guide.md) | **Beginner walkthrough** of the CLI — friendly, step-by-step. |
+| [../nativelab/cli/cli_guide.md](../nativelab/cli/cli_guide.md) | **Beginner walkthrough** of the CLI - friendly, step-by-step. |
 | [troubleshooting.md](troubleshooting.md) | Something's broken and you want it fixed fast. |
 
 ---
@@ -58,7 +58,7 @@ Welcome. The docs are organised so each page covers a single concern — pick th
 
 ## 📜 Other documents
 
-- [LICENSE](../LICENSE) — AGPL v3.
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — How to send a PR.
-- [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) — Community guidelines.
-- [SECURITY.md](../SECURITY.md) — Reporting vulnerabilities.
+- [LICENSE](../LICENSE) - AGPL v3.
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - How to send a PR.
+- [CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) - Community guidelines.
+- [SECURITY.md](../SECURITY.md) - Reporting vulnerabilities.

@@ -1,4 +1,4 @@
-"""Terminal UI helpers — ANSI colors, prompts, progress bars, icon display."""
+"""Terminal UI helpers - ANSI colors, prompts, progress bars, icon display."""
 from __future__ import annotations
 
 import base64
@@ -99,7 +99,7 @@ def show_icon() -> None:
       • Kitty graphics protocol via `kitten icat` (best fidelity)
       • iTerm2 inline-image protocol (works in iTerm2, WezTerm, mintty,
         VS Code, Hyper)
-      • Silent no-op otherwise — the surrounding ASCII banner still renders.
+      • Silent no-op otherwise - the surrounding ASCII banner still renders.
     """
     icon = _icon_path()
     if icon is None:

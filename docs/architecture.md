@@ -29,10 +29,10 @@ NativeLab is a layered application. Each layer talks only to the one beneath it,
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                            Engine layer                                 │
-│  LlamaEngine        — manages llama-server / llama-cli subprocesses     │
+│  LlamaEngine        - manages llama-server / llama-cli subprocesses     │
 │   ├── ServerStreamWorker  (HTTP /completion streaming)                  │
 │   └── CliStreamWorker     (per-prompt llama-cli stdout)                 │
-│  ApiEngine          — OpenAI / Anthropic compatible                     │
+│  ApiEngine          - OpenAI / Anthropic compatible                     │
 │   └── ApiStreamWorker     (HTTP streaming)                              │
 │  PipelineExecutionWorker  ChunkedSummaryWorker  MultiPdfSummaryWorker   │
 └──────────────────────────────────┬──────────────────────────────────────┘
@@ -53,7 +53,7 @@ NativeLab is a layered application. Each layer talks only to the one beneath it,
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-The frontends never call the engine layer directly — everything goes through `LabEndpoints`. That's how the CLI and the GUI stay in sync without duplicating code.
+The frontends never call the engine layer directly - everything goes through `LabEndpoints`. That's how the CLI and the GUI stay in sync without duplicating code.
 
 ---
 
@@ -86,7 +86,7 @@ endpoints.call_llm(
 )
 ```
 
-**Reverse routing** — frontends or labs request state changes from the host app:
+**Reverse routing** - frontends or labs request state changes from the host app:
 
 ```python
 endpoints.request_load_model("/path/to/model.gguf")
@@ -114,10 +114,10 @@ The local inference engine. Tries `llama-server` first (HTTP streaming, model st
 
 Key methods:
 
-- `load(model_path, ctx, log_cb)` — start server or switch to CLI mode.
-- `create_worker(prompt, n_predict, model_path)` — returns a streaming `QThread` for the GUI.
-- `ensure_server(log_cb)` — bring the server up if currently in CLI mode.
-- `shutdown()` — kill child processes and reset state.
+- `load(model_path, ctx, log_cb)` - start server or switch to CLI mode.
+- `create_worker(prompt, n_predict, model_path)` - returns a streaming `QThread` for the GUI.
+- `ensure_server(log_cb)` - bring the server up if currently in CLI mode.
+- `shutdown()` - kill child processes and reset state.
 
 Status flags: `is_loaded`, `mode`, `status_text`, `server_port`.
 
@@ -125,7 +125,7 @@ Status flags: `is_loaded`, `mode`, `status_text`, `server_port`.
 
 Drop-in replacement that calls a remote API. Same shape (`load`, `create_worker`, `is_loaded`, `status_text`) so pipeline/summarization/reference workers don't care which engine they're running through.
 
-Both engines are read by `LabEndpoints.active_engine()` — API takes priority when loaded, otherwise local.
+Both engines are read by `LabEndpoints.active_engine()` - API takes priority when loaded, otherwise local.
 
 ---
 
@@ -262,7 +262,7 @@ NativeLab/
 - All inference (streaming tokens, summarization, pipeline stages, downloads, MCP probes) runs on `QThread` subclasses with PyQt signals for cross-thread updates. The main thread never blocks.
 - Workers expose `abort()` that flips a flag checked at every iteration for clean cancellation.
 - Summary workers additionally support `request_pause()`, which writes a state snapshot to `paused_jobs/` before exiting.
-- The CLI uses synchronous calls (`endpoints.call_llm`) since it has no UI to keep responsive — same backend, no QThread plumbing.
+- The CLI uses synchronous calls (`endpoints.call_llm`) since it has no UI to keep responsive - same backend, no QThread plumbing.
 
 ---
 

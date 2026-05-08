@@ -63,7 +63,7 @@ class PipelineBuilderTab(QWidget):
             btn.clicked.connect(lambda _, bt=btype: self._add_block(bt))
             return btn
 
-        # ── CHANGED: removed color:{C['txt']} — text color now driven by QSS
+        # ── CHANGED: removed color:{C['txt']} - text color now driven by QSS
         hdr = QLabel("🔗  Pipeline Builder")
         hdr.setObjectName("pipeline_hdr")
         hdr.setStyleSheet("font-size:12px;font-weight:700;")
@@ -104,7 +104,7 @@ class PipelineBuilderTab(QWidget):
         sb_l.addWidget(_sec("LLM LOGIC  (natural language)"))
         _llm_note = QLabel(
             "Conditions & instructions written\n"
-            "in plain English — evaluated by\n"
+            "in plain English - evaluated by\n"
             "the block's attached LLM model.")
         _llm_note.setObjectName("txt3_block")
         sb_l.addWidget(_llm_note)
@@ -220,7 +220,7 @@ class PipelineBuilderTab(QWidget):
         ]
         for col, txt in legend_items:
             lbl = QLabel(txt)
-            # ── CHANGED: removed background:{C['bg2']} — background now driven
+            # ── CHANGED: removed background:{C['bg2']} - background now driven
             #    by QSS via objectName. Per-block `col` is semantic (not theme),
             #    so it is kept as an inline color for the text.
             lbl.setObjectName("legend_pill")
@@ -284,7 +284,7 @@ class PipelineBuilderTab(QWidget):
         rp_l.setSpacing(7)
 
         exec_hdr_row = QHBoxLayout(); exec_hdr_row.setSpacing(6)
-        # ── CHANGED: removed color:{C['txt']} — text color now driven by QSS
+        # ── CHANGED: removed color:{C['txt']} - text color now driven by QSS
         exec_hdr = QLabel("▶  Execute Pipeline")
         exec_hdr.setObjectName("pipeline_hdr")
         exec_hdr.setStyleSheet("font-size:12px;font-weight:700;")
@@ -300,7 +300,7 @@ class PipelineBuilderTab(QWidget):
         exec_hdr_row.addWidget(btn_manual)
         rp_l.addLayout(exec_hdr_row)
 
-        # Server status badge — state-driven via QSS property, not inline color
+        # Server status badge - state-driven via QSS property, not inline color
         self.server_badge = QLabel("⚪  Engine status unknown")
         self.server_badge.setObjectName("status_badge")
         self.server_badge.setProperty("state", "idle")
@@ -309,7 +309,7 @@ class PipelineBuilderTab(QWidget):
         self._badge_timer.timeout.connect(self._update_server_badge)
         self._badge_timer.start(2500)
 
-        # ── CHANGED: removed color:{C['txt2']} — objectName drives the color
+        # ── CHANGED: removed color:{C['txt2']} - objectName drives the color
         input_lbl = QLabel("Input text:")
         input_lbl.setObjectName("txt2")
         input_lbl.setStyleSheet("font-size:11px;")
@@ -512,7 +512,7 @@ class PipelineBuilderTab(QWidget):
             self.server_badge.setText(f"🟢  Server · port {eng.server_port}")
             self.server_badge.setProperty("state", "ok")
         else:
-            self.server_badge.setText("🟡  CLI mode — will switch on run")
+            self.server_badge.setText("🟡  CLI mode - will switch on run")
             self.server_badge.setProperty("state", "warn")
         self.server_badge.style().unpolish(self.server_badge)
         self.server_badge.style().polish(self.server_badge)
@@ -604,7 +604,7 @@ class PipelineBuilderTab(QWidget):
         # Add one pill per relevant block
         _pill_blocks = [b for b in self.canvas.blocks if b.btype in _PILL_BTYPES]
         if not _pill_blocks:
-            _empty = QLabel("No model or logic blocks yet — drag from sidebar or click buttons")
+            _empty = QLabel("No model or logic blocks yet - drag from sidebar or click buttons")
             _empty.setObjectName("txt3_block")
             _empty.setStyleSheet("padding:2px 6px;")
             self._pill_layout.insertWidget(0, _empty)
@@ -698,7 +698,7 @@ class PipelineBuilderTab(QWidget):
     def _validate(self) -> Optional[str]:
         blocks = self.canvas.blocks
         if not blocks:
-            return "Canvas is empty — add blocks first."
+            return "Canvas is empty - add blocks first."
         if not any(b.btype == PipelineBlockType.INPUT for b in blocks):
             return "Pipeline needs at least one ▶ INPUT block."
         if not any(b.btype == PipelineBlockType.OUTPUT for b in blocks):

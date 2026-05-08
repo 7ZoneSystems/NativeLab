@@ -2,9 +2,9 @@
 
 Order of preference (whichever is installed first wins):
 
-  1. `pyflakes`  — fast, no config
-  2. `flake8`    — broader checks
-  3. `pylint`    — full static analysis
+  1. `pyflakes`  - fast, no config
+  2. `flake8`    - broader checks
+  3. `pylint`    - full static analysis
 
 Falls back to `python -m py_compile` for raw syntax checks if no linter is
 available. Always supplements with `compile()` to catch syntax errors that
@@ -87,7 +87,7 @@ def lint_paths(paths: List[str]) -> int:
         result = lint_file(path)
         header = f"[{result['linter']}]  {path}"
         if result["ok"]:
-            print(f"\033[32m✓\033[0m  {header}  — clean")
+            print(f"\033[32m✓\033[0m  {header}  - clean")
             continue
         overall = 1
         print(f"\033[33m⚠\033[0m  {header}")

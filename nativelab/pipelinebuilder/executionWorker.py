@@ -6,7 +6,7 @@ from .pipblck import PipelineBlock
 class PipelineExecutionWorker(QThread):
     """
     Sequentially executes a validated pipeline graph.
-    SERVER MODE ONLY — refuses to run if model cannot be started as a server.
+    SERVER MODE ONLY - refuses to run if model cannot be started as a server.
     Retries server startup up to _SERVER_RETRIES times before aborting.
     """
     step_started      = pyqtSignal(int, str)     # (block_id, label)
@@ -75,7 +75,7 @@ class PipelineExecutionWorker(QThread):
                     self.log_msg.emit(
                         f"◈  '{b.label}' injected prompt "
                         f"({'above' if inter_position == 'above' else 'below'} output) "
-                        f"— {len(current_text):,} chars total")
+                        f"- {len(current_text):,} chars total")
                 else:
                     current_text = context
 
@@ -212,7 +212,7 @@ class PipelineExecutionWorker(QThread):
                             queue.append((conn.to_block_id, current_text))
                 if not _matched:
                     self.log_msg.emit(
-                        f"⚠️  SWITCH '{b.label}': no arm matched key '{switch_key}' — dropped.")
+                        f"⚠️  SWITCH '{b.label}': no arm matched key '{switch_key}' - dropped.")
                 continue
 
             elif b.btype == PipelineBlockType.FILTER:
@@ -236,7 +236,7 @@ class PipelineExecutionWorker(QThread):
                     current_text = context
                     self.step_done.emit(bid, current_text)
                 else:
-                    self.log_msg.emit(f"⊘  FILTER '{b.label}': DROPPED — pipeline stopped here.")
+                    self.log_msg.emit(f"⊘  FILTER '{b.label}': DROPPED - pipeline stopped here.")
                     self.pipeline_done.emit(
                         __import__("json").dumps(
                             {"text": f"[FILTER DROPPED]\n\nCondition '{cond}' was False.\nOriginal text:\n{context}",
@@ -268,7 +268,7 @@ class PipelineExecutionWorker(QThread):
                     else:
                         current_text = context
                 except Exception as _e:
-                    self.log_msg.emit(f"⚠️  TRANSFORM error: {_e} — passing unchanged")
+                    self.log_msg.emit(f"⚠️  TRANSFORM error: {_e} - passing unchanged")
                     current_text = context
                 self.log_msg.emit(
                     f"⟲  TRANSFORM '{b.label}': {ttype} → {len(current_text):,} chars")
@@ -415,7 +415,7 @@ class PipelineExecutionWorker(QThread):
                             queue.append((conn.to_block_id, current_text))
                 if not _matched_any:
                     self.log_msg.emit(
-                        f"⚠️  LLM-SWITCH '{b.label}': no arm matched '{_match}' — dropped")
+                        f"⚠️  LLM-SWITCH '{b.label}': no arm matched '{_match}' - dropped")
                 continue
 
             elif b.btype == PipelineBlockType.LLM_FILTER:
@@ -445,7 +445,7 @@ class PipelineExecutionWorker(QThread):
                     self.step_done.emit(bid, current_text)
                 else:
                     self.log_msg.emit(
-                        f"🧠  LLM-FILTER '{b.label}': STOPPED — model said: {raw[:80]}")
+                        f"🧠  LLM-FILTER '{b.label}': STOPPED - model said: {raw[:80]}")
                     self.pipeline_done.emit(
                         __import__("json").dumps({
                             "text": (
@@ -466,7 +466,7 @@ class PipelineExecutionWorker(QThread):
                 system = (
                     "You are a precise text transformation assistant. "
                     "Follow the user's instruction exactly. "
-                    "Output ONLY the transformed text — no preamble, no explanation, "
+                    "Output ONLY the transformed text - no preamble, no explanation, "
                     "no 'Here is the result:', just the transformed content itself."
                 )
                 user_prompt = (
@@ -617,11 +617,11 @@ class PipelineExecutionWorker(QThread):
             ok = eng.ensure_server(log_cb=lambda m: self.log_msg.emit(m))
             if ok and eng.mode == "server":
                 self.log_msg.emit(
-                    f"🟢  Server mode confirmed — port {eng.server_port}")
+                    f"🟢  Server mode confirmed - port {eng.server_port}")
                 return True
             if attempt < self._SERVER_RETRIES:
                 self.log_msg.emit(
-                    f"⏳  Not ready — waiting {self._SERVER_RETRY_S}s before retry…")
+                    f"⏳  Not ready - waiting {self._SERVER_RETRY_S}s before retry…")
                 for _ in range(self._SERVER_RETRY_S * 10):
                     if self._abort:
                         return False
@@ -766,7 +766,7 @@ class PipelineExecutionWorker(QThread):
         passthru   = bool(meta.get("llm_passthrough_on_err", False))
 
         if not model_path or not Path(model_path).exists():
-            msg = f"❌  LLM block '{b.label}': model not found — {model_path}"
+            msg = f"❌  LLM block '{b.label}': model not found - {model_path}"
             self.log_msg.emit(msg)
             if passthru:
                 self.log_msg.emit(f"⚠️  '{b.label}': passthrough-on-error → continuing unchanged")
@@ -795,7 +795,7 @@ class PipelineExecutionWorker(QThread):
     def _run_reference(self, b: PipelineBlock, context: str) -> str:
         text = b.metadata.get("ref_text", "")
         if not text:
-            self.log_msg.emit(f"⚠️  Reference '{b.label}' has no text — passing unchanged.")
+            self.log_msg.emit(f"⚠️  Reference '{b.label}' has no text - passing unchanged.")
             return context
         name = b.metadata.get("ref_name", b.label)
         self.log_msg.emit(f"📎  Injecting reference '{name}' ({len(text):,} chars)")
@@ -809,7 +809,7 @@ class PipelineExecutionWorker(QThread):
     def _run_knowledge(self, b: PipelineBlock, context: str) -> str:
         text = b.metadata.get("knowledge_text", "")
         if not text:
-            self.log_msg.emit(f"⚠️  Knowledge '{b.label}' has no text — passing unchanged.")
+            self.log_msg.emit(f"⚠️  Knowledge '{b.label}' has no text - passing unchanged.")
             return context
         self.log_msg.emit(f"💡  Injecting knowledge ({len(text):,} chars)")
         return (
@@ -840,7 +840,7 @@ class PipelineExecutionWorker(QThread):
         pdf_role = b.metadata.get("pdf_role", "reference")   # "reference" | "main"
         self.log_msg.emit(
             f"📄  PDF loaded: {fname} ({len(pdf_text):,} chars) "
-            f"— role: {pdf_role.upper()}")
+            f"- role: {pdf_role.upper()}")
 
         # ── Summarise large PDFs ──────────────────────────────────────────────
         LIMIT = 4500
@@ -908,7 +908,7 @@ class PipelineExecutionWorker(QThread):
             prompt = (
                 fam.bos + fam.user_prefix +
                 f"Summarise this document section concisely. "
-                f"File: '{fname}' — Section {i+1}/{len(chunks)}\n\n{chunk}" +
+                f"File: '{fname}' - Section {i+1}/{len(chunks)}\n\n{chunk}" +
                 fam.user_suffix + fam.assistant_prefix
             )
             if eng and eng.mode == "server":

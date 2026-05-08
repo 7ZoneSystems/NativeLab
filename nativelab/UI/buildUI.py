@@ -10,7 +10,7 @@ def build_qss(c: dict) -> str:
 
     return f"""
 /* ═══════════════════════════════════════════════════
-   Native Lab Pro — {"Cream & Sage Light" if _is_light else "Studio Dark"}
+   Native Lab Pro - {"Cream & Sage Light" if _is_light else "Studio Dark"}
    ═══════════════════════════════════════════════════ */
 
 QMainWindow, QDialog {{
@@ -850,7 +850,7 @@ QTextEdit#labs_preview_te:focus {{
 
 API_MODELS_QSS_BLOCK = """
 /* ══════════════════════════════════════════════════════
-   ApiModelsTab — objectName-based styles
+   ApiModelsTab - objectName-based styles
    ══════════════════════════════════════════════════════ */
 
 /* Section header labels  (e.g. "NEW CONNECTION", "SAVED CONFIGS") */
@@ -887,7 +887,7 @@ QLineEdit#input:disabled {{
     background:{c['bg3']};
 }}
 
-/* Multi-line text edit (system-prompt area) — inherits global QTextEdit,
+/* Multi-line text edit (system-prompt area) - inherits global QTextEdit,
    but this tightens the border-radius to match the compact card style */
 QWidget#card_inner QTextEdit {{
     background:{c['bg1']};
@@ -1011,7 +1011,7 @@ QScrollArea#card_scroll QScrollBar::sub-line:vertical {{
     height:0px;
 }}
 
-/* Status label  — state property drives color */
+/* Status label  - state property drives color */
 QLabel#api_status {{
     font-size:11px;
     background:transparent;
@@ -1045,7 +1045,7 @@ QLabel#labs_sidebar_hdr {{
     background:transparent;
 }}
  
-/* Nav list — inherits global QListWidget but we tune spacing */
+/* Nav list - inherits global QListWidget but we tune spacing */
 QListWidget#labs_nav {{
     background:transparent;
     border:none;
@@ -1085,7 +1085,7 @@ QLabel#labs_panel_header {{
     background:transparent;
 }}
  
-/* Primary generate button — accent filled */
+/* Primary generate button - accent filled */
 QPushButton#labs_generate_btn {{
     background:{c['acc']};
     color:#ffffff;
@@ -1110,7 +1110,7 @@ QPushButton#labs_generate_btn:disabled {{
     border:1px solid {c['bdr']};
 }}
  
-/* Live-preview text area — monospaced, subtle surface */
+/* Live-preview text area - monospaced, subtle surface */
 QTextEdit#labs_preview_te {{
     background:{c['surface']};
     color:{c['txt']};
