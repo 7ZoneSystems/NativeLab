@@ -24,6 +24,7 @@ from nativelab.components.components_global import *
 from nativelab.core.engine_global import *
 from nativelab.codeparser.codeparser_global import *
 from nativelab.pipelinebuilder.pipe_global import *
+from nativelab.labs import LabEndpoints, LabsTab
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
     log      = pyqtSignal(str, str)
@@ -53,6 +54,7 @@ class MainWindow(QMainWindow):
         self.resize(1300, 840)
 
         self.engine   = LlamaEngine()
+        self._lab_endpoints = LabEndpoints(self)
         self.sessions: Dict[str, Session] = {}
         self.active:   Optional[Session]  = None
 
@@ -332,6 +334,7 @@ class MainWindow(QMainWindow):
         # ── Labs tab ──
         self.labs_tab = LabsTab()
         self.tabs.addTab(self.labs_tab, "⌬  Labs")
+        self._wire_lab_endpoints()
         
     # ── models tab ───────────────────────────────────────────────────────────
 
@@ -807,6 +810,7 @@ class MainWindow(QMainWindow):
         self._refresh_engine_status()
         self._on_parallel_settings_changed()
         self._log("INFO", "All engines unloaded.")
+        self._notify_labs()
 
     def _refresh_model_list(self):
         self.model_list.clear()
@@ -1084,6 +1088,7 @@ class MainWindow(QMainWindow):
         # Keep pipeline tab's engine reference up-to-date
         if hasattr(self, "pipeline_tab"):
             self.pipeline_tab.update_engine(self.engine)
+        self._notify_labs()
 
     def _reload_model(self):
         self.engine.shutdown()
@@ -1154,6 +1159,57 @@ class MainWindow(QMainWindow):
         # Update pipeline tab to use api engine for pipeline blocks
         if hasattr(self, "pipeline_tab"):
             self.pipeline_tab.update_engine(api_engine)
+        self._notify_labs()
+
+    # ── Labs endpoint wiring ──────────────────────────────────────────────────
+
+    def _wire_lab_endpoints(self):
+        """Bind the labs tab to live engine state + reverse-route actions."""
+        ep = self._lab_endpoints
+        ep.bind_engines(
+            llama_provider=lambda: self.engine,
+            api_provider  =lambda: self._api_engine,
+        )
+        ep.bind_reverse_routes(
+            on_context=self._labs_request_context,
+            on_model  =self._labs_request_load_model,
+            on_unload =self._labs_request_unload,
+        )
+        self.labs_tab.set_endpoints(ep)
+
+    def _notify_labs(self):
+        """Emit engine_changed/status_changed so lab panels can refresh."""
+        if hasattr(self, "_lab_endpoints"):
+            self._lab_endpoints.notify_engine_changed()
+
+    def _labs_request_context(self, new_ctx: int) -> bool:
+        """Reverse route: a lab feature asks the host to change ctx."""
+        if not hasattr(self, "ctx_slider"):
+            return False
+        try:
+            self.ctx_slider.setValue(int(new_ctx))
+        except Exception:
+            return False
+        self._apply_new_context()
+        return True
+
+    def _labs_request_load_model(self, model_path: str) -> bool:
+        """Reverse route: a lab feature asks the host to load a model."""
+        if not model_path or not Path(model_path).exists():
+            return False
+        idx = self.input_bar.model_combo.findData(model_path)
+        if idx == -1:
+            self.input_bar.model_combo.addItem(Path(model_path).name, model_path)
+            idx = self.input_bar.model_combo.findData(model_path)
+        self.input_bar.model_combo.setCurrentIndex(idx)
+        self.engine.shutdown()
+        QTimer.singleShot(200, self._start_model_load)
+        return True
+
+    def _labs_request_unload(self) -> None:
+        """Reverse route: a lab feature asks the host to unload the primary engine."""
+        self.engine.shutdown()
+        self._notify_labs()
 
     # ── pipeline-from-chat ────────────────────────────────────────────────────
 
