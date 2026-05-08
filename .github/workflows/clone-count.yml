@@ -1,0 +1,28 @@
+name: Track GitHub clones
+
+# Records daily clone counts to a gist so the README badge can show a live total.
+# Required setup (one time):
+#   1. Create a Personal Access Token (classic) with the `gist` scope.
+#   2. Create a new public gist with one file named `clone.json` (any placeholder content).
+#   3. Add two repository secrets at Settings → Secrets and variables → Actions:
+#        - PERSONAL_TOKEN  →  the PAT from step 1
+#        - GIST_ID         →  the ID portion of the gist URL (the long hash)
+#   4. Replace `REPLACE_WITH_GIST_ID` in README.md with the same gist ID.
+# See SETUP_BADGES.md for screenshots.
+
+on:
+  schedule:
+    # Daily at 00:00 UTC. GitHub clone history is retained for 14 days, so we
+    # need to fetch at least once per fortnight to keep an accurate running total.
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  clones:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update clone count gist
+        uses: MShawon/github-clone-count-badge@v1.4.0
+        with:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_TOKEN }}
+          GIST_ID: ${{ secrets.GIST_ID }}

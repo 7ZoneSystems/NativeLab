@@ -12,7 +12,15 @@
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL_v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](#)
 [![Powered by llama.cpp](https://img.shields.io/badge/powered%20by-llama.cpp-orange)](https://github.com/ggerganov/llama.cpp)
-[![GitHub](https://img.shields.io/badge/source-GitHub-181717?logo=github)](https://github.com/7ZoneSystems/NativeLab)
+
+[![GitHub stars](https://img.shields.io/github/stars/7ZoneSystems/NativeLab?style=social)](https://github.com/7ZoneSystems/NativeLab/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/7ZoneSystems/NativeLab?style=social)](https://github.com/7ZoneSystems/NativeLab/network/members)
+[![GitHub watchers](https://img.shields.io/github/watchers/7ZoneSystems/NativeLab?style=social)](https://github.com/7ZoneSystems/NativeLab/watchers)
+[![Last commit](https://img.shields.io/github/last-commit/7ZoneSystems/NativeLab?logo=github&color=brightgreen)](https://github.com/7ZoneSystems/NativeLab/commits/main)
+[![Issues](https://img.shields.io/github/issues/7ZoneSystems/NativeLab?logo=github)](https://github.com/7ZoneSystems/NativeLab/issues)
+[![Contributors](https://img.shields.io/github/contributors/7ZoneSystems/NativeLab?logo=github)](https://github.com/7ZoneSystems/NativeLab/graphs/contributors)
+<!-- CLONES_BADGE_PLACEHOLDER — replace GIST_ID after running .github/workflows/clone-count.yml. See SETUP_BADGES.md. -->
+[![GitHub clones](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/7ZoneSystems/33a9ac91ae3e3c895eb5d07391b456e3/raw/clone.json&logo=github&label=clones)](https://github.com/7ZoneSystems/NativeLab)
 
 </div>
 

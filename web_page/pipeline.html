@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NativeLab — Visual Pipeline Builder</title>
+  <meta name="description" content="The NativeLab visual pipeline builder: 20+ block types, drag-and-drop canvas, LLM-logic blocks, loops, save/load, and live token streaming per stage." />
+  <link rel="icon" type="image/png" href="../nativelab/icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+
+  <style>
+    /* Page hero override for pipeline */
+    .pipeline-hero { background: var(--ink); border-bottom: 0; color: #fff; }
+    .pipeline-hero .section-label { color: #8a937d; }
+    .pipeline-hero h1 { color: #fff; }
+    .pipeline-hero h1 em { color: var(--gold); }
+    .pipeline-hero .section-intro { color: #9e9b92; }
+    .pipeline-hero a { color: var(--gold); }
+
+    /* ── PIPELINE DEMO ── */
+    #pipeline-demo { background: var(--ink); color: #fff; padding-top: 2rem; }
+    #pipeline-demo .section-label { color: #8a937d; }
+    #pipeline-demo h2 { color: #fff; }
+    #pipeline-demo h2 em { color: var(--gold); }
+    #pipeline-demo .section-intro { color: #9e9b92; }
+
+    .pipeline-demo {
+      display: grid; grid-template-columns: 1.15fr 0.85fr;
+      gap: 4rem; align-items: center; margin-top: 3.5rem;
+    }
+    @media (max-width: 860px) { .pipeline-demo { grid-template-columns: 1fr; gap: 2.5rem; } }
+
+    .pipeline-canvas-mock {
+      background: #0d0d1c; border: 1px solid #252340;
+      border-radius: 14px; padding: 2rem 1.8rem;
+    }
+    .canvas-topbar {
+      display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.8rem;
+    }
+    .canvas-title { font-family: 'DM Mono', monospace; font-size: 0.68rem; color: #3a3a55; letter-spacing: 0.1em; }
+    .canvas-status {
+      display: flex; align-items: center; gap: 0.4rem;
+      font-size: 0.68rem; color: #34d399; font-family: 'DM Mono', monospace;
+    }
+    .canvas-status::before { content: ''; width: 6px; height: 6px; background: #34d399; border-radius: 50%; }
+
+    .pipe-flow {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0; flex-wrap: nowrap; margin-bottom: 1.8rem; overflow-x: auto;
+    }
+    .pipe-node { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+    .pipe-node-box {
+      width: 68px; height: 52px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 2px;
+      font-family: 'DM Mono', monospace; font-size: 0.56rem; font-weight: 500;
+      border: 1.5px solid; transition: transform 0.2s; cursor: default;
+    }
+    .pipe-node-box:hover { transform: translateY(-2px); }
+    .pipe-node-box .nicon { font-size: 0.9rem; }
+    .pipe-node-lbl { font-size: 0.6rem; color: #3a3a55; font-family: 'DM Mono', monospace; }
+    .pipe-arrow { flex-shrink: 0; color: #252340; font-size: 0.9rem; padding: 0 3px; display: flex; align-items: center; margin-bottom: 18px; }
+    .pipe-arrow.loop-col { color: #22d3ee; font-size: 0.8rem; }
+
+    .pn-input  { background: rgba(52,211,153,0.08);  border-color: #34d399; color: #34d399; }
+    .pn-ref    { background: rgba(167,139,250,0.08); border-color: #a78bfa; color: #a78bfa; }
+    .pn-model  { background: rgba(34,211,238,0.08);  border-color: #22d3ee; color: #22d3ee; }
+    .pn-inter  { background: rgba(251,191,36,0.08);  border-color: #fbbf24; color: #fbbf24; }
+    .pn-api    { background: rgba(96,165,250,0.08);  border-color: #60a5fa; color: #60a5fa; }
+    .pn-output { background: rgba(248,113,113,0.08); border-color: #f87171; color: #f87171; }
+
+    .pipe-legend {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem;
+      border-top: 1px solid #1a1a30; padding-top: 1.4rem;
+    }
+    .pipe-legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.74rem; color: #555; }
+    .pip-dot { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+    .pipeline-features { display: flex; flex-direction: column; gap: 1.8rem; }
+    .pipe-feat { border-left: 2px solid #1e1e38; padding-left: 1.2rem; transition: border-color 0.2s; }
+    .pipe-feat:hover { border-color: #22d3ee; }
+    .pipe-feat-title { font-weight: 500; font-size: 0.95rem; color: #e8e4d8; margin-bottom: 0.35rem; }
+    .pipe-feat-desc { font-size: 0.85rem; color: #6a6860; line-height: 1.7; font-weight: 300; }
+
+    /* ── BLOCK TYPES GRID ── */
+    #blocks { background: var(--paper); }
+    .blocks-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5px; margin-top: 3rem;
+      background: var(--border); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .block-card { background: var(--paper); padding: 1.6rem 1.4rem; transition: background 0.2s; }
+    .block-card:hover { background: #fff; }
+    .block-card .lbl {
+      font-family: 'DM Mono', monospace; font-size: 0.68rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--sage-lt); margin-bottom: 0.6rem;
+    }
+    .block-card h4 {
+      font-family: 'Instrument Serif', serif; font-size: 1.15rem;
+      color: var(--ink); margin-bottom: 0.5rem;
+    }
+    .block-card p { font-size: 0.84rem; color: var(--dim); line-height: 1.65; font-weight: 300; }
+    .block-card .pills { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.7rem; }
+    .block-pill {
+      font-family: 'DM Mono', monospace; font-size: 0.66rem;
+      background: var(--warm); border: 1px solid var(--border);
+      color: var(--sage); padding: 0.18rem 0.55rem; border-radius: 4px;
+    }
+    .block-pill.exclusive { background: #f5edcf; color: #8a6d1a; border-color: #ead7a7; }
+
+    /* ── EXAMPLE FLOWS ── */
+    #examples { background: var(--warm); }
+    .ex-grid {
+      display: grid; gap: 1.4rem; margin-top: 2.5rem;
+    }
+    .ex-row {
+      background: var(--paper); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1.7rem 1.8rem;
+      display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.8rem; align-items: center;
+    }
+    @media (max-width: 760px) { .ex-row { grid-template-columns: 1fr; } }
+    .ex-title { font-family: 'Instrument Serif', serif; font-size: 1.25rem; color: var(--ink); margin-bottom: 0.5rem; }
+    .ex-desc { font-size: 0.88rem; color: var(--dim); font-weight: 300; line-height: 1.7; }
+    .ex-flow {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem;
+      font-family: 'DM Mono', monospace; font-size: 0.7rem;
+    }
+    .ex-pill {
+      padding: 0.32rem 0.7rem; border-radius: 6px;
+      border: 1.5px solid; background: rgba(0,0,0,0.02);
+    }
+    .ex-arrow { color: var(--mist); font-size: 0.9rem; }
+
+    /* ── BENEFITS ── */
+    #benefits { background: var(--ink); color: #fff; }
+    #benefits .section-label { color: #8a937d; }
+    #benefits h2 { color: #fff; }
+    #benefits h2 em { color: var(--gold); }
+    #benefits .section-intro { color: #9e9b92; }
+    .benefit-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 2rem; margin-top: 3rem;
+    }
+    .benefit { border-top: 1px solid #2a2a2a; padding-top: 1.6rem; }
+    .benefit .num {
+      font-family: 'DM Mono', monospace; font-size: 0.7rem;
+      color: var(--gold); margin-bottom: 0.7rem; letter-spacing: 0.08em;
+    }
+    .benefit h4 { font-family: 'Instrument Serif', serif; font-size: 1.2rem; color: #e8e4d8; margin-bottom: 0.5rem; }
+    .benefit p { font-size: 0.88rem; color: #7a7870; line-height: 1.75; font-weight: 300; }
+
+    /* ── CTA ── */
+    #pipe-cta { background: var(--sage); color: #fff; text-align: center; padding: 6rem 5vw; }
+    #pipe-cta .section-label { color: rgba(255,255,255,0.5); }
+    #pipe-cta h2 { color: #fff; }
+    #pipe-cta h2 em { color: var(--gold); }
+    #pipe-cta p { color: rgba(255,255,255,0.7); max-width: 560px; margin: 0 auto 2rem; font-size: 1rem; font-weight: 300; line-height: 1.8; }
+    #pipe-cta .btn-primary { background: #fff; color: var(--sage); border-color: #fff; }
+    #pipe-cta .btn-primary:hover { background: transparent; color: #fff; }
+    #pipe-cta .btn-secondary { color: rgba(255,255,255,0.85); border-color: rgba(255,255,255,0.3); }
+    #pipe-cta .btn-secondary:hover { border-color: #fff; color: #fff; }
+    .pipe-cta-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav>
+  <a class="nav-logo" href="../index.html"><img src="../nativelab/icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
+  <div class="nav-links">
+    <a href="features.html">Features</a>
+    <a href="pipeline.html">Pipelines</a>
+    <a href="compare.html">vs. The Field</a>
+    <a href="setup.html">Setup</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="nav-cta nav-keep">★ Star</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="page-hero pipeline-hero">
+  <div class="page-hero-inner">
+    <p class="section-label">Visual Pipeline Builder</p>
+    <h1>Chain models together<br><em>like building blocks.</em></h1>
+    <p class="section-intro">No code, no config files. Draw a pipeline on a canvas, hit Run, and watch each stage stream its output live. The pipeline builder is the feature most users come to NativeLab for — and the one with the widest gap to other local-LLM tools. <a href="compare.html">See the comparison →</a></p>
+    <div class="page-hero-meta">
+      <span style="color:#8a937d; font-size:0.85rem;">20+ block types · 5 LLM-logic blocks · save/load · loop-aware · live streaming</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── DEMO ── -->
+<section id="pipeline-demo">
+  <div class="pipeline-demo">
+    <div>
+      <div class="pipeline-canvas-mock">
+        <div class="canvas-topbar">
+          <span class="canvas-title">PIPELINE CANVAS</span>
+          <span class="canvas-status">server ready</span>
+        </div>
+        <div class="pipe-flow">
+          <div class="pipe-node">
+            <div class="pipe-node-box pn-input"><span class="nicon">▶</span>INPUT</div>
+            <span class="pipe-node-lbl">your prompt</span>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-node">
+            <div class="pipe-node-box pn-ref"><span class="nicon">📎</span>REF.</div>
+            <span class="pipe-node-lbl">inject docs</span>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-node">
+            <div class="pipe-node-box pn-model"><span class="nicon">🤖</span>MODEL</div>
+            <span class="pipe-node-lbl">reason</span>
+          </div>
+          <div class="pipe-arrow loop-col">↻×2</div>
+          <div class="pipe-node">
+            <div class="pipe-node-box pn-inter"><span class="nicon">◈</span>INTER.</div>
+            <span class="pipe-node-lbl">pass result</span>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-node">
+            <div class="pipe-node-box pn-api"><span class="nicon">🌐</span>API</div>
+            <span class="pipe-node-lbl">cloud model</span>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-node">
+            <div class="pipe-node-box pn-output"><span class="nicon">■</span>OUTPUT</div>
+            <span class="pipe-node-lbl">final answer</span>
+          </div>
+        </div>
+        <div class="pipe-legend">
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#34d399;"></div>Input — entry point</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#22d3ee;"></div>Model — any loaded engine</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#fbbf24;"></div>Intermediate — carry context</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#f87171;"></div>Output — final result</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#a78bfa;"></div>Reference — inject text or PDF</div>
+          <div class="pipe-legend-item"><div class="pip-dot" style="background:#60a5fa;"></div>API Model — any cloud endpoint</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pipeline-features">
+      <div class="pipe-feat">
+        <div class="pipe-feat-title">Draw connections by hand</div>
+        <div class="pipe-feat-desc">Drag from any port dot on a block to any port on another. Connections snap as smooth Bézier curves. Delete with a click. It feels like a whiteboard, not a settings panel.</div>
+      </div>
+      <div class="pipe-feat">
+        <div class="pipe-feat-title">Loops that repeat automatically</div>
+        <div class="pipe-feat-desc">Connect a block back to an earlier one and NativeLab detects the loop. Set how many times it repeats — the chain runs that many passes, accumulating context each time. Shown as a cyan ↻×N arrow.</div>
+      </div>
+      <div class="pipe-feat">
+        <div class="pipe-feat-title">Every stage streams live</div>
+        <div class="pipe-feat-desc">As the pipeline runs, each Intermediate block gets its own live tab in the right panel. You see every model's tokens arriving in real time. No black boxes, no waiting for a final dump.</div>
+      </div>
+      <div class="pipe-feat">
+        <div class="pipe-feat-title">Save and reload any pipeline</div>
+        <div class="pipe-feat-desc">Name a pipeline and save it. All blocks, connections, and model assignments are stored as a small JSON file on your machine. Reload with one click — everything is exactly as you left it.</div>
+      </div>
+      <div class="pipe-feat">
+        <div class="pipe-feat-title">Run a pipeline from chat</div>
+        <div class="pipe-feat-desc">Hit the 🔗 Pipeline button next to Send. Pick a saved pipeline and it runs on your current message without leaving chat. Each stage appears as its own labelled bubble in the conversation.</div>
+      </div>
+      <div class="pipe-feat">
+        <div class="pipe-feat-title">Validation before run</div>
+        <div class="pipe-feat-desc">The canvas refuses to run an empty pipeline, catches direct MODEL → MODEL connections, and warns about unreachable blocks before anything starts.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── BLOCKS ── -->
+<section id="blocks">
+  <p class="section-label">The block catalogue</p>
+  <h2>20+ block types,<br><em>five categories.</em></h2>
+  <p class="section-intro">Pipelines are built from blocks you drag onto the canvas. Each block has a clear job — and the LLM-logic blocks are where NativeLab pulls ahead of every other local-LLM tool.</p>
+
+  <div class="blocks-grid">
+
+    <div class="block-card">
+      <div class="lbl">I/O</div>
+      <h4>Input · Output · Model · Intermediate</h4>
+      <p>The four core blocks. Every pipeline starts with an Input and ends with an Output. Model blocks run any loaded engine. Intermediate blocks stream their own live output tab.</p>
+      <div class="pills">
+        <span class="block-pill">live streaming</span>
+        <span class="block-pill">required</span>
+      </div>
+    </div>
+
+    <div class="block-card">
+      <div class="lbl">Context</div>
+      <h4>Reference · Knowledge · PDF</h4>
+      <p>Inject documents into the prompt before it hits the model. PDF block auto-summarises large files, Reference uses your session library, Knowledge is a free-form text panel.</p>
+      <div class="pills">
+        <span class="block-pill">RAG</span>
+        <span class="block-pill">auto-summarise</span>
+      </div>
+    </div>
+
+    <div class="block-card">
+      <div class="lbl">Logic — Python</div>
+      <h4>IF/ELSE · SWITCH · FILTER · TRANSFORM</h4>
+      <p>Sandboxed Python expressions route the pipeline. IF returns a boolean, SWITCH returns a key, FILTER gates the flow, TRANSFORM rewrites context (prefix, suffix, replace, upper, lower, strip, truncate).</p>
+      <div class="pills">
+        <span class="block-pill">no imports</span>
+        <span class="block-pill">no fs/network</span>
+      </div>
+    </div>
+
+    <div class="block-card">
+      <div class="lbl">Logic — Flow</div>
+      <h4>MERGE · SPLIT · Custom Code</h4>
+      <p>MERGE joins multiple incoming connections (concat, prepend, append, JSON array). SPLIT broadcasts identical context to all outgoing edges. Custom Code is a sandboxed Python editor with a live syntax check and a test runner.</p>
+      <div class="pills">
+        <span class="block-pill">multi-input</span>
+        <span class="block-pill">multi-output</span>
+      </div>
+    </div>
+
+    <div class="block-card">
+      <div class="lbl">LLM Logic</div>
+      <h4>LLM-IF · LLM-SWITCH · LLM-FILTER</h4>
+      <p>The model itself decides where the pipeline goes. LLM-IF asks a YES/NO question and routes accordingly. LLM-SWITCH classifies into named arms. LLM-FILTER lets the model gate the flow with a structured explanation.</p>
+      <div class="pills">
+        <span class="block-pill exclusive">★ Exclusive</span>
+        <span class="block-pill">agentic</span>
+      </div>
+    </div>
+
+    <div class="block-card">
+      <div class="lbl">LLM Logic</div>
+      <h4>LLM-TRANSFORM · LLM-SCORE</h4>
+      <p>LLM-TRANSFORM has the model rewrite context with an output-only system prompt. LLM-SCORE rates 1–10 and routes to LOW / MID / HIGH arms — the score arm receives the raw numeric value downstream.</p>
+      <div class="pills">
+        <span class="block-pill exclusive">★ Exclusive</span>
+        <span class="block-pill">numeric routing</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── EXAMPLE FLOWS ── -->
+<section id="examples">
+  <p class="section-label">What you build with it</p>
+  <h2>A few example pipelines</h2>
+  <p class="section-intro">Three patterns that show why the visual builder beats hand-rolled scripts. Each is a few minutes of dragging blocks onto the canvas — no config files, no glue code.</p>
+
+  <div class="ex-grid">
+
+    <div class="ex-row">
+      <div>
+        <div class="ex-title">Reasoning → Code</div>
+        <div class="ex-desc">A reasoning model thinks through architecture first, then a coding model writes the implementation. Reasoning trace stays visible in the chat — nothing hidden.</div>
+      </div>
+      <div class="ex-flow">
+        <span class="ex-pill" style="border-color:#3d5a47;color:#3d5a47;">INPUT</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#22d3ee;color:#22d3ee;">REASONING MODEL</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#fbbf24;color:#8a6d1a;">INTER</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#22d3ee;color:#22d3ee;">CODING MODEL</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#b85c38;color:#b85c38;">OUTPUT</span>
+      </div>
+    </div>
+
+    <div class="ex-row">
+      <div>
+        <div class="ex-title">Multi-PDF synthesis</div>
+        <div class="ex-desc">Read a folder of PDFs, summarise each one, then synthesise themes across all of them. Pause/resume mid-job — long documents don't have to finish in one session.</div>
+      </div>
+      <div class="ex-flow">
+        <span class="ex-pill" style="border-color:#3d5a47;color:#3d5a47;">INPUT</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#a78bfa;color:#a78bfa;">PDF (each file)</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#22d3ee;color:#22d3ee;">SUMMARIZE</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#fbbf24;color:#8a6d1a;">MERGE</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#22d3ee;color:#22d3ee;">CONSOLIDATE</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#b85c38;color:#b85c38;">OUTPUT</span>
+      </div>
+    </div>
+
+    <div class="ex-row">
+      <div>
+        <div class="ex-title">Agentic LLM router</div>
+        <div class="ex-desc">An LLM-SWITCH classifies the user's intent, then routes to a different downstream model — fast model for chat, reasoning model for analysis, coding model for code. All visual, no Python required.</div>
+      </div>
+      <div class="ex-flow">
+        <span class="ex-pill" style="border-color:#3d5a47;color:#3d5a47;">INPUT</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#fbbf24;color:#8a6d1a;">LLM-SWITCH</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#22d3ee;color:#22d3ee;">CHAT / REASON / CODE</span>
+        <span class="ex-arrow">→</span>
+        <span class="ex-pill" style="border-color:#b85c38;color:#b85c38;">OUTPUT</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── BENEFITS ── -->
+<section id="benefits">
+  <p class="section-label">Why this beats hand-rolled scripts</p>
+  <h2>Pipelines you can read,<br><em>without reading code.</em></h2>
+  <p class="section-intro">A canvas of blocks shows what's happening at a glance. A Python script doesn't. That difference is why pipelines ship — and why they get reused across teammates and projects.</p>
+
+  <div class="benefit-grid">
+    <div class="benefit">
+      <div class="num">01 — VISIBILITY</div>
+      <h4>The pipeline is the diagram</h4>
+      <p>Every stage is on screen. A new teammate understands what a pipeline does in 10 seconds — no reading code, no chasing function calls. Saved pipelines are JSON, but the canvas is the source of truth.</p>
+    </div>
+    <div class="benefit">
+      <div class="num">02 — DEBUGGABILITY</div>
+      <h4>Every stage streams</h4>
+      <p>Each Intermediate block gets its own live tab. When something looks wrong, you see exactly which stage produced it — and you see it as the tokens arrive, not after the whole pipeline finishes.</p>
+    </div>
+    <div class="benefit">
+      <div class="num">03 — REUSABILITY</div>
+      <h4>Save once, run anywhere</h4>
+      <p>Saved pipelines are small JSON files. Drop one in <code>~/.nativelab/pipelines/</code> and it appears in every chat session. Run from chat without leaving the conversation.</p>
+    </div>
+    <div class="benefit">
+      <div class="num">04 — COMPOSITION</div>
+      <h4>Local + cloud, in one flow</h4>
+      <p>Use a fast cloud model for the broad strokes and a private local model for the sensitive parts — all in the same pipeline. The API block looks identical to the Model block, so cloud and local compose freely.</p>
+    </div>
+    <div class="benefit">
+      <div class="num">05 — AGENTIC</div>
+      <h4>The model can route the flow</h4>
+      <p>LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-SCORE put the model itself in the routing path. You build agentic behaviour visually, without writing prompt-orchestration code.</p>
+    </div>
+    <div class="benefit">
+      <div class="num">06 — UNIQUE</div>
+      <h4>No equivalent in the field</h4>
+      <p>LM Studio has a single chat surface. Jan does API multiplexing. AnythingLLM does RAG. None of them have a canvas-based pipeline editor with LLM-logic blocks. <a href="compare.html" style="color:var(--gold);">See the comparison →</a></p>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<section id="pipe-cta">
+  <p class="section-label">Try it yourself</p>
+  <h2>Install once.<br><em>Build pipelines anywhere.</em></h2>
+  <p>Pipelines work in both the desktop GUI and the CLI. Install with one pip command, drop in a GGUF model, and start wiring blocks.</p>
+  <div class="pipe-cta-actions">
+    <a href="https://pypi.org/project/nativelab/" target="_blank" class="btn-primary">↓ &nbsp;pip install nativelab</a>
+    <a href="features.html" class="btn-secondary">See all features →</a>
+    <a href="compare.html" class="btn-secondary">vs. The Field →</a>
+  </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <span class="footer-brand">NativeLab</span>
+  <span>Open source · AGPL v3 · Maintained by 7ZoneSystems &amp; contributors</span>
+  <div class="footer-links">
+    <a href="../index.html">Home</a>
+    <a href="features.html">Features</a>
+    <a href="compare.html">vs. The Field</a>
+    <a href="setup.html">Setup</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+    <a href="https://pypi.org/project/nativelab/" target="_blank">PyPI</a>
+    <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank">Issues</a>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>
