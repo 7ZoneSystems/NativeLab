@@ -6,6 +6,7 @@ NativeLab is currently in early development. Only the latest version on main is 
 
 | Version | Supported |
 | ------- | --------- |
+| =>v0.2.5| yes       |
 | latest  | yes       |
 | older   | no        |
 
