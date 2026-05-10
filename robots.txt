@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://7zonesystems.github.io/NativeLab/sitemap.xml
+
+# Ignore repository/internal junk
+Disallow: /.git/
+Disallow: /.github/
+Disallow: /__pycache__/
+Disallow: /*.pyc$
+Disallow: /venv/
+Disallow: /.venv/
+Disallow: /env/
+Disallow: /build/
+Disallow: /dist/
+
+# Allow source browsing
+Allow: *.py
+Allow: *.md
+Allow: *.html
