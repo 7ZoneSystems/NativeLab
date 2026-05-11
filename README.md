@@ -43,7 +43,7 @@ nativelab --cli      # terminal client (interactive setup → chat)
 - 🧠  **Auto family detection** - 20+ model families recognised from filename; correct prompt template applied.
 - 📦  **HuggingFace downloader** - Search any GGUF repo and pull files without leaving the app.
 
-> See [docs/features.md](docs/features.md) for the full v0.2.7 changelog and [docs/architecture.md](docs/architecture.md) for the layered design.
+> See [docs/features.md](docs/features.md) for the full v0.2.8 changelog and [docs/architecture.md](docs/architecture.md) for the layered design.
 
 ---
 
@@ -56,7 +56,7 @@ The docs are split into short, focused files so you can jump straight to what yo
 | [docs/README.md](docs/README.md) | Documentation index with one-line summaries. |
 | [docs/installation.md](docs/installation.md) | Install, llama.cpp setup, first-time workspace. |
 | [docs/cli.md](docs/cli.md) | `nativelab --cli` - quick reference + link to the beginner guide. |
-| [docs/features.md](docs/features.md) | What's new in v0.2.7 + the full feature catalogue. |
+| [docs/features.md](docs/features.md) | What's new in v0.2.8 + the full feature catalogue. |
 | [docs/architecture.md](docs/architecture.md) | Layered architecture, project structure, data flow. |
 | [docs/labs.md](docs/labs.md) | The Labs experimentation layer + how to add a feature. |
 | [docs/models.md](docs/models.md) | Model registry, families, quantization, API models. |

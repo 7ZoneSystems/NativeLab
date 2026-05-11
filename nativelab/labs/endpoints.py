@@ -246,9 +246,22 @@ class LabEndpoints(QObject):
         conn.request("POST", "/completion", body,
                      {"Content-Type": "application/json"})
         r = conn.getresponse()
+
+        raw = r.read().decode("utf-8", errors="replace")
+
         if r.status != 200:
-            raise RuntimeError(f"llama-server HTTP {r.status}")
-        d = json.loads(r.read().decode("utf-8", errors="replace"))
+            raise RuntimeError(
+                f"llama-server HTTP {r.status}\n\n"
+                f"Response body:\n{raw}"
+            )
+
+        try:
+            d = json.loads(raw)
+        except Exception:
+            raise RuntimeError(
+                f"Invalid JSON returned by llama-server:\n\n{raw}"
+            )
+
         return (d.get("content") or "").strip()
 
     def _call_cli(self, eng, messages, n_predict,
