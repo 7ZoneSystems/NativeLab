@@ -26,6 +26,7 @@ from nativelab.codeparser.codeparser_global import *
 from nativelab.pipelinebuilder.pipe_global import *
 from nativelab.UI.icons import add_menu_action, icon, icon_size, refresh_widget_icons, role_icon, set_button_icon, set_label_icon, status_icon, set_status_label
 from nativelab.labs import LabEndpoints, LabsTab
+from nativelab.integrations import IntegrationEndpoints, IntegrationsTab
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
     log      = pyqtSignal(str, str)
@@ -73,6 +74,7 @@ class MainWindow(QMainWindow):
 
         self.engine   = LlamaEngine()
         self._lab_endpoints = LabEndpoints(self)
+        self._integration_endpoints = IntegrationEndpoints(self._lab_endpoints)
         self.sessions: Dict[str, Session] = {}
         self.active:   Optional[Session]  = None
 
@@ -339,6 +341,10 @@ class MainWindow(QMainWindow):
         # ── MCP tab ──
         self.mcp_tab = McpTab()
         self.tabs.addTab(self.mcp_tab, icon("mcp"), "MCP")
+
+        # ── Integrations tab ──
+        self.integrations_tab = IntegrationsTab(self._integration_endpoints)
+        self.tabs.addTab(self.integrations_tab, icon("integrations"), "Integrations")
 
         # ── Logs tab ──
         self.log_console = LogConsole()
@@ -1358,6 +1364,13 @@ class MainWindow(QMainWindow):
         )
         ep.log_msg.connect(self.log_console.log)
         self.labs_tab.set_endpoints(ep)
+        self._integration_endpoints.bind_lab_endpoints(ep)
+        if hasattr(self, "integrations_tab"):
+            self.integrations_tab.set_endpoints(self._integration_endpoints)
+            try:
+                ep.engine_changed.connect(self.integrations_tab.refresh)
+            except Exception:
+                pass
 
     def _notify_labs(self):
         """Emit engine_changed/status_changed so lab panels can refresh."""
@@ -2625,6 +2638,7 @@ class MainWindow(QMainWindow):
             "API Models": "api",
             "Download": "download",
             "MCP": "mcp",
+            "Integrations": "integrations",
             "Logs": "logs",
             "Appearance": "appearance",
             "Labs": "labs",

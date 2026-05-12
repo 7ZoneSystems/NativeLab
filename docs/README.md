@@ -25,9 +25,10 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 
 | Page | Topic |
 |---|---|
-| [features.md](features.md) | Full feature catalogue + v0.2.9 changelog. |
+| [features.md](features.md) | Full feature catalogue + v0.3.0 changelog. |
 | [architecture.md](architecture.md) | Layered design, engine layer, project structure. |
 | [labs.md](labs.md) | The Labs experimentation layer + how to add a feature. |
+| [integrations.md](integrations.md) | External endpoint routes, local HTTP bridge, and Discord bot connector. |
 | [models.md](models.md) | Model registry, family detection, quants, API models. |
 | [workflows.md](workflows.md) | Pipelines, references, summarization, MCP, HF downloads. |
 | [ui.md](ui.md) | GUI components, theming, shortcuts, persistence. |
@@ -50,6 +51,9 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 
 **"I want to write a new experimental feature."**
 → [labs.md](labs.md).
+
+**"I want to connect NativeLab to Discord, webhooks, or a local script."**
+→ [integrations.md](integrations.md).
 
 **"I want to understand how the codebase is organised."**
 → [architecture.md](architecture.md).

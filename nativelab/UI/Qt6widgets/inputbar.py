@@ -119,13 +119,13 @@ class InputBar(QWidget):
         self.btn_pipeline_run = QPushButton("Pipeline")
         set_button_icon(self.btn_pipeline_run, "pipeline", "Pipeline")
         self.btn_pipeline_run.setObjectName("btn_pipeline")
-        self.btn_pipeline_run.setFixedHeight(36)
+        self.btn_pipeline_run.setFixedSize(100, 52)
         self.btn_pipeline_run.setToolTip("Run a saved pipeline on your current input")
         self.btn_pipeline_run.clicked.connect(self.pipeline_run_requested)
         self.btn_pipeline_run.setStyleSheet(
             f"QPushButton{{background:transparent;"
             f"color:{C['pipeline']};border:1px solid {C['pipeline']};"
-            f"border-radius:6px;font-size:11px;font-weight:600;}}"
+            f"border-radius:6px;font-size:11px;font-weight:600;padding:0;}}"
             f"QPushButton:hover{{background:{C['pipeline']};color:#fff;}}")
 
         self.stop_btn = QPushButton("Stop")
@@ -136,10 +136,16 @@ class InputBar(QWidget):
         self.stop_btn.setVisible(False)
         self.stop_btn.clicked.connect(self.stop_requested)
 
+        action_row = QHBoxLayout()
+        action_row.setContentsMargins(0, 0, 0, 0)
+        action_row.setSpacing(10)
+        action_row.setAlignment(Qt.AlignmentFlag.AlignTop)
+        action_row.addWidget(self.send_btn)
+        action_row.addWidget(self.btn_pipeline_run)
+        action_row.addWidget(self.stop_btn)
+
         row.addWidget(self.input, 1)
-        row.addWidget(self.send_btn)
-        row.addWidget(self.btn_pipeline_run)
-        row.addWidget(self.stop_btn)
+        row.addLayout(action_row)
         root.addLayout(row)
         self.setLayout(root)
         self._update_family_badge()

@@ -24,12 +24,14 @@ ICON_ALIASES = {
     "config": "settings",
     "coding": "code-2",
     "delete": "trash-2",
+    "discord": "discord",
     "docs": "file-text",
     "done": "circle-check",
     "error": "circle-x",
     "eject": "power-off",
     "export": "upload",
     "general": "message-square",
+    "integrations": "plug",
     "labs": "flask-conical",
     "load": "folder-open",
     "logs": "bug",
@@ -49,6 +51,7 @@ ICON_ALIASES = {
     "text": "file-text",
     "vision": "image",
     "warn": "triangle-alert",
+    "whatsapp": "whatsapp",
 }
 
 ROLE_ICON_NAMES = {
