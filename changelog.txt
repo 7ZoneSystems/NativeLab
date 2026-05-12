@@ -1,0 +1,3 @@
+v0.2.8
+
+1) fixed error surface in labs endpoints to show errors instead of just htps 400 error 
