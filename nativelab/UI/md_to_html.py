@@ -1,4 +1,30 @@
 from nativelab.imports.import_global import Optional, Dict, re
+
+
+def _latex_to_readable(expr: str) -> str:
+    expr = expr.strip()
+    greek = {
+        "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ",
+        "epsilon": "ε", "theta": "θ", "lambda": "λ", "mu": "μ",
+        "pi": "π", "rho": "ρ", "sigma": "σ", "tau": "τ",
+        "phi": "φ", "omega": "ω", "Delta": "Δ", "Theta": "Θ",
+        "Lambda": "Λ", "Pi": "Π", "Sigma": "Σ", "Omega": "Ω",
+    }
+    ops = {
+        r"\times": "×", r"\cdot": "·", r"\div": "÷", r"\pm": "±",
+        r"\leq": "≤", r"\geq": "≥", r"\neq": "≠", r"\approx": "≈",
+        r"\infty": "∞", r"\to": "→", r"\rightarrow": "→",
+        r"\left": "", r"\right": "",
+    }
+    for k, v in ops.items():
+        expr = expr.replace(k, v)
+    for name, char in greek.items():
+        expr = expr.replace("\\" + name, char)
+    expr = re.sub(r'\\frac\{([^{}]+)\}\{([^{}]+)\}', r'(\1)/(\2)', expr)
+    expr = re.sub(r'\\sqrt\{([^{}]+)\}', r'√(\1)', expr)
+    expr = re.sub(r'\\text\{([^{}]+)\}', r'\1', expr)
+    expr = expr.replace("{", "").replace("}", "")
+    return expr
 def md_to_html(text: str,
                 code_store: Optional[Dict[str, str]] = None,
                 colors: Optional[Dict[str, str]] = None) -> str:
@@ -141,6 +167,55 @@ def md_to_html(text: str,
         return html
 
     text = re.sub(r'```(\w*)\n?(.*?)```', _fenced, text, flags=re.DOTALL)
+
+    # ── Thinking blocks (<think>, [think], and common typo [thinl]) ─────────
+    _think_bg = colors["bg2"]
+    _think_bd = colors["bdr"]
+    _think_fg = colors["txt2"]
+
+    def _think_block(m: re.Match) -> str:
+        body = m.group(1).strip().replace("\n", "<br>")
+        return (
+            f'<table width="100%" cellpadding="0" cellspacing="0" '
+            f'style="background:{_think_bg};border:1px solid {_think_bd};'
+            f'border-radius:6px;margin:8px 0;">'
+            f'<tr><td style="padding:6px 10px;color:{_think_fg};'
+            f'font-size:10px;font-weight:700;">Thinking</td></tr>'
+            f'<tr><td style="padding:8px 12px;color:{_think_fg};'
+            f'font-size:12px;">{body}</td></tr></table>'
+        )
+
+    text = re.sub(r'&lt;think&gt;([\s\S]*?)&lt;/think&gt;', _think_block, text, flags=re.IGNORECASE)
+    text = re.sub(r'\[(?:think|thinl)\]([\s\S]*?)\[/(?:think|thinl)\]', _think_block, text, flags=re.IGNORECASE)
+
+    # ── LaTeX / KaTeX-style math delimiters ─────────────────────────────────
+    _math_bg = colors["bg2"]
+    _math_bd = colors["bdr"]
+    _math_fg = colors["acc2"]
+
+    def _display_math(m: re.Match) -> str:
+        body = _latex_to_readable(m.group(1))
+        return (
+            f'<table width="100%" cellpadding="0" cellspacing="0" '
+            f'style="background:{_math_bg};border:1px solid {_math_bd};'
+            f'border-radius:6px;margin:8px 0;">'
+            f'<tr><td align="center" style="padding:10px 14px;'
+            f'font-family:Cambria Math,Times New Roman,serif;'
+            f'font-size:15px;color:{_math_fg};">{body}</td></tr></table>'
+        )
+
+    def _inline_math(m: re.Match) -> str:
+        body = _latex_to_readable(m.group(1))
+        return (
+            f'<span style="font-family:Cambria Math,Times New Roman,serif;'
+            f'background:{_math_bg};color:{_math_fg};border:1px solid {_math_bd};'
+            f'border-radius:4px;padding:0 4px;">{body}</span>'
+        )
+
+    text = re.sub(r'\$\$([\s\S]+?)\$\$', _display_math, text)
+    text = re.sub(r'\\\[([\s\S]+?)\\\]', _display_math, text)
+    text = re.sub(r'\\\((.+?)\\\)', _inline_math, text)
+    text = re.sub(r'(?<!\$)\$([^\n$]+?)\$(?!\$)', _inline_math, text)
 
     # ── Inline code ──────────────────────────────────────────────────────────
     _ic_bg  = colors["bg2"]

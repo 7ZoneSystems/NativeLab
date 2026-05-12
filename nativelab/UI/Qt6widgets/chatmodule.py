@@ -12,7 +12,7 @@ class ChatModule(QWidget):
     Modular - can be embedded anywhere or swapped out.
     """
 
-    send_requested  = pyqtSignal(str, str)   # (text, ref_context)
+    send_requested  = pyqtSignal(str, str, list)   # (text, ref_context, api_image_parts)
     stop_requested  = pyqtSignal()
     pdf_requested   = pyqtSignal()
     clear_requested = pyqtSignal()
@@ -113,7 +113,25 @@ class ChatModule(QWidget):
 
     def _on_send(self, text: str):
         ref_ctx = self.ref_panel.get_context_for(text)
-        self.send_requested.emit(text, ref_ctx)
+        api_format = "openai"
+        eng = None
+        try:
+            w = self.parent()
+            while w and not hasattr(w, "_active_engine_for"):
+                w = w.parent()
+            eng = w._active_engine_for(text) if w else None
+            cfg = getattr(eng, "_config", None)
+            api_format = getattr(cfg, "api_format", "openai") if cfg else "openai"
+        except Exception:
+            api_format = "openai"
+        image_parts = self.ref_panel.get_api_image_parts(api_format)
+        try:
+            if eng is not None and getattr(eng, "mode", "") != "api":
+                image_parts = self.ref_panel.get_llama_image_data()
+        except Exception:
+            pass
+        self.send_requested.emit(
+            text, ref_ctx, image_parts)
 
     def _on_refs_changed(self):
         self._update_ref_badge()

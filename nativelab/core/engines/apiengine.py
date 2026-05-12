@@ -1,7 +1,7 @@
 from nativelab.imports.import_global import Optional, List, Dict, json, QThread
 from nativelab.core.streamer_global import ApiStreamWorker
 from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED
-from nativelab.Model.model_global import ApiConfig
+from nativelab.Model.model_global import ApiConfig, api_model_ref
 class ApiEngine:
     def __init__(self):
         self.model_path:           str               = ""
@@ -19,7 +19,7 @@ class ApiEngine:
     def load(self, config: ApiConfig, log_cb=None) -> bool:
         self._config  = config
         self._log     = log_cb or (lambda m: None)
-        self.model_path = f"@api/{config.provider.lower().replace(' ', '_')}/{config.model_id}"
+        self.model_path = api_model_ref(config.name)
         self.ctx_value  = config.max_tokens * 6
         try:
             import urllib.request, urllib.error
@@ -42,9 +42,11 @@ class ApiEngine:
             with urllib.request.urlopen(req, timeout=15) as r:
                 r.read()
             self.mode = "api"
+            print(f"[APIENGINE][INFO] API model verified: {config.model_id}", flush=True)
             self._log(f"[INFO] API model verified: {config.model_id}")
             return True
         except Exception as e:
+            print(f"[APIENGINE][ERROR] API test failed: {e}", flush=True)
             self._log(f"[ERROR] API test failed: {e}")
             self.mode = "unloaded"
             return False
@@ -68,6 +70,7 @@ class ApiEngine:
             max_tokens  = min(n_predict, cfg.max_tokens),
             temperature = cfg.temperature,
         )
+        w.log.connect(self._log)
         if cfg.use_custom_prompt:
             w.use_custom_prompt  = True
             w.system_prompt      = cfg.system_prompt

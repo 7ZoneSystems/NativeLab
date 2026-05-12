@@ -40,6 +40,23 @@ class ModelLoaderThread(QThread):
         self.finished.emit(ok, self.engine.status_text)
 
 
+class ApiLoaderThread(QThread):
+    finished = pyqtSignal(bool, str, object)
+
+    def __init__(self, config: "ApiConfig"):
+        super().__init__()
+        self.config = config
+
+    def run(self):
+        eng = ApiEngine()
+        ok = eng.load(self.config)
+        self.finished.emit(
+            ok,
+            eng.status_text if ok else "API connection failed",
+            eng if ok else None,
+        )
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Pipeline Manual - rendered inside _show_manual dialog
 # ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +93,7 @@ class MainWindow(QMainWindow):
 
         self._force_coding_mode:  bool = False
         self._pending_ref_ctx:    str  = ""
+        self._pending_ref_images: list = []
         # ── busy / session-tracking ───────────────────────────────────────────
         self._busy_session_id:    str  = ""   # sid of the session currently generating
         self._stream_session_id:  str  = ""   # sid that owns the active stream worker
@@ -268,6 +286,7 @@ class MainWindow(QMainWindow):
         self.tabs = QTabWidget()
         self._tab_overlay = FadeOverlay(self.tabs)
         self.tabs.currentChanged.connect(self._on_tab_changed)
+        self.tabs.tabBar().installEventFilter(self)
 
         # ── Chat tab (ChatModule) ──
         self.chat_module = ChatModule(
@@ -319,7 +338,7 @@ class MainWindow(QMainWindow):
 
         # ── Logs tab ──
         self.log_console = LogConsole()
-        self.tabs.addTab(self.log_console, " Logs")
+        self.tabs.addTab(self.log_console, "🐞  Logs")
         self.appearance_tab = AppearanceTab()
         self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
         self.tabs.addTab(self.appearance_tab, "🎨  Appearance")
@@ -334,6 +353,7 @@ class MainWindow(QMainWindow):
         # ── Labs tab ──
         self.labs_tab = LabsTab()
         self.tabs.addTab(self.labs_tab, "⌬  Labs")
+        self._apply_saved_view_state()
         self._wire_lab_endpoints()
         
     # ── models tab ───────────────────────────────────────────────────────────
@@ -620,7 +640,13 @@ class MainWindow(QMainWindow):
         fam   = detect_model_family(path)
         quant = detect_quant_type(path)
         ql, qcolor = quant_info(quant)
-        self.cfg_family_lbl.setText(f"{fam.name}  (template: {fam.template})")
+        vi = detect_vision_model(path)
+        vision_txt = f"  ·  VLM: {vi.label}" if vi.is_vision else ""
+        mmproj = detect_mmproj_for_model(path) if vi.is_vision else ""
+        self.cfg_family_lbl.setText(
+            f"{fam.name}  (template: {fam.template}){vision_txt}"
+            + (f"  ·  mmproj: {Path(mmproj).name}" if mmproj else "")
+        )
         self.cfg_quant_lbl.setText(f"{quant}  ·  {ql}")
         self.cfg_quant_lbl.setStyleSheet(
             f"color:{qcolor};font-size:11px;"
@@ -819,9 +845,11 @@ class MainWindow(QMainWindow):
             tag       = "📌" if m["source"] == "custom" else "📦"
             role_icon = ROLE_ICONS.get(m.get("role", "general"), "💬")
             ql, qc    = quant_info(m.get("quant", ""))
+            vision = f"  🖼 {m.get('vision_label') or 'VLM'}" if m.get("vision") else ""
+            mmproj = " · mmproj" if m.get("mmproj") else ""
             label = (f"{tag}  {role_icon} [{m.get('role','general'):<14}]  "
                      f"{m['name']}   ({m['size_mb']} MB)  "
-                     f"[{m.get('family','?')}·{m.get('quant','?')}·{ql}]")
+                     f"[{m.get('family','?')}·{m.get('quant','?')}·{ql}{vision}{mmproj}]")
             if m["path"] == active: label += "  ✅"
             item = QListWidgetItem(label)
             item.setData(Qt.ItemDataRole.UserRole, m["path"])
@@ -837,6 +865,8 @@ class MainWindow(QMainWindow):
         self.input_bar.model_combo.clear()
         for m in get_model_registry().all_models():
             self.input_bar.model_combo.addItem(m["name"], m["path"])
+        for cfg in getapi_registry().all():
+            self.input_bar.model_combo.addItem(api_model_label(cfg), api_model_ref(cfg.name))
         idx = self.input_bar.model_combo.findData(cur)
         self.input_bar.model_combo.setCurrentIndex(max(idx, 0))
         self.input_bar.model_combo.blockSignals(False)
@@ -852,11 +882,13 @@ class MainWindow(QMainWindow):
         get_model_registry().add(path)
         fam   = detect_model_family(path)
         quant = detect_quant_type(path)
+        vi    = detect_vision_model(path)
         ql, _ = quant_info(quant)
         self._refresh_model_list()
         self._sync_input_bar_combo()
         self._log("INFO",
-            f"Added model: {Path(path).name}  →  {fam.name}  ·  {quant}  ·  {ql}")
+            f"Added model: {Path(path).name}  →  {fam.name}  ·  {quant}  ·  {ql}"
+            + (f"  ·  VLM: {vi.label}" if vi.is_vision else ""))
 
     def _load_selected_as_primary(self):
         item = self.model_list.currentItem()
@@ -893,6 +925,8 @@ class MainWindow(QMainWindow):
         fm.addAction(QAction("Quit\tCtrl+Q", self, triggered=self.close))
         vm = mb.addMenu("View")
         vm.addAction(QAction("Toggle Sidebar\tCtrl+B", self, triggered=self._toggle_sidebar))
+        vm.addAction(QAction("Toggle Top Bar", self, triggered=self._toggle_topbar))
+        vm.addAction(QAction("Choose Visible Tabs", self, triggered=lambda: self._show_tab_visibility_menu()))
         vm.addAction(QAction("Go to Logs\tCtrl+L",    self, triggered=self._goto_logs))
         vm.addAction(QAction("Go to Models\tCtrl+M",  self, triggered=self._goto_models_tab))
         vm.addSeparator()
@@ -904,6 +938,34 @@ class MainWindow(QMainWindow):
         self._update_theme_action_label()
         mm = mb.addMenu("Model")
         mm.addAction(QAction("Reload Model", self, triggered=self._reload_model))
+        self._install_topbar_controls(mb)
+
+    def _install_topbar_controls(self, menu_bar):
+        box = QWidget()
+        row = QHBoxLayout(box)
+        row.setContentsMargins(0, 0, 8, 0)
+        row.setSpacing(6)
+        self.btn_toggle_sidebar = QPushButton("☰")
+        self.btn_toggle_sidebar.setToolTip("Toggle session sidebar")
+        self.btn_toggle_topbar = QPushButton("▔")
+        self.btn_toggle_topbar.setToolTip("Toggle top tab bar")
+        self.btn_tab_menu = QPushButton("⋯")
+        self.btn_tab_menu.setToolTip("Choose visible tabs")
+        for b in (self.btn_toggle_sidebar, self.btn_toggle_topbar, self.btn_tab_menu):
+            b.setFixedSize(28, 24)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet(
+                f"QPushButton{{background:transparent;color:{C['txt3']};"
+                f"border:1px solid {C['bdr']};border-radius:6px;font-size:14px;"
+                f"font-weight:700;padding:0;}}"
+                f"QPushButton:hover{{color:{C['acc2']};border-color:{C['acc']};"
+                f"background:rgba(105,92,235,0.14);}}")
+            row.addWidget(b)
+        self.btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
+        self.btn_toggle_topbar.clicked.connect(self._toggle_topbar)
+        self.btn_tab_menu.clicked.connect(lambda: self._show_tab_visibility_menu())
+        menu_bar.setCornerWidget(box, Qt.Corner.TopRightCorner)
+        self._update_view_toggle_buttons()
 
     def _build_status_bar(self):
         sb = self.statusBar()
@@ -1064,14 +1126,21 @@ class MainWindow(QMainWindow):
 
     def _start_model_load(self):
         model = self.input_bar.selected_model
+        if is_api_model_ref(model):
+            self._start_api_model_load(model)
+            return
         if not model or not Path(model).exists():
             model = str(MODELS_DIR / DEFAULT_MODEL)
+        if self._api_engine and self._api_engine.is_loaded:
+            self._api_engine.shutdown()
         self.lbl_engine.setText("🔄  Loading model…")
         fam   = detect_model_family(model)
         quant = detect_quant_type(model)
+        vi    = detect_vision_model(model)
         ql, _ = quant_info(quant)
-        self.lbl_family.setText(f"{fam.name}  ·  {quant}  ·  {ql}")
-        self._log("INFO", f"Loading model: {Path(model).name}  [{fam.name} / {quant}]")
+        vision = f"  ·  VLM: {vi.label}" if vi.is_vision else ""
+        self.lbl_family.setText(f"{fam.name}  ·  {quant}  ·  {ql}{vision}")
+        self._log("INFO", f"Loading model: {Path(model).name}  [{fam.name} / {quant}{vision}]")
         self._loader = ModelLoaderThread(self.engine, model, self.ctx_slider.value())
         self._loader.log.connect(self._log)
         self._loader.finished.connect(self._on_model_loaded)
@@ -1122,8 +1191,8 @@ class MainWindow(QMainWindow):
         if self._is_coding_prompt(text) and \
                 self.coding_engine and self.coding_engine.is_loaded:
             return self.coding_engine
-        # API engine takes priority over local engine when loaded
-        if self._api_engine and self._api_engine.is_loaded:
+        selected = self.input_bar.selected_model if hasattr(self, "input_bar") else ""
+        if is_api_model_ref(selected) and self._api_engine and self._api_engine.is_loaded:
             return self._api_engine
         return self.engine
 
@@ -1151,6 +1220,16 @@ class MainWindow(QMainWindow):
         """Called when ApiModelsTab successfully verifies an API model."""
         self._api_engine = api_engine
         cfg = api_engine._config
+        if cfg and hasattr(self, "input_bar"):
+            ref = api_model_ref(cfg.name)
+            idx = self.input_bar.model_combo.findData(ref)
+            if idx == -1:
+                self.input_bar.model_combo.addItem(api_model_label(cfg), ref)
+                idx = self.input_bar.model_combo.findData(ref)
+            self.input_bar.model_combo.blockSignals(True)
+            self.input_bar.model_combo.setCurrentIndex(idx)
+            self.input_bar.model_combo.blockSignals(False)
+            self.input_bar._update_family_badge()
         name = f"{cfg.provider}  ·  {cfg.model_id}" if cfg else api_engine.status_text
         self.lbl_engine.setText(f"🌐  {name}")
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
@@ -1159,6 +1238,31 @@ class MainWindow(QMainWindow):
         # Update pipeline tab to use api engine for pipeline blocks
         if hasattr(self, "pipeline_tab"):
             self.pipeline_tab.update_engine(api_engine)
+        self._notify_labs()
+
+    def _start_api_model_load(self, api_ref: str):
+        cfg = getapi_registry().get_by_ref(api_ref)
+        if cfg is None:
+            self.lbl_engine.setText("❌  API config missing")
+            self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
+            self._log("ERROR", f"API config not found: {api_ref}")
+            return
+        if self._api_engine and self._api_engine.is_loaded and self._api_engine.model_path == api_ref:
+            return
+        self.lbl_engine.setText("🔄  Connecting API model…")
+        self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
+        self.lbl_family.setText(f"API  ·  {cfg.provider}  ·  max {cfg.max_tokens} tokens")
+        self._api_loader = ApiLoaderThread(cfg)
+        self._api_loader.finished.connect(self._on_api_combo_load_done)
+        self._api_loader.start()
+
+    def _on_api_combo_load_done(self, ok: bool, status: str, engine):
+        if ok and engine:
+            self._on_api_model_loaded(engine)
+            return
+        self.lbl_engine.setText(f"❌  {status}")
+        self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
+        self._log("ERROR", status)
         self._notify_labs()
 
     # ── Labs endpoint wiring ──────────────────────────────────────────────────
@@ -1175,6 +1279,7 @@ class MainWindow(QMainWindow):
             on_model  =self._labs_request_load_model,
             on_unload =self._labs_request_unload,
         )
+        ep.log_msg.connect(self.log_console.log)
         self.labs_tab.set_endpoints(ep)
 
     def _notify_labs(self):
@@ -1195,6 +1300,16 @@ class MainWindow(QMainWindow):
 
     def _labs_request_load_model(self, model_path: str) -> bool:
         """Reverse route: a lab feature asks the host to load a model."""
+        if is_api_model_ref(model_path):
+            idx = self.input_bar.model_combo.findData(model_path)
+            if idx == -1:
+                cfg = getapi_registry().get_by_ref(model_path)
+                self.input_bar.model_combo.addItem(
+                    api_model_label(cfg) if cfg else model_path, model_path)
+                idx = self.input_bar.model_combo.findData(model_path)
+            self.input_bar.model_combo.setCurrentIndex(idx)
+            self._start_api_model_load(model_path)
+            return True
         if not model_path or not Path(model_path).exists():
             return False
         idx = self.input_bar.model_combo.findData(model_path)
@@ -1234,13 +1349,24 @@ class MainWindow(QMainWindow):
         if not text:
             QMessageBox.warning(self, "No Input",
                                 "Type a message in the chat input first."); return
+        ref_ctx = ""
+        try:
+            ref_ctx = self.chat_module.ref_panel.get_context_for(text)
+        except Exception:
+            ref_ctx = ""
+        pipeline_text = (
+            f"Reference material for this pipeline run:\n\n{ref_ctx}\n\n"
+            f"User request:\n{text}"
+            if ref_ctx else text
+        )
 
         try:
             blocks, conns = load_pipeline(pipeline_name)
         except Exception as e:
             QMessageBox.critical(self, "Load Error", str(e)); return
 
-        if not self.engine.is_loaded:
+        active_pipe_eng = self._active_engine_for(text)
+        if not active_pipe_eng or not active_pipe_eng.is_loaded:
             QMessageBox.warning(self, "Engine Not Ready",
                                 "Wait for the model to finish loading."); return
 
@@ -1255,7 +1381,7 @@ class MainWindow(QMainWindow):
             ts)
 
         self._chat_pipeline_worker = PipelineExecutionWorker(
-            blocks, conns, text, self.engine)
+            blocks, conns, pipeline_text, active_pipe_eng)
         self._chat_pipeline_worker.step_started.connect(
             lambda bid, lbl: self._chat_pipeline_step(lbl))
         self._chat_pipeline_worker.intermediate_live.connect(
@@ -1298,14 +1424,34 @@ class MainWindow(QMainWindow):
 
     # ── chat send ─────────────────────────────────────────────────────────────
 
-    def _on_send_with_refs(self, text: str, ref_ctx: str):
+    def _on_send_with_refs(self, text: str, ref_ctx: str, ref_images=None):
         """Called by ChatModule - injects reference context into prompt."""
         self._pending_ref_ctx = ref_ctx
+        self._pending_ref_images = list(ref_images or [])
         self._on_send(text)
+
+    def _llama_image_data_from_parts(self, ref_images: list) -> list:
+        image_data = []
+        for part in ref_images or []:
+            data = ""
+            if isinstance(part, dict) and part.get("data"):
+                data = part.get("data", "")
+            elif isinstance(part, dict) and part.get("type") == "image_url":
+                url = (part.get("image_url") or {}).get("url", "")
+                if ";base64," in url:
+                    data = url.split(";base64,", 1)[1]
+            elif isinstance(part, dict) and part.get("type") == "image":
+                src = part.get("source") or {}
+                if src.get("type") == "base64":
+                    data = src.get("data", "")
+            if data:
+                image_data.append({"id": int(part.get("id", len(image_data) + 1)), "data": data})
+        return image_data
 
     def _on_send(self, text: str):
         if not self.active:    self._new_session()
-        if not self.engine.is_loaded:
+        active_eng = self._active_engine_for(text)
+        if not active_eng or not active_eng.is_loaded:
             self._log("WARN", "Model not yet loaded - please wait."); return
         # Block sends while ANY session is generating
         if self._busy_session_id:
@@ -1341,13 +1487,21 @@ class MainWindow(QMainWindow):
         self.chat_area.add_message("user", text, ts)
         self._update_ctx_bar()
 
+        ref_ctx_for_turn = getattr(self, "_pending_ref_ctx", "")
+        pipeline_text = (
+            f"Reference material for this turn:\n\n{ref_ctx_for_turn}\n\n"
+            f"User request:\n{text}"
+            if ref_ctx_for_turn else text
+        )
+
         # ── Pipeline mode ─────────────────────────────────────────────────────
         if self._can_use_pipeline(text):
-            self._start_pipeline(text, ts)
+            self._pending_ref_ctx = ""
+            self._pending_ref_images = []
+            self._start_pipeline(pipeline_text, ts)
             return
 
         # ── Normal / single-engine mode ───────────────────────────────────────
-        active_eng = self._active_engine_for(text)
         is_coding  = active_eng is self.coding_engine
         eng_label  = "💻 Coding engine" if is_coding else active_eng.status_text
 
@@ -1358,6 +1512,7 @@ class MainWindow(QMainWindow):
         )
         # Inject reference context if available
         ref_ctx = getattr(self, "_pending_ref_ctx", "")
+        ref_images = list(getattr(self, "_pending_ref_images", []))
         if ref_ctx:
             fam = detect_model_family(active_eng.model_path)
             ref_block = (
@@ -1369,6 +1524,21 @@ class MainWindow(QMainWindow):
             )
             prompt = ref_block + "\n" + prompt
             self._pending_ref_ctx = ""
+        if ref_images and not isinstance(active_eng, ApiEngine):
+            llama_images = self._llama_image_data_from_parts(ref_images)
+            if active_eng.mode == "server" and llama_images and hasattr(active_eng, "set_images"):
+                active_eng.set_images(llama_images)
+                prompt = (
+                    "The user attached image reference(s). Inspect the attached image data "
+                    "together with the text reference metadata when answering.\n\n" + prompt
+                )
+            else:
+                prompt = (
+                    "The user attached image reference(s), but the active local model is not "
+                    "running in llama-server vision mode. Use any image filenames listed in "
+                    "the reference context as metadata only. For local VLMs, start llama-server "
+                    "with the matching multimodal projector in extra server flags.\n\n" + prompt
+                )
 
         cfg_pred = DEFAULT_N_PRED
         if active_eng.model_path:
@@ -1382,7 +1552,33 @@ class MainWindow(QMainWindow):
         if isinstance(active_eng, ApiEngine):
             api_msgs = [{"role": m.role, "content": m.content}
                         for m in self.active.messages[-60:]]
+            if api_msgs:
+                last_user_idx = next(
+                    (i for i in range(len(api_msgs) - 1, -1, -1)
+                     if api_msgs[i].get("role") == "user"),
+                    -1)
+                if last_user_idx >= 0 and (ref_ctx or ref_images):
+                    user_text = str(api_msgs[last_user_idx].get("content", ""))
+                    if ref_ctx:
+                        user_text = (
+                            "Reference material for this turn:\n\n"
+                            f"{ref_ctx}\n\n"
+                            "Use the reference material when answering.\n\n"
+                            f"User request:\n{user_text}"
+                        )
+                    if ref_images:
+                        if active_eng._config and active_eng._config.api_format == "anthropic":
+                            api_msgs[last_user_idx]["content"] = (
+                                [{"type": "text", "text": user_text}] + ref_images
+                            )
+                        else:
+                            api_msgs[last_user_idx]["content"] = (
+                                [{"type": "text", "text": user_text}] + ref_images
+                            )
+                    else:
+                        api_msgs[last_user_idx]["content"] = user_text
             active_eng.set_messages(api_msgs)
+        self._pending_ref_images = []
 
         self._worker = active_eng.create_worker(
             prompt, n_predict=cfg_pred, model_path=active_eng.model_path)
@@ -1621,7 +1817,7 @@ class MainWindow(QMainWindow):
 
     def _on_done(self, tps: float):
         self.tps_lbl.setText(f"{tps:.1f} tok/s")
-        self.lbl_engine.setText(self.engine.status_text)
+        self.lbl_engine.setText(self._active_engine_for("").status_text)
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         self.input_bar.set_generating(False)
         if self._stream_w:
@@ -2222,6 +2418,87 @@ class MainWindow(QMainWindow):
 
     def _toggle_sidebar(self):
         self.sidebar.setVisible(not self.sidebar.isVisible())
+        APP_CONFIG["sidebar_visible"] = self.sidebar.isVisible()
+        save_app_config(APP_CONFIG)
+        self._update_view_toggle_buttons()
+
+    def _toggle_topbar(self):
+        bar = self.tabs.tabBar()
+        bar.setVisible(not bar.isVisible())
+        APP_CONFIG["topbar_visible"] = bar.isVisible()
+        save_app_config(APP_CONFIG)
+        self._update_view_toggle_buttons()
+
+    def _tab_key(self, idx: int) -> str:
+        return self.tabs.tabText(idx).replace("&", "").strip()
+
+    def _visible_tab_count(self) -> int:
+        return sum(1 for i in range(self.tabs.count()) if self.tabs.isTabVisible(i))
+
+    def _set_tab_visible(self, idx: int, visible: bool):
+        if idx < 0 or idx >= self.tabs.count():
+            return
+        if not visible and self._visible_tab_count() <= 1 and self.tabs.isTabVisible(idx):
+            return
+        self.tabs.setTabVisible(idx, bool(visible))
+        if not self.tabs.isTabVisible(self.tabs.currentIndex()):
+            for i in range(self.tabs.count()):
+                if self.tabs.isTabVisible(i):
+                    self.tabs.setCurrentIndex(i)
+                    break
+        tab_cfg = dict(APP_CONFIG.get("tab_visibility", {}))
+        tab_cfg[self._tab_key(idx)] = bool(visible)
+        APP_CONFIG["tab_visibility"] = tab_cfg
+        save_app_config(APP_CONFIG)
+
+    def _show_tab_visibility_menu(self, global_pos=None):
+        menu = QMenu(self)
+        for i in range(self.tabs.count()):
+            label = self._tab_key(i)
+            act = QAction(label, self)
+            act.setCheckable(True)
+            act.setChecked(self.tabs.isTabVisible(i))
+            if self.tabs.isTabVisible(i) and self._visible_tab_count() <= 1:
+                act.setEnabled(False)
+            act.triggered.connect(lambda checked, ix=i: self._set_tab_visible(ix, checked))
+            menu.addAction(act)
+        if global_pos is None:
+            global_pos = self.btn_tab_menu.mapToGlobal(self.btn_tab_menu.rect().bottomRight())
+        menu.exec(global_pos)
+
+    def _apply_saved_view_state(self):
+        self.sidebar.setVisible(bool(APP_CONFIG.get("sidebar_visible", True)))
+        self.tabs.tabBar().setVisible(bool(APP_CONFIG.get("topbar_visible", True)))
+        tab_cfg = APP_CONFIG.get("tab_visibility", {})
+        for i in range(self.tabs.count()):
+            visible = bool(tab_cfg.get(self._tab_key(i), True))
+            self.tabs.setTabVisible(i, visible)
+        if self._visible_tab_count() == 0 and self.tabs.count() > 0:
+            self.tabs.setTabVisible(0, True)
+        if not self.tabs.isTabVisible(self.tabs.currentIndex()):
+            for i in range(self.tabs.count()):
+                if self.tabs.isTabVisible(i):
+                    self.tabs.setCurrentIndex(i)
+                    break
+        self._update_view_toggle_buttons()
+
+    def _update_view_toggle_buttons(self):
+        if not hasattr(self, "btn_toggle_sidebar"):
+            return
+        self.btn_toggle_sidebar.setText("☰" if self.sidebar.isVisible() else "☷")
+        self.btn_toggle_topbar.setText("▔" if self.tabs.tabBar().isVisible() else "▁")
+
+    def eventFilter(self, obj, event):
+        if (hasattr(self, "tabs") and obj is self.tabs.tabBar()
+                and event.type() == QEvent.Type.MouseButtonPress
+                and event.button() == Qt.MouseButton.RightButton):
+            idx = self.tabs.tabBar().tabAt(event.pos())
+            if idx >= 0:
+                if self.tabs.isTabVisible(idx):
+                    self.tabs.setCurrentIndex(idx)
+                self._show_tab_visibility_menu(self.tabs.tabBar().mapToGlobal(event.pos()))
+                return True
+        return super().eventFilter(obj, event)
 
     # ── Theme switching ───────────────────────────────────────────────────────
 
@@ -2306,6 +2583,7 @@ class MainWindow(QMainWindow):
 
         # Refresh Appearance tab palette to match active theme
         self.appearance_tab.load_palette(C_LIGHT if CURRENT_THEME == "light" else C_DARK)
+        self._apply_saved_view_state()
 
         # Rebuild chat bubbles + status bar colours
         self._on_model_loaded(self.engine.is_loaded, self.engine.status_text)

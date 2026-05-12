@@ -1,6 +1,6 @@
 from nativelab.core.engines.llamaengine import LlamaEngine
 from nativelab.imports.import_global import QThread,Path, pyqtSignal, List, Dict, time, Optional, json, HAS_PDF
-from nativelab.Model.model_global import detect_model_family, get_model_registry
+from nativelab.Model.model_global import detect_model_family, get_model_registry, is_api_model_ref
 from .blck_typ import PipelineConnection, PipelineBlockType
 from .pipblck import PipelineBlock
 class PipelineExecutionWorker(QThread):
@@ -637,10 +637,15 @@ class PipelineExecutionWorker(QThread):
     
     def _run_model(self, b: PipelineBlock, context: str) -> Optional[str]:
         target = b.model_path
+        eng = self.primary_engine
+        if eng and getattr(eng, "mode", "") == "api" and (
+            not target or is_api_model_ref(target) or not Path(target).exists()
+        ):
+            return self._run_api_model_block(b, context)
+
         if not target or not Path(target).exists():
             self.err.emit(f"Model file not found: {target}"); return None
 
-        eng = self.primary_engine
         if not eng:
             self.err.emit("No engine available."); return None
 
@@ -708,6 +713,27 @@ class PipelineExecutionWorker(QThread):
 
         return "".join(tokens).strip()
 
+    def _run_api_model_block(self, b: PipelineBlock, context: str) -> Optional[str]:
+        eng = self.primary_engine
+        cfg = getattr(eng, "_config", None)
+        if cfg is None:
+            self.err.emit("API engine is not configured."); return None
+        ROLE_SYSTEM = {
+            "general":       "You are a helpful assistant.",
+            "reasoning":     "You are a careful analytical reasoning assistant. Think step by step.",
+            "summarization": "You are an expert summarization assistant. Be clear and concise.",
+            "coding":        "You are an expert software engineer. Write clean, well-commented code.",
+            "secondary":     "You are a versatile general-purpose assistant.",
+        }
+        system = ROLE_SYSTEM.get(b.role, ROLE_SYSTEM["general"])
+        return self._api_query_sync(
+            system,
+            context,
+            max_tokens=min(int(getattr(cfg, "max_tokens", 2048)), 2048),
+            temperature=float(getattr(cfg, "temperature", 0.7)),
+            token_cb=lambda tok: self.step_token.emit(b.bid, tok),
+        )
+
     # ── LLM query helper (synchronous, short answer) ──────────────────────────
 
     def _llm_query_sync(self, model_path: str, system_prompt: str,
@@ -722,6 +748,8 @@ class PipelineExecutionWorker(QThread):
         if not eng:
             self.log_msg.emit("❌  No primary engine available for LLM logic block.")
             return None
+        if getattr(eng, "mode", "") == "api":
+            return self._api_query_sync(system_prompt, user_prompt, max_tokens, temperature)
         if not self._ensure_server(eng, model_path):
             return None
 
@@ -765,7 +793,9 @@ class PipelineExecutionWorker(QThread):
         show_r     = bool(meta.get("llm_show_reasoning", True))
         passthru   = bool(meta.get("llm_passthrough_on_err", False))
 
-        if not model_path or not Path(model_path).exists():
+        if getattr(self.primary_engine, "mode", "") == "api":
+            model_path = model_path or getattr(self.primary_engine, "model_path", "")
+        elif not model_path or not Path(model_path).exists():
             msg = f"❌  LLM block '{b.label}': model not found - {model_path}"
             self.log_msg.emit(msg)
             if passthru:
@@ -789,6 +819,70 @@ class PipelineExecutionWorker(QThread):
         if show_r:
             self.log_msg.emit(f"  🧠  [{b.label}] model said: {result[:120]}")
         return result
+
+    def _api_query_sync(self, system_prompt: str, user_prompt: str,
+                        max_tokens: int = 512, temperature: float = 0.7,
+                        token_cb=None) -> Optional[str]:
+        eng = self.primary_engine
+        cfg = getattr(eng, "_config", None)
+        if cfg is None:
+            self.log_msg.emit("❌  API engine is not configured.")
+            return None
+        import urllib.request
+        try:
+            if cfg.api_format == "anthropic":
+                payload = {
+                    "model": cfg.model_id,
+                    "messages": [{"role": "user", "content": user_prompt}],
+                    "max_tokens": min(max_tokens, cfg.max_tokens),
+                    "temperature": temperature,
+                    "stream": False,
+                }
+                if system_prompt:
+                    payload["system"] = system_prompt
+                req = urllib.request.Request(
+                    f"{cfg.base_url.rstrip('/')}/v1/messages",
+                    data=json.dumps(payload).encode(),
+                    headers={
+                        "Content-Type": "application/json",
+                        "x-api-key": cfg.api_key,
+                        "anthropic-version": "2023-06-01",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=900) as r:
+                    d = json.loads(r.read().decode("utf-8", errors="replace"))
+                content = d.get("content") or []
+                text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
+            else:
+                messages = []
+                if system_prompt:
+                    messages.append({"role": "system", "content": system_prompt})
+                messages.append({"role": "user", "content": user_prompt})
+                payload = {
+                    "model": cfg.model_id,
+                    "messages": messages,
+                    "max_tokens": min(max_tokens, cfg.max_tokens),
+                    "temperature": temperature,
+                    "stream": False,
+                }
+                req = urllib.request.Request(
+                    f"{cfg.base_url.rstrip('/')}/chat/completions",
+                    data=json.dumps(payload).encode(),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {cfg.api_key}",
+                    },
+                )
+                with urllib.request.urlopen(req, timeout=900) as r:
+                    d = json.loads(r.read().decode("utf-8", errors="replace"))
+                choices = d.get("choices") or []
+                text = choices[0].get("message", {}).get("content", "") if choices else ""
+            if token_cb and text:
+                token_cb(text)
+            return text.strip()
+        except Exception as e:
+            self.log_msg.emit(f"❌  API query error: {e}")
+            return None
 
     # ── context injection blocks ──────────────────────────────────────────────
 

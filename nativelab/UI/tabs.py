@@ -2317,7 +2317,7 @@ class ApiModelsTab(QWidget):
             item = self.saved_vbox.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        for cfg in API_REGISTRY.all():
+        for cfg in getapi_registry().all():
             self._add_saved_card(cfg)
 
     def _add_saved_card(self, cfg: ApiConfig):
@@ -2387,6 +2387,5 @@ class ApiModelsTab(QWidget):
             self, "Delete Config", f"Delete '{cfg.name}'?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if ans == QMessageBox.StandardButton.Yes:
-            API_REGISTRY.remove(cfg.name)
+            getapi_registry().remove(cfg.name)
             self._refresh_saved()
-

@@ -8,7 +8,8 @@ class ServerStreamWorker(QThread):
 
     def __init__(self, port: int, prompt: str, n_predict: int = DEFAULT_N_PRED,
                  stop_tokens: Optional[List[str]] = None, temperature: float = 0.7,
-                 top_p: float = 0.9, repeat_penalty: float = 1.1):
+                 top_p: float = 0.9, repeat_penalty: float = 1.1,
+                 image_data: Optional[List[dict]] = None):
         super().__init__()
         self.port           = port
         self.prompt         = prompt
@@ -17,6 +18,7 @@ class ServerStreamWorker(QThread):
         self.temperature    = temperature
         self.top_p          = top_p
         self.repeat_penalty = repeat_penalty
+        self.image_data     = image_data or []
         self._abort         = False
 
     def run(self):
@@ -33,15 +35,21 @@ class ServerStreamWorker(QThread):
 
         try:
             conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=socket_timeout)
-            body = json.dumps({
-                "prompt":         self.prompt,
+            prompt = self.prompt
+            body_obj = {
+                "prompt":         prompt,
                 "n_predict":      self.n_predict,
                 "stream":         True,
                 "temperature":    self.temperature,
                 "top_p":          self.top_p,
                 "repeat_penalty": self.repeat_penalty,
                 "stop":           self.stop_tokens,
-            })
+            }
+            if self.image_data:
+                body_obj["image_data"] = self.image_data
+                markers = "\n".join(f"[img-{img.get('id', i + 1)}]" for i, img in enumerate(self.image_data))
+                body_obj["prompt"] = f"{markers}\n\n{prompt}"
+            body = json.dumps(body_obj)
             conn.request("POST", "/completion", body, {"Content-Type": "application/json"})
             r = conn.getresponse()
             if r.status != 200:

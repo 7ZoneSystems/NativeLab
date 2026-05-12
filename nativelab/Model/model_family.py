@@ -16,6 +16,60 @@ class ModelFamily:
     bos:            str = "<s>"
     eos:            str = "</s>"
 
+
+@dataclass
+class VisionModelInfo:
+    is_vision: bool = False
+    label: str = ""
+    family_hint: str = ""
+    needs_mmproj: bool = True
+
+
+_VLM_PATTERNS: List[Tuple[List[str], str, str, bool]] = [
+    (["llava", "bakllava", "moondream"], "LLaVA VLM", "llava", True),
+    (["minicpm-v", "minicpmv", "minicpm-o", "minicpmo"], "MiniCPM-V", "minicpm-v", True),
+    (["qwen2-vl", "qwen2.5-vl", "qwen-vl", "qwen2vl", "qwen25vl", "qwenvl"], "Qwen-VL", "qwen-vl", True),
+    (["internvl", "intern-vl"], "InternVL", "internvl", True),
+    (["pixtral"], "Pixtral", "pixtral", True),
+    (["paligemma"], "PaliGemma", "paligemma", True),
+    (["gemma-3", "gemma3"], "Gemma 3 Vision", "gemma3", True),
+    (["llama-vision", "llama3.2-vision", "llama-3.2-vision", "vision-instruct"], "Llama Vision", "llama-vision", True),
+    (["mllama", "multi-modal", "multimodal", "vlm"], "Vision-Language Model", "vlm", True),
+]
+
+
+def detect_vision_model(filename: str) -> VisionModelInfo:
+    """Detect whether a model filename looks like a vision-language GGUF."""
+    name = Path(filename).stem.lower()
+    for keywords, label, hint, needs_mmproj in _VLM_PATTERNS:
+        if any(kw in name for kw in keywords):
+            return VisionModelInfo(True, label, hint, needs_mmproj)
+    return VisionModelInfo()
+
+
+def detect_mmproj_for_model(model_path: str) -> str:
+    """Find a likely llama.cpp multimodal projector next to a VLM model."""
+    p = Path(model_path)
+    if not p.exists():
+        return ""
+    folder = p.parent
+    stem = p.stem.lower()
+    candidates = []
+    for f in folder.glob("*.gguf"):
+        n = f.name.lower()
+        if f == p:
+            continue
+        if any(k in n for k in ("mmproj", "projector", "vision", "clip")):
+            score = 10
+            for token in re.split(r'[-_. ]+', stem):
+                if len(token) > 2 and token in n:
+                    score += 1
+            candidates.append((score, f))
+    if not candidates:
+        return ""
+    candidates.sort(key=lambda x: (-x[0], x[1].name.lower()))
+    return str(candidates[0][1])
+
 def detect_model_family(filename: str) -> ModelFamily:
     """
     Detect model family from GGUF filename and return the matching template.

@@ -82,6 +82,10 @@ class LabEndpoints(QObject):
         self.engine_changed.emit()
         self.status_changed.emit(self.status_text)
 
+    def _log(self, level: str, msg: str) -> None:
+        print(f"[LAB][{level}] {msg}", flush=True)
+        self.log_msg.emit(level, msg)
+
     # ── engines / state ──────────────────────────────────────────────────────
     @property
     def llama_engine(self) -> Optional[LlamaEngine]:
@@ -188,18 +192,22 @@ class LabEndpoints(QObject):
 
         api = self.api_engine
         if api and api.is_loaded:
+            self._log("INFO", f"Routing → API  {api.model_path}")
             return self._call_api(api, msgs, n_predict, temperature)
 
         llama = self.llama_engine
         if llama and llama.is_loaded:
             if llama.mode == "server":
+                self._log("INFO", f"Routing → llama-server  port={llama.server_port}")
                 return self._call_server(
                     llama, msgs, n_predict, temperature, top_p, repeat_penalty
                 )
+            self._log("INFO", f"Routing → llama-cli  {Path(llama.model_path).name}")
             return self._call_cli(
                 llama, msgs, n_predict, temperature, repeat_penalty
             )
 
+        self._log("ERROR", "call_llm: no engine loaded")
         raise RuntimeError("No engine loaded")
 
     # ── internals ────────────────────────────────────────────────────────────
@@ -250,6 +258,7 @@ class LabEndpoints(QObject):
         raw = r.read().decode("utf-8", errors="replace")
 
         if r.status != 200:
+            self._log("ERROR", f"llama-server HTTP {r.status} — {raw[:120]}")
             raise RuntimeError(
                 f"llama-server HTTP {r.status}\n\n"
                 f"Response body:\n{raw}"
@@ -297,6 +306,9 @@ class LabEndpoints(QObject):
         if cfg is None:
             raise RuntimeError("API config not loaded")
         max_tokens = min(n_predict, cfg.max_tokens)
+        self._log("INFO",
+                  f"API call → {cfg.api_format.upper()}  "
+                  f"model={cfg.model_id}  max_tokens={max_tokens}")
 
         if cfg.api_format == "anthropic":
             sys_text = ""

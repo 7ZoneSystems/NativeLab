@@ -2,7 +2,7 @@ import sys
 print("LLAMAENGINE LOADED FROM:", __file__, file=sys.stderr, flush=True)
 from nativelab.imports.import_global import Optional, subprocess, time, json, Path, QThread, HAS_PSUTIL, psutil
 from nativelab.components.components_global import detect_model_family
-from nativelab.Model.model_global import get_model_registry
+from nativelab.Model.model_global import detect_mmproj_for_model, detect_vision_model, get_model_registry
 from nativelab.core.streamer_global import ServerStreamWorker, CliStreamWorker
 from nativelab.GlobalConfig.config_global import (
     DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, APP_CONFIG
@@ -19,6 +19,7 @@ class LlamaEngine:
         self.ctx_value:   int = DEFAULT_CTX()
         self.mode = "unloaded"
         self._log = lambda m: None
+        self._pending_images: list = []
 
     # ------------------------------------------------------------------ #
     #  Public API                                                          #
@@ -66,12 +67,15 @@ class LlamaEngine:
         cfg = get_model_registry().get_config(self.model_path)
 
         if self.mode == "server":
+            image_data = list(self._pending_images)
+            self._pending_images = []
             return ServerStreamWorker(
                 self.server_port, prompt, n_predict,
                 stop_tokens=fam.stop_tokens,
                 temperature=cfg.temperature,
                 top_p=cfg.top_p,
                 repeat_penalty=cfg.repeat_penalty,
+                image_data=image_data,
             )
 
         _extra_cli = SERVER_CONFIG.extra_cli_args.split() if SERVER_CONFIG.extra_cli_args else []
@@ -83,6 +87,10 @@ class LlamaEngine:
             "-p", prompt,
         ] + _extra_cli
         return CliStreamWorker(cmd)
+
+    def set_images(self, image_data: list):
+        """Attach llama.cpp image_data payloads to the next server request."""
+        self._pending_images = list(image_data or [])
 
     def ensure_server(self, log_cb=None) -> bool:
         """
@@ -205,6 +213,16 @@ class LlamaEngine:
         # ── 3. Launch a fresh server ──
         self.server_port = free_port()
         _extra_srv = SERVER_CONFIG.extra_server_args.split() if SERVER_CONFIG.extra_server_args else []
+        vi = detect_vision_model(model_path)
+        if vi.is_vision and "--mmproj" not in _extra_srv:
+            mmproj = detect_mmproj_for_model(model_path)
+            if mmproj:
+                _extra_srv = ["--mmproj", mmproj] + _extra_srv
+                self._log(f"[INFO] VLM detected ({vi.label}) - using mmproj: {Path(mmproj).name}")
+            elif vi.needs_mmproj:
+                self._log(
+                    f"[WARN] VLM detected ({vi.label}) but no mmproj/projector GGUF "
+                    f"was found next to the model. Add --mmproj <path> in server extra flags.")
         _server_bin = SERVER_CONFIG.server_path or _binres.LLAMA_SERVER
         cmd = [
             _server_bin, "-m", model_path,

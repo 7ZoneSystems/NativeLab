@@ -1,3 +1,13 @@
 v0.2.8
 
 1) fixed error surface in labs endpoints to show errors instead of just htps 400 error 
+
+v0.2.9 
+1) Added que management for py to doc [labs feature]
+2) Blackbox api key issue solved with log handler 
+3) Fixed issue where api models didnt came as seperate models nd glitched wiyh local models
+4) Added image input support for api and supported local models 
+5) Added vlm and vision support through llama.cpp and auto detection 
+6) Added katex and LaTeX support for md to html works nd chat bubbles
+7) Added ui sidebar controls , tab controls
+8) 

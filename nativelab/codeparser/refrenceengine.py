@@ -1,4 +1,6 @@
 from nativelab.imports.import_global import List, Dict, Tuple, Path, threading, pickle, re, dataclass, json
+import base64
+import mimetypes
 from nativelab.GlobalConfig.config_global import ram_free_mb, simple_hash
 from nativelab.GlobalConfig.const import REF_CACHE_DIR
 from .parser.parsefinal import ParsedScript
@@ -6,7 +8,7 @@ from .scriptparser import ScriptParser
 from nativelab.Model.templates import SCRIPT_LANGUAGES
 
 def _cfg():
-    from GlobalConfig import config_global
+    from nativelab.GlobalConfig import config_global
     return config_global
 
 @dataclass
@@ -152,6 +154,57 @@ class ScriptSmartReference(SmartReference):
             except Exception: pass
 
 
+class ImageReference(SmartReference):
+    def __init__(self, ref_id: str, name: str, raw_text: str):
+        data = json.loads(raw_text)
+        self.ref_id = ref_id
+        self.name = name
+        self.ftype = "image"
+        self.mime_type = data.get("mime_type", "image/png")
+        self.data_b64 = data.get("data", "")
+        self.source_path = data.get("source_path", "")
+        self._raw = raw_text
+        self._chunks = []
+        self._hot = {}
+        self._disk_path = _cfg().REF_CACHE_DIR / f"{ref_id}_image.pkl"
+        self._indexed = True
+
+    def build_index(self):
+        return None
+
+    def query(self, query_text: str, top_k: int = 6) -> str:
+        return (
+            f"Image attachment: {self.name}\n"
+            f"MIME type: {self.mime_type}\n"
+            "The image is attached separately for API vision-capable models."
+        )
+
+    def full_text_preview(self) -> str:
+        return f"Image attachment: {self.name} ({self.mime_type})"
+
+    def cleanup(self):
+        return None
+
+    def openai_part(self) -> Dict:
+        return {
+            "type": "image_url",
+            "image_url": {"url": f"data:{self.mime_type};base64,{self.data_b64}"},
+        }
+
+    def anthropic_part(self) -> Dict:
+        return {
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": self.mime_type,
+                "data": self.data_b64,
+            },
+        }
+
+    def llama_part(self, idx: int) -> Dict:
+        return {"id": idx, "data": self.data_b64}
+
+
 class SessionReferenceStore:
     def __init__(self, session_id: str):
         self.session_id  = session_id
@@ -172,6 +225,9 @@ class SessionReferenceStore:
                 if r.get("ftype") == "script":
                     self._refs[r["ref_id"]] = ScriptSmartReference(
                         r["ref_id"], r["name"], r.get("lang_key", "text"), raw, _cfg().REF_CACHE_DIR)
+                elif r.get("ftype") == "image":
+                    self._refs[r["ref_id"]] = ImageReference(
+                        r["ref_id"], r["name"], raw)
                 else:
                     self._refs[r["ref_id"]] = SmartReference(
                         r["ref_id"], r["name"], r["ftype"], raw)
@@ -207,6 +263,23 @@ class SessionReferenceStore:
         self.save_meta()
         return ref
 
+    def add_image_reference(self, path: str) -> ImageReference:
+        p = Path(path)
+        data = p.read_bytes()
+        mime_type = mimetypes.guess_type(str(p))[0] or "image/png"
+        payload = json.dumps({
+            "source_path": str(p),
+            "mime_type": mime_type,
+            "data": base64.b64encode(data).decode("ascii"),
+        })
+        ref_id = simple_hash(p.name + str(p.stat().st_size) + payload[:64])
+        raw_path = _cfg().REF_CACHE_DIR / f"{ref_id}_raw.txt"
+        raw_path.write_text(payload, encoding="utf-8", errors="replace")
+        ref = ImageReference(ref_id, p.name, payload)
+        self._refs[ref_id] = ref
+        self.save_meta()
+        return ref
+
     def remove(self, ref_id: str):
         r = self._refs.pop(ref_id, None)
         if r:
@@ -233,7 +306,10 @@ class SessionReferenceStore:
             return ""
         parts = []
         for ref in self._refs.values():
-            if isinstance(ref, ScriptSmartReference):
+            if isinstance(ref, ImageReference):
+                snippet = ref.query(query, top_k=1)
+                label = f"🖼 Image · {ref.name}"
+            elif isinstance(ref, ScriptSmartReference):
                 snippet = ref.query(query, top_k=6)
                 label   = f"💻 Script ({ref.lang_key.upper()}) · {ref.name}"
             else:
@@ -258,6 +334,8 @@ class SessionReferenceStore:
             return
         words = set(re.findall(r'\w+', query.lower()))
         for ref in self._refs.values():
+            if isinstance(ref, (ScriptSmartReference, ImageReference)):
+                continue
             for c in ref._chunks[:cfg.MAX_RAM_CHUNKS]:
                 if c.idx not in ref._hot:
                     text = ref.load_chunk_from_disk(c.idx)
@@ -282,6 +360,23 @@ class SessionReferenceStore:
         self.save_meta()
         return ref
 
+    def api_image_parts(self, api_format: str = "openai") -> List[Dict]:
+        parts = []
+        for ref in self._refs.values():
+            if isinstance(ref, ImageReference):
+                parts.append(
+                    ref.anthropic_part() if api_format == "anthropic"
+                    else ref.openai_part()
+                )
+        return parts
+
+    def llama_image_data(self) -> List[Dict]:
+        parts = []
+        for ref in self._refs.values():
+            if isinstance(ref, ImageReference):
+                parts.append(ref.llama_part(len(parts) + 1))
+        return parts
+
 
     def build_context_block_extended(self, query: str) -> str:
         """
@@ -292,7 +387,10 @@ class SessionReferenceStore:
             return ""
         parts = []
         for ref in store._refs.values():
-            if isinstance(ref, ScriptSmartReference):
+            if isinstance(ref, ImageReference):
+                snippet = ref.query(query, top_k=1)
+                label = f"🖼 Image · {ref.name}"
+            elif isinstance(ref, ScriptSmartReference):
                 snippet = ref.query(query, top_k=6)
                 label   = f"💻 Script ({ref.lang_key.upper()}) · {ref.name}"
             else:

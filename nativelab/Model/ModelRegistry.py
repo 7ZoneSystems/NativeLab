@@ -2,7 +2,7 @@ from nativelab.imports.import_global import Dict, dataclass, Path, json, field
 from .model_family import *
 # ═════════════════════════════ MODEL REGISTRY ═══════════════════════════════
 def _cfg():
-    from GlobalConfig import config_global
+    from nativelab.GlobalConfig import config_global
     return config_global
 
 def _default_ctx():
@@ -63,6 +63,10 @@ class ModelConfig:
     @property
     def quant_type(self) -> str:
         return detect_quant_type(self.path)
+
+    @property
+    def vision_info(self) -> VisionModelInfo:
+        return detect_vision_model(self.path)
 
 
 class ModelRegistry:
@@ -127,11 +131,14 @@ class ModelRegistry:
                 cfg = self.get_config(str(f))
                 fam = detect_model_family(str(f))
                 qt  = detect_quant_type(str(f))
+                vi  = detect_vision_model(str(f))
                 models.append({
                     "path": str(f), "name": f.name,
                     "size_mb": round(f.stat().st_size / 1e6, 1),
                     "source": "auto", "role": cfg.role,
                     "family": fam.name, "quant": qt,
+                    "vision": vi.is_vision, "vision_label": vi.label,
+                    "mmproj": detect_mmproj_for_model(str(f)),
                 })
         for p in self._custom:
             fp = Path(p)
@@ -140,11 +147,14 @@ class ModelRegistry:
                 cfg = self.get_config(p)
                 fam = detect_model_family(p)
                 qt  = detect_quant_type(p)
+                vi  = detect_vision_model(p)
                 models.append({
                     "path": p, "name": fp.name,
                     "size_mb": round(fp.stat().st_size / 1e6, 1),
                     "source": "custom", "role": cfg.role,
                     "family": fam.name, "quant": qt,
+                    "vision": vi.is_vision, "vision_label": vi.label,
+                    "mmproj": detect_mmproj_for_model(p),
                 })
         return models
 
@@ -156,4 +166,3 @@ def get_model_registry():
     if _model_registry is None:
         _model_registry = ModelRegistry()
     return _model_registry
-

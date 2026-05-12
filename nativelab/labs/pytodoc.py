@@ -103,9 +103,13 @@ class PyToDocWorker(QThread):
         prompt_class:        str,
         prompt_function:     str,
         endpoints:           LabEndpoints,
+        file_list:           Optional[List[str]] = None,
+        project_root:        Optional[str] = None,
         parent=None,
     ):
         super().__init__(parent)
+        self.file_list    = file_list or []
+        self.project_root = project_root
         self.file_path          = file_path
         self.out_path           = out_path
         self.out_name           = out_name
@@ -158,27 +162,42 @@ class PyToDocWorker(QThread):
             self.error.emit(str(exc))
 
     def _pipeline(self):
+        files = self.file_list if self.file_list else [self.file_path]
+        for file_path in files:
+            if self._abort:
+                return
+            self._process_one(file_path)
+        self.done.emit()
+
+    def _process_one(self, file_path: str):
         if self._abort:
             return
 
-        self._log(f"Parsing: {Path(self.file_path).name}")
-        parsed = parse_python_file(self.file_path)
+        self._log(f"Parsing: {Path(file_path).name}")
+        parsed = parse_python_file(file_path)
         src    = parsed["source"]
         lines  = parsed["lines"]
-        fname  = Path(self.file_path).stem
+        fname  = Path(file_path).stem
 
         out_dir = Path(self.out_path)
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_file = out_dir / self.out_name
-        fh = out_file.open("w", encoding="utf-8")
+        if self.project_root:
+            rel      = Path(file_path).relative_to(self.project_root)
+            out_file = out_dir / rel.with_suffix(".md")
+            out_file.parent.mkdir(parents=True, exist_ok=True)
+        elif self.file_list:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_file = out_dir / f"{fname}.md"
+        else:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_file = out_dir / self.out_name
 
+        fh = out_file.open("w", encoding="utf-8")
         try:
             self._run_pipeline(fh, fname, src, lines, parsed)
         finally:
             fh.close()
 
         self._log(f"README saved → {out_file}")
-        self.done.emit()
 
     def _run_pipeline(self, fh, fname, src, lines, parsed):
         self._write(fh, f"## Doc for {fname}\n---\n\n")
@@ -253,6 +272,8 @@ class PyToDocPanel(QWidget):
         super().__init__(parent)
         self._worker:    Optional[PyToDocWorker] = None
         self._endpoints: Optional[LabEndpoints]  = None
+        self._mode = "single"
+        self._queue_files: list[str] = []
         self._build()
 
     # ── endpoint wiring ──────────────────────────────────────────────────────
@@ -305,6 +326,25 @@ class PyToDocPanel(QWidget):
         self.lbl_engine.setStyleSheet("margin-bottom:10px;")
         root.addWidget(self.lbl_engine)
 
+        root.addWidget(self._section_label("MODE"))
+        mode_card = self._card()
+        mc = QHBoxLayout(mode_card)
+        mc.setContentsMargins(16, 10, 16, 10)
+        mc.setSpacing(6)
+        self.btn_mode_single  = QPushButton("📄  Single File")
+        self.btn_mode_queue   = QPushButton("📚  Queue")
+        self.btn_mode_project = QPushButton("📁  Project")
+        for _b in (self.btn_mode_single, self.btn_mode_queue, self.btn_mode_project):
+            _b.setCheckable(True)
+            _b.setFixedHeight(30)
+            mc.addWidget(_b)
+        self.btn_mode_single.setChecked(True)
+        self.btn_mode_single.clicked.connect(lambda: self._set_mode("single"))
+        self.btn_mode_queue.clicked.connect(lambda: self._set_mode("queue"))
+        self.btn_mode_project.clicked.connect(lambda: self._set_mode("project"))
+        root.addWidget(mode_card)
+        root.addSpacing(8)
+
         # File settings
         root.addWidget(self._section_label("FILE SETTINGS"))
         file_card = self._card()
@@ -312,29 +352,73 @@ class PyToDocPanel(QWidget):
         fc.setContentsMargins(16, 14, 16, 14)
         fc.setSpacing(10)
 
+        # ── single-file row ───────────────────────────────────────────────
+        self._wgt_single_row = QWidget()
+        _sl = QHBoxLayout(self._wgt_single_row)
+        _sl.setContentsMargins(0, 0, 0, 0); _sl.setSpacing(8)
+        _lbl_s = QLabel("Python file:"); _lbl_s.setObjectName("txt2"); _lbl_s.setFixedWidth(110)
         self.inp_src = QLineEdit()
         self.inp_src.setPlaceholderText("Select Python file to document…")
-        self.inp_src.setReadOnly(True)
-        self.inp_src.setFixedHeight(30)
+        self.inp_src.setReadOnly(True); self.inp_src.setFixedHeight(30)
         btn_browse_src = QPushButton("Browse…")
-        btn_browse_src.setFixedHeight(30)
-        btn_browse_src.setFixedWidth(80)
+        btn_browse_src.setFixedHeight(30); btn_browse_src.setFixedWidth(80)
         btn_browse_src.clicked.connect(self._browse_src)
-        fc.addLayout(self._field_row("Python file:", self.inp_src, btn_browse_src))
+        _sl.addWidget(_lbl_s); _sl.addWidget(self.inp_src, 1); _sl.addWidget(btn_browse_src)
+        fc.addWidget(self._wgt_single_row)
 
+        # ── queue rows ────────────────────────────────────────────────────
+        self._wgt_queue_row = QWidget()
+        _qlayout = QVBoxLayout(self._wgt_queue_row)
+        _qlayout.setContentsMargins(0, 0, 0, 0); _qlayout.setSpacing(4)
+        _qh = QHBoxLayout(); _qh.setSpacing(8)
+        _lbl_q = QLabel("Queued files:"); _lbl_q.setObjectName("txt2"); _lbl_q.setFixedWidth(110)
+        self.lst_queue = QTextEdit()
+        self.lst_queue.setReadOnly(True); self.lst_queue.setFixedHeight(72)
+        self.lst_queue.setPlaceholderText("No files queued yet…")
+        _qh.addWidget(_lbl_q); _qh.addWidget(self.lst_queue, 1)
+        _qlayout.addLayout(_qh)
+        _qb = QHBoxLayout(); _qb.addSpacing(118)
+        btn_q_add = QPushButton("➕  Add Files"); btn_q_add.setFixedHeight(26)
+        btn_q_add.clicked.connect(self._browse_src_queue)
+        btn_q_clr = QPushButton("🗑  Clear"); btn_q_clr.setFixedHeight(26)
+        btn_q_clr.clicked.connect(self._clear_queue)
+        _qb.addWidget(btn_q_add); _qb.addWidget(btn_q_clr); _qb.addStretch()
+        _qlayout.addLayout(_qb)
+        fc.addWidget(self._wgt_queue_row)
+        self._wgt_queue_row.setVisible(False)
+
+        # ── project source row ────────────────────────────────────────────
+        self._wgt_project_row = QWidget()
+        _pl = QHBoxLayout(self._wgt_project_row)
+        _pl.setContentsMargins(0, 0, 0, 0); _pl.setSpacing(8)
+        _lbl_p = QLabel("Project root:"); _lbl_p.setObjectName("txt2"); _lbl_p.setFixedWidth(110)
+        self.inp_project_src = QLineEdit()
+        self.inp_project_src.setPlaceholderText("Select project root directory…")
+        self.inp_project_src.setReadOnly(True); self.inp_project_src.setFixedHeight(30)
+        btn_browse_proj = QPushButton("Browse…")
+        btn_browse_proj.setFixedHeight(30); btn_browse_proj.setFixedWidth(80)
+        btn_browse_proj.clicked.connect(self._browse_src_project)
+        _pl.addWidget(_lbl_p); _pl.addWidget(self.inp_project_src, 1); _pl.addWidget(btn_browse_proj)
+        fc.addWidget(self._wgt_project_row)
+        self._wgt_project_row.setVisible(False)
+
+        # ── output folder (always visible) ────────────────────────────────
         self.inp_out_dir = QLineEdit()
         self.inp_out_dir.setPlaceholderText("Select output folder…")
-        self.inp_out_dir.setReadOnly(True)
-        self.inp_out_dir.setFixedHeight(30)
+        self.inp_out_dir.setReadOnly(True); self.inp_out_dir.setFixedHeight(30)
         btn_browse_out = QPushButton("Browse…")
-        btn_browse_out.setFixedHeight(30)
-        btn_browse_out.setFixedWidth(80)
+        btn_browse_out.setFixedHeight(30); btn_browse_out.setFixedWidth(80)
         btn_browse_out.clicked.connect(self._browse_out)
         fc.addLayout(self._field_row("Output folder:", self.inp_out_dir, btn_browse_out))
 
-        self.inp_out_name = QLineEdit("README.md")
-        self.inp_out_name.setFixedHeight(30)
-        fc.addLayout(self._field_row("Output filename:", self.inp_out_name))
+        # ── output filename (single mode only) ────────────────────────────
+        self._wgt_outname_row = QWidget()
+        _ol = QHBoxLayout(self._wgt_outname_row)
+        _ol.setContentsMargins(0, 0, 0, 0); _ol.setSpacing(8)
+        _lbl_o = QLabel("Output filename:"); _lbl_o.setObjectName("txt2"); _lbl_o.setFixedWidth(110)
+        self.inp_out_name = QLineEdit("README.md"); self.inp_out_name.setFixedHeight(30)
+        _ol.addWidget(_lbl_o); _ol.addWidget(self.inp_out_name, 1)
+        fc.addWidget(self._wgt_outname_row)
 
         root.addWidget(file_card)
         root.addSpacing(14)
@@ -494,6 +578,46 @@ class PyToDocPanel(QWidget):
         if p:
             self.inp_out_dir.setText(p)
 
+    def _set_mode(self, mode: str):
+        self._mode = mode
+        self.btn_mode_single.setChecked(mode == "single")
+        self.btn_mode_queue.setChecked(mode == "queue")
+        self.btn_mode_project.setChecked(mode == "project")
+        self._wgt_single_row.setVisible(mode == "single")
+        self._wgt_queue_row.setVisible(mode == "queue")
+        self._wgt_project_row.setVisible(mode == "project")
+        self._wgt_outname_row.setVisible(mode == "single")
+
+    def _browse_src_queue(self):
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Select Python Files",
+            str(Path(self._queue_files[-1]).parent if self._queue_files else Path.home()),
+            "Python Files (*.py);;All Files (*)"
+        )
+        for p in paths:
+            if p not in self._queue_files:
+                self._queue_files.append(p)
+        self._update_queue_display()
+        if self._queue_files and not self.inp_out_dir.text():
+            self.inp_out_dir.setText(str(Path(self._queue_files[0]).parent))
+
+    def _clear_queue(self):
+        self._queue_files.clear()
+        self._update_queue_display()
+
+    def _update_queue_display(self):
+        self.lst_queue.setPlainText("\n".join(self._queue_files))
+
+    def _browse_src_project(self):
+        p = QFileDialog.getExistingDirectory(
+            self, "Select Project Root",
+            self.inp_project_src.text() or str(Path.home())
+        )
+        if p:
+            self.inp_project_src.setText(p)
+            if not self.inp_out_dir.text():
+                self.inp_out_dir.setText(p)
+
     def _log(self, msg: str):
         self.log_te.append(msg)
         self.log_te.verticalScrollBar().setValue(
@@ -518,21 +642,45 @@ class PyToDocPanel(QWidget):
         self.btn_abort.setVisible(running)
 
     def _run_py_to_doc(self):
-        src      = self.inp_src.text().strip()
+        mode     = self._mode
         out_dir  = self.inp_out_dir.text().strip()
-        out_name = self.inp_out_name.text().strip()
+        out_name = self.inp_out_name.text().strip() or "README.md"
+        file_list:    list[str]    = []
+        project_root: Optional[str] = None
 
-        if not src or not Path(src).is_file():
-            QMessageBox.warning(self, "Missing File",
-                                "Please select a valid Python source file.")
-            return
+        if mode == "single":
+            src = self.inp_src.text().strip()
+            if not src or not Path(src).is_file():
+                QMessageBox.warning(self, "Missing File",
+                                    "Please select a valid Python source file.")
+                return
+
+        elif mode == "queue":
+            if not self._queue_files:
+                QMessageBox.warning(self, "Empty Queue",
+                                    "Add at least one Python file to the queue.")
+                return
+            src       = self._queue_files[0]
+            file_list = list(self._queue_files)
+
+        else:  # project
+            proj = self.inp_project_src.text().strip()
+            if not proj or not Path(proj).is_dir():
+                QMessageBox.warning(self, "Missing Project Root",
+                                    "Please select a valid project root directory.")
+                return
+            file_list = [str(p) for p in sorted(Path(proj).rglob("*.py"))]
+            if not file_list:
+                QMessageBox.warning(self, "No Python Files",
+                                    "No .py files found in the selected directory.")
+                return
+            src          = file_list[0]
+            project_root = proj
+
         if not out_dir:
             QMessageBox.warning(self, "Missing Output Folder",
                                 "Please select an output folder.")
             return
-        if not out_name:
-            out_name = "README.md"
-            self.inp_out_name.setText(out_name)
 
         if self._endpoints is None or not self._endpoints.is_loaded:
             QMessageBox.warning(
@@ -541,7 +689,6 @@ class PyToDocPanel(QWidget):
                 "model) from the main tabs first.")
             return
 
-        # Make sure the local server is up before we start streaming requests.
         if self._endpoints.llama_engine and self._endpoints.api_engine \
                 and not self._endpoints.api_engine.is_loaded:
             self._endpoints.ensure_server(log_cb=lambda m: self._log(m))
@@ -561,6 +708,8 @@ class PyToDocPanel(QWidget):
             prompt_class       = self.inp_prompt_class.toPlainText().strip(),
             prompt_function    = self.inp_prompt_function.toPlainText().strip(),
             endpoints          = self._endpoints,
+            file_list          = file_list,
+            project_root       = project_root,
         )
         self._worker.log_msg.connect(self._log)
         self._worker.chunk.connect(self._on_chunk)
@@ -570,12 +719,16 @@ class PyToDocPanel(QWidget):
 
     def _on_done(self):
         self._set_running(False)
-        out = Path(self.inp_out_dir.text()) / self.inp_out_name.text()
-        self._log(f"✅  Done  →  {out}")
-        QMessageBox.information(
-            self, "Documentation Generated",
-            f"README saved to:\n{out}"
-        )
+        if self._mode == "single":
+            out = Path(self.inp_out_dir.text()) / self.inp_out_name.text()
+            self._log(f"✅  Done  →  {out}")
+            QMessageBox.information(self, "Documentation Generated",
+                                    f"README saved to:\n{out}")
+        else:
+            out_dir = self.inp_out_dir.text()
+            self._log(f"✅  Done  →  {out_dir}")
+            QMessageBox.information(self, "Documentation Generated",
+                                    f"All docs saved to:\n{out_dir}")
         self._worker = None
 
     def _on_error(self, msg: str):

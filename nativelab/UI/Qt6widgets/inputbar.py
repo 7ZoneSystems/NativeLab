@@ -1,7 +1,17 @@
 from nativelab.imports.import_global import Qt, QEvent, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit, QTimer, pyqtSignal
 from nativelab.UI.UI_global import C
 from nativelab.GlobalConfig.config_global import DEFAULT_MODEL, MODELS_DIR
-from nativelab.Model.model_global import detect_model_family, detect_quant_type, quant_info, get_model_registry
+from nativelab.Model.model_global import (
+    api_model_label,
+    api_model_ref,
+    detect_model_family,
+    detect_quant_type,
+    detect_vision_model,
+    get_model_registry,
+    getapi_registry,
+    is_api_model_ref,
+    quant_info,
+)
 
 class InputBar(QWidget):
     send_requested       = pyqtSignal(str)
@@ -115,16 +125,27 @@ class InputBar(QWidget):
         self.model_combo.clear()
         for m in get_model_registry().all_models():
             self.model_combo.addItem(m["name"], m["path"])
+        for cfg in getapi_registry().all():
+            self.model_combo.addItem(api_model_label(cfg), api_model_ref(cfg.name))
         if self.model_combo.count() == 0:
             self.model_combo.addItem(DEFAULT_MODEL, str(MODELS_DIR / DEFAULT_MODEL))
 
     def _update_family_badge(self):
         path = self.model_combo.currentData() or ""
+        if is_api_model_ref(path):
+            cfg = getapi_registry().get_by_ref(path)
+            if cfg:
+                self.family_badge.setText(f"API  ·  {cfg.provider}  ·  max {cfg.max_tokens}")
+            else:
+                self.family_badge.setText("API")
+            return
         if path:
             fam   = detect_model_family(path)
             quant = detect_quant_type(path)
             ql, _ = quant_info(quant)
-            self.family_badge.setText(f"{fam.name}  ·  {quant}  ·  {ql}")
+            vi = detect_vision_model(path)
+            vision = f"  ·  VLM: {vi.label}" if vi.is_vision else ""
+            self.family_badge.setText(f"{fam.name}  ·  {quant}  ·  {ql}{vision}")
         else:
             self.family_badge.setText("")
 

@@ -1,4 +1,5 @@
 from nativelab.Model.ModelRegistry import get_model_registry
+from nativelab.Model.model_global import api_model_ref, getapi_registry, is_api_model_ref
 from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
 from .pipefunctions import list_saved_pipelines, load_pipeline, save_pipeline
 from .blck_typ import PipelineBlockType 
@@ -421,9 +422,15 @@ class PipelineBuilderTab(QWidget):
             ri   = ROLE_ICONS.get(m.get("role", "general"), "💬")
             qt   = m.get("quant", "?")
             fam  = m.get("family", "?")
-            item = QListWidgetItem(f"{ri}  {m['name']}\n    {fam} · {qt}")
+            vision = f" · VLM:{m.get('vision_label') or 'vision'}" if m.get("vision") else ""
+            item = QListWidgetItem(f"{ri}  {m['name']}\n    {fam} · {qt}{vision}")
             item.setData(Qt.ItemDataRole.UserRole,     m["path"])
             item.setData(Qt.ItemDataRole.UserRole + 1, m.get("role", "general"))
+            self.model_list.addItem(item)
+        for cfg in getapi_registry().all():
+            item = QListWidgetItem(f"🌐  {cfg.name}\n    API · {cfg.provider} · {cfg.model_id}")
+            item.setData(Qt.ItemDataRole.UserRole, api_model_ref(cfg.name))
+            item.setData(Qt.ItemDataRole.UserRole + 1, "general")
             self.model_list.addItem(item)
 
     # ── pipeline save / load ──────────────────────────────────────────────────
@@ -744,13 +751,13 @@ class PipelineBuilderTab(QWidget):
                     return (f"LLM logic block '{b.label}' has no instruction.\n"
                             f"Right-click it → Configure block…")
                 mp = b.model_path or meta.get("llm_model_path", "")
-                if not mp or not Path(mp).exists():
+                if not mp or (not is_api_model_ref(mp) and not Path(mp).exists()):
                     return (f"LLM logic block '{b.label}' has no valid model attached.\n"
                             f"Right-click it → Configure block… and select a model.")
         # Model blocks must have a valid file
         for b in blocks:
             if b.btype == PipelineBlockType.MODEL:
-                if not b.model_path or not Path(b.model_path).exists():
+                if not b.model_path or (not is_api_model_ref(b.model_path) and not Path(b.model_path).exists()):
                     return (f"Model block '{b.label}' has no valid model file.\n"
                             f"Double-click a model in the sidebar to add it.")
         return None

@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import HAS_PDF, PdfReader, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QListWidget, QListWidgetItem, QMenu, QFileDialog, QColor, QTimer, pyqtSignal, QMessageBox, QTabWidget, QFrame, Qt, Path
-from codeparser.codeparser_global import ScriptSmartReference, SessionReferenceStore
+from nativelab.codeparser.codeparser_global import ImageReference, ScriptSmartReference, SessionReferenceStore
 from nativelab.GlobalConfig.config_global import SCRIPT_EXTENSIONS_FILTER, RAM_WATCHDOG_MB, get_ref_store, ram_free_mb
 from nativelab.UI.buildUI import C
 
@@ -61,15 +61,18 @@ class ReferencePanelV2(QWidget):
         self.add_pdf_btn = QPushButton("＋ PDF")
         self.add_py_btn  = QPushButton("＋ .py")
         self.add_txt_btn = QPushButton("＋ Text")
-        for b in (self.add_pdf_btn, self.add_py_btn, self.add_txt_btn):            
+        self.add_img_btn = QPushButton("＋ Image")
+        for b in (self.add_pdf_btn, self.add_py_btn, self.add_txt_btn, self.add_img_btn):
             b.setFixedHeight(24)
             b.setStyleSheet(self._mini_btn_style(C["acc"]))
         self.add_pdf_btn.clicked.connect(lambda: self._add_doc("pdf"))
         self.add_py_btn.clicked.connect(lambda: self._add_doc("python"))
         self.add_txt_btn.clicked.connect(lambda: self._add_doc("text"))
+        self.add_img_btn.clicked.connect(self._add_image)
         doc_btn_row.addWidget(self.add_pdf_btn)
         doc_btn_row.addWidget(self.add_py_btn)
         doc_btn_row.addWidget(self.add_txt_btn)
+        doc_btn_row.addWidget(self.add_img_btn)
         docs_l.addLayout(doc_btn_row)
 
         self.multi_pdf_btn = QPushButton("📚  Summarize Multiple PDFs")
@@ -195,7 +198,7 @@ class ReferencePanelV2(QWidget):
                 self._add_doc_list_item(ref)
 
     def _add_doc_list_item(self, ref):
-        icon = {"pdf": "📄", "python": "🐍", "text": "📝"}.get(
+        icon = {"pdf": "📄", "python": "🐍", "text": "📝", "image": "🖼"}.get(
             getattr(ref, "ftype", ""), "📎")
         item = QListWidgetItem(f"{icon}  {ref.name}")
         item.setData(Qt.ItemDataRole.UserRole, ref.ref_id)
@@ -287,6 +290,20 @@ class ReferencePanelV2(QWidget):
         self._refresh()
         self.refs_changed.emit()
 
+    def _add_image(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Add Image Reference",
+            str(Path.home()),
+            "Images (*.png *.jpg *.jpeg *.webp *.gif);;All Files (*)")
+        if not path:
+            return
+        try:
+            self._store.add_image_reference(path)
+        except Exception as e:
+            QMessageBox.warning(self, "Image Error", str(e)); return
+        self._refresh()
+        self.refs_changed.emit()
+
     # ── Add script (with parser) ──────────────────────────────────────────────
     def _add_script(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -358,6 +375,16 @@ class ReferencePanelV2(QWidget):
     # ── Context for prompt ────────────────────────────────────────────────────
     def get_context_for(self, query: str) -> str:
         return self._store.build_context_block_extended(query)
+
+    def get_api_image_parts(self, api_format: str = "openai") -> list:
+        if hasattr(self._store, "api_image_parts"):
+            return self._store.api_image_parts(api_format)
+        return []
+
+    def get_llama_image_data(self) -> list:
+        if hasattr(self._store, "llama_image_data"):
+            return self._store.llama_image_data()
+        return []
 
 class ReferencePanel(QWidget):
     """

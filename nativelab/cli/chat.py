@@ -32,6 +32,11 @@ from typing import List, Optional
 
 from nativelab.core.engine_global import LlamaEngine, ApiEngine
 from nativelab.labs import LabEndpoints
+from nativelab.Model.model_global import (
+    api_model_ref,
+    getapi_registry,
+    is_api_model_ref,
+)
 
 from . import lint as _lint
 from . import ui
@@ -49,7 +54,25 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
     eng = LlamaEngine()
     api: Optional[ApiEngine] = None
 
-    if model_path and Path(model_path).exists():
+    def load_api(ref_or_name: str) -> bool:
+        nonlocal api
+        ref = ref_or_name if is_api_model_ref(ref_or_name) else api_model_ref(ref_or_name)
+        cfg = getapi_registry().get_by_ref(ref)
+        if cfg is None:
+            return False
+        ui.info(f"Loading API model: {cfg.name} ({cfg.model_id})")
+        new_api = ApiEngine()
+        ok = new_api.load(cfg, log_cb=lambda m: ui.info(m))
+        if ok:
+            api = new_api
+        return bool(ok)
+
+    if model_path and is_api_model_ref(model_path):
+        if not load_api(model_path):
+            ui.warn(f"API config not found: {model_path}")
+    elif model_path and load_api(model_path):
+        pass
+    elif model_path and Path(model_path).exists():
         ui.info(f"Loading model: {Path(model_path).name}")
         ok = eng.load(model_path, ctx=ctx, log_cb=lambda m: ui.info(m))
         if not ok:
@@ -63,6 +86,9 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
 
     def on_context(new_ctx: int) -> bool:
         nonlocal eng
+        if api and api.is_loaded:
+            ui.warn("Context reload applies to local GGUF models; API model context is set by its config.")
+            return True
         try:
             eng.shutdown()
         except Exception:
@@ -80,9 +106,22 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
         return bool(ok)
 
     def on_model(new_path: str) -> bool:
-        nonlocal eng, model_path
+        nonlocal eng, api, model_path
+        if is_api_model_ref(new_path) or getapi_registry().get(new_path):
+            try:
+                eng.shutdown()
+            except Exception:
+                pass
+            ok = load_api(new_path)
+            if ok:
+                model_path = new_path
+            endpoints.notify_engine_changed()
+            return bool(ok)
         if not new_path or not Path(new_path).exists():
             return False
+        if api and api.is_loaded:
+            api.shutdown()
+            api = None
         try:
             eng.shutdown()
         except Exception:
@@ -99,10 +138,14 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
         return bool(ok)
 
     def on_unload() -> None:
+        nonlocal api
         try:
             eng.shutdown()
         except Exception:
             pass
+        if api:
+            api.shutdown()
+            api = None
         endpoints.notify_engine_changed()
 
     endpoints.bind_reverse_routes(
@@ -209,8 +252,8 @@ class ChatREPL:
         print(ui.bold("Commands"))
         for k, v in [
             ("/status",        "current backend, model, ctx, server port"),
-            ("/load <path>",   "load a GGUF model"),
-            ("/unload",        "unload the local model"),
+            ("/load <path|@api/name>", "load a GGUF model or saved API config"),
+            ("/unload",        "unload the current model"),
             ("/ctx <n>",       "change context size and reload"),
             ("/system <text>", "set the system prompt"),
             ("/reset",         "clear conversation history"),

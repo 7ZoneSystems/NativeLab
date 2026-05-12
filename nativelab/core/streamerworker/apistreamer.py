@@ -4,6 +4,7 @@ class ApiStreamWorker(QThread):
     token = pyqtSignal(str)
     done  = pyqtSignal(float)
     err   = pyqtSignal(str)
+    log   = pyqtSignal(str)
 
     def __init__(self, messages: list, api_key: str, base_url: str,
                  model_id: str, api_format: str = "openai",
@@ -28,6 +29,10 @@ class ApiStreamWorker(QThread):
         t0 = time.time()
         n  = 0
         try:
+            self.log.emit(
+                f"[API] Request started — format={self.api_format.upper()}"
+                f"  model={self.model_id}  url={self.base_url}"
+            )
             # Apply custom prompt wrapping when requested
             if getattr(self, "use_custom_prompt", False) and self.messages:
                 up  = getattr(self, "user_prefix", "")
@@ -38,12 +43,29 @@ class ApiStreamWorker(QThread):
                 if sys:
                     wrapped.append({"role": "system", "content": sys})
                 for m in self.messages:
+                    content = m.get("content", "")
                     if m["role"] == "user":
-                        wrapped.append({"role": "user",
-                                        "content": f"{up}{m['content']}{us}"})
+                        if isinstance(content, list):
+                            new_content = []
+                            text_wrapped = False
+                            for part in content:
+                                if (isinstance(part, dict)
+                                        and part.get("type") == "text"
+                                        and not text_wrapped):
+                                    new_content.append({
+                                        **part,
+                                        "text": f"{up}{part.get('text', '')}{us}",
+                                    })
+                                    text_wrapped = True
+                                else:
+                                    new_content.append(part)
+                            wrapped.append({"role": "user", "content": new_content})
+                        else:
+                            wrapped.append({"role": "user",
+                                            "content": f"{up}{content}{us}"})
                     elif m["role"] == "assistant":
                         wrapped.append({"role": "assistant",
-                                        "content": f"{ap}{m['content']}"})
+                                        "content": f"{ap}{content}"})
                     else:
                         wrapped.append(m)
                 self.messages = wrapped
@@ -106,8 +128,13 @@ class ApiStreamWorker(QThread):
                         except Exception:
                             pass
             elapsed = time.time() - t0
-            self.done.emit(n / elapsed if elapsed > 0 else 0.0)
+            tps = n / elapsed if elapsed > 0 else 0.0
+            self.log.emit(
+                f"[API] Done — {n} tokens in {elapsed:.1f}s ({tps:.1f} tok/s)"
+            )
+            self.done.emit(tps)
         except Exception as e:
+            self.log.emit(f"[API] Error: {e}")
             self.err.emit(str(e))
 
     def abort(self):

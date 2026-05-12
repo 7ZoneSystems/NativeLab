@@ -1,6 +1,7 @@
 from nativelab.imports.import_global import dataclass, List, json, Dict
+from urllib.parse import quote, unquote
 def _cfg():
-    from GlobalConfig import config_global
+    from nativelab.GlobalConfig import config_global
     return config_global
 @dataclass
 class ApiConfig:
@@ -59,6 +60,17 @@ class ApiRegistry:
     def all(self) -> List[ApiConfig]:
         return list(self._configs)
 
+    def get(self, name: str) -> ApiConfig | None:
+        for cfg in self._configs:
+            if cfg.name == name:
+                return cfg
+        return None
+
+    def get_by_ref(self, ref: str) -> ApiConfig | None:
+        if not is_api_model_ref(ref):
+            return None
+        return self.get(api_model_name_from_ref(ref))
+
 
 api_registry = None
 
@@ -67,3 +79,23 @@ def getapi_registry():
     if api_registry is None:
         api_registry = ApiRegistry()
     return api_registry
+
+
+API_MODEL_PREFIX = "@api/"
+
+
+def api_model_ref(name: str) -> str:
+    return API_MODEL_PREFIX + quote(name or "", safe="")
+
+
+def api_model_name_from_ref(ref: str) -> str:
+    return unquote((ref or "")[len(API_MODEL_PREFIX):])
+
+
+def is_api_model_ref(ref: str) -> bool:
+    return bool(ref) and str(ref).startswith(API_MODEL_PREFIX)
+
+
+def api_model_label(cfg: ApiConfig) -> str:
+    provider = getattr(cfg, "custom_provider_name", "") or cfg.provider
+    return f"API: {cfg.name} ({provider} / {cfg.model_id})"

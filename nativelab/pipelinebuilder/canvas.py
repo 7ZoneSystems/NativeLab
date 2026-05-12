@@ -3,7 +3,7 @@ from .pipblck import PipelineBlock, PipelineBlockType
 from .blck_typ import PipelineConnection
 from nativelab.Server.server_global import detect_model_family
 from nativelab.GlobalConfig.config_global import MODEL_ROLES
-from nativelab.Model.model_global import detect_quant_type
+from nativelab.Model.model_global import api_model_name_from_ref, detect_quant_type, detect_vision_model, is_api_model_ref
 from .editordialogue import CodeEditorDialog, LlmLogicEditorDialog
 from nativelab.UI.UI_const import C
 class PipelineCanvas(QWidget):
@@ -91,7 +91,11 @@ class PipelineCanvas(QWidget):
         b = self.add_block(PipelineBlockType.MODEL, x=drop_x, y=drop_y,
                            model_path=model_path, role=role or "general")
         if model_path:
-            b.label = Path(model_path).stem[:18]
+            b.label = (
+                api_model_name_from_ref(model_path)[:18]
+                if is_api_model_ref(model_path)
+                else Path(model_path).stem[:18]
+            )
         self._selected = b
         self.update()
         event.acceptProposedAction()
@@ -299,9 +303,13 @@ class PipelineCanvas(QWidget):
 
         # model badge (quant + family)
         if b.btype == PipelineBlockType.MODEL and b.model_path:
-            fam   = detect_model_family(b.model_path)
-            quant = detect_quant_type(b.model_path)
-            badge = f"{fam.name[:8]}·{quant}"
+            if is_api_model_ref(b.model_path):
+                badge = "API"
+            else:
+                fam   = detect_model_family(b.model_path)
+                quant = detect_quant_type(b.model_path)
+                vi    = detect_vision_model(b.model_path)
+                badge = f"{fam.name[:8]}·{quant}" + ("·VLM" if vi.is_vision else "")
             p.setPen(QColor(C["txt3"]))
             p.setFont(QFont("Consolas", 7))
             p.drawText(b.x, b.y + b.h - 17, b.w, 15,
