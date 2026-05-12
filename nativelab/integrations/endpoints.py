@@ -9,7 +9,7 @@ class IntegrationEndpoints:
     """
     Read-only discovery endpoint for external integrations.
 
-    This object intentionally returns plain dictionaries so Discord bots, cloud
+    This object intentionally returns plain dictionaries so chat bots, cloud
     functions, local scripts, and HTTP wrappers can serialize the response
     directly. When bound inside the GUI it can also include the live engine
     snapshot exposed by `LabEndpoints`.
@@ -79,6 +79,11 @@ class IntegrationEndpoints:
                 "method": "GET",
                 "description": "Saved Discord connector profiles with tokens redacted.",
             },
+            {
+                "path": "/integrations/whatsapp_bots",
+                "method": "GET",
+                "description": "Saved WhatsApp connector profiles with tokens redacted.",
+            },
         ]
 
     def catalog(self) -> Dict[str, Any]:
@@ -105,6 +110,7 @@ class IntegrationEndpoints:
             "labs": self.labs(),
             "integrations": {
                 "discord_bots": self.discord_bots(),
+                "whatsapp_bots": self.whatsapp_bots(),
             },
         }
 
@@ -130,6 +136,8 @@ class IntegrationEndpoints:
             return self.lab_definition(clean.split("/", 2)[2])
         if clean == "/integrations/discord_bots":
             return {"discord_bots": self.discord_bots()}
+        if clean == "/integrations/whatsapp_bots":
+            return {"whatsapp_bots": self.whatsapp_bots()}
         return {
             "error": "unknown integration endpoint",
             "path": clean,
@@ -314,6 +322,19 @@ class IntegrationEndpoints:
         for bot in load_discord_bots():
             clean = dict(bot)
             clean["token"] = "***" if clean.get("token") else ""
+            clean["commands"] = command_catalog(bot)
+            rows.append(clean)
+        return rows
+
+    def whatsapp_bots(self) -> list[Dict[str, Any]]:
+        try:
+            from nativelab.integrations.whatsapp_connector import command_catalog, load_whatsapp_bots
+        except Exception:
+            return []
+        rows = []
+        for bot in load_whatsapp_bots():
+            clean = dict(bot)
+            clean["access_token"] = "***" if clean.get("access_token") else ""
             clean["commands"] = command_catalog(bot)
             rows.append(clean)
         return rows

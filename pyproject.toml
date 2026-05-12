@@ -25,6 +25,9 @@ discord = [
     "aiohttp>=3.9.0",
     "discord.py>=2.3.2"
 ]
+whatsapp = [
+    "aiohttp>=3.9.0"
+]
 
 [project.scripts]
 nativelab = "nativelab.main:main"

@@ -37,7 +37,7 @@ nativelab --cli      # terminal client (interactive setup → chat)
 - 🖥️  **Desktop GUI** - Chat, model library, visual pipeline builder, MCP, HuggingFace downloader, Labs, theming.
 - ⌨️  **Terminal CLI** - `nativelab --cli` opens an interactive setup wizard, downloads a model, and drops you straight into a chat REPL with `@file` embedding, slash commands, and built-in linting.
 - 🧪  **Labs** - A dedicated experimentation layer with a shared endpoint API. New lab features get engine status, model swap, context change, and LLM calls for free.
-- 🔌  **Integrations** - Local JSON endpoint, route browser, and saved Discord bot connector profiles.
+- 🔌  **Integrations** - Local JSON endpoint, route browser, and saved Discord/WhatsApp bot connector profiles.
 - 🔗  **Visual Pipeline Builder** - 20 node types (model, transform, branch, loop, custom Python), live execution log, save/load.
 - 🌐  **API + local mixing** - OpenAI-compatible and Anthropic endpoints work side-by-side with local GGUFs.
 - ⚡  **Parallel + pipeline mode** - Run reasoning + coding engines simultaneously and chain them automatically.
@@ -60,7 +60,7 @@ The docs are split into short, focused files so you can jump straight to what yo
 | [docs/features.md](docs/features.md) | What's new in v0.3.0 + the full feature catalogue. |
 | [docs/architecture.md](docs/architecture.md) | Layered architecture, project structure, data flow. |
 | [docs/labs.md](docs/labs.md) | The Labs experimentation layer + how to add a feature. |
-| [docs/integrations.md](docs/integrations.md) | Integration endpoint routes, local HTTP bridge, Discord bot connector. |
+| [docs/integrations.md](docs/integrations.md) | Integration endpoint routes, local HTTP bridge, Discord and WhatsApp bot connectors. |
 | [docs/models.md](docs/models.md) | Model registry, families, quantization, API models. |
 | [docs/workflows.md](docs/workflows.md) | Pipelines, references, summarization, MCP, HF downloads. |
 | [docs/ui.md](docs/ui.md) | GUI tour, theming, shortcuts, data persistence. |

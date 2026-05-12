@@ -15,7 +15,7 @@ v0.3.0
 
 v0.3.0 [major update]
 1) Added Integrations tab with endpoint browser and local HTTP bridge.
-2) Added integration routes for runtime, models, API models, limits, saved pipelines, labs, py_to_doc, call_llm, and saved Discord bot profiles.
+2) Added integration routes for runtime, models, API models, limits, saved pipelines, labs, py_to_doc, call_llm, and saved Discord/WhatsApp bot profiles.
 3) Added Discord bot connector profiles saved in localllm/integrations/discord_bots.json.
 4) Added Discord bot start/stop controls inside the app with live bot logs.
 5) Added Discord slash commands for help, ask, status, pipelines, pipeline details, labs, lab details, and models.
@@ -23,3 +23,4 @@ v0.3.0 [major update]
 7) Added Discord request queue controls, reply mode controls, permissions, invite URL helper, and NativeLab access toggles.
 8) Added integration docs and packaged Discord connector runtime/example assets.
 9) Kept model loading manual-first: app does not auto-load default models until user action.
+10) Added WhatsApp Cloud API connector profiles with local webhook run/stop controls, logs, queue controls, command access, and docs.

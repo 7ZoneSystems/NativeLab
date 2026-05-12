@@ -1,4 +1,4 @@
-from nativelab.imports.import_global import Qt, QEvent, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit, QTimer, pyqtSignal
+from nativelab.imports.import_global import Qt, QEvent, QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QComboBox, QTextEdit, QTimer, pyqtSignal
 from nativelab.UI.UI_global import C
 from nativelab.GlobalConfig.config_global import DEFAULT_MODEL, MODELS_DIR
 from nativelab.Model.model_global import (
@@ -31,32 +31,42 @@ class InputBar(QWidget):
         root.setSpacing(9)
 
         toolbar = QHBoxLayout(); toolbar.setSpacing(8)
+
+        self.model_card = QFrame()
+        self.model_card.setObjectName("chat_model_card")
+        model_card_l = QHBoxLayout(self.model_card)
+        model_card_l.setContentsMargins(8, 4, 8, 4)
+        model_card_l.setSpacing(8)
         model_lbl = QLabel("Model:")
         model_lbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
-        toolbar.addWidget(model_lbl)
+        model_card_l.addWidget(model_lbl)
         self.model_combo = QComboBox()
         self.model_combo.setMinimumWidth(240)
+        self.model_combo.setFixedHeight(28)
         self._populate_models()
-        toolbar.addWidget(self.model_combo)
+        model_card_l.addWidget(self.model_combo, 1)
 
-        self.load_model_btn = QPushButton("Load Model")
-        set_button_icon(self.load_model_btn, "play", "Load Model")
-        self.load_model_btn.setFixedHeight(30)
+        self.family_badge = QLabel("")
+        self.family_badge.setObjectName("family_badge")
+        self.family_badge.setMinimumWidth(140)
+        self.family_badge.setMaximumWidth(280)
+        model_card_l.addWidget(self.family_badge)
+        toolbar.addWidget(self.model_card, 1)
+
+        self.load_model_btn = QPushButton("")
+        set_button_icon(self.load_model_btn, "play", "", 18)
+        self.load_model_btn.setFixedSize(38, 38)
         self.load_model_btn.setToolTip("Load the selected model")
         self.load_model_btn.clicked.connect(self.load_model_requested)
         toolbar.addWidget(self.load_model_btn)
 
-        self.unload_model_btn = QPushButton("Unload")
-        set_button_icon(self.unload_model_btn, "power-off", "Unload")
-        self.unload_model_btn.setFixedHeight(30)
+        self.unload_model_btn = QPushButton("")
+        set_button_icon(self.unload_model_btn, "power-off", "", 18)
+        self.unload_model_btn.setFixedSize(38, 38)
         self.unload_model_btn.setToolTip("Unload the active chat model")
         self.unload_model_btn.clicked.connect(self.unload_model_requested)
         toolbar.addWidget(self.unload_model_btn)
 
-        # Family info badge
-        self.family_badge = QLabel("")
-        self.family_badge.setObjectName("family_badge")
-        toolbar.addWidget(self.family_badge)
         self.model_combo.currentIndexChanged.connect(self._update_family_badge)
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
         toolbar.addStretch()

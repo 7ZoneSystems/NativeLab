@@ -10,6 +10,7 @@ Open the **Integrations** tab in the GUI. The tab is split into sub-tabs:
 
 - **Endpoints**: select a route, copy JSON responses, and start the local HTTP bridge.
 - **Discord Bot**: create reusable bot connector profiles and save credentials locally.
+- **WhatsApp Bot**: create reusable WhatsApp Cloud API webhook profiles and run them locally.
 
 The Python API lives in `nativelab/integrations/`.
 
@@ -30,6 +31,7 @@ The endpoint returns plain JSON-compatible dictionaries.
 | `/labs/py_to_doc` | GET | Metadata for the py-to-doc lab route. |
 | `/call_llm` | POST | Send a prompt/messages to the active NativeLab engine. |
 | `/integrations/discord_bots` | GET | Saved Discord connector profiles with tokens redacted. |
+| `/integrations/whatsapp_bots` | GET | Saved WhatsApp connector profiles with tokens redacted. |
 
 ## Start the local HTTP endpoint
 
@@ -161,13 +163,79 @@ export DISCORD_BOT_TOKEN="your-token"
 export NATIVELAB_INTEGRATION_URL="http://127.0.0.1:8765"
 ```
 
+## WhatsApp bot connector
+
+The WhatsApp Bot sub-tab saves reusable WhatsApp Cloud API profiles in:
+
+```text
+localllm/integrations/whatsapp_bots.json
+```
+
+Each profile stores the Meta access token, phone number ID, optional business
+account ID, verify token, local webhook host/port/path, queue limits, reply
+limits, editable system prompt, and NativeLab access controls.
+
+The runtime webhook file is stored at:
+
+```text
+nativelab/integrations/examples/whatsapp_bot.py
+```
+
+The bot exposes these WhatsApp text commands:
+
+- `/help`: show commands enabled for this profile.
+- `/ask <prompt>`: sends the prompt to `POST /call_llm`.
+- `/status`: reads `/runtime`.
+- `/pipelines` and `/pipeline <name>`: read saved pipeline metadata.
+- `/labs` and `/lab <name>`: read Labs route metadata such as `/labs/py_to_doc`.
+- `/models`: reads local and API model catalog routes.
+- normal text messages: optional direct ask mode, enabled per saved profile.
+
+Setup:
+
+```bash
+python -m pip install aiohttp
+```
+
+Packaged installs include this dependency. When running from a fresh clone,
+install it with the command above or `python -m pip install -e .`.
+
+Start NativeLab, open **Integrations > Endpoints**, click **Start**, then open
+**WhatsApp Bot** and save a profile. Use **Start Bot** / **Stop Bot** in that
+sub-tab to run the selected webhook from inside the app. The **Bot Logs** panel
+shows startup, webhook verification, incoming messages, endpoint calls, queue
+activity, and send errors.
+
+Meta requires a public HTTPS callback URL. For local development, expose the
+profile's local callback URL, for example `http://127.0.0.1:8770/webhook`, with
+a tunnel such as ngrok or cloudflared. Put the public HTTPS URL into Meta's
+webhook callback field and use the profile's verify token.
+
+You can also run the same saved profile from a terminal:
+
+```bash
+export WHATSAPP_BOT_PROFILE="whatsapp1"
+python nativelab/integrations/examples/whatsapp_bot.py
+```
+
+You can override credentials or endpoint for a run without changing the saved
+profile:
+
+```bash
+export WHATSAPP_ACCESS_TOKEN="your-token"
+export WHATSAPP_PHONE_NUMBER_ID="your-phone-number-id"
+export NATIVELAB_INTEGRATION_URL="http://127.0.0.1:8765"
+```
+
 ## Security notes
 
 - The built-in HTTP endpoint binds to `127.0.0.1` only.
 - API keys are redacted in `/api_models`.
 - Discord bot tokens are saved locally in `localllm/integrations/discord_bots.json`.
+- WhatsApp access tokens are saved locally in `localllm/integrations/whatsapp_bots.json`.
 - Direct mention replies require Message Content Intent enabled in Discord's
   Developer Portal for that bot application.
+- WhatsApp webhooks need a public HTTPS tunnel for Meta callback delivery.
 - Do not expose the endpoint directly to the public internet.
 - Treat `/call_llm` as a trusted local capability because it can send prompts to
   whichever model or API backend is loaded in NativeLab.

@@ -41,6 +41,15 @@ from .discord_connector import (
     load_discord_bots,
     upsert_discord_bot,
 )
+from .whatsapp_connector import (
+    DEFAULT_WHATSAPP_BOT,
+    DEFAULT_WHATSAPP_SYSTEM_PROMPT,
+    WHATSAPP_BOTS_FILE,
+    command_catalog as whatsapp_command_catalog,
+    delete_whatsapp_bot,
+    load_whatsapp_bots,
+    upsert_whatsapp_bot,
+)
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -107,6 +116,66 @@ class DiscordBotRunner(QThread):
             proc.kill()
 
 
+class WhatsAppBotRunner(QThread):
+    log = pyqtSignal(str)
+    stopped = pyqtSignal(str, int)
+
+    def __init__(self, profile_name: str, endpoint_url: str, parent=None):
+        super().__init__(parent)
+        self.profile_name = profile_name
+        self.endpoint_url = endpoint_url
+        self._proc: subprocess.Popen | None = None
+
+    def run(self):
+        env = os.environ.copy()
+        env["WHATSAPP_BOT_PROFILE"] = self.profile_name
+        env["NATIVELAB_INTEGRATION_URL"] = self.endpoint_url
+        env["PYTHONUNBUFFERED"] = "1"
+        existing_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = (
+            str(PACKAGE_PARENT)
+            if not existing_pythonpath
+            else str(PACKAGE_PARENT) + os.pathsep + existing_pythonpath
+        )
+        cmd = [sys.executable, "-u", "-m", "nativelab.integrations.examples.whatsapp_bot"]
+        try:
+            self.log.emit(f"Starting WhatsApp bot profile '{self.profile_name}'")
+            self.log.emit(f"Endpoint: {self.endpoint_url}")
+            self.log.emit(f"Python: {sys.executable}")
+            self.log.emit(f"Package root: {PACKAGE_ROOT}")
+            self.log.emit(f"Working directory: {Path.cwd()}")
+            self._proc = subprocess.Popen(
+                cmd,
+                cwd=str(Path.cwd()),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            assert self._proc.stdout is not None
+            for line in self._proc.stdout:
+                if line:
+                    self.log.emit(line.rstrip())
+            code = int(self._proc.wait())
+            self.stopped.emit(self.profile_name, code)
+        except Exception as e:
+            self.log.emit(f"WhatsApp runner error: {e}")
+            self.stopped.emit(self.profile_name, -1)
+
+    def stop(self):
+        proc = self._proc
+        if proc is None or proc.poll() is not None:
+            return
+        self.log.emit("Stopping WhatsApp bot process")
+        proc.terminate()
+        try:
+            proc.wait(timeout=8)
+        except subprocess.TimeoutExpired:
+            self.log.emit("WhatsApp bot did not exit after terminate; killing process")
+            proc.kill()
+
+
 class IntegrationsTab(QWidget):
     """Catalog browser for external integration builders."""
 
@@ -116,9 +185,12 @@ class IntegrationsTab(QWidget):
         self._http_server: IntegrationHttpEndpoint | None = None
         self._discord_bots: list[dict] = []
         self._discord_runner: DiscordBotRunner | None = None
+        self._whatsapp_bots: list[dict] = []
+        self._whatsapp_runner: WhatsAppBotRunner | None = None
         self._build()
         self.refresh()
         self._reload_discord_profiles()
+        self._reload_whatsapp_profiles()
 
     def set_endpoints(self, endpoints: IntegrationEndpoints):
         self._endpoints = endpoints
@@ -210,6 +282,13 @@ class IntegrationsTab(QWidget):
         discord_layout.setSpacing(12)
         self.inner_tabs.addTab(discord_page, "Discord Bot")
         self._build_discord_connector(discord_layout)
+
+        whatsapp_page = QWidget()
+        whatsapp_layout = QVBoxLayout(whatsapp_page)
+        whatsapp_layout.setContentsMargins(0, 0, 0, 0)
+        whatsapp_layout.setSpacing(12)
+        self.inner_tabs.addTab(whatsapp_page, "WhatsApp Bot")
+        self._build_whatsapp_connector(whatsapp_layout)
 
     def refresh(self):
         current = self.route_combo.currentData() or "/snapshot"
@@ -782,6 +861,436 @@ class IntegrationsTab(QWidget):
             }
         return merged
 
+    def _build_whatsapp_connector(self, layout: QVBoxLayout):
+        card = QFrame()
+        card.setObjectName("tab_card")
+        box = QVBoxLayout(card)
+        box.setContentsMargins(14, 12, 14, 12)
+        box.setSpacing(8)
+
+        hdr = QLabel("WhatsApp Bot Connector")
+        set_label_icon(hdr, "whatsapp", "WhatsApp Bot Connector", 18)
+        hdr.setStyleSheet(f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        box.addWidget(hdr)
+
+        desc = QLabel(
+            "Create reusable WhatsApp Cloud API webhook profiles. Expose the local "
+            "webhook with a public tunnel, then add that URL in Meta's webhook setup.")
+        desc.setWordWrap(True)
+        desc.setObjectName("txt2_small")
+        box.addWidget(desc)
+
+        profile_row = QHBoxLayout(); profile_row.setSpacing(8)
+        profile_row.addWidget(QLabel("Profile:"))
+        self.whatsapp_profile_combo = QComboBox()
+        self.whatsapp_profile_combo.currentIndexChanged.connect(self._load_selected_whatsapp_profile)
+        profile_row.addWidget(self.whatsapp_profile_combo, 1)
+        self.btn_whatsapp_new = QPushButton("New")
+        set_button_icon(self.btn_whatsapp_new, "plus", "New WhatsApp profile")
+        self.btn_whatsapp_new.clicked.connect(self._new_whatsapp_profile)
+        profile_row.addWidget(self.btn_whatsapp_new)
+        self.btn_whatsapp_save = QPushButton("Save")
+        set_button_icon(self.btn_whatsapp_save, "save", "Save WhatsApp profile")
+        self.btn_whatsapp_save.clicked.connect(self._save_whatsapp_profile)
+        profile_row.addWidget(self.btn_whatsapp_save)
+        self.btn_whatsapp_delete = QPushButton("Delete")
+        set_button_icon(self.btn_whatsapp_delete, "delete", "Delete WhatsApp profile")
+        self.btn_whatsapp_delete.clicked.connect(self._delete_whatsapp_profile)
+        profile_row.addWidget(self.btn_whatsapp_delete)
+        box.addLayout(profile_row)
+
+        row = QHBoxLayout(); row.setSpacing(8)
+        row.addWidget(QLabel("Name:"))
+        self.whatsapp_name = QLineEdit("")
+        self.whatsapp_name.setPlaceholderText("whatsapp1")
+        row.addWidget(self.whatsapp_name, 1)
+        row.addWidget(QLabel("NativeLab endpoint:"))
+        self.whatsapp_endpoint = QLineEdit("http://127.0.0.1:8765")
+        row.addWidget(self.whatsapp_endpoint, 1)
+        box.addLayout(row)
+
+        cred = QHBoxLayout(); cred.setSpacing(8)
+        cred.addWidget(QLabel("Access token:"))
+        self.whatsapp_token = QLineEdit("")
+        self.whatsapp_token.setEchoMode(QLineEdit.EchoMode.Password)
+        cred.addWidget(self.whatsapp_token, 2)
+        cred.addWidget(QLabel("Phone number ID:"))
+        self.whatsapp_phone_id = QLineEdit("")
+        cred.addWidget(self.whatsapp_phone_id, 1)
+        cred.addWidget(QLabel("Business ID:"))
+        self.whatsapp_business_id = QLineEdit("")
+        cred.addWidget(self.whatsapp_business_id, 1)
+        box.addLayout(cred)
+
+        webhook = QHBoxLayout(); webhook.setSpacing(8)
+        webhook.addWidget(QLabel("Webhook host:"))
+        self.whatsapp_webhook_host = QLineEdit("127.0.0.1")
+        webhook.addWidget(self.whatsapp_webhook_host, 1)
+        webhook.addWidget(QLabel("Port:"))
+        self.whatsapp_webhook_port = QSpinBox()
+        self.whatsapp_webhook_port.setRange(1024, 65535)
+        self.whatsapp_webhook_port.setValue(8770)
+        webhook.addWidget(self.whatsapp_webhook_port)
+        webhook.addWidget(QLabel("Path:"))
+        self.whatsapp_webhook_path = QLineEdit("/webhook")
+        webhook.addWidget(self.whatsapp_webhook_path, 1)
+        webhook.addWidget(QLabel("Verify token:"))
+        self.whatsapp_verify_token = QLineEdit("nativelab-whatsapp")
+        webhook.addWidget(self.whatsapp_verify_token, 1)
+        box.addLayout(webhook)
+
+        reply = QHBoxLayout(); reply.setSpacing(8)
+        self.whatsapp_direct_messages = QCheckBox("Reply to normal messages")
+        self.whatsapp_direct_messages.setChecked(True)
+        self.whatsapp_direct_messages.stateChanged.connect(lambda *_: self._refresh_whatsapp_commands())
+        reply.addWidget(self.whatsapp_direct_messages)
+        self.whatsapp_queue_enabled = QCheckBox("Request queue")
+        self.whatsapp_queue_enabled.setChecked(True)
+        reply.addWidget(self.whatsapp_queue_enabled)
+        reply.addWidget(QLabel("Concurrent:"))
+        self.whatsapp_max_concurrent = QSpinBox()
+        self.whatsapp_max_concurrent.setRange(1, 8)
+        self.whatsapp_max_concurrent.setValue(1)
+        reply.addWidget(self.whatsapp_max_concurrent)
+        reply.addWidget(QLabel("Queued:"))
+        self.whatsapp_max_queued = QSpinBox()
+        self.whatsapp_max_queued.setRange(1, 100)
+        self.whatsapp_max_queued.setValue(12)
+        reply.addWidget(self.whatsapp_max_queued)
+        reply.addWidget(QLabel("Max chars:"))
+        self.whatsapp_max_chars = QSpinBox()
+        self.whatsapp_max_chars.setRange(200, 4096)
+        self.whatsapp_max_chars.setValue(3500)
+        reply.addWidget(self.whatsapp_max_chars)
+        reply.addStretch(1)
+        box.addLayout(reply)
+
+        prompt_h = QLabel("System Prompt")
+        prompt_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        box.addWidget(prompt_h)
+        prompt_row = QHBoxLayout(); prompt_row.setSpacing(8)
+        self.whatsapp_system_prompt = QTextEdit()
+        self.whatsapp_system_prompt.setObjectName("log_te")
+        self.whatsapp_system_prompt.setMinimumHeight(78)
+        prompt_row.addWidget(self.whatsapp_system_prompt, 1)
+        self.btn_whatsapp_prompt_preset = QPushButton("Preset")
+        set_button_icon(self.btn_whatsapp_prompt_preset, "refresh-cw", "Restore preset")
+        self.btn_whatsapp_prompt_preset.clicked.connect(
+            lambda: self.whatsapp_system_prompt.setPlainText(DEFAULT_WHATSAPP_SYSTEM_PROMPT))
+        prompt_row.addWidget(self.btn_whatsapp_prompt_preset)
+        box.addLayout(prompt_row)
+
+        cap_card = QFrame()
+        cap_l = QVBoxLayout(cap_card)
+        cap_l.setContentsMargins(10, 8, 10, 8)
+        cap_l.setSpacing(6)
+        cap_h = QLabel("NativeLab Access")
+        cap_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        cap_l.addWidget(cap_h)
+        self.whatsapp_cap_checks = {}
+        for label, key in [
+            ("Ask active model", "ask_model"),
+            ("Runtime status", "runtime"),
+            ("Saved pipelines", "pipelines"),
+            ("Labs routes", "labs"),
+            ("Models catalog", "models"),
+        ]:
+            chk = QCheckBox(label)
+            chk.stateChanged.connect(lambda *_: self._refresh_whatsapp_commands())
+            self.whatsapp_cap_checks[key] = chk
+            cap_l.addWidget(chk)
+        box.addWidget(cap_card)
+
+        actions = QHBoxLayout(); actions.setSpacing(8)
+        self.btn_whatsapp_start = QPushButton("Start Bot")
+        set_button_icon(self.btn_whatsapp_start, "play", "Start WhatsApp webhook")
+        self.btn_whatsapp_start.clicked.connect(self._start_whatsapp_bot)
+        actions.addWidget(self.btn_whatsapp_start)
+        self.btn_whatsapp_stop = QPushButton("Stop Bot")
+        set_button_icon(self.btn_whatsapp_stop, "stop-circle", "Stop WhatsApp webhook")
+        self.btn_whatsapp_stop.clicked.connect(self._stop_whatsapp_bot)
+        self.btn_whatsapp_stop.setEnabled(False)
+        actions.addWidget(self.btn_whatsapp_stop)
+        self.btn_whatsapp_copy_callback = QPushButton("Copy Callback URL")
+        set_button_icon(self.btn_whatsapp_copy_callback, "copy", "Copy callback URL")
+        self.btn_whatsapp_copy_callback.clicked.connect(lambda: self._copy_text(self._whatsapp_callback_url()))
+        actions.addWidget(self.btn_whatsapp_copy_callback)
+        self.btn_whatsapp_copy_verify = QPushButton("Copy Verify Token")
+        set_button_icon(self.btn_whatsapp_copy_verify, "copy", "Copy verify token")
+        self.btn_whatsapp_copy_verify.clicked.connect(lambda: self._copy_text(self.whatsapp_verify_token.text().strip()))
+        actions.addWidget(self.btn_whatsapp_copy_verify)
+        self.btn_whatsapp_path = QPushButton("Copy Config Path")
+        set_button_icon(self.btn_whatsapp_path, "copy", "Copy config path")
+        self.btn_whatsapp_path.clicked.connect(lambda: self._copy_text(str(WHATSAPP_BOTS_FILE)))
+        actions.addWidget(self.btn_whatsapp_path)
+        actions.addStretch(1)
+        box.addLayout(actions)
+
+        self.whatsapp_commands = QTextEdit()
+        self.whatsapp_commands.setReadOnly(True)
+        self.whatsapp_commands.setObjectName("log_te")
+        self.whatsapp_commands.setMinimumHeight(150)
+        box.addWidget(self.whatsapp_commands)
+
+        log_h = QLabel("Bot Logs")
+        log_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        box.addWidget(log_h)
+        self.whatsapp_log = QTextEdit()
+        self.whatsapp_log.setReadOnly(True)
+        self.whatsapp_log.setObjectName("log_te")
+        self.whatsapp_log.setMinimumHeight(190)
+        box.addWidget(self.whatsapp_log)
+
+        self.whatsapp_status = QLabel(f"Profiles save to {WHATSAPP_BOTS_FILE}")
+        self.whatsapp_status.setObjectName("txt2_small")
+        box.addWidget(self.whatsapp_status)
+        layout.addWidget(card)
+
+    def _reload_whatsapp_profiles(self):
+        if not hasattr(self, "whatsapp_profile_combo"):
+            return
+        current = self.whatsapp_profile_combo.currentData()
+        self._whatsapp_bots = load_whatsapp_bots()
+        self.whatsapp_profile_combo.blockSignals(True)
+        self.whatsapp_profile_combo.clear()
+        self.whatsapp_profile_combo.addItem("New WhatsApp bot", "")
+        for bot in self._whatsapp_bots:
+            self.whatsapp_profile_combo.addItem(bot.get("name", "Unnamed"), bot.get("name", ""))
+        self.whatsapp_profile_combo.blockSignals(False)
+        idx = self.whatsapp_profile_combo.findData(current)
+        self.whatsapp_profile_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self._load_selected_whatsapp_profile()
+
+    def _new_whatsapp_profile(self):
+        self.whatsapp_profile_combo.setCurrentIndex(0)
+        data = dict(DEFAULT_WHATSAPP_BOT)
+        data["name"] = self._next_whatsapp_name()
+        if self._http_server is not None and self._http_server.is_running:
+            data["endpoint_url"] = self._http_server.base_url
+        self._fill_whatsapp_form(data)
+        self.whatsapp_status.setText("New profile ready. Add Meta credentials, webhook settings, then Save.")
+
+    def _load_selected_whatsapp_profile(self):
+        name = self.whatsapp_profile_combo.currentData()
+        if not name:
+            data = dict(DEFAULT_WHATSAPP_BOT)
+            data["name"] = self._next_whatsapp_name()
+            if self._http_server is not None and self._http_server.is_running:
+                data["endpoint_url"] = self._http_server.base_url
+            self._fill_whatsapp_form(data)
+            return
+        for bot in self._whatsapp_bots:
+            if bot.get("name") == name:
+                self._fill_whatsapp_form(bot)
+                self.whatsapp_status.setText(f"Loaded profile: {name}")
+                return
+
+    def _save_whatsapp_profile(self):
+        try:
+            saved = upsert_whatsapp_bot(self._whatsapp_form_data())
+            self.whatsapp_status.setText(f"Saved WhatsApp bot profile: {saved['name']}")
+            self._reload_whatsapp_profiles()
+            idx = self.whatsapp_profile_combo.findData(saved["name"])
+            if idx >= 0:
+                self.whatsapp_profile_combo.setCurrentIndex(idx)
+        except Exception as e:
+            QMessageBox.warning(self, "WhatsApp Profile Error", str(e))
+
+    def _delete_whatsapp_profile(self):
+        name = self.whatsapp_profile_combo.currentData() or self.whatsapp_name.text().strip()
+        if not name:
+            return
+        if QMessageBox.question(
+            self,
+            "Delete WhatsApp Profile",
+            f"Delete saved WhatsApp bot profile '{name}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
+            return
+        delete_whatsapp_bot(name)
+        self.whatsapp_status.setText(f"Deleted WhatsApp bot profile: {name}")
+        self._reload_whatsapp_profiles()
+
+    def _fill_whatsapp_form(self, data: dict):
+        data = self._merged_whatsapp(data)
+        self.whatsapp_name.setText(data.get("name", ""))
+        self.whatsapp_token.setText(data.get("access_token", ""))
+        self.whatsapp_phone_id.setText(data.get("phone_number_id", ""))
+        self.whatsapp_business_id.setText(data.get("business_account_id", ""))
+        self.whatsapp_verify_token.setText(data.get("verify_token", "nativelab-whatsapp"))
+        self.whatsapp_endpoint.setText(data.get("endpoint_url", "http://127.0.0.1:8765"))
+        self.whatsapp_webhook_host.setText(data.get("webhook_host", "127.0.0.1"))
+        self.whatsapp_webhook_port.setValue(int(data.get("webhook_port", 8770)))
+        self.whatsapp_webhook_path.setText(data.get("webhook_path", "/webhook"))
+        self.whatsapp_system_prompt.setPlainText(data.get("system_prompt", DEFAULT_WHATSAPP_SYSTEM_PROMPT))
+        reply = data.get("reply", {})
+        self.whatsapp_direct_messages.setChecked(bool(reply.get("direct_messages", True)))
+        self.whatsapp_max_chars.setValue(int(reply.get("max_chars", 3500)))
+        queue = data.get("queue", {})
+        self.whatsapp_queue_enabled.setChecked(bool(queue.get("enabled", True)))
+        self.whatsapp_max_concurrent.setValue(int(queue.get("max_concurrent", 1)))
+        self.whatsapp_max_queued.setValue(int(queue.get("max_queued", 12)))
+        for key, chk in self.whatsapp_cap_checks.items():
+            chk.blockSignals(True)
+            chk.setChecked(bool(data.get("capabilities", {}).get(key, False)))
+            chk.blockSignals(False)
+        self._refresh_whatsapp_commands()
+
+    def _whatsapp_form_data(self) -> dict:
+        path = self.whatsapp_webhook_path.text().strip() or "/webhook"
+        if not path.startswith("/"):
+            path = "/" + path
+        return {
+            "name": self.whatsapp_name.text().strip(),
+            "enabled": True,
+            "access_token": self.whatsapp_token.text().strip(),
+            "phone_number_id": self.whatsapp_phone_id.text().strip(),
+            "business_account_id": self.whatsapp_business_id.text().strip(),
+            "verify_token": self.whatsapp_verify_token.text().strip() or "nativelab-whatsapp",
+            "endpoint_url": self.whatsapp_endpoint.text().strip() or "http://127.0.0.1:8765",
+            "webhook_host": self.whatsapp_webhook_host.text().strip() or "127.0.0.1",
+            "webhook_port": int(self.whatsapp_webhook_port.value()),
+            "webhook_path": path,
+            "system_prompt": (
+                self.whatsapp_system_prompt.toPlainText().strip()
+                or DEFAULT_WHATSAPP_SYSTEM_PROMPT
+            ),
+            "reply": {
+                "max_chars": int(self.whatsapp_max_chars.value()),
+                "direct_messages": self.whatsapp_direct_messages.isChecked(),
+            },
+            "queue": {
+                "enabled": self.whatsapp_queue_enabled.isChecked(),
+                "max_concurrent": int(self.whatsapp_max_concurrent.value()),
+                "max_queued": int(self.whatsapp_max_queued.value()),
+            },
+            "capabilities": {
+                key: chk.isChecked() for key, chk in self.whatsapp_cap_checks.items()
+            },
+        }
+
+    def _refresh_whatsapp_commands(self):
+        if not hasattr(self, "whatsapp_commands"):
+            return
+        data = self._whatsapp_form_data() if hasattr(self, "whatsapp_name") else DEFAULT_WHATSAPP_BOT
+        lines = ["Available WhatsApp commands for this profile:"]
+        for row in whatsapp_command_catalog(data):
+            lines.append(f"{row['command']} - {row['description']}")
+        lines.append("")
+        lines.append("Meta webhook setup:")
+        lines.append(f"- Callback URL: {self._whatsapp_callback_url()}")
+        lines.append(f"- Verify token: {data.get('verify_token', '')}")
+        lines.append("- Use a public HTTPS tunnel for Meta Cloud API webhooks.")
+        self.whatsapp_commands.setPlainText("\n".join(lines))
+
+    def _start_whatsapp_bot(self):
+        if self._whatsapp_runner is not None and self._whatsapp_runner.isRunning():
+            self._append_whatsapp_log("A WhatsApp bot is already running. Stop it before starting another profile.")
+            return
+        try:
+            data = upsert_whatsapp_bot(self._whatsapp_form_data())
+        except Exception as e:
+            QMessageBox.warning(self, "WhatsApp Profile Error", str(e))
+            return
+        if not data.get("access_token"):
+            QMessageBox.warning(self, "Missing Token", "Add and save the WhatsApp Cloud API access token before starting.")
+            return
+        if not data.get("phone_number_id"):
+            QMessageBox.warning(self, "Missing Phone Number ID", "Add and save the WhatsApp phone number ID before starting.")
+            return
+        endpoint_url = self._ensure_whatsapp_endpoint(data)
+        data["endpoint_url"] = endpoint_url
+        upsert_whatsapp_bot(data)
+        self._reload_whatsapp_profiles()
+        idx = self.whatsapp_profile_combo.findData(data["name"])
+        if idx >= 0:
+            self.whatsapp_profile_combo.setCurrentIndex(idx)
+
+        self._append_whatsapp_log(f"Launching profile '{data['name']}'")
+        self._append_whatsapp_log(f"Meta callback URL: {self._whatsapp_callback_url()}")
+        runner = WhatsAppBotRunner(data["name"], endpoint_url, self)
+        runner.log.connect(self._append_whatsapp_log)
+        runner.stopped.connect(self._on_whatsapp_bot_stopped)
+        self._whatsapp_runner = runner
+        self.btn_whatsapp_start.setEnabled(False)
+        self.btn_whatsapp_stop.setEnabled(True)
+        self.whatsapp_status.setText(f"Running WhatsApp bot profile: {data['name']}")
+        runner.start()
+
+    def _stop_whatsapp_bot(self):
+        if self._whatsapp_runner is None:
+            return
+        if self._whatsapp_runner.isRunning():
+            self._whatsapp_runner.stop()
+            self._whatsapp_runner.wait(3000)
+        self._whatsapp_runner = None
+        self.btn_whatsapp_start.setEnabled(True)
+        self.btn_whatsapp_stop.setEnabled(False)
+        self.whatsapp_status.setText("WhatsApp bot stopped.")
+
+    def _on_whatsapp_bot_stopped(self, profile_name: str, code: int):
+        self._append_whatsapp_log(f"WhatsApp bot '{profile_name}' stopped with exit code {code}")
+        self._whatsapp_runner = None
+        if hasattr(self, "btn_whatsapp_start"):
+            self.btn_whatsapp_start.setEnabled(True)
+            self.btn_whatsapp_stop.setEnabled(False)
+        if hasattr(self, "whatsapp_status"):
+            self.whatsapp_status.setText(f"WhatsApp bot stopped: {profile_name}")
+
+    def _ensure_whatsapp_endpoint(self, data: dict) -> str:
+        endpoint_url = data.get("endpoint_url") or self.whatsapp_endpoint.text().strip() or "http://127.0.0.1:8765"
+        parsed = urlparse(endpoint_url)
+        host = (parsed.hostname or "127.0.0.1").lower()
+        if host not in {"127.0.0.1", "localhost"}:
+            return endpoint_url.rstrip("/")
+        port = int(parsed.port or self.http_port.value() or 8765)
+        if self._http_server is None or not self._http_server.is_running or self._http_server.port != port:
+            if self._http_server is not None and self._http_server.is_running:
+                self._http_server.stop()
+            self.http_port.setValue(port)
+            self._http_server = IntegrationHttpEndpoint(self._endpoints, port=port)
+            endpoint_url = self._http_server.start()
+            self.http_status.setText(f"Running at {endpoint_url}")
+            self._append_whatsapp_log(f"Started NativeLab integration endpoint at {endpoint_url}")
+        else:
+            endpoint_url = self._http_server.base_url
+        self.whatsapp_endpoint.setText(endpoint_url)
+        return endpoint_url
+
+    def _whatsapp_callback_url(self) -> str:
+        host = self.whatsapp_webhook_host.text().strip() or "127.0.0.1"
+        port = int(self.whatsapp_webhook_port.value())
+        path = self.whatsapp_webhook_path.text().strip() or "/webhook"
+        if not path.startswith("/"):
+            path = "/" + path
+        return f"http://{host}:{port}{path}"
+
+    def _append_whatsapp_log(self, line: str):
+        if not hasattr(self, "whatsapp_log"):
+            return
+        self.whatsapp_log.append(str(line))
+
+    def _next_whatsapp_name(self) -> str:
+        used = {b.get("name", "") for b in self._whatsapp_bots}
+        i = 1
+        while f"whatsapp{i}" in used:
+            i += 1
+        return f"whatsapp{i}"
+
+    @staticmethod
+    def _merged_whatsapp(data: dict) -> dict:
+        merged = {
+            **DEFAULT_WHATSAPP_BOT,
+            **(data or {}),
+        }
+        for key in ("reply", "queue", "capabilities"):
+            merged[key] = {
+                **DEFAULT_WHATSAPP_BOT.get(key, {}),
+                **(data or {}).get(key, {}),
+            }
+        return merged
+
+
     def _copy_text(self, text: str):
         cb = QApplication.clipboard()
         if cb is not None:
@@ -789,5 +1298,6 @@ class IntegrationsTab(QWidget):
 
     def closeEvent(self, event):
         self._stop_discord_bot()
+        self._stop_whatsapp_bot()
         self._stop_http_endpoint()
         super().closeEvent(event)

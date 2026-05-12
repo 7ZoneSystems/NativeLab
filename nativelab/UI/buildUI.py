@@ -437,6 +437,11 @@ QLabel#family_badge {{
     border-radius:4px;
     padding:2px 7px;
 }}
+QFrame#chat_model_card {{
+    background:{c['bg1']};
+    border:1px solid {c['bdr']};
+    border-radius:7px;
+}}
 
 /* ── Engine / model list widgets ────────────────────────── */
 QListWidget#model_list, QListWidget#engine_list {{
