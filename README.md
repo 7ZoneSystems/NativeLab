@@ -18,6 +18,7 @@
 [![Issues](https://img.shields.io/github/issues/7ZoneSystems/NativeLab?logo=github)](https://github.com/7ZoneSystems/NativeLab/issues)
 [![Contributors](https://img.shields.io/github/contributors/7ZoneSystems/NativeLab?logo=github)](https://github.com/7ZoneSystems/NativeLab/graphs/contributors)
 [![GitHub clones](https://img.shields.io/badge/dynamic/json?color=black&labelColor=black&label=clones&query=count&url=https://gist.githubusercontent.com/7ZoneSystems/33a9ac91ae3e3c895eb5d07391b456e3/raw/clone.json&logo=github)](https://github.com/7ZoneSystems/NativeLab)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/nativelab?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/nativelab)
 </div>
 
 ---
