@@ -24,6 +24,7 @@ from nativelab.components.components_global import *
 from nativelab.core.engine_global import *
 from nativelab.codeparser.codeparser_global import *
 from nativelab.pipelinebuilder.pipe_global import *
+from nativelab.UI.icons import add_menu_action, icon, icon_size, refresh_widget_icons, role_icon, set_button_icon, set_label_icon, status_icon, set_status_label
 from nativelab.labs import LabEndpoints, LabsTab
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
@@ -94,6 +95,7 @@ class MainWindow(QMainWindow):
         self._force_coding_mode:  bool = False
         self._pending_ref_ctx:    str  = ""
         self._pending_ref_images: list = []
+        self._deferred_send: Optional[tuple[str, str, list]] = None
         # ── busy / session-tracking ───────────────────────────────────────────
         self._busy_session_id:    str  = ""   # sid of the session currently generating
         self._stream_session_id:  str  = ""   # sid that owns the active stream worker
@@ -133,7 +135,7 @@ class MainWindow(QMainWindow):
             self._toggle_theme()   # silently apply saved theme
         self._update_theme_action_label()
 
-        QTimer.singleShot(300, self._start_model_load)
+        self._set_engine_status("Model not loaded", "idle")
 
         # Auto-load parallel engines if prefs say so
         if PARALLEL_PREFS.enabled and PARALLEL_PREFS.auto_load_roles:
@@ -236,10 +238,10 @@ class MainWindow(QMainWindow):
         color = C["ok"]
         warn_text = ""
         if value > 24576:
-            color = C["err"]; warn_text = "⚠"
+            color = C["err"]; warn_text = "!"
             self.ctx_warn.setToolTip("Very high context.\nExpect heavy RAM usage.")
         elif value > 16384:
-            color = C["warn"]; warn_text = "⚠"
+            color = C["warn"]; warn_text = "!"
             self.ctx_warn.setToolTip("High context.\nPerformance may degrade.")
         else:
             self.ctx_warn.setToolTip("")
@@ -301,47 +303,49 @@ class MainWindow(QMainWindow):
         self.input_bar.code_btn.toggled.connect(
             lambda chk: setattr(self, "_force_coding_mode", chk))
         self.input_bar.pipeline_run_requested.connect(self._on_pipeline_from_chat)
-        self.tabs.addTab(self.chat_module, "💬  Chat")
+        self.input_bar.load_model_requested.connect(self._start_model_load)
+        self.input_bar.unload_model_requested.connect(self._unload_chat_model)
+        self.tabs.addTab(self.chat_module, icon("chat"), "Chat")
 
         # ── Models tab ──
         self.models_tab = self._build_models_tab()
-        self.tabs.addTab(self.models_tab, "🗂  Models")
+        self.tabs.addTab(self.models_tab, icon("models"), "Models")
 
         # ── Config tab ──
         self.config_tab = ConfigTab()
         self.config_tab.config_changed.connect(self._on_config_changed)
         self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
-        self.tabs.addTab(self.config_tab, "⚙️  Config")
+        self.tabs.addTab(self.config_tab, icon("config"), "Config")
 
         # ── Server tab ──
         self.server_tab = ServerTab()
         self.server_tab.config_changed.connect(
             lambda: self._log("INFO", "Server config updated."))
-        self.tabs.addTab(self.server_tab, "🖥️  Server")
+        self.tabs.addTab(self.server_tab, icon("server"), "Server")
 
         # ── Pipeline Builder tab ──
         self.pipeline_tab = PipelineBuilderTab(self.engine)
-        self.tabs.addTab(self.pipeline_tab, "🔗  Pipeline")
+        self.tabs.addTab(self.pipeline_tab, icon("pipeline"), "Pipeline")
 
         # ── API Models tab ──
         self.api_tab = ApiModelsTab()
         self.api_tab.api_model_loaded.connect(self._on_api_model_loaded)
-        self.tabs.addTab(self.api_tab, "🌐  API Models")
+        self.tabs.addTab(self.api_tab, icon("api"), "API Models")
 
         # ── Model Download tab ──
         self.download_tab = ModelDownloadTab()
-        self.tabs.addTab(self.download_tab, "⬇️  Download")
+        self.tabs.addTab(self.download_tab, icon("download"), "Download")
 
         # ── MCP tab ──
         self.mcp_tab = McpTab()
-        self.tabs.addTab(self.mcp_tab, "🔌  MCP")
+        self.tabs.addTab(self.mcp_tab, icon("mcp"), "MCP")
 
         # ── Logs tab ──
         self.log_console = LogConsole()
-        self.tabs.addTab(self.log_console, "🐞  Logs")
+        self.tabs.addTab(self.log_console, icon("logs"), "Logs")
         self.appearance_tab = AppearanceTab()
         self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
-        self.tabs.addTab(self.appearance_tab, "🎨  Appearance")
+        self.tabs.addTab(self.appearance_tab, icon("appearance"), "Appearance")
 
         self.splitter.addWidget(self.tabs)
         self.splitter.setSizes([220, 1080])
@@ -352,7 +356,7 @@ class MainWindow(QMainWindow):
 
         # ── Labs tab ──
         self.labs_tab = LabsTab()
-        self.tabs.addTab(self.labs_tab, "⌬  Labs")
+        self.tabs.addTab(self.labs_tab, icon("labs"), "Labs")
         self._apply_saved_view_state()
         self._wire_lab_endpoints()
         
@@ -387,7 +391,8 @@ class MainWindow(QMainWindow):
             card.setLayout(layout); return card
 
         # ── header ───────────────────────────────────────────────────────────
-        hdr = QLabel("🗂  GGUF Model Manager")
+        hdr = QLabel("GGUF Model Manager")
+        set_label_icon(hdr, "models", "GGUF Model Manager", 18)
         hdr.setStyleSheet(f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
         note = QLabel("Add models, assign roles, and configure the reasoning→coding pipeline.")
@@ -403,8 +408,9 @@ class MainWindow(QMainWindow):
         # legend
         legend_row = QHBoxLayout()
         legend_row.setContentsMargins(10, 8, 10, 6); legend_row.setSpacing(14)
-        for role, icon in ROLE_ICONS.items():
-            pill = QLabel(f"{icon} {role.capitalize()}")
+        for role, label in ROLE_ICONS.items():
+            pill = QLabel(label)
+            set_label_icon(pill, role, label, 14)
             pill.setStyleSheet(f"color:{C['txt2']};font-size:10px;"
                                f"background:{C['bg2']};border-radius:4px;padding:2px 6px;")
             legend_row.addWidget(pill)
@@ -413,6 +419,7 @@ class MainWindow(QMainWindow):
 
         self.model_list = QListWidget()
         self.model_list.setObjectName("model_list")
+        self.model_list.setIconSize(icon_size(18))
         self.model_list.setMinimumHeight(150)
         self.model_list.setMaximumHeight(240)
         self.model_list.currentItemChanged.connect(self._on_model_list_select)
@@ -420,11 +427,14 @@ class MainWindow(QMainWindow):
 
         btn_strip = QHBoxLayout()
         btn_strip.setContentsMargins(10, 8, 10, 8); btn_strip.setSpacing(8)
-        self.btn_browse_model = QPushButton("📂  Browse GGUF…")
-        self.btn_load_primary = QPushButton("⚡  Load Selected")
+        self.btn_browse_model = QPushButton("Browse GGUF...")
+        self.btn_load_primary = QPushButton("Load Selected")
         self.btn_load_primary.setObjectName("btn_send")
-        self.btn_remove_model = QPushButton("🗑  Remove")
+        self.btn_remove_model = QPushButton("Remove")
         self.btn_remove_model.setObjectName("btn_stop")
+        set_button_icon(self.btn_browse_model, "folder-open", "Browse GGUF...")
+        set_button_icon(self.btn_load_primary, "zap", "Load Selected")
+        set_button_icon(self.btn_remove_model, "delete", "Remove")
         for b in (self.btn_browse_model, self.btn_load_primary, self.btn_remove_model):
             b.setFixedHeight(30); btn_strip.addWidget(b)
         btn_strip.addStretch()
@@ -477,8 +487,9 @@ class MainWindow(QMainWindow):
 
         self.cfg_role = QComboBox()
         self.cfg_role.setMinimumWidth(200); self.cfg_role.setFixedHeight(28)
+        self.cfg_role.setIconSize(icon_size(16))
         for r in MODEL_ROLES:
-            self.cfg_role.addItem(f"{ROLE_ICONS[r]}  {r.capitalize()}", r)
+            self.cfg_role.addItem(role_icon(r), ROLE_ICONS[r], r)
         cfg_card_l.addLayout(_field_row("Role:", self.cfg_role))
 
         dv1 = QFrame(); dv1.setFrameShape(QFrame.Shape.HLine)
@@ -529,7 +540,8 @@ class MainWindow(QMainWindow):
         cfg_card_l.addWidget(dv2)
 
         save_row = QHBoxLayout(); save_row.setSpacing(8)
-        self.btn_save_cfg = QPushButton("💾  Save Parameters")
+        self.btn_save_cfg = QPushButton("Save Parameters")
+        set_button_icon(self.btn_save_cfg, "save", "Save Parameters")
         self.btn_save_cfg.setFixedHeight(30)
         self.btn_save_cfg.clicked.connect(self._save_model_config)
         save_row.addWidget(self.btn_save_cfg)
@@ -547,13 +559,16 @@ class MainWindow(QMainWindow):
         self.engine_status_list = QListWidget()
         self.engine_status_list.setFixedHeight(130)
         self.engine_status_list.setObjectName("engine_list")
+        self.engine_status_list.setIconSize(icon_size(18))
         eng_card_l.addWidget(self.engine_status_list)
         eng_btn_strip = QHBoxLayout()
         eng_btn_strip.setContentsMargins(10, 8, 10, 8); eng_btn_strip.setSpacing(8)
-        self.btn_load_role_engine = QPushButton("⚡  Load Engine for Role")
+        self.btn_load_role_engine = QPushButton("Load Engine for Role")
+        set_button_icon(self.btn_load_role_engine, "zap", "Load Engine for Role")
         self.btn_load_role_engine.setFixedHeight(30)
         self.btn_load_role_engine.clicked.connect(self._load_engine_for_selected)
-        self.btn_unload_all = QPushButton("⏏  Unload All")
+        self.btn_unload_all = QPushButton("Unload All")
+        set_button_icon(self.btn_unload_all, "eject", "Unload All")
         self.btn_unload_all.setFixedHeight(30)
         self.btn_unload_all.clicked.connect(self._unload_all_engines)
         eng_btn_strip.addWidget(self.btn_load_role_engine)
@@ -604,9 +619,9 @@ class MainWindow(QMainWindow):
         try:
             ctx = int(self.cfg_ctx.text())
             if ctx > 24576:
-                warnings.append(f"⚠  Context {ctx:,} tokens is very high")
+                warnings.append(f"Context {ctx:,} tokens is very high")
             elif ctx > 16384:
-                warnings.append(f"⚠  Context {ctx:,} tokens is high")
+                warnings.append(f"Context {ctx:,} tokens is high")
         except ValueError:
             pass
         try:
@@ -614,15 +629,15 @@ class MainWindow(QMainWindow):
             import multiprocessing
             ncpu = multiprocessing.cpu_count()
             if threads > ncpu:
-                warnings.append(f"⚠  {threads} threads exceeds {ncpu} logical CPUs")
+                warnings.append(f"{threads} threads exceeds {ncpu} logical CPUs")
         except (ValueError, NotImplementedError):
             pass
         try:
             temp = float(self.cfg_temp.text())
             if temp > 1.5:
-                warnings.append("⚠  Temperature > 1.5")
+                warnings.append("Temperature > 1.5")
             elif temp < 0.05:
-                warnings.append("⚠  Temperature near 0")
+                warnings.append("Temperature near 0")
         except ValueError:
             pass
         if warnings:
@@ -685,7 +700,7 @@ class MainWindow(QMainWindow):
         if temp > 2.0:   dangers.append(f"Temperature = {temp}")
         if dangers:
             msg = "High-compute parameters:\n\n" + "\n".join(f"  • {d}" for d in dangers) + "\n\nSave?"
-            if QMessageBox.warning(self, "⚠ Confirm", msg,
+            if QMessageBox.warning(self, "Confirm", msg,
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             ) != QMessageBox.StandardButton.Yes:
                 return
@@ -728,7 +743,7 @@ class MainWindow(QMainWindow):
                 size_mb = ModelConfig(path=path).size_mb
                 ram_est = max(size_mb * 1.1 / 1000, 1)
                 QMessageBox.information(
-                    self, "⚠️ Parallel RAM Usage",
+                    self, "Parallel RAM Usage",
                     f"Loading an additional engine (~{ram_est:.1f} GB).\n"
                     f"Total parallel engines after this: {n_loaded + 2}\n\n"
                     f"Ensure you have sufficient free RAM."
@@ -745,7 +760,7 @@ class MainWindow(QMainWindow):
         elif role in ("reasoning", "summarization", "coding", "secondary"):
             # Disable button while loading to prevent rapid re-clicks causing races
             self.btn_load_role_engine.setEnabled(False)
-            self.btn_load_role_engine.setText("⏳  Loading…")
+            self.btn_load_role_engine.setText("Loading...")
 
             attr        = f"{role}_engine"
             loader_attr = f"_loader_{role}"
@@ -772,7 +787,7 @@ class MainWindow(QMainWindow):
             def _on_loaded_reenable(ok, st, r=role, n=Path(path).name):
                 self._on_role_engine_loaded(ok, st, r, n, None)
                 self.btn_load_role_engine.setEnabled(True)
-                self.btn_load_role_engine.setText("⚡  Load Engine for Role")
+                set_button_icon(self.btn_load_role_engine, "zap", "Load Engine for Role")
 
             loader = ModelLoaderThread(new_eng, path, cfg.ctx)
             loader.log.connect(self._log)
@@ -786,8 +801,9 @@ class MainWindow(QMainWindow):
     def _on_role_engine_loaded(self, ok: bool, status: str, role: str,
                                 name: str, lbl):
         color = C["ok"] if ok else C["err"]
-        icon  = ROLE_ICONS.get(role, "🔌")
-        text  = f"{icon} {role.capitalize()}:  {'✅  ' if ok else '❌  '}{name}"
+        role_label = ROLE_ICONS.get(role, role.capitalize())
+        state = "Loaded" if ok else "Failed"
+        text  = f"{role_label}:  {state}  {name}"
         if lbl:
             try:
                 lbl.setText(text)
@@ -807,7 +823,6 @@ class MainWindow(QMainWindow):
             if eng:
                 engines[role.capitalize()] = eng
         for role_name, eng in engines.items():
-            icon       = "🟢" if eng.is_loaded else "⚪"
             model_name = Path(eng.model_path).name if eng.model_path else "not loaded"
             fam_tag    = ""
             if eng.model_path:
@@ -816,7 +831,9 @@ class MainWindow(QMainWindow):
                 fam_tag = f"  [{fam.name} · {qt}]"
             mode_tag = f"  [{eng.mode}]" if eng.is_loaded else ""
             item = QListWidgetItem(
-                f"  {icon}  {role_name:<22}  {model_name}{mode_tag}{fam_tag}")
+                f"  {role_name:<22}  {model_name}{mode_tag}{fam_tag}")
+            state = "warn" if eng.is_loaded and getattr(eng, "mode", "") == "cli" else ("ok" if eng.is_loaded else "idle")
+            item.setIcon(status_icon(state))
             item.setForeground(QColor(C["ok"] if eng.is_loaded else C["txt2"]))
             self.engine_status_list.addItem(item)
 
@@ -842,16 +859,20 @@ class MainWindow(QMainWindow):
         self.model_list.clear()
         active = getattr(self.engine, "model_path", "")
         for m in get_model_registry().all_models():
-            tag       = "📌" if m["source"] == "custom" else "📦"
-            role_icon = ROLE_ICONS.get(m.get("role", "general"), "💬")
+            source_label = "Custom" if m["source"] == "custom" else "Bundled"
+            role_label = ROLE_ICONS.get(m.get("role", "general"), "General")
             ql, qc    = quant_info(m.get("quant", ""))
-            vision = f"  🖼 {m.get('vision_label') or 'VLM'}" if m.get("vision") else ""
+            vision = f"  VLM: {m.get('vision_label') or 'vision'}" if m.get("vision") else ""
             mmproj = " · mmproj" if m.get("mmproj") else ""
-            label = (f"{tag}  {role_icon} [{m.get('role','general'):<14}]  "
+            label = (f"{source_label}  {role_label} [{m.get('role','general'):<14}]  "
                      f"{m['name']}   ({m['size_mb']} MB)  "
                      f"[{m.get('family','?')}·{m.get('quant','?')}·{ql}{vision}{mmproj}]")
-            if m["path"] == active: label += "  ✅"
+            if m["path"] == active: label += "  Loaded"
             item = QListWidgetItem(label)
+            if m["path"] == active:
+                item.setIcon(status_icon("ok"))
+            else:
+                item.setIcon(icon("vision") if m.get("vision") else role_icon(m.get("role", "general")))
             item.setData(Qt.ItemDataRole.UserRole, m["path"])
             if m["path"] == active:
                 item.setForeground(QColor(C["ok"]))
@@ -931,7 +952,7 @@ class MainWindow(QMainWindow):
         vm.addAction(QAction("Go to Models\tCtrl+M",  self, triggered=self._goto_models_tab))
         vm.addSeparator()
         # ── Theme toggle ──────────────────────────────────────────────────────
-        self._theme_action = QAction("☀  Switch to Dark Theme", self)
+        self._theme_action = QAction(icon("appearance"), "Switch to Dark Theme", self)
         self._theme_action.setCheckable(False)
         self._theme_action.triggered.connect(self._toggle_theme)
         vm.addAction(self._theme_action)
@@ -945,11 +966,11 @@ class MainWindow(QMainWindow):
         row = QHBoxLayout(box)
         row.setContentsMargins(0, 0, 8, 0)
         row.setSpacing(6)
-        self.btn_toggle_sidebar = QPushButton("☰")
+        self.btn_toggle_sidebar = QPushButton("")
         self.btn_toggle_sidebar.setToolTip("Toggle session sidebar")
-        self.btn_toggle_topbar = QPushButton("▔")
+        self.btn_toggle_topbar = QPushButton("")
         self.btn_toggle_topbar.setToolTip("Toggle top tab bar")
-        self.btn_tab_menu = QPushButton("⋯")
+        self.btn_tab_menu = QPushButton("")
         self.btn_tab_menu.setToolTip("Choose visible tabs")
         for b in (self.btn_toggle_sidebar, self.btn_toggle_topbar, self.btn_tab_menu):
             b.setFixedSize(28, 24)
@@ -969,8 +990,9 @@ class MainWindow(QMainWindow):
 
     def _build_status_bar(self):
         sb = self.statusBar()
-        self.lbl_engine = QLabel("⚪  Loading…")
+        self.lbl_engine = QLabel("")
         self.lbl_engine.setStyleSheet(f"color:{C['txt2']};padding:0 8px;")
+        self._set_engine_status("Loading...", "loading")
         sb.addWidget(self.lbl_engine)
         sb.addWidget(self._vline())
 
@@ -1124,6 +1146,22 @@ class MainWindow(QMainWindow):
 
     # ── model loading ─────────────────────────────────────────────────────────
 
+    def _on_chat_model_selected(self):
+        selected = self.input_bar.selected_model
+        if is_api_model_ref(selected):
+            if self._api_engine and self._api_engine.is_loaded and self._api_engine.model_path == selected:
+                return
+            cfg = getapi_registry().get_by_ref(selected)
+            label = f"Selected API: {cfg.provider} · {cfg.model_id}" if cfg else "Selected API model"
+            self._set_engine_status(f"{label} (not loaded)", "idle")
+            self.lbl_family.setText("API")
+            return
+        loaded_path = getattr(self.engine, "model_path", "")
+        if selected and selected == loaded_path and self.engine.is_loaded:
+            self._set_engine_status(self.engine.status_text, "ok")
+            return
+        self._set_engine_status("Selected model not loaded", "idle")
+
     def _start_model_load(self):
         model = self.input_bar.selected_model
         if is_api_model_ref(model):
@@ -1131,9 +1169,12 @@ class MainWindow(QMainWindow):
             return
         if not model or not Path(model).exists():
             model = str(MODELS_DIR / DEFAULT_MODEL)
+        if self.engine.is_loaded and getattr(self.engine, "model_path", "") == model:
+            self._set_engine_status(self.engine.status_text, "ok")
+            return
         if self._api_engine and self._api_engine.is_loaded:
             self._api_engine.shutdown()
-        self.lbl_engine.setText("🔄  Loading model…")
+        self._set_engine_status("Loading model...", "loading")
         fam   = detect_model_family(model)
         quant = detect_quant_type(model)
         vi    = detect_vision_model(model)
@@ -1148,7 +1189,7 @@ class MainWindow(QMainWindow):
 
     def _on_model_loaded(self, ok: bool, status: str):
         self.ctx_slider.setEnabled(True)
-        self.lbl_engine.setText(status)
+        self._set_engine_status(status, "ok" if ok else "err")
         color = C["ok"] if ok else C["err"]
         self.lbl_engine.setStyleSheet(f"color:{color};padding:0 8px;")
         self._log("INFO" if ok else "ERROR", f"Model load: {status}")
@@ -1158,6 +1199,31 @@ class MainWindow(QMainWindow):
         if hasattr(self, "pipeline_tab"):
             self.pipeline_tab.update_engine(self.engine)
         self._notify_labs()
+        self._flush_deferred_send(ok)
+
+    def _unload_chat_model(self):
+        if self._worker and self._worker.isRunning():
+            QMessageBox.warning(self, "Generation Active", "Stop the current generation before unloading the model.")
+            return
+        if self._api_engine and self._api_engine.is_loaded:
+            self._api_engine.shutdown()
+        if self.engine and self.engine.is_loaded:
+            self.engine.shutdown()
+        self._deferred_send = None
+        self.lbl_family.setText("")
+        self._set_engine_status("Model not loaded", "idle")
+        self._refresh_model_list()
+        if hasattr(self, "pipeline_tab"):
+            self.pipeline_tab.update_engine(self.engine)
+        self._notify_labs()
+        self._log("INFO", "Chat model unloaded.")
+
+    def _flush_deferred_send(self, ok: bool):
+        if not ok or not self._deferred_send:
+            return
+        text, ref_ctx, ref_images = self._deferred_send
+        self._deferred_send = None
+        QTimer.singleShot(0, lambda: self._on_send_with_refs(text, ref_ctx, ref_images))
 
     def _reload_model(self):
         self.engine.shutdown()
@@ -1187,13 +1253,17 @@ class MainWindow(QMainWindow):
             self.coding_engine is not None and self.coding_engine.is_loaded
         )
 
-    def _active_engine_for(self, text: str) -> "LlamaEngine":
+    def _active_engine_for(self, text: str):
         if self._is_coding_prompt(text) and \
                 self.coding_engine and self.coding_engine.is_loaded:
             return self.coding_engine
         selected = self.input_bar.selected_model if hasattr(self, "input_bar") else ""
-        if is_api_model_ref(selected) and self._api_engine and self._api_engine.is_loaded:
-            return self._api_engine
+        if is_api_model_ref(selected):
+            if self._api_engine and self._api_engine.is_loaded and self._api_engine.model_path == selected:
+                return self._api_engine
+            return None
+        if selected and self.engine.is_loaded and getattr(self.engine, "model_path", "") != selected:
+            return None
         return self.engine
 
     # ── tab fade ─────────────────────────────────────────────────────────────
@@ -1218,6 +1288,8 @@ class MainWindow(QMainWindow):
 
     def _on_api_model_loaded(self, api_engine: ApiEngine):
         """Called when ApiModelsTab successfully verifies an API model."""
+        if self.engine and self.engine.is_loaded:
+            self.engine.shutdown()
         self._api_engine = api_engine
         cfg = api_engine._config
         if cfg and hasattr(self, "input_bar"):
@@ -1231,7 +1303,7 @@ class MainWindow(QMainWindow):
             self.input_bar.model_combo.blockSignals(False)
             self.input_bar._update_family_badge()
         name = f"{cfg.provider}  ·  {cfg.model_id}" if cfg else api_engine.status_text
-        self.lbl_engine.setText(f"🌐  {name}")
+        self._set_engine_status(name, "api")
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         self.lbl_family.setText(f"API  ·  max {cfg.max_tokens if cfg else '?'} tokens")
         self._log("INFO", f"API model loaded: {api_engine.status_text}")
@@ -1239,17 +1311,21 @@ class MainWindow(QMainWindow):
         if hasattr(self, "pipeline_tab"):
             self.pipeline_tab.update_engine(api_engine)
         self._notify_labs()
+        self._flush_deferred_send(True)
 
     def _start_api_model_load(self, api_ref: str):
         cfg = getapi_registry().get_by_ref(api_ref)
         if cfg is None:
-            self.lbl_engine.setText("❌  API config missing")
+            self._set_engine_status("API config missing", "err")
             self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
             self._log("ERROR", f"API config not found: {api_ref}")
             return
         if self._api_engine and self._api_engine.is_loaded and self._api_engine.model_path == api_ref:
+            self._flush_deferred_send(True)
             return
-        self.lbl_engine.setText("🔄  Connecting API model…")
+        if self.engine and self.engine.is_loaded:
+            self.engine.shutdown()
+        self._set_engine_status("Connecting API model...", "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
         self.lbl_family.setText(f"API  ·  {cfg.provider}  ·  max {cfg.max_tokens} tokens")
         self._api_loader = ApiLoaderThread(cfg)
@@ -1260,10 +1336,11 @@ class MainWindow(QMainWindow):
         if ok and engine:
             self._on_api_model_loaded(engine)
             return
-        self.lbl_engine.setText(f"❌  {status}")
+        self._set_engine_status(status, "err")
         self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
         self._log("ERROR", status)
         self._notify_labs()
+        self._flush_deferred_send(False)
 
     # ── Labs endpoint wiring ──────────────────────────────────────────────────
 
@@ -1335,7 +1412,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self, "No Saved Pipelines",
                 "No saved pipelines found.\n\n"
-                "Build and save a pipeline in the 🔗 Pipeline tab first.")
+                "Build and save a pipeline in the Pipeline tab first.")
             return
 
         pipeline_name, ok = QInputDialog.getItem(
@@ -1376,7 +1453,7 @@ class MainWindow(QMainWindow):
 
         self.chat_area.add_message(
             "assistant",
-            f"🔗 **Running pipeline: {pipeline_name}**\n\n"
+            f"**Running pipeline: {pipeline_name}**\n\n"
             f"_{len(blocks)} blocks · processing…_",
             ts)
 
@@ -1391,7 +1468,7 @@ class MainWindow(QMainWindow):
         self._chat_pipeline_worker.err.connect(
             lambda msg: self.chat_area.add_message(
                 "assistant",
-                f"❌ Pipeline error:\n\n{msg}",
+                f"Pipeline error:\n\n{msg}",
                 datetime.now().strftime("%H:%M")))
         self._chat_pipeline_worker.log_msg.connect(
             lambda m: self._log("INFO", m))
@@ -1400,13 +1477,13 @@ class MainWindow(QMainWindow):
     def _chat_pipeline_step(self, label: str):
         ts = datetime.now().strftime("%H:%M")
         self.chat_area.add_message("system_note",
-                                   f"⚡ Processing block: **{label}**…", ts)
+                                   f"Processing block: **{label}**...", ts)
 
     def _chat_pipeline_intermediate(self, bid: int, label: str, text: str):
         ts = datetime.now().strftime("%H:%M")
         self.chat_area.add_message(
             "pipeline_intermediate",
-            f"◈ **{label}** - intermediate output\n\n{text}", ts)
+            f"**{label}** - intermediate output\n\n{text}", ts)
 
     def _chat_pipeline_done(self, payload: str):
         import json as _json
@@ -1418,7 +1495,7 @@ class MainWindow(QMainWindow):
             final  = payload
             sender = ""
         ts     = datetime.now().strftime("%H:%M")
-        header = f"■ **Output** _(from: {sender})_\n\n" if sender else "■ **Output**\n\n"
+        header = f"**Output** _(from: {sender})_\n\n" if sender else "**Output**\n\n"
         self.chat_area.add_message("assistant", header + final, ts)
         self._chat_pipeline_worker = None
 
@@ -1452,7 +1529,18 @@ class MainWindow(QMainWindow):
         if not self.active:    self._new_session()
         active_eng = self._active_engine_for(text)
         if not active_eng or not active_eng.is_loaded:
-            self._log("WARN", "Model not yet loaded - please wait."); return
+            self._deferred_send = (
+                text,
+                getattr(self, "_pending_ref_ctx", ""),
+                list(getattr(self, "_pending_ref_images", [])),
+            )
+            self._set_engine_status("Loading selected model for first message...", "loading")
+            loader = getattr(self, "_loader", None)
+            api_loader = getattr(self, "_api_loader", None)
+            if not ((loader and loader.isRunning()) or (api_loader and api_loader.isRunning())):
+                self._start_model_load()
+            self._log("INFO", "Loading selected model before sending first message.")
+            return
         # Block sends while ANY session is generating
         if self._busy_session_id:
             current_sid = self.active.id if self.active else ""
@@ -1503,7 +1591,7 @@ class MainWindow(QMainWindow):
 
         # ── Normal / single-engine mode ───────────────────────────────────────
         is_coding  = active_eng is self.coding_engine
-        eng_label  = "💻 Coding engine" if is_coding else active_eng.status_text
+        eng_label  = "Coding engine" if is_coding else active_eng.status_text
 
         ctx_chars = getattr(active_eng, "ctx_value", DEFAULT_CTX()) * 4
         prompt    = self.active.build_prompt(
@@ -1545,7 +1633,7 @@ class MainWindow(QMainWindow):
             cfg_pred = get_model_registry().get_config(active_eng.model_path).n_predict
 
         self._stream_w = self.chat_area.add_message(
-            "assistant", "", ts, tag="💻 Coding" if is_coding else "")
+            "assistant", "", ts, tag="Coding" if is_coding else "")
         self._log("INFO", f"Prompt ≈ {len(prompt)} chars · engine: {eng_label}")
 
         # For API engines, pass the full structured message history
@@ -1593,8 +1681,8 @@ class MainWindow(QMainWindow):
         self._refresh_sidebar()
 
         self.input_bar.set_generating(True)
-        lbl_txt = "💻 Coding…" if is_coding else "⚡  Generating…"
-        self.lbl_engine.setText(lbl_txt)
+        lbl_txt = "Coding..." if is_coding else "Generating..."
+        self._set_engine_status(lbl_txt, "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
 
     # ── Pipeline mode orchestration ───────────────────────────────────────────
@@ -1602,13 +1690,13 @@ class MainWindow(QMainWindow):
     def _collect_insight_engines(self):
         """Return list of (label, engine) for all active non-coding loaded engines."""
         candidates = [
-            ("🧠 Reasoning",     self.reasoning_engine),
-            ("📝 Summarization", self.summarization_engine),
-            ("🔮 Secondary",     self.secondary_engine),
+            ("Reasoning",     self.reasoning_engine),
+            ("Summarization", self.summarization_engine),
+            ("Secondary",     self.secondary_engine),
         ]
         # Also include primary engine if it's not the coding engine
         if self.engine and self.engine.is_loaded and self.engine is not self.coding_engine:
-            candidates.append(("⚡ Primary", self.engine))
+            candidates.append(("Primary", self.engine))
 
         return [
             (label, eng)
@@ -1636,7 +1724,7 @@ class MainWindow(QMainWindow):
                         f"{role} engine could not start server mode - aborting pipeline")
                     self.chat_area.add_message(
                         "assistant",
-                        f"⚠️ Pipeline aborted: **{role}** engine could not start in server mode.\n"
+                        f"Pipeline aborted: **{role}** engine could not start in server mode.\n"
                         f"Try reloading the model from the Models tab.",
                         ts)
                     self.input_bar.set_generating(False)
@@ -1651,7 +1739,7 @@ class MainWindow(QMainWindow):
             ctx_chars  = getattr(active_eng, "ctx_value", DEFAULT_CTX()) * 4
             prompt     = self.active.build_prompt(model_path=active_eng.model_path, max_chars=ctx_chars)
             cfg_pred   = get_model_registry().get_config(active_eng.model_path).n_predict
-            self._stream_w = self.chat_area.add_message("assistant", "", ts, tag="💻 Coding")
+            self._stream_w = self.chat_area.add_message("assistant", "", ts, tag="Coding")
             self._worker = active_eng.create_worker(prompt, n_predict=cfg_pred, model_path=active_eng.model_path)
             self._worker.token.connect(self._on_token)
             self._worker.done.connect(self._on_done)
@@ -1661,8 +1749,8 @@ class MainWindow(QMainWindow):
             return
 
         n_engines = len(insight_engines)
-        self._log("INFO", f"🔗 Pipeline: {n_engines} insight engine(s) → coding")
-        self.lbl_engine.setText("🧠 Structural Insights…")
+        self._log("INFO", f"Pipeline: {n_engines} insight engine(s) -> coding")
+        self._set_engine_status("Structural Insights...", "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['pipeline']};padding:0 8px;")
         self.input_bar.set_generating(True)
 
@@ -1676,7 +1764,7 @@ class MainWindow(QMainWindow):
             f"{n_engines} model(s) analysed → Coding model generating"
         )
         self._pipeline_reason_w = self._pipeline_insight_widgets[0] if self._pipeline_insight_widgets else None
-        self._pipeline_code_w   = self.chat_area.add_message("assistant", "", ts, tag="💻 Coding")
+        self._pipeline_code_w   = self.chat_area.add_message("assistant", "", ts, tag="Coding")
 
         insight_np = max(
             (get_model_registry().get_config(eng.model_path).n_predict for _, eng in insight_engines),
@@ -1700,7 +1788,7 @@ class MainWindow(QMainWindow):
         self._refresh_sidebar()
 
     def _on_pipeline_insight_started(self, idx: int, label: str):
-        self.lbl_engine.setText(f"{label} analysing…")
+        self._set_engine_status(f"{label} analysing...", "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['pipeline']};padding:0 8px;")
 
     def _on_pipeline_insight_token(self, idx: int, token: str):
@@ -1729,10 +1817,10 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_stage(self, stage: str):
         if stage == "coding":
-            self.lbl_engine.setText("💻 Coding…")
+            self._set_engine_status("Coding...", "loading")
             self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         elif stage == "insights":
-            self.lbl_engine.setText("🧠 Structural Insights…")
+            self._set_engine_status("Structural Insights...", "loading")
             self.lbl_engine.setStyleSheet(f"color:{C['pipeline']};padding:0 8px;")
 
     def _on_pipeline_code_token(self, text: str):
@@ -1745,7 +1833,7 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_done(self, tps: float):
         self.tps_lbl.setText(f"{tps:.1f} tok/s")
-        self.lbl_engine.setText(self.engine.status_text)
+        self._set_engine_status(self.engine.status_text, "ok")
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         self.input_bar.set_generating(False)
 
@@ -1788,12 +1876,12 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_err(self, msg: str):
         self._log("ERROR", f"Pipeline error: {msg}")
-        self.lbl_engine.setText("❌  Pipeline Error")
+        self._set_engine_status("Pipeline Error", "err")
         self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
         self.input_bar.set_generating(False)
         if self._pipeline_code_w:
             try:
-                self._pipeline_code_w.append_text(f"\n\n⚠️ Pipeline error: {msg}")
+                self._pipeline_code_w.append_text(f"\n\nPipeline error: {msg}")
             except RuntimeError:
                 pass
         self._pipeline_insight_widgets = []
@@ -1817,7 +1905,7 @@ class MainWindow(QMainWindow):
 
     def _on_done(self, tps: float):
         self.tps_lbl.setText(f"{tps:.1f} tok/s")
-        self.lbl_engine.setText(self._active_engine_for("").status_text)
+        self._set_engine_status(self._active_engine_for("").status_text, "ok")
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         self.input_bar.set_generating(False)
         if self._stream_w:
@@ -1829,11 +1917,11 @@ class MainWindow(QMainWindow):
 
     def _on_err(self, msg: str):
         self._log("ERROR", msg)
-        self.lbl_engine.setText("❌  Error")
+        self._set_engine_status("Error", "err")
         self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
         self.input_bar.set_generating(False)
         if self._stream_w:
-            try: self._stream_w.append_text(f"\n\n⚠️ Error: {msg}")
+            try: self._stream_w.append_text(f"\n\nError: {msg}")
             except RuntimeError: pass
         if self._stream_w:
             try: self._stream_w.finalize()
@@ -1871,7 +1959,7 @@ class MainWindow(QMainWindow):
             self._summary_worker = None
             if hasattr(self, "_summary_bubble") and self._summary_bubble:
                 self._summary_bubble.append_text(
-                    "\n\n⏸ Paused & saved to disk. Resume from the Config tab.")
+                    "\n\nPaused & saved to disk. Resume from the Config tab.")
                 self._summary_bubble = None
             if hasattr(self, "config_tab"):
                 self.config_tab.refresh_paused_jobs()
@@ -1887,7 +1975,7 @@ class MainWindow(QMainWindow):
             self._multi_pdf_worker = None
             if hasattr(self, "_summary_bubble") and self._summary_bubble:
                 self._summary_bubble.append_text(
-                    "\n\n⏸ Multi-PDF paused & saved. Resume from the Config tab.")
+                    "\n\nMulti-PDF paused & saved. Resume from the Config tab.")
                 self._summary_bubble = None
             if hasattr(self, "config_tab"):
                 self.config_tab.refresh_paused_jobs()
@@ -1897,10 +1985,10 @@ class MainWindow(QMainWindow):
             except RuntimeError: pass
 
         self.input_bar.set_generating(False)
-        self.lbl_engine.setText(self.engine.status_text)
+        self._set_engine_status(self.engine.status_text, "ok")
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         self._log("INFO", "Generation stopped by user.")
-        self._save_streamed(suffix=" ✋")
+        self._save_streamed(suffix=" [stopped]")
         self._busy_session_id  = ""
         self._stream_session_id = ""
         self._stream_buffer     = ""
@@ -1978,19 +2066,19 @@ class MainWindow(QMainWindow):
 
         ts = datetime.now().strftime("%H:%M")
         mode = self.input_bar.summary_mode
-        mode_label = {"summary": "📋 Summary", "logical": "🔬 Logical Analysis", "advice": "💡 Advisory"}.get(mode, "📋 Summary")
+        mode_label = {"summary": "Summary", "logical": "Logical Analysis", "advice": "Advisory"}.get(mode, "Summary")
 
         self._summary_bubble = self.chat_area.add_message(
             "assistant",
-            f"📄  Starting **{mode_label}** of **{filename}** "
+            f"Starting **{mode_label}** of **{filename}** "
             f"({n_pages} pages, {len(text):,} chars)…\n", ts)
 
         self.input_bar.set_generating(True)
         self.input_bar.input.setEnabled(False)
         self.input_bar.input.setPlaceholderText(
-            "⏸ Summarization in progress - pause or abort above before typing…")
+            "Summarization in progress - pause or abort above before typing...")
         self._summarizing_active = True
-        self.lbl_engine.setText("📄  Summarising…")
+        self._set_engine_status("Summarising...", "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['acc']};padding:0 8px;")
 
         # Add pause banner to chat
@@ -2027,7 +2115,7 @@ class MainWindow(QMainWindow):
         """Pause the active summary worker gracefully."""
         if self._summary_worker and hasattr(self._summary_worker, "request_pause"):
             self._summary_worker.request_pause()
-            self.lbl_engine.setText("⏸  Pausing…")
+            self._set_engine_status("Pausing...", "warn")
             self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
             if self._pause_banner:
                 try:
@@ -2036,12 +2124,12 @@ class MainWindow(QMainWindow):
                     pass
         elif self._multi_pdf_worker and hasattr(self._multi_pdf_worker, "request_pause"):
             self._multi_pdf_worker.request_pause()
-            self.lbl_engine.setText("⏸  Pausing…")
+            self._set_engine_status("Pausing...", "warn")
             self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
 
     def _on_summary_progress(self, msg: str):
         self._log("INFO", msg)
-        self.lbl_engine.setText(f"📄  {msg}")
+        self._set_engine_status(msg, "loading")
         if "final consolidation" in msg.lower():
             try:
                 tb = getattr(self, "_thinking_block", None)
@@ -2059,7 +2147,7 @@ class MainWindow(QMainWindow):
         try:
             bubble = getattr(self, "_summary_bubble", None)
             if bubble is not None:
-                bubble.append_text(f"\n✅ Section {num}/{total} summarised.\n")
+                bubble.append_text(f"\nSection {num}/{total} summarised.\n")
         except RuntimeError:
             pass
         self.chat_area._scroll_bottom()
@@ -2108,7 +2196,7 @@ class MainWindow(QMainWindow):
             self._summary_session_id = ""
             self._busy_session_id   = ""
             self.input_bar.set_generating(False)
-            self.lbl_engine.setText(self.engine.status_text)
+            self._set_engine_status(self.engine.status_text, "ok")
             self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
             self._update_ctx_bar()
             self._refresh_sidebar()
@@ -2152,9 +2240,9 @@ class MainWindow(QMainWindow):
         ts = datetime.now().strftime("%H:%M")
         self._summary_bubble = self.chat_area.add_message(
             "assistant",
-            f"📚  Starting multi-PDF summarization:\n"
+            f"Starting multi-PDF summarization:\n"
             + "\n".join(f"  • {fn} ({len(t):,} chars)" for fn, t in pdf_texts)
-            + f"\n\n⏳ Processing…\n", ts)
+            + "\n\nProcessing...\n", ts)
 
         from math import ceil
         total_chunks = sum(
@@ -2162,7 +2250,7 @@ class MainWindow(QMainWindow):
         self._thinking_block = self.chat_area.add_thinking_block(total_chunks)
 
         self.input_bar.set_generating(True)
-        self.lbl_engine.setText("📚  Multi-PDF…")
+        self._set_engine_status("Multi-PDF...", "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['acc']};padding:0 8px;")
 
         sid = self.active.id if self.active else "default"
@@ -2173,14 +2261,14 @@ class MainWindow(QMainWindow):
         self._multi_pdf_worker.file_started.connect(
             lambda fi, fn, nc: self._log("INFO", f"PDF {fi+1}: {fn} ({nc} chunks)"))
         self._multi_pdf_worker.file_progress.connect(
-            lambda fi, msg: self.lbl_engine.setText(f"📄 PDF {fi+1}: {msg}"))
+            lambda fi, msg: self._set_engine_status(f"PDF {fi+1}: {msg}", "loading"))
         self._multi_pdf_worker.ram_warning.connect(self._on_multi_pdf_ram_warning)
         self._multi_pdf_worker.section_done.connect(self._on_section_done)
         self._multi_pdf_worker.file_done.connect(
             lambda fi, s: (
                 self._log("INFO", f"File {fi+1} summary done ({len(s)} chars)"),
                 self._summary_bubble and self._summary_bubble.append_text(
-                    f"\n✅ Document {fi+1} summarised.\n")))
+                    f"\nDocument {fi+1} summarised.\n")))
         self._multi_pdf_worker.progress.connect(self._on_summary_progress)
         self._multi_pdf_worker.final_done.connect(self._on_multi_pdf_final)
         self._multi_pdf_worker.err.connect(self._on_summary_err_or_pause)
@@ -2211,7 +2299,7 @@ class MainWindow(QMainWindow):
 
         self._multi_pdf_worker = None
         self.input_bar.set_generating(False)
-        self.lbl_engine.setText(self.engine.status_text)
+        self._set_engine_status(self.engine.status_text, "ok")
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         self._update_ctx_bar()
 
@@ -2246,7 +2334,7 @@ class MainWindow(QMainWindow):
             total   = state.get("total", len(pdf_texts))
             self._summary_bubble = self.chat_area.add_message(
                 "assistant",
-                f"▶  Resuming multi-PDF job from file {next_fi+1}/{total}, "
+                f"Resuming multi-PDF job from file {next_fi+1}/{total}, "
                 f"chunk {next_ci+1}…\n", ts)
             from math import ceil
             est = sum(
@@ -2254,7 +2342,7 @@ class MainWindow(QMainWindow):
                 for _, t in pdf_texts[next_fi:])
             self._thinking_block = self.chat_area.add_thinking_block(max(est, 1))
             self.input_bar.set_generating(True)
-            self.lbl_engine.setText("▶  Resuming Multi-PDF…")
+            self._set_engine_status("Resuming Multi-PDF...", "loading")
             self.lbl_engine.setStyleSheet(f"color:{C['acc']};padding:0 8px;")
             sid = self.active.id if self.active else "default"
             self._multi_pdf_worker = MultiPdfSummaryWorker(
@@ -2267,7 +2355,7 @@ class MainWindow(QMainWindow):
             self._multi_pdf_worker.file_started.connect(
                 lambda fi, fn, nc: self._log("INFO", f"PDF {fi+1}: {fn} ({nc} chunks)"))
             self._multi_pdf_worker.file_progress.connect(
-                lambda fi, msg: self.lbl_engine.setText(f"📄 PDF {fi+1}: {msg}"))
+                lambda fi, msg: self._set_engine_status(f"PDF {fi+1}: {msg}", "loading"))
             self._multi_pdf_worker.ram_warning.connect(
                 lambda msg: self._log("WARN", msg))
             self._multi_pdf_worker.section_done.connect(self._on_section_done)
@@ -2297,7 +2385,7 @@ class MainWindow(QMainWindow):
         total      = state.get("total", "?")
         self._summary_bubble = self.chat_area.add_message(
             "assistant",
-            f"▶  Resuming summarization of **{filename}** "
+            f"Resuming summarization of **{filename}** "
             f"from chunk {next_chunk}/{total}…\n", ts)
 
         from math import ceil
@@ -2306,7 +2394,7 @@ class MainWindow(QMainWindow):
             max(est_remaining, 1))
 
         self.input_bar.set_generating(True)
-        self.lbl_engine.setText(f"▶  Resuming '{filename}'…")
+        self._set_engine_status(f"Resuming '{filename}'...", "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['acc']};padding:0 8px;")
 
         self._summary_worker = ChunkedSummaryWorker(
@@ -2330,10 +2418,10 @@ class MainWindow(QMainWindow):
         ts = datetime.now().strftime("%H:%M")
         banner = self.chat_area.add_message(
             "assistant",
-            f"💡 **Pause available** - The summarization has processed "
+            f"**Pause available** - The summarization has processed "
             f"{APP_CONFIG['pause_after_chunks']} chunks. You can pause & save "
             f"state now to resume later, or continue processing.\n\n"
-            f"Click ⏸ **Pause** in the stop button area to pause, "
+            f"Click **Pause** in the stop button area to pause, "
             f"or ignore this to keep going.", ts)
 
     def _on_summary_err_or_pause(self, msg: str):
@@ -2347,7 +2435,7 @@ class MainWindow(QMainWindow):
             self.input_bar.input.setPlaceholderText(
                 "Type a message…  (Enter = send · Shift+Enter = newline)")
             self.input_bar.set_generating(False)
-            self.lbl_engine.setText("⏸  Paused - state saved")
+            self._set_engine_status("Paused - state saved", "warn")
             self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
             self._summary_worker = None
             if hasattr(self, "config_tab"):
@@ -2364,11 +2452,11 @@ class MainWindow(QMainWindow):
         self.input_bar.input.setPlaceholderText(
             "Type a message…  (Enter = send · Shift+Enter = newline)")
         if hasattr(self, "_summary_bubble") and self._summary_bubble:
-            self._summary_bubble.append_text(f"\n\n⚠️ Error: {msg}")
+            self._summary_bubble.append_text(f"\n\nError: {msg}")
         self._summary_worker = None
         self._summary_bubble = None
         self.input_bar.set_generating(False)
-        self.lbl_engine.setText("❌  Summary failed")
+        self._set_engine_status("Summary failed", "err")
         self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
 
     # ── export ────────────────────────────────────────────────────────────────
@@ -2388,6 +2476,11 @@ class MainWindow(QMainWindow):
         self._log("INFO", f"Exported to {path}")
 
     # ── status bar helpers ────────────────────────────────────────────────────
+
+    def _set_engine_status(self, text: str, state: str = "idle"):
+        if not hasattr(self, "lbl_engine"):
+            return
+        set_status_label(self.lbl_engine, text, state, 14)
 
     def _update_ctx_bar(self):
         if not self.active: return
@@ -2485,8 +2578,19 @@ class MainWindow(QMainWindow):
     def _update_view_toggle_buttons(self):
         if not hasattr(self, "btn_toggle_sidebar"):
             return
-        self.btn_toggle_sidebar.setText("☰" if self.sidebar.isVisible() else "☷")
-        self.btn_toggle_topbar.setText("▔" if self.tabs.tabBar().isVisible() else "▁")
+        set_button_icon(
+            self.btn_toggle_sidebar,
+            "panel-left" if self.sidebar.isVisible() else "panel-right-close",
+            "",
+            16,
+        )
+        set_button_icon(
+            self.btn_toggle_topbar,
+            "panel-top" if self.tabs.tabBar().isVisible() else "panel-top-close",
+            "",
+            16,
+        )
+        set_button_icon(self.btn_tab_menu, "more-horizontal", "", 16)
 
     def eventFilter(self, obj, event):
         if (hasattr(self, "tabs") and obj is self.tabs.tabBar()
@@ -2505,10 +2609,37 @@ class MainWindow(QMainWindow):
     def _update_theme_action_label(self):
         if not hasattr(self, "_theme_action"):
             return
+        self._theme_action.setIcon(icon("appearance"))
         if CURRENT_THEME == "light":
-            self._theme_action.setText("🌙  Switch to Dark Theme")
+            self._theme_action.setText("Switch to Dark Theme")
         else:
-            self._theme_action.setText("☀  Switch to Light Theme")
+            self._theme_action.setText("Switch to Light Theme")
+
+    def _refresh_tab_icons(self):
+        tab_icons = {
+            "Chat": "chat",
+            "Models": "models",
+            "Config": "config",
+            "Server": "server",
+            "Pipeline": "pipeline",
+            "API Models": "api",
+            "Download": "download",
+            "MCP": "mcp",
+            "Logs": "logs",
+            "Appearance": "appearance",
+            "Labs": "labs",
+        }
+        for i in range(self.tabs.count()):
+            name = tab_icons.get(self.tabs.tabText(i))
+            if name:
+                self.tabs.setTabIcon(i, icon(name))
+
+    def _refresh_svg_icons(self):
+        refresh_widget_icons(self)
+        if hasattr(self, "tabs"):
+            self._refresh_tab_icons()
+        self._update_view_toggle_buttons()
+        self._update_theme_action_label()
 
     def _on_appearance_changed(self, new_palette: dict):
         global C_LIGHT, C_DARK, C, QSS
@@ -2520,6 +2651,7 @@ class MainWindow(QMainWindow):
             C = dict(C_DARK)
         QSS = build_qss(C)
         self.setStyleSheet(QSS)
+        self._refresh_svg_icons()
         if self.active:
             self._switch_session(self.active.id)
 
@@ -2540,7 +2672,7 @@ class MainWindow(QMainWindow):
         self.models_tab.setParent(None)
         self.models_tab.deleteLater()
         self.models_tab = self._build_models_tab()
-        self.tabs.insertTab(mt_idx, self.models_tab, "🗂  Models")
+        self.tabs.insertTab(mt_idx, self.models_tab, icon("models"), "Models")
 
         # Rebuild Config tab (has baked dark card backgrounds)
         ct_idx = self.tabs.indexOf(self.config_tab)
@@ -2549,7 +2681,7 @@ class MainWindow(QMainWindow):
         self.config_tab = ConfigTab()
         self.config_tab.config_changed.connect(self._on_config_changed)
         self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
-        self.tabs.insertTab(ct_idx, self.config_tab, "⚙️  Config")
+        self.tabs.insertTab(ct_idx, self.config_tab, icon("config"), "Config")
 
         # Rebuild Server tab
         srv_idx = self.tabs.indexOf(self.server_tab)
@@ -2558,28 +2690,28 @@ class MainWindow(QMainWindow):
         self.server_tab = ServerTab()
         self.server_tab.config_changed.connect(
             lambda: self._log("INFO", "Server config updated."))
-        self.tabs.insertTab(srv_idx, self.server_tab, "🖥️  Server")
+        self.tabs.insertTab(srv_idx, self.server_tab, icon("server"), "Server")
 
         # Rebuild Download tab
         dl_idx = self.tabs.indexOf(self.download_tab)
         self.download_tab.setParent(None)
         self.download_tab.deleteLater()
         self.download_tab = ModelDownloadTab()
-        self.tabs.insertTab(dl_idx, self.download_tab, "⬇️  Download")
+        self.tabs.insertTab(dl_idx, self.download_tab, icon("download"), "Download")
 
         # Rebuild MCP tab
         mcp_idx = self.tabs.indexOf(self.mcp_tab)
         self.mcp_tab.setParent(None)
         self.mcp_tab.deleteLater()
         self.mcp_tab = McpTab()
-        self.tabs.insertTab(mcp_idx, self.mcp_tab, "🔌  MCP")
+        self.tabs.insertTab(mcp_idx, self.mcp_tab, icon("mcp"), "MCP")
 
         # Rebuild Logs tab
         log_idx = self.tabs.indexOf(self.log_console)
         self.log_console.setParent(None)
         self.log_console.deleteLater()
         self.log_console = LogConsole()
-        self.tabs.insertTab(log_idx, self.log_console, "🐞  Logs")
+        self.tabs.insertTab(log_idx, self.log_console, icon("logs"), "Logs")
 
         # Refresh Appearance tab palette to match active theme
         self.appearance_tab.load_palette(C_LIGHT if CURRENT_THEME == "light" else C_DARK)
@@ -2589,6 +2721,7 @@ class MainWindow(QMainWindow):
         self._on_model_loaded(self.engine.is_loaded, self.engine.status_text)
         if self.active:
             self._switch_session(self.active.id)
+        self._refresh_svg_icons()
 
     def _goto_logs(self):
         self.tabs.setCurrentWidget(self.log_console)
@@ -2653,7 +2786,7 @@ def main():
     app.setFont(_fnt)
     signal.signal(signal.SIGINT, lambda *_: app.quit())
     win = MainWindow()
-    win.setWindowTitle("✦  NativeLab")
+    win.setWindowTitle("NativeLab")
     win.show()
     sys.exit(app.exec())
 

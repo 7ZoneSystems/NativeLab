@@ -18,6 +18,7 @@ from nativelab.imports.import_global import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QStackedWidget,
     QListWidget, QListWidgetItem, Qt,
 )
+from nativelab.UI.icons import icon as app_icon
 
 from .endpoints import LabEndpoints
 from .pytodoc import PyToDocPanel
@@ -76,8 +77,9 @@ class LabsTab(QWidget):
 
         for PanelClass in LAB_FEATURES:
             name = getattr(PanelClass, "LAB_NAME", PanelClass.__name__)
-            icon = getattr(PanelClass, "LAB_ICON", "•")
-            item = QListWidgetItem(f"  {icon}  {name}")
+            icon_name = getattr(PanelClass, "LAB_ICON", "flask-conical")
+            item = QListWidgetItem(f"  {name}")
+            item.setIcon(app_icon(icon_name))
             item.setData(Qt.ItemDataRole.UserRole, name)
             self.nav_list.addItem(item)
 

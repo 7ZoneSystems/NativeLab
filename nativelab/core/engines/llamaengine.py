@@ -140,9 +140,9 @@ class LlamaEngine:
 
     @property
     def status_text(self) -> str:
-        if self.mode == "server": return f"🟢 Server  :{self.server_port}"
-        if self.mode == "cli":    return "🟡 CLI Mode"
-        return "⚪ Not Loaded"
+        if self.mode == "server": return f"Server  :{self.server_port}"
+        if self.mode == "cli":    return "CLI Mode"
+        return "Not Loaded"
 
     # ------------------------------------------------------------------ #
     #  Internal helpers                                                    #

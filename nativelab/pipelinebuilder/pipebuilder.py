@@ -7,6 +7,7 @@ from nativelab.core.engine_global import LlamaEngine
 from .executionWorker import PipelineExecutionWorker
 from .flowpreview import FlowPreviewController
 from nativelab.UI.UI_const import C
+from nativelab.UI.icons import icon, set_button_icon, set_label_icon, set_status_label
 from .canvas import PipelineCanvas
 from .outrender import PipelineOutputRenderer
 from manual import make_manual_html, PIPELINE_MANUAL_HTML
@@ -53,8 +54,9 @@ class PipelineBuilderTab(QWidget):
             lbl.setObjectName("txt3_tiny")
             return lbl
 
-        def _block_btn(icon_label: str, btype: str, color: str) -> QPushButton:
-            btn = QPushButton(icon_label)
+        def _block_btn(label: str, btype: str, color: str, icon_name: str = "blocks") -> QPushButton:
+            btn = QPushButton(label)
+            set_button_icon(btn, icon_name, label)
             btn.setFixedHeight(30)
             btn.setStyleSheet(
                 f"QPushButton{{background:transparent;"
@@ -65,7 +67,8 @@ class PipelineBuilderTab(QWidget):
             return btn
 
         # ── CHANGED: removed color:{C['txt']} - text color now driven by QSS
-        hdr = QLabel("🔗  Pipeline Builder")
+        hdr = QLabel("Pipeline Builder")
+        set_label_icon(hdr, "pipeline", "Pipeline Builder", 16)
         hdr.setObjectName("pipeline_hdr")
         hdr.setStyleSheet("font-size:12px;font-weight:700;")
         sb_l.addWidget(hdr)
@@ -74,31 +77,31 @@ class PipelineBuilderTab(QWidget):
         sb_l.addWidget(sep0)
 
         sb_l.addWidget(_sec("FLOW BLOCKS"))
-        sb_l.addWidget(_block_btn("▶  Input Block",          PipelineBlockType.INPUT,        C["ok"]))
-        sb_l.addWidget(_block_btn("◈  Intermediate Block",   PipelineBlockType.INTERMEDIATE, C["warn"]))
-        sb_l.addWidget(_block_btn("■  Output Block",         PipelineBlockType.OUTPUT,       C["err"]))
+        sb_l.addWidget(_block_btn("Input Block",          PipelineBlockType.INPUT,        C["ok"], "input"))
+        sb_l.addWidget(_block_btn("Intermediate Block",   PipelineBlockType.INTERMEDIATE, C["warn"], "blocks"))
+        sb_l.addWidget(_block_btn("Output Block",         PipelineBlockType.OUTPUT,       C["err"], "output"))
 
         sep_ctx = QFrame(); sep_ctx.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep_ctx)
         sb_l.addWidget(_sec("CONTEXT BLOCKS"))
-        sb_l.addWidget(_block_btn("📎  Reference",   PipelineBlockType.REFERENCE,   C["acc"]))
-        sb_l.addWidget(_block_btn("💡  Knowledge",   PipelineBlockType.KNOWLEDGE,   C["acc2"]))
-        sb_l.addWidget(_block_btn("📄  PDF Summary", PipelineBlockType.PDF_SUMMARY, C["pipeline"]))
+        sb_l.addWidget(_block_btn("Reference",   PipelineBlockType.REFERENCE,   C["acc"], "reference"))
+        sb_l.addWidget(_block_btn("Knowledge",   PipelineBlockType.KNOWLEDGE,   C["acc2"], "lightbulb"))
+        sb_l.addWidget(_block_btn("PDF Summary", PipelineBlockType.PDF_SUMMARY, C["pipeline"], "pdf"))
 
         sep_logic = QFrame(); sep_logic.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep_logic)
         sb_l.addWidget(_sec("LOGIC BLOCKS"))
-        sb_l.addWidget(_block_btn("⑂  IF / ELSE",   PipelineBlockType.IF_ELSE,     "#f59e0b"))
-        sb_l.addWidget(_block_btn("⑃  SWITCH",      PipelineBlockType.SWITCH,      "#f97316"))
-        sb_l.addWidget(_block_btn("⊘  FILTER",      PipelineBlockType.FILTER,      "#84cc16"))
-        sb_l.addWidget(_block_btn("⟲  TRANSFORM",   PipelineBlockType.TRANSFORM,   "#06b6d4"))
-        sb_l.addWidget(_block_btn("⊕  MERGE",       PipelineBlockType.MERGE,       "#8b5cf6"))
-        sb_l.addWidget(_block_btn("⑁  SPLIT",       PipelineBlockType.SPLIT,       "#ec4899"))
+        sb_l.addWidget(_block_btn("IF / ELSE",   PipelineBlockType.IF_ELSE,     "#f59e0b", "git-branch"))
+        sb_l.addWidget(_block_btn("SWITCH",      PipelineBlockType.SWITCH,      "#f97316", "route"))
+        sb_l.addWidget(_block_btn("FILTER",      PipelineBlockType.FILTER,      "#84cc16", "filter"))
+        sb_l.addWidget(_block_btn("TRANSFORM",   PipelineBlockType.TRANSFORM,   "#06b6d4", "refresh-cw"))
+        sb_l.addWidget(_block_btn("MERGE",       PipelineBlockType.MERGE,       "#8b5cf6", "combine"))
+        sb_l.addWidget(_block_btn("SPLIT",       PipelineBlockType.SPLIT,       "#ec4899", "split"))
 
         sep_code = QFrame(); sep_code.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep_code)
         sb_l.addWidget(_sec("CUSTOM CODE"))
-        sb_l.addWidget(_block_btn("⌥  Custom Code", PipelineBlockType.CUSTOM_CODE, "#10b981"))
+        sb_l.addWidget(_block_btn("Custom Code", PipelineBlockType.CUSTOM_CODE, "#10b981", "code"))
 
         sep_llm = QFrame(); sep_llm.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep_llm)
@@ -109,11 +112,11 @@ class PipelineBuilderTab(QWidget):
             "the block's attached LLM model.")
         _llm_note.setObjectName("txt3_block")
         sb_l.addWidget(_llm_note)
-        sb_l.addWidget(_block_btn("🧠  LLM IF / ELSE",   PipelineBlockType.LLM_IF,        "#a855f7"))
-        sb_l.addWidget(_block_btn("🧠  LLM SWITCH",      PipelineBlockType.LLM_SWITCH,     "#7c3aed"))
-        sb_l.addWidget(_block_btn("🧠  LLM FILTER",      PipelineBlockType.LLM_FILTER,     "#6366f1"))
-        sb_l.addWidget(_block_btn("🧠  LLM TRANSFORM",   PipelineBlockType.LLM_TRANSFORM,  "#0ea5e9"))
-        sb_l.addWidget(_block_btn("🧠  LLM SCORE",       PipelineBlockType.LLM_SCORE,      "#d946ef"))
+        sb_l.addWidget(_block_btn("LLM IF / ELSE",   PipelineBlockType.LLM_IF,        "#a855f7", "brain"))
+        sb_l.addWidget(_block_btn("LLM SWITCH",      PipelineBlockType.LLM_SWITCH,     "#7c3aed", "brain"))
+        sb_l.addWidget(_block_btn("LLM FILTER",      PipelineBlockType.LLM_FILTER,     "#6366f1", "brain"))
+        sb_l.addWidget(_block_btn("LLM TRANSFORM",   PipelineBlockType.LLM_TRANSFORM,  "#0ea5e9", "brain"))
+        sb_l.addWidget(_block_btn("LLM SCORE",       PipelineBlockType.LLM_SCORE,      "#d946ef", "brain"))
 
         sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep1)
@@ -128,7 +131,8 @@ class PipelineBuilderTab(QWidget):
             "Double-click OR drag onto the canvas to add a model block.")
         sb_l.addWidget(self.model_list, 1)
 
-        self.btn_refresh = QPushButton("↻  Refresh")
+        self.btn_refresh = QPushButton("Refresh")
+        set_button_icon(self.btn_refresh, "refresh-cw", "Refresh")
         self.btn_refresh.setFixedHeight(26)
         self.btn_refresh.clicked.connect(self._refresh_models)
         sb_l.addWidget(self.btn_refresh)
@@ -137,22 +141,26 @@ class PipelineBuilderTab(QWidget):
         sb_l.addWidget(sep2)
 
         sb_l.addWidget(_sec("CANVAS CONTROLS"))
-        self.btn_clear_canvas = QPushButton("🗑  Clear All")
+        self.btn_clear_canvas = QPushButton("Clear All")
+        set_button_icon(self.btn_clear_canvas, "delete", "Clear All")
         self.btn_clear_canvas.setFixedHeight(28)
         self.btn_clear_canvas.clicked.connect(self._clear_canvas)
         sb_l.addWidget(self.btn_clear_canvas)
 
-        self.btn_save_pipeline = QPushButton("💾  Save Pipeline…")
+        self.btn_save_pipeline = QPushButton("Save Pipeline...")
+        set_button_icon(self.btn_save_pipeline, "save", "Save Pipeline...")
         self.btn_save_pipeline.setFixedHeight(28)
         self.btn_save_pipeline.clicked.connect(self._save_pipeline)
         sb_l.addWidget(self.btn_save_pipeline)
 
-        self.btn_load_pipeline = QPushButton("📂  Load Pipeline…")
+        self.btn_load_pipeline = QPushButton("Load Pipeline...")
+        set_button_icon(self.btn_load_pipeline, "folder-open", "Load Pipeline...")
         self.btn_load_pipeline.setFixedHeight(28)
         self.btn_load_pipeline.clicked.connect(self._load_pipeline)
         sb_l.addWidget(self.btn_load_pipeline)
 
-        self.btn_preview = QPushButton("▶  Preview Flow")
+        self.btn_preview = QPushButton("Preview Flow")
+        set_button_icon(self.btn_preview, "play", "Preview Flow")
         self.btn_preview.setFixedHeight(28)
         self.btn_preview.setStyleSheet(
             f"QPushButton{{background:transparent;color:{C['pipeline']};"
@@ -198,26 +206,27 @@ class PipelineBuilderTab(QWidget):
         tb_l = QHBoxLayout(toolbar)
         tb_l.setContentsMargins(12, 4, 12, 4)
         tb_l.setSpacing(8)
-        tb_title = QLabel("🔗  Pipeline Canvas")
+        tb_title = QLabel("Pipeline Canvas")
+        set_label_icon(tb_title, "pipeline", "Pipeline Canvas", 16)
         tb_title.setObjectName("appearance_hdr")
         tb_l.addWidget(tb_title)
         tb_l.addStretch()
         legend_items = [
-            (C["ok"],       "▶ Input"),
-            (C["warn"],     "◈ Intermediate"),
-            (C["err"],      "■ Output"),
-            (C["acc"],      "⚡ Model"),
-            ("#f59e0b",     "⑂ IF/ELSE"),
-            ("#06b6d4",     "⟲ Transform"),
-            ("#10b981",     "⌥ Code"),
-            ("#8b5cf6",     "⊕ Merge"),
-            ("#ec4899",     "⑁ Split"),
-            ("#a855f7",     "🧠 LLM-IF"),
-            ("#7c3aed",     "🧠 LLM-SW"),
-            ("#0ea5e9",     "🧠 LLM-TX"),
-            ("#d946ef",     "🧠 LLM-SC"),
-            (C["pipeline"], "⤵ Loop"),
-            (C["acc2"],     "→ Forward"),
+            (C["ok"],       "Input"),
+            (C["warn"],     "Intermediate"),
+            (C["err"],      "Output"),
+            (C["acc"],      "Model"),
+            ("#f59e0b",     "IF/ELSE"),
+            ("#06b6d4",     "Transform"),
+            ("#10b981",     "Code"),
+            ("#8b5cf6",     "Merge"),
+            ("#ec4899",     "Split"),
+            ("#a855f7",     "LLM-IF"),
+            ("#7c3aed",     "LLM-SW"),
+            ("#0ea5e9",     "LLM-TX"),
+            ("#d946ef",     "LLM-SC"),
+            (C["pipeline"], "Loop"),
+            (C["acc2"],     "Forward"),
         ]
         for col, txt in legend_items:
             lbl = QLabel(txt)
@@ -240,7 +249,8 @@ class PipelineBuilderTab(QWidget):
         pill_outer_l.setSpacing(0)
 
         # ── CHANGED: removed inline color from _pill_icon; objectName drives it
-        _pill_icon = QLabel("⚡")
+        _pill_icon = QLabel("")
+        set_label_icon(_pill_icon, "zap", "", 14)
         _pill_icon.setObjectName("txt3_xs")
         _pill_icon.setStyleSheet("padding-right:4px;")
         pill_outer_l.addWidget(_pill_icon)
@@ -286,11 +296,13 @@ class PipelineBuilderTab(QWidget):
 
         exec_hdr_row = QHBoxLayout(); exec_hdr_row.setSpacing(6)
         # ── CHANGED: removed color:{C['txt']} - text color now driven by QSS
-        exec_hdr = QLabel("▶  Execute Pipeline")
+        exec_hdr = QLabel("Execute Pipeline")
+        set_label_icon(exec_hdr, "play", "Execute Pipeline", 16)
         exec_hdr.setObjectName("pipeline_hdr")
         exec_hdr.setStyleSheet("font-size:12px;font-weight:700;")
         exec_hdr_row.addWidget(exec_hdr, 1)
-        btn_manual = QPushButton("📖 Manual")
+        btn_manual = QPushButton("Manual")
+        set_button_icon(btn_manual, "book-open", "Manual")
         btn_manual.setFixedHeight(24)
         btn_manual.setStyleSheet(
             f"QPushButton{{background:transparent;color:{C['acc']};"
@@ -302,7 +314,7 @@ class PipelineBuilderTab(QWidget):
         rp_l.addLayout(exec_hdr_row)
 
         # Server status badge - state-driven via QSS property, not inline color
-        self.server_badge = QLabel("⚪  Engine status unknown")
+        self.server_badge = QLabel("Engine status unknown")
         self.server_badge.setObjectName("status_badge")
         self.server_badge.setProperty("state", "idle")
         rp_l.addWidget(self.server_badge)
@@ -323,13 +335,15 @@ class PipelineBuilderTab(QWidget):
         self.input_edit.setMaximumHeight(100)
         rp_l.addWidget(self.input_edit)
 
-        self.btn_run = QPushButton("▶  Run Pipeline")
+        self.btn_run = QPushButton("Run Pipeline")
+        set_button_icon(self.btn_run, "play", "Run Pipeline")
         self.btn_run.setObjectName("btn_send")
         self.btn_run.setFixedHeight(34)
         self.btn_run.clicked.connect(self._run_pipeline)
         rp_l.addWidget(self.btn_run)
 
-        self.btn_stop = QPushButton("⏹  Stop Execution")
+        self.btn_stop = QPushButton("Stop Execution")
+        set_button_icon(self.btn_stop, "stop-circle", "Stop Execution")
         self.btn_stop.setObjectName("btn_stop")
         self.btn_stop.setFixedHeight(34)
         self.btn_stop.setVisible(False)
@@ -339,7 +353,7 @@ class PipelineBuilderTab(QWidget):
         sep3 = QFrame(); sep3.setFrameShape(QFrame.Shape.HLine)
         rp_l.addWidget(sep3)
 
-        # Tabbed output: 📋 Log | ■ Output | one ◈ tab per intermediate block
+        # Tabbed output: Log | Output | one tab per intermediate block
         self.output_tabs = QTabWidget()
         self.output_tabs.setObjectName("ref_tabs")
 
@@ -347,14 +361,15 @@ class PipelineBuilderTab(QWidget):
         self.exec_log.setReadOnly(True)
         self.exec_log.setFont(QFont("Consolas", 9))
         self.exec_log.setObjectName("log_te")
-        self.output_tabs.addTab(self.exec_log, "📋 Log")
+        self.output_tabs.addTab(self.exec_log, icon("list"), "Log")
 
         self.output_edit = PipelineOutputRenderer(
             placeholder="Final pipeline output appears here…")
-        self.output_tabs.addTab(self.output_edit, "■ Output")
+        self.output_tabs.addTab(self.output_edit, icon("output"), "Output")
         rp_l.addWidget(self.output_tabs, 1)
 
-        copy_btn = QPushButton("⧉  Copy Final Output")
+        copy_btn = QPushButton("Copy Final Output")
+        set_button_icon(copy_btn, "copy", "Copy Final Output")
         copy_btn.setFixedHeight(28)
         copy_btn.clicked.connect(
             lambda: QApplication.clipboard().setText(
@@ -370,7 +385,7 @@ class PipelineBuilderTab(QWidget):
     def _refresh_models(self):
         """Show the pipeline builder manual in a scrollable dialog."""
         dlg = QDialog(self)
-        dlg.setWindowTitle("📖  Pipeline Builder Manual")
+        dlg.setWindowTitle("Pipeline Builder Manual")
         dlg.setMinimumSize(680, 580)
         dlg.resize(740, 640)
         lay = QVBoxLayout(dlg)
@@ -383,7 +398,8 @@ class PipelineBuilderTab(QWidget):
         te.setHtml(PIPELINE_MANUAL_HTML)
         lay.addWidget(te, 1)
 
-        btn_close = QPushButton("✕  Close")
+        btn_close = QPushButton("Close")
+        set_button_icon(btn_close, "x", "Close")
         btn_close.setFixedHeight(32)
         btn_close.clicked.connect(dlg.accept)
         btn_row = QHBoxLayout()
@@ -395,7 +411,7 @@ class PipelineBuilderTab(QWidget):
 
     def _show_manual(self):
         dlg = QDialog(self)
-        dlg.setWindowTitle("📖  Pipeline Builder Manual")
+        dlg.setWindowTitle("Pipeline Builder Manual")
         dlg.setMinimumSize(680, 580)
         dlg.resize(740, 640)
         lay = QVBoxLayout(dlg)
@@ -406,7 +422,8 @@ class PipelineBuilderTab(QWidget):
         te.setObjectName("chat_te")
         te.setHtml(make_manual_html())
         lay.addWidget(te, 1)
-        btn_close = QPushButton("✕  Close")
+        btn_close = QPushButton("Close")
+        set_button_icon(btn_close, "x", "Close")
         btn_close.setFixedHeight(32)
         btn_close.clicked.connect(dlg.accept)
         btn_row = QHBoxLayout()
@@ -419,16 +436,18 @@ class PipelineBuilderTab(QWidget):
     def _refresh_models(self):
         self.model_list.clear()
         for m in get_model_registry().all_models():
-            ri   = ROLE_ICONS.get(m.get("role", "general"), "💬")
+            ri   = ROLE_ICONS.get(m.get("role", "general"), "General")
             qt   = m.get("quant", "?")
             fam  = m.get("family", "?")
             vision = f" · VLM:{m.get('vision_label') or 'vision'}" if m.get("vision") else ""
             item = QListWidgetItem(f"{ri}  {m['name']}\n    {fam} · {qt}{vision}")
+            item.setIcon(icon("vision" if m.get("vision") else "models"))
             item.setData(Qt.ItemDataRole.UserRole,     m["path"])
             item.setData(Qt.ItemDataRole.UserRole + 1, m.get("role", "general"))
             self.model_list.addItem(item)
         for cfg in getapi_registry().all():
-            item = QListWidgetItem(f"🌐  {cfg.name}\n    API · {cfg.provider} · {cfg.model_id}")
+            item = QListWidgetItem(f"{cfg.name}\n    API · {cfg.provider} · {cfg.model_id}")
+            item.setIcon(icon("api"))
             item.setData(Qt.ItemDataRole.UserRole, api_model_ref(cfg.name))
             item.setData(Qt.ItemDataRole.UserRole + 1, "general")
             self.model_list.addItem(item)
@@ -449,7 +468,7 @@ class PipelineBuilderTab(QWidget):
         name = name.strip().replace("/", "-").replace("\\", "-")
         save_pipeline(name, self.canvas.blocks, self.canvas.connections)
         self._current_pipeline_name = name
-        self._log(f"💾  Pipeline saved as '{name}'")
+        self._log(f"Pipeline saved as '{name}'")
         QMessageBox.information(self, "Saved",
                                 f"Pipeline '{name}' saved successfully.")
 
@@ -461,12 +480,12 @@ class PipelineBuilderTab(QWidget):
                                     f"Pipelines are stored in:\n{PIPELINES_DIR}")
             return
         # Offer saved names + a delete option
-        items = saved + ["─────────────", "🗑  Delete a pipeline…"]
+        items = saved + ["─────────────", "Delete a pipeline..."]
         choice, ok = QInputDialog.getItem(
             self, "Load Pipeline", "Select a pipeline:", items, 0, False)
         if not ok:
             return
-        if choice == "🗑  Delete a pipeline…":
+        if choice == "Delete a pipeline...":
             self._delete_pipeline_dialog(saved); return
         if choice.startswith("─"):
             return
@@ -491,7 +510,7 @@ class PipelineBuilderTab(QWidget):
         self.canvas.update()
         self.canvas.blocks_changed.emit()
         self._current_pipeline_name = choice
-        self._log(f"📂  Pipeline '{choice}' loaded "
+        self._log(f"Pipeline '{choice}' loaded "
                   f"({len(blocks)} blocks, {len(conns)} connections)")
 
     def _delete_pipeline_dialog(self, saved: list):
@@ -505,7 +524,7 @@ class PipelineBuilderTab(QWidget):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if ans == QMessageBox.StandardButton.Yes:
             (PIPELINES_DIR / f"{choice}.json").unlink(missing_ok=True)
-            self._log(f"🗑  Pipeline '{choice}' deleted.")
+            self._log(f"Pipeline '{choice}' deleted.")
 
     def _update_server_badge(self):
         # ── CHANGED: replaced three setStyleSheet(f"color:{C[...]}...") calls
@@ -513,13 +532,13 @@ class PipelineBuilderTab(QWidget):
         #    color. States exposed to QSS: "idle" | "ok" | "warn".
         eng = self._engine
         if not eng or not eng.is_loaded:
-            self.server_badge.setText("⚪  No model loaded")
+            set_status_label(self.server_badge, "No model loaded", "idle")
             self.server_badge.setProperty("state", "idle")
         elif eng.mode == "server":
-            self.server_badge.setText(f"🟢  Server · port {eng.server_port}")
+            set_status_label(self.server_badge, f"Server · port {eng.server_port}", "ok")
             self.server_badge.setProperty("state", "ok")
         else:
-            self.server_badge.setText("🟡  CLI mode - will switch on run")
+            set_status_label(self.server_badge, "CLI mode - will switch on run", "warn")
             self.server_badge.setProperty("state", "warn")
         self.server_badge.style().unpolish(self.server_badge)
         self.server_badge.style().polish(self.server_badge)
@@ -652,8 +671,8 @@ class PipelineBuilderTab(QWidget):
         for b in self.canvas.blocks:
             if b.btype == PipelineBlockType.INTERMEDIATE and b.bid not in self._inter_tabs:
                 te = PipelineOutputRenderer(
-                    placeholder=f"Live context arriving at ◈ '{b.label}' will appear here…")
-                idx = self.output_tabs.addTab(te, f"◈ {b.label[:14]}")
+                    placeholder=f"Live context arriving at '{b.label}' will appear here...")
+                idx = self.output_tabs.addTab(te, b.label[:14])
                 self._inter_tabs[b.bid] = idx
 
     # ── flow preview ──────────────────────────────────────────────────────────
@@ -668,14 +687,14 @@ class PipelineBuilderTab(QWidget):
         if not any(b.btype == PipelineBlockType.INPUT for b in self.canvas.blocks):
             QMessageBox.information(
                 self, "Preview Flow",
-                "Pipeline needs an ▶ INPUT block to start the preview."); return
+                "Pipeline needs an INPUT block to start the preview."); return
         self._preview_ctrl = FlowPreviewController(
             self.canvas,
             list(self.canvas.blocks),
             list(self.canvas.connections),
             parent=self)
         self._preview_ctrl.finished.connect(self._stop_flow_preview)
-        self.btn_preview.setText("⏹  Stop Preview")
+        set_button_icon(self.btn_preview, "stop-circle", "Stop Preview")
         self.btn_preview.setStyleSheet(
             f"QPushButton{{background:{C['pipeline']};color:{C['bg1']};"
             f"border:1px solid {C['pipeline']};border-radius:6px;"
@@ -687,7 +706,7 @@ class PipelineBuilderTab(QWidget):
         if self._preview_ctrl is not None:
             self._preview_ctrl.stop()
             self._preview_ctrl = None
-        self.btn_preview.setText("▶  Preview Flow")
+        set_button_icon(self.btn_preview, "play", "Preview Flow")
         self.btn_preview.setStyleSheet(
             f"QPushButton{{background:transparent;color:{C['pipeline']};"
             f"border:1px solid {C['pipeline']};border-radius:6px;"
@@ -707,9 +726,9 @@ class PipelineBuilderTab(QWidget):
         if not blocks:
             return "Canvas is empty - add blocks first."
         if not any(b.btype == PipelineBlockType.INPUT for b in blocks):
-            return "Pipeline needs at least one ▶ INPUT block."
+            return "Pipeline needs at least one INPUT block."
         if not any(b.btype == PipelineBlockType.OUTPUT for b in blocks):
-            return "Pipeline needs at least one ■ OUTPUT block."
+            return "Pipeline needs at least one OUTPUT block."
         if not self.canvas.connections:
             return "No connections drawn. Connect the blocks with arrows."
         # Context blocks must be configured before running
@@ -785,10 +804,10 @@ class PipelineBuilderTab(QWidget):
                 w.clear_content()
             b = self.canvas._block_by_id(bid)
             if b:
-                self.output_tabs.setTabText(idx, f"◈ {b.label[:14]}")
+                self.output_tabs.setTabText(idx, b.label[:14])
         self.output_edit.clear_content()
         self.output_tabs.setCurrentIndex(0)
-        self._log("▶  Pipeline execution started…")
+        self._log("Pipeline execution started...")
 
         self.btn_run.setVisible(False)
         self.btn_stop.setVisible(True)
@@ -812,12 +831,12 @@ class PipelineBuilderTab(QWidget):
             self._exec_worker.abort()
             self._exec_worker.wait(2000)
             self._exec_worker = None
-        self._log("⏹  Stopped by user.")
+        self._log("Stopped by user.")
         self.btn_run.setVisible(True)
         self.btn_stop.setVisible(False)
 
     def _on_step_started(self, bid: int, label: str):
-        self._log(f"⚡  Block: {label}")
+        self._log(f"Block: {label}")
         for b in self.canvas.blocks:
             b.selected = (b.bid == bid)
         self.canvas.update()
@@ -832,13 +851,13 @@ class PipelineBuilderTab(QWidget):
             widget = self.output_tabs.widget(idx)
             if isinstance(widget, PipelineOutputRenderer):
                 widget.set_content(text)
-                self.output_tabs.setTabText(idx, f"◈ {label[:12]} ✅")
+                self.output_tabs.setTabText(idx, f"{label[:12]} OK")
                 self.output_tabs.setCurrentIndex(idx)
 
     def _on_step_done(self, bid: int, text: str):
         b = self.canvas._block_by_id(bid)
         lbl = b.label if b else str(bid)
-        self._log(f"✅  '{lbl}' → {len(text):,} chars")
+        self._log(f"'{lbl}' -> {len(text):,} chars")
         for blk in self.canvas.blocks:
             blk.selected = False
         self.canvas.update()
@@ -854,7 +873,7 @@ class PipelineBuilderTab(QWidget):
             sender = ""
 
         header = (f"**Output from: {sender}**\n\n" if sender else "")
-        self._log(f"🏁  Done! {len(final):,} chars from '{sender or 'pipeline'}'.")
+        self._log(f"Done! {len(final):,} chars from '{sender or 'pipeline'}'.")
         self.output_edit.set_content(header + final)
         self.output_tabs.setCurrentIndex(1)
         self.btn_run.setVisible(True)
@@ -865,7 +884,7 @@ class PipelineBuilderTab(QWidget):
         self.canvas.update()
 
     def _on_exec_err(self, msg: str):
-        self._log(f"❌  {msg}")
+        self._log(str(msg))
         self.btn_run.setVisible(True)
         self.btn_stop.setVisible(False)
         self._exec_worker = None

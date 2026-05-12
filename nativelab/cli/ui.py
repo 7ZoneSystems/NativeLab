@@ -40,9 +40,9 @@ def gray(s: str)    -> str: return _c("90", s)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def info(msg: str)    -> None: print(f"{cyan('ℹ')}  {msg}")
-def ok(msg: str)      -> None: print(f"{green('✓')}  {msg}")
-def warn(msg: str)    -> None: print(f"{yellow('⚠')}  {msg}")
-def err(msg: str)     -> None: print(f"{red('✗')}  {msg}", file=sys.stderr)
+def ok(msg: str)      -> None: print(f"{green('OK')}  {msg}")
+def warn(msg: str)    -> None: print(f"{yellow('WARN')}  {msg}")
+def err(msg: str)     -> None: print(f"{red('ERR')}  {msg}", file=sys.stderr)
 def hr() -> None:
     width = shutil.get_terminal_size((80, 20)).columns
     print(gray("─" * width))
@@ -53,7 +53,7 @@ def banner(title: str, subtitle: str = "") -> None:
     bar   = "═" * width
     print(magenta(bar))
     show_icon()
-    print(bold(f"  ✦  {title}"))
+    print(bold(f"  {title}"))
     if subtitle:
         print(dim(f"     {subtitle}"))
     print(magenta(bar))

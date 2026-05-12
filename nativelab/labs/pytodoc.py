@@ -19,6 +19,7 @@ from nativelab.imports.import_global import (
     QTextEdit, QFrame, QScrollArea, QCheckBox, QFileDialog, QMessageBox,
     QFont, Qt,
 )
+from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
 
 from .endpoints import LabEndpoints
 
@@ -266,7 +267,7 @@ class PyToDocPanel(QWidget):
     """UI panel for the py-to-doc lab."""
 
     LAB_NAME = "py-to-doc"
-    LAB_ICON = "📄"
+    LAB_ICON = "file-text"
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -284,7 +285,8 @@ class PyToDocPanel(QWidget):
 
     def _on_status_changed(self, status: str):
         if hasattr(self, "lbl_engine"):
-            self.lbl_engine.setText(f"Active engine: {status}")
+            state = "idle" if "No Engine" in status or "Not Loaded" in status else "ok"
+            set_status_label(self.lbl_engine, f"Active engine: {status}", state)
 
     # ── build ────────────────────────────────────────────────────────────────
     def _build(self):
@@ -306,7 +308,8 @@ class PyToDocPanel(QWidget):
         outer.addWidget(scroll)
 
         # Header
-        hdr = QLabel(f"{self.LAB_ICON}  {self.LAB_NAME}")
+        hdr = QLabel(self.LAB_NAME)
+        set_label_icon(hdr, "file-text", self.LAB_NAME, 18)
         hdr.setObjectName("labs_panel_header")
         root.addWidget(hdr)
 
@@ -321,7 +324,8 @@ class PyToDocPanel(QWidget):
         root.addWidget(sub)
 
         # Active engine indicator
-        self.lbl_engine = QLabel("Active engine: ⚪ No Engine")
+        self.lbl_engine = QLabel("")
+        set_status_label(self.lbl_engine, "Active engine: No Engine", "idle")
         self.lbl_engine.setObjectName("txt2_small")
         self.lbl_engine.setStyleSheet("margin-bottom:10px;")
         root.addWidget(self.lbl_engine)
@@ -331,9 +335,12 @@ class PyToDocPanel(QWidget):
         mc = QHBoxLayout(mode_card)
         mc.setContentsMargins(16, 10, 16, 10)
         mc.setSpacing(6)
-        self.btn_mode_single  = QPushButton("📄  Single File")
-        self.btn_mode_queue   = QPushButton("📚  Queue")
-        self.btn_mode_project = QPushButton("📁  Project")
+        self.btn_mode_single  = QPushButton("Single File")
+        self.btn_mode_queue   = QPushButton("Queue")
+        self.btn_mode_project = QPushButton("Project")
+        set_button_icon(self.btn_mode_single, "file-text", "Single File")
+        set_button_icon(self.btn_mode_queue, "files", "Queue")
+        set_button_icon(self.btn_mode_project, "folder", "Project")
         for _b in (self.btn_mode_single, self.btn_mode_queue, self.btn_mode_project):
             _b.setCheckable(True)
             _b.setFixedHeight(30)
@@ -378,9 +385,9 @@ class PyToDocPanel(QWidget):
         _qh.addWidget(_lbl_q); _qh.addWidget(self.lst_queue, 1)
         _qlayout.addLayout(_qh)
         _qb = QHBoxLayout(); _qb.addSpacing(118)
-        btn_q_add = QPushButton("➕  Add Files"); btn_q_add.setFixedHeight(26)
+        btn_q_add = QPushButton("Add Files"); set_button_icon(btn_q_add, "plus", "Add Files"); btn_q_add.setFixedHeight(26)
         btn_q_add.clicked.connect(self._browse_src_queue)
-        btn_q_clr = QPushButton("🗑  Clear"); btn_q_clr.setFixedHeight(26)
+        btn_q_clr = QPushButton("Clear"); set_button_icon(btn_q_clr, "delete", "Clear"); btn_q_clr.setFixedHeight(26)
         btn_q_clr.clicked.connect(self._clear_queue)
         _qb.addWidget(btn_q_add); _qb.addWidget(btn_q_clr); _qb.addStretch()
         _qlayout.addLayout(_qb)
@@ -469,11 +476,13 @@ class PyToDocPanel(QWidget):
 
         # Generate / Abort
         btn_row = QHBoxLayout()
-        self.btn_generate = QPushButton("⚙️  Generate Documentation")
+        self.btn_generate = QPushButton("Generate Documentation")
+        set_button_icon(self.btn_generate, "settings", "Generate Documentation")
         self.btn_generate.setObjectName("labs_generate_btn")
         self.btn_generate.setMinimumHeight(38)
         self.btn_generate.clicked.connect(self._run_py_to_doc)
-        self.btn_abort = QPushButton("⏹  Abort")
+        self.btn_abort = QPushButton("Abort")
+        set_button_icon(self.btn_abort, "stop-circle", "Abort")
         self.btn_abort.setObjectName("btn_stop")
         self.btn_abort.setFixedHeight(38)
         self.btn_abort.setVisible(False)
@@ -511,7 +520,8 @@ class PyToDocPanel(QWidget):
             "Generated documentation will stream here in real time…")
         pvc.addWidget(self.preview_te)
 
-        btn_copy = QPushButton("📋  Copy to Clipboard")
+        btn_copy = QPushButton("Copy to Clipboard")
+        set_button_icon(btn_copy, "copy", "Copy to Clipboard")
         btn_copy.setFixedHeight(28)
         btn_copy.clicked.connect(
             lambda: self.preview_te.selectAll() or self.preview_te.copy())
@@ -721,18 +731,18 @@ class PyToDocPanel(QWidget):
         self._set_running(False)
         if self._mode == "single":
             out = Path(self.inp_out_dir.text()) / self.inp_out_name.text()
-            self._log(f"✅  Done  →  {out}")
+            self._log(f"Done  ->  {out}")
             QMessageBox.information(self, "Documentation Generated",
                                     f"README saved to:\n{out}")
         else:
             out_dir = self.inp_out_dir.text()
-            self._log(f"✅  Done  →  {out_dir}")
+            self._log(f"Done  ->  {out_dir}")
             QMessageBox.information(self, "Documentation Generated",
                                     f"All docs saved to:\n{out_dir}")
         self._worker = None
 
     def _on_error(self, msg: str):
         self._set_running(False)
-        self._log(f"❌  Error: {msg}")
+        self._log(f"Error: {msg}")
         QMessageBox.critical(self, "Pipeline Error", msg)
         self._worker = None

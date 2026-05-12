@@ -97,5 +97,5 @@ class ApiEngine:
     @property
     def status_text(self) -> str:
         if self._config:
-            return f"🌐 {self._config.provider}  ·  {self._config.model_id}"
-        return "⚪ API Not Connected"
+            return f"{self._config.provider}  ·  {self._config.model_id}"
+        return "API Not Connected"

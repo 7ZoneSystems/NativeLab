@@ -1,4 +1,5 @@
 from nativelab.imports.import_global import Optional, Qt, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QPushButton, QSizePolicy, QTextCursor, QTimer, QApplication
+from nativelab.UI.icons import set_button_icon
 class MessageWidget(QWidget):
     _COLLAPSE_PX = 260
 
@@ -22,7 +23,7 @@ class MessageWidget(QWidget):
             self.bubble.setObjectName("bubble_ast")
         elif role == "pipeline_intermediate":
             self.bubble.setObjectName("bubble_rsn")
-        elif tag == "🧠 Reasoning":
+        elif tag == "Reasoning":
             self.bubble.setObjectName("bubble_rsn")
         elif "Coding" in (tag or ""):
             self.bubble.setObjectName("bubble_cod")
@@ -40,20 +41,21 @@ class MessageWidget(QWidget):
         from nativelab.UI.buildUI import C
         hdr = QHBoxLayout(); hdr.setSpacing(8)
         name_text  = "You" if role == "user" else (
-                     "⚡ System" if role == "system_note" else (
-                     "◈ Intermediate" if role == "pipeline_intermediate" else (
+                     "System" if role == "system_note" else (
+                     "Intermediate" if role == "pipeline_intermediate" else (
                      tag or "Assistant")))
         name_color = (C["acc"] if role == "user" else
                       (C["txt2"] if role == "system_note" else
                        (C["warn"] if role == "pipeline_intermediate" else
-                        (C["pipeline"] if tag == "🧠 Reasoning" else C["ok"]))))
+                        (C["pipeline"] if tag == "Reasoning" else C["ok"]))))
         name_lbl   = QLabel(name_text)
         name_lbl.setStyleSheet(
             f"color:{name_color};font-weight:700;font-size:11px;letter-spacing:0.3px;")
         ts_lbl = QLabel(timestamp)
         ts_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
 
-        self._copy_btn = QPushButton("⧉")
+        self._copy_btn = QPushButton("")
+        set_button_icon(self._copy_btn, "copy", "", 15)
         self._copy_btn.setFixedSize(26, 26)
         self._copy_btn.setToolTip("Copy message")
         self._copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -81,7 +83,7 @@ class MessageWidget(QWidget):
         from nativelab.UI.buildUI import C as _C
         from PyQt6.QtGui import QPalette, QColor as _QC
         _bg_key = ("usr" if role == "user"
-                   else "rsn" if (role == "pipeline_intermediate" or tag == "🧠 Reasoning")
+                   else "rsn" if (role == "pipeline_intermediate" or tag == "Reasoning")
                    else "cod" if "Coding" in (tag or "")
                    else "ast")
         _pal = self.te.palette()

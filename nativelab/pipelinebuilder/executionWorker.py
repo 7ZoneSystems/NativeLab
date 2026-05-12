@@ -73,7 +73,7 @@ class PipelineExecutionWorker(QThread):
                     else:
                         current_text = f"{context}\n\n{inter_prompt}"
                     self.log_msg.emit(
-                        f"◈  '{b.label}' injected prompt "
+                        f"'{b.label}' injected prompt "
                         f"({'above' if inter_position == 'above' else 'below'} output) "
                         f"- {len(current_text):,} chars total")
                 else:
@@ -155,7 +155,7 @@ class PipelineExecutionWorker(QThread):
                     branch_taken = "TRUE" if _result else "FALSE"
                 except Exception as _e:
                     self.log_msg.emit(
-                        f"⚠️  IF/ELSE '{b.label}' condition error: {_e} → defaulting FALSE")
+                        f"IF/ELSE '{b.label}' condition error: {_e} -> defaulting FALSE")
                     branch_taken = "FALSE"
                 self.log_msg.emit(
                     f"⑂  IF/ELSE '{b.label}': condition='{cond[:40]}' → {branch_taken}")
@@ -190,7 +190,7 @@ class PipelineExecutionWorker(QThread):
                 try:
                     switch_key = str(eval(compile(expr, "<switch>", "eval"), _safe_ns))
                 except Exception as _e:
-                    self.log_msg.emit(f"⚠️  SWITCH '{b.label}' expr error: {_e}")
+                    self.log_msg.emit(f"SWITCH '{b.label}' expr error: {_e}")
                     switch_key = "__error__"
                 self.log_msg.emit(
                     f"⑃  SWITCH '{b.label}': key='{switch_key}'")
@@ -212,7 +212,7 @@ class PipelineExecutionWorker(QThread):
                             queue.append((conn.to_block_id, current_text))
                 if not _matched:
                     self.log_msg.emit(
-                        f"⚠️  SWITCH '{b.label}': no arm matched key '{switch_key}' - dropped.")
+                        f"SWITCH '{b.label}': no arm matched key '{switch_key}' - dropped.")
                 continue
 
             elif b.btype == PipelineBlockType.FILTER:
@@ -229,7 +229,7 @@ class PipelineExecutionWorker(QThread):
                 try:
                     _pass = bool(eval(compile(cond, "<filter>", "eval"), _safe_ns))
                 except Exception as _e:
-                    self.log_msg.emit(f"⚠️  FILTER error: {_e} → dropping")
+                    self.log_msg.emit(f"FILTER error: {_e} -> dropping")
                     _pass = False
                 if _pass:
                     self.log_msg.emit(f"⊘  FILTER '{b.label}': PASSED")
@@ -268,7 +268,7 @@ class PipelineExecutionWorker(QThread):
                     else:
                         current_text = context
                 except Exception as _e:
-                    self.log_msg.emit(f"⚠️  TRANSFORM error: {_e} - passing unchanged")
+                    self.log_msg.emit(f"TRANSFORM error: {_e} - passing unchanged")
                     current_text = context
                 self.log_msg.emit(
                     f"⟲  TRANSFORM '{b.label}': {ttype} → {len(current_text):,} chars")
@@ -343,7 +343,7 @@ class PipelineExecutionWorker(QThread):
                 _answer_up = raw.strip().upper().split()[0] if raw.strip() else "NO"
                 branch_taken = "TRUE" if _answer_up in ("YES", "Y", "TRUE", "1", "PASS", "POSITIVE") else "FALSE"
                 self.log_msg.emit(
-                    f"🧠  LLM-IF '{b.label}': raw='{raw[:60]}' → {branch_taken}")
+                    f"LLM-IF '{b.label}': raw='{raw[:60]}' -> {branch_taken}")
                 current_text = context
                 self.step_done.emit(bid, current_text)
                 for conn in adj.get(bid, []):
@@ -398,7 +398,7 @@ class PipelineExecutionWorker(QThread):
                         (lbl for lbl in arm_labels if lbl.lower() in switch_key
                          or switch_key in lbl.lower()), "default")
                 self.log_msg.emit(
-                    f"🧠  LLM-SWITCH '{b.label}': classified as '{_match}' (raw: '{raw[:60]}')")
+                    f"LLM-SWITCH '{b.label}': classified as '{_match}' (raw: '{raw[:60]}')")
                 current_text = context
                 self.step_done.emit(bid, current_text)
                 _port_labels = b.metadata.get("port_labels", {})
@@ -415,7 +415,7 @@ class PipelineExecutionWorker(QThread):
                             queue.append((conn.to_block_id, current_text))
                 if not _matched_any:
                     self.log_msg.emit(
-                        f"⚠️  LLM-SWITCH '{b.label}': no arm matched '{_match}' - dropped")
+                        f"LLM-SWITCH '{b.label}': no arm matched '{_match}' - dropped")
                 continue
 
             elif b.btype == PipelineBlockType.LLM_FILTER:
@@ -440,12 +440,12 @@ class PipelineExecutionWorker(QThread):
                 _ans = raw.strip().upper().split()[0] if raw.strip() else "STOP"
                 _pass = _ans in ("PASS", "YES", "Y", "TRUE", "1", "ALLOW", "OK")
                 if _pass:
-                    self.log_msg.emit(f"🧠  LLM-FILTER '{b.label}': PASSED")
+                    self.log_msg.emit(f"LLM-FILTER '{b.label}': PASSED")
                     current_text = context
                     self.step_done.emit(bid, current_text)
                 else:
                     self.log_msg.emit(
-                        f"🧠  LLM-FILTER '{b.label}': STOPPED - model said: {raw[:80]}")
+                        f"LLM-FILTER '{b.label}': STOPPED - model said: {raw[:80]}")
                     self.pipeline_done.emit(
                         __import__("json").dumps({
                             "text": (
@@ -483,7 +483,7 @@ class PipelineExecutionWorker(QThread):
                         break
                 current_text = raw
                 self.log_msg.emit(
-                    f"🧠  LLM-TRANSFORM '{b.label}': {len(context):,} → {len(current_text):,} chars")
+                    f"LLM-TRANSFORM '{b.label}': {len(context):,} -> {len(current_text):,} chars")
                 self.step_done.emit(bid, current_text)
 
             elif b.btype == PipelineBlockType.LLM_SCORE:
@@ -519,7 +519,7 @@ class PipelineExecutionWorker(QThread):
                 else:
                     band = "HIGH"; arm_target = "W"
                 self.log_msg.emit(
-                    f"🧠  LLM-SCORE '{b.label}': score={score}/10 → {band} (model: '{raw[:40]}')")
+                    f"LLM-SCORE '{b.label}': score={score}/10 -> {band} (model: '{raw[:40]}')")
                 current_text = context
                 self.step_done.emit(bid, current_text)
                 # Route by band or 'score' label (raw score string)
@@ -571,7 +571,7 @@ class PipelineExecutionWorker(QThread):
                     self.log_msg.emit(
                         f"⌥  CUSTOM_CODE '{b.label}': → {len(current_text):,} chars")
                 except Exception as _e:
-                    self.log_msg.emit(f"❌  CUSTOM_CODE '{b.label}' runtime error: {_e}")
+                    self.log_msg.emit(f"CUSTOM_CODE '{b.label}' runtime error: {_e}")
                     self.err.emit(
                         f"Custom Code block '{b.label}' raised an exception:\n\n{_e}")
                     return
@@ -598,37 +598,37 @@ class PipelineExecutionWorker(QThread):
         _SERVER_RETRIES times. Returns True only when confirmed server mode.
         """
         if not eng.is_loaded or eng.model_path != target:
-            self.log_msg.emit(f"🔄  Loading model: {Path(target).name}")
+            self.log_msg.emit(f"Loading model: {Path(target).name}")
             if eng.is_loaded:
                 eng.shutdown()
             ok = eng.load(target, log_cb=lambda m: self.log_msg.emit(m))
             if not ok:
-                self.err.emit(f"❌  Could not load model: {Path(target).name}")
+                self.err.emit(f"Could not load model: {Path(target).name}")
                 return False
-            self.log_msg.emit(f"✅  Model loaded.")
+            self.log_msg.emit("Model loaded.")
 
         if eng.mode == "server":
-            self.log_msg.emit(f"🟢  Server already running on port {eng.server_port}")
+            self.log_msg.emit(f"Server already running on port {eng.server_port}")
             return True
 
         for attempt in range(1, self._SERVER_RETRIES + 1):
             self.log_msg.emit(
-                f"⚡  Starting server (attempt {attempt}/{self._SERVER_RETRIES})…")
+                f"Starting server (attempt {attempt}/{self._SERVER_RETRIES})...")
             ok = eng.ensure_server(log_cb=lambda m: self.log_msg.emit(m))
             if ok and eng.mode == "server":
                 self.log_msg.emit(
-                    f"🟢  Server mode confirmed - port {eng.server_port}")
+                    f"Server mode confirmed - port {eng.server_port}")
                 return True
             if attempt < self._SERVER_RETRIES:
                 self.log_msg.emit(
-                    f"⏳  Not ready - waiting {self._SERVER_RETRY_S}s before retry…")
+                    f"Not ready - waiting {self._SERVER_RETRY_S}s before retry...")
                 for _ in range(self._SERVER_RETRY_S * 10):
                     if self._abort:
                         return False
                     time.sleep(0.1)
 
         self.err.emit(
-            f"❌  '{Path(target).name}' could not start in SERVER mode "
+            f"'{Path(target).name}' could not start in SERVER mode "
             f"after {self._SERVER_RETRIES} attempts.\n\n"
             f"Pipeline requires llama-server (not llama-cli).\n"
             f"Check that llama-server binary is present and the model path is valid.\n"
@@ -746,7 +746,7 @@ class PipelineExecutionWorker(QThread):
         """
         eng = self.primary_engine
         if not eng:
-            self.log_msg.emit("❌  No primary engine available for LLM logic block.")
+            self.log_msg.emit("No primary engine available for LLM logic block.")
             return None
         if getattr(eng, "mode", "") == "api":
             return self._api_query_sync(system_prompt, user_prompt, max_tokens, temperature)
@@ -775,12 +775,12 @@ class PipelineExecutionWorker(QThread):
                        {"Content-Type": "application/json"})
             resp = ch.getresponse()
             if resp.status != 200:
-                self.log_msg.emit(f"❌  LLM query HTTP {resp.status}")
+                self.log_msg.emit(f"LLM query HTTP {resp.status}")
                 return None
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
             return data.get("content", "").strip()
         except Exception as _e:
-            self.log_msg.emit(f"❌  LLM query error: {_e}")
+            self.log_msg.emit(f"LLM query error: {_e}")
             return None
 
     def _llm_block_call(self, b: "PipelineBlock", context: str,
@@ -796,10 +796,10 @@ class PipelineExecutionWorker(QThread):
         if getattr(self.primary_engine, "mode", "") == "api":
             model_path = model_path or getattr(self.primary_engine, "model_path", "")
         elif not model_path or not Path(model_path).exists():
-            msg = f"❌  LLM block '{b.label}': model not found - {model_path}"
+            msg = f"LLM block '{b.label}': model not found - {model_path}"
             self.log_msg.emit(msg)
             if passthru:
-                self.log_msg.emit(f"⚠️  '{b.label}': passthrough-on-error → continuing unchanged")
+                self.log_msg.emit(f"'{b.label}': passthrough-on-error -> continuing unchanged")
                 return context
             self.err.emit(msg)
             return None
@@ -809,7 +809,7 @@ class PipelineExecutionWorker(QThread):
         if result is None:
             if passthru:
                 self.log_msg.emit(
-                    f"⚠️  '{b.label}': LLM call failed, passthrough-on-error → continuing unchanged")
+                    f"'{b.label}': LLM call failed, passthrough-on-error -> continuing unchanged")
                 return context
             self.err.emit(
                 f"LLM logic block '{b.label}' failed to get a response from the model.\n"
@@ -817,7 +817,7 @@ class PipelineExecutionWorker(QThread):
             return None
 
         if show_r:
-            self.log_msg.emit(f"  🧠  [{b.label}] model said: {result[:120]}")
+            self.log_msg.emit(f"  [{b.label}] model said: {result[:120]}")
         return result
 
     def _api_query_sync(self, system_prompt: str, user_prompt: str,
@@ -826,7 +826,7 @@ class PipelineExecutionWorker(QThread):
         eng = self.primary_engine
         cfg = getattr(eng, "_config", None)
         if cfg is None:
-            self.log_msg.emit("❌  API engine is not configured.")
+            self.log_msg.emit("API engine is not configured.")
             return None
         import urllib.request
         try:
@@ -881,7 +881,7 @@ class PipelineExecutionWorker(QThread):
                 token_cb(text)
             return text.strip()
         except Exception as e:
-            self.log_msg.emit(f"❌  API query error: {e}")
+            self.log_msg.emit(f"API query error: {e}")
             return None
 
     # ── context injection blocks ──────────────────────────────────────────────
@@ -889,10 +889,10 @@ class PipelineExecutionWorker(QThread):
     def _run_reference(self, b: PipelineBlock, context: str) -> str:
         text = b.metadata.get("ref_text", "")
         if not text:
-            self.log_msg.emit(f"⚠️  Reference '{b.label}' has no text - passing unchanged.")
+            self.log_msg.emit(f"Reference '{b.label}' has no text - passing unchanged.")
             return context
         name = b.metadata.get("ref_name", b.label)
-        self.log_msg.emit(f"📎  Injecting reference '{name}' ({len(text):,} chars)")
+        self.log_msg.emit(f"Injecting reference '{name}' ({len(text):,} chars)")
         return (
             f"[REFERENCE: {name}]\n"
             f"{text[:4000]}"
@@ -903,9 +903,9 @@ class PipelineExecutionWorker(QThread):
     def _run_knowledge(self, b: PipelineBlock, context: str) -> str:
         text = b.metadata.get("knowledge_text", "")
         if not text:
-            self.log_msg.emit(f"⚠️  Knowledge '{b.label}' has no text - passing unchanged.")
+            self.log_msg.emit(f"Knowledge '{b.label}' has no text - passing unchanged.")
             return context
-        self.log_msg.emit(f"💡  Injecting knowledge ({len(text):,} chars)")
+        self.log_msg.emit(f"Injecting knowledge ({len(text):,} chars)")
         return (
             f"Knowledge Base:\n"
             f"{text[:3000]}"
@@ -933,7 +933,7 @@ class PipelineExecutionWorker(QThread):
         fname    = Path(pdf_path).name
         pdf_role = b.metadata.get("pdf_role", "reference")   # "reference" | "main"
         self.log_msg.emit(
-            f"📄  PDF loaded: {fname} ({len(pdf_text):,} chars) "
+            f"PDF loaded: {fname} ({len(pdf_text):,} chars) "
             f"- role: {pdf_role.upper()}")
 
         # ── Summarise large PDFs ──────────────────────────────────────────────
@@ -975,7 +975,7 @@ class PipelineExecutionWorker(QThread):
 
         result = "\n\n".join(parts)
         self.log_msg.emit(
-            f"✅  PDF block assembled: {len(result):,} chars "
+            f"PDF block assembled: {len(result):,} chars "
             f"({'PDF=main, prior=ref' if pdf_role == 'main' else 'prior=main, PDF=ref'})")
         return result
 
@@ -998,7 +998,7 @@ class PipelineExecutionWorker(QThread):
         for i, chunk in enumerate(chunks):
             if self._abort:
                 return None
-            self.log_msg.emit(f"  📄  Summarising chunk {i+1}/{len(chunks)}…")
+            self.log_msg.emit(f"  Summarising chunk {i+1}/{len(chunks)}...")
             prompt = (
                 fam.bos + fam.user_prefix +
                 f"Summarise this document section concisely. "
@@ -1025,6 +1025,6 @@ class PipelineExecutionWorker(QThread):
             summaries.append(f"[§{i+1}] {chunk[:600]}…")
 
         summary = "\n\n".join(summaries)
-        self.log_msg.emit(f"✅  PDF summarised: {len(summary):,} chars")
+        self.log_msg.emit(f"PDF summarised: {len(summary):,} chars")
         return summary
     

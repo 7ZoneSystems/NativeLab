@@ -6,6 +6,7 @@ from nativelab.GlobalConfig.config_global import MODEL_ROLES
 from nativelab.Model.model_global import api_model_name_from_ref, detect_quant_type, detect_vision_model, is_api_model_ref
 from .editordialogue import CodeEditorDialog, LlmLogicEditorDialog
 from nativelab.UI.UI_const import C
+from nativelab.UI.icons import add_menu_action
 class PipelineCanvas(QWidget):
     """Interactive drag-and-drop pipeline canvas with curved arrows."""
 
@@ -236,13 +237,13 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.LLM_SCORE:     lambda: ("#d946ef",    C["bg1"]),
     }
     _BLOCK_ICONS = {
-        PipelineBlockType.INPUT:        "▶ INPUT",
-        PipelineBlockType.OUTPUT:       "■ OUTPUT",
-        PipelineBlockType.INTERMEDIATE: "◈ INTER.",
+        PipelineBlockType.INPUT:        "INPUT",
+        PipelineBlockType.OUTPUT:       "OUTPUT",
+        PipelineBlockType.INTERMEDIATE: "INTER.",
         PipelineBlockType.MODEL:        None,          # filled dynamically
-        PipelineBlockType.REFERENCE:    "📎 REF.",
-        PipelineBlockType.KNOWLEDGE:    "💡 KNOW.",
-        PipelineBlockType.PDF_SUMMARY:  "📄 PDF",
+        PipelineBlockType.REFERENCE:    "REF.",
+        PipelineBlockType.KNOWLEDGE:    "KNOW.",
+        PipelineBlockType.PDF_SUMMARY:  "PDF",
         PipelineBlockType.IF_ELSE:      "⑂ IF/ELSE",
         PipelineBlockType.SWITCH:       "⑃ SWITCH",
         PipelineBlockType.FILTER:       "⊘ FILTER",
@@ -250,11 +251,11 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.MERGE:        "⊕ MERGE",
         PipelineBlockType.SPLIT:        "⑁ SPLIT",
         PipelineBlockType.CUSTOM_CODE:  "⌥ CODE",
-        PipelineBlockType.LLM_IF:        "🧠 LLM-IF",
-        PipelineBlockType.LLM_SWITCH:    "🧠 LLM-SW",
-        PipelineBlockType.LLM_FILTER:    "🧠 LLM-FL",
-        PipelineBlockType.LLM_TRANSFORM: "🧠 LLM-TX",
-        PipelineBlockType.LLM_SCORE:     "🧠 LLM-SC",
+        PipelineBlockType.LLM_IF:        "LLM-IF",
+        PipelineBlockType.LLM_SWITCH:    "LLM-SW",
+        PipelineBlockType.LLM_FILTER:    "LLM-FL",
+        PipelineBlockType.LLM_TRANSFORM: "LLM-TX",
+        PipelineBlockType.LLM_SCORE:     "LLM-SC",
     }
 
     def _draw_block(self, p, b: PipelineBlock):      
@@ -288,7 +289,7 @@ class PipelineCanvas(QWidget):
         p.setPen(QColor(border_c))
         p.setFont(QFont("Inter", 7, QFont.Weight.Bold))
         if b.btype == PipelineBlockType.MODEL:
-            tag = f"⚡ {b.role.upper()}"
+            tag = b.role.upper()
         else:
             tag = self._BLOCK_ICONS.get(b.btype, "BLOCK")
         p.drawText(b.x, b.y + 1, b.w, 20,
@@ -362,7 +363,7 @@ class PipelineCanvas(QWidget):
         p.drawRoundedRect(gx, gy, gw, gh, 8, 8)
         p.setPen(QColor(C["acc"]))
         p.setFont(QFont("Inter", 9))
-        p.drawText(gx, gy, gw, gh, Qt.AlignmentFlag.AlignCenter, "⚡ Drop here")
+        p.drawText(gx, gy, gw, gh, Qt.AlignmentFlag.AlignCenter, "Drop here")
 
     def _draw_arrow(self, p, fb, fport, tb, tport, is_loop, loop_times):        
         sx, sy = fb.port_pos(fport)
@@ -565,7 +566,7 @@ class PipelineCanvas(QWidget):
             QMessageBox.warning(
                 self, "Connection Not Allowed",
                 "Direct model-to-model connections are not allowed.\n\n"
-                "You must place an ◈ Intermediate Output block between two model blocks.\n"
+                "You must place an Intermediate Output block between two model blocks.\n"
                 "This enforces explicit output capture between pipeline stages.")
             return
 
@@ -841,7 +842,7 @@ class PipelineCanvas(QWidget):
             # Step 1 - position choice
             position, ok = QInputDialog.getItem(
                 self,
-                f"Configure ◈ '{b.label}'",
+                f"Configure '{b.label}'",
                 "Place your custom prompt:",
                 ["Above incoming text  (prompt → model output)",
                  "Below incoming text  (model output → prompt)"],
@@ -855,7 +856,7 @@ class PipelineCanvas(QWidget):
             # Step 2 - prompt text
             prompt_text, ok2 = QInputDialog.getMultiLineText(
                 self,
-                f"Configure ◈ '{b.label}'",
+                f"Configure '{b.label}'",
                 "Custom prompt / instruction to inject at this stage:\n"
                 "(Leave blank to clear and pass context through unchanged.)",
                 current_prompt)
@@ -866,7 +867,7 @@ class PipelineCanvas(QWidget):
             # Update block label so it's obvious it's configured
             if prompt_text.strip():
                 preview = prompt_text.strip()[:16].replace("\n", " ")
-                b.label = f"◈ {preview}…" if len(prompt_text.strip()) > 16 else f"◈ {preview}"
+                b.label = f"{preview}..." if len(prompt_text.strip()) > 16 else preview
             else:
                 b.label = "Intermediate"
             self.update()
@@ -917,20 +918,20 @@ class PipelineCanvas(QWidget):
             tb = self._block_by_id(conn_target.to_block_id)
             fl = fb.label if fb else "?"
             tl = tb.label if tb else "?"
-            act_del_conn = menu.addAction(
-                f"🗑  Delete Arrow  ({fl} → {tl})")
+            act_del_conn = add_menu_action(
+                menu, f"Delete Arrow  ({fl} -> {tl})", "delete")
             menu.addSeparator()
 
         target = next((b for b in reversed(self.blocks)
                        if b.contains(px, py)), None)
 
         if target:
-            act_del = menu.addAction(f"🗑  Delete '{target.label}'")
-            act_ren = menu.addAction("✏️  Rename block")
+            act_del = add_menu_action(menu, f"Delete '{target.label}'", "delete")
+            act_ren = add_menu_action(menu, "Rename block", "pencil")
             act_role = None
             act_cfg  = None
             if target.btype == PipelineBlockType.MODEL:
-                act_role = menu.addAction("🔧  Change Role")
+                act_role = add_menu_action(menu, "Change Role", "wrench")
             _CONFIGURABLE = {
                 PipelineBlockType.REFERENCE, PipelineBlockType.KNOWLEDGE,
                 PipelineBlockType.PDF_SUMMARY, PipelineBlockType.INTERMEDIATE,
@@ -943,10 +944,10 @@ class PipelineCanvas(QWidget):
                 PipelineBlockType.LLM_SCORE,
             }
             if target.btype in _CONFIGURABLE:
-                act_cfg = menu.addAction("⚙️  Configure block…")
+                act_cfg = add_menu_action(menu, "Configure block...", "settings")
             menu.addSeparator()
 
-        act_clr = menu.addAction("🗑  Clear All Blocks & Connections")
+        act_clr = add_menu_action(menu, "Clear All Blocks & Connections", "delete")
         chosen  = menu.exec(self.mapToGlobal(pos))
         if not chosen:
             return

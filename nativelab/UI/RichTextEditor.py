@@ -39,10 +39,10 @@ class RichTextEdit(QTextBrowser):
             if w and hasattr(w, "_copy_btn"):
                 btn = cast(QPushButton, getattr(w, "_copy_btn"))
                 orig_style = btn.styleSheet()
-                btn.setText("✓")
+                btn.setText("OK")
                 btn.setStyleSheet(orig_style.replace(C["txt2"], C["ok"]))
                 def _restore():
-                    btn.setText("⧉")
+                    btn.setText("")
                     btn.setStyleSheet(orig_style.replace(C["ok"], C["txt2"]))
                 QTimer.singleShot(1400, _restore)
         except Exception:

@@ -2,12 +2,13 @@ from nativelab.imports.import_global import HAS_PDF, PdfReader, QWidget, QVBoxLa
 from nativelab.codeparser.codeparser_global import ImageReference, ScriptSmartReference, SessionReferenceStore
 from nativelab.GlobalConfig.config_global import SCRIPT_EXTENSIONS_FILTER, RAM_WATCHDOG_MB, get_ref_store, ram_free_mb
 from nativelab.UI.buildUI import C
+from nativelab.UI.icons import add_menu_action, icon, set_button_icon, set_label_icon
 
 class ReferencePanelV2(QWidget):
     """
     Collapsible reference sidebar v2:
-      • 📄 Documents tab  - PDF, text, .py plain (unchanged)
-      • 💻 Scripts tab    - any source file with full AST parsing
+      - Documents tab  - PDF, text, .py plain (unchanged)
+      - Scripts tab    - any source file with full AST parsing
       • Multi-PDF summarize button
     """
     refs_changed = pyqtSignal()
@@ -38,7 +39,8 @@ class ReferencePanelV2(QWidget):
 
         # ── Header ───────────────────────────────────────────────────────────
         hdr_row = QHBoxLayout(); hdr_row.setSpacing(6)
-        hdr = QLabel("📎  References")
+        hdr = QLabel("References")
+        set_label_icon(hdr, "reference", "References")
         hdr.setObjectName("ref_hdr")
         hdr_row.addWidget(hdr)
         hdr_row.addStretch()
@@ -62,6 +64,10 @@ class ReferencePanelV2(QWidget):
         self.add_py_btn  = QPushButton("＋ .py")
         self.add_txt_btn = QPushButton("＋ Text")
         self.add_img_btn = QPushButton("＋ Image")
+        set_button_icon(self.add_pdf_btn, "pdf", "PDF")
+        set_button_icon(self.add_py_btn, "file-code", ".py")
+        set_button_icon(self.add_txt_btn, "text", "Text")
+        set_button_icon(self.add_img_btn, "vision", "Image")
         for b in (self.add_pdf_btn, self.add_py_btn, self.add_txt_btn, self.add_img_btn):
             b.setFixedHeight(24)
             b.setStyleSheet(self._mini_btn_style(C["acc"]))
@@ -75,7 +81,8 @@ class ReferencePanelV2(QWidget):
         doc_btn_row.addWidget(self.add_img_btn)
         docs_l.addLayout(doc_btn_row)
 
-        self.multi_pdf_btn = QPushButton("📚  Summarize Multiple PDFs")
+        self.multi_pdf_btn = QPushButton("Summarize Multiple PDFs")
+        set_button_icon(self.multi_pdf_btn, "files", "Summarize Multiple PDFs")
         self.multi_pdf_btn.setFixedHeight(26)
         self.multi_pdf_btn.setStyleSheet(self._mini_btn_style(C["ok"]))
         self.multi_pdf_btn.clicked.connect(self._multi_pdf_requested)
@@ -92,7 +99,7 @@ class ReferencePanelV2(QWidget):
             lambda pos: self._ctx_menu(pos, self.doc_list))
         docs_l.addWidget(self.doc_list, 1)
         docs_widget.setLayout(docs_l)
-        self.tab_widget.addTab(docs_widget, "📄 Docs")
+        self.tab_widget.addTab(docs_widget, icon("docs"), "Docs")
 
         # ── Scripts tab ───────────────────────────────────────────────────────
         scripts_widget = QWidget()
@@ -101,6 +108,7 @@ class ReferencePanelV2(QWidget):
 
         scr_btn_row = QHBoxLayout(); scr_btn_row.setSpacing(5)
         self.add_script_btn = QPushButton("＋ Add Script")
+        set_button_icon(self.add_script_btn, "code", "Add Script")
         self.add_script_btn.setFixedHeight(24)
         self.add_script_btn.setStyleSheet(self._mini_btn_style(C["pipeline"]))
         self.add_script_btn.clicked.connect(self._add_script)
@@ -139,7 +147,7 @@ class ReferencePanelV2(QWidget):
         scripts_l.addWidget(self.script_detail)
 
         scripts_widget.setLayout(scripts_l)
-        self.tab_widget.addTab(scripts_widget, "💻 Scripts")
+        self.tab_widget.addTab(scripts_widget, icon("code"), "Scripts")
 
         # ── RAM info ─────────────────────────────────────────────────────────
         self.ram_info = QLabel("")
@@ -198,9 +206,10 @@ class ReferencePanelV2(QWidget):
                 self._add_doc_list_item(ref)
 
     def _add_doc_list_item(self, ref):
-        icon = {"pdf": "📄", "python": "🐍", "text": "📝", "image": "🖼"}.get(
-            getattr(ref, "ftype", ""), "📎")
-        item = QListWidgetItem(f"{icon}  {ref.name}")
+        icon_name = {"pdf": "pdf", "python": "file-code", "text": "text", "image": "vision"}.get(
+            getattr(ref, "ftype", ""), "reference")
+        item = QListWidgetItem(ref.name)
+        item.setIcon(icon(icon_name))
         item.setData(Qt.ItemDataRole.UserRole, ref.ref_id)
         item.setToolTip(ref.full_text_preview())
         item.setForeground(QColor(C["txt"]))
@@ -211,7 +220,8 @@ class ReferencePanelV2(QWidget):
         fn  = len(ps.functions)
         cls = len(ps.classes)
         tag = f"  [{ps.language} · {fn}fn · {cls}cl]"
-        item = QListWidgetItem(f"💻  {ref.name}{tag}")
+        item = QListWidgetItem(f"{ref.name}{tag}")
+        item.setIcon(icon("code"))
         item.setData(Qt.ItemDataRole.UserRole, ref.ref_id)
         item.setToolTip(ref.full_text_preview())
         item.setForeground(QColor(C["pipeline"]))
@@ -224,7 +234,7 @@ class ReferencePanelV2(QWidget):
             return
         ref_id = item.data(Qt.ItemDataRole.UserRole)
         menu   = QMenu(self)
-        act_rm = menu.addAction("🗑  Remove Reference")
+        act_rm = add_menu_action(menu, "Remove Reference", "delete")
         chosen = menu.exec(list_widget.mapToGlobal(pos))
         if chosen == act_rm:
             self._store.remove(ref_id)
@@ -328,7 +338,7 @@ class ReferencePanelV2(QWidget):
         ps = ref.parsed
         # Flash parse result
         QMessageBox.information(
-            self, "Script Parsed ✅",
+            self, "Script Parsed",
             f"Parsed {name}  [{ps.language}]\n\n"
             + ps.summary_header()
             + ("\n\nErrors:\n" + "\n".join(ps.errors) if ps.errors else ""))
@@ -356,7 +366,7 @@ class ReferencePanelV2(QWidget):
         except Exception:
             threshold = 800
         if free_mb < threshold:
-            self.ram_badge.setText(f"⚠️ {free_mb:.0f}MB free")
+            self.ram_badge.setText(f"Low RAM: {free_mb:.0f}MB free")
             self.ram_badge.setVisible(True)
         else:
             self.ram_badge.setVisible(False)
@@ -407,7 +417,8 @@ class ReferencePanel(QWidget):
 
         # Header
         hdr_row = QHBoxLayout(); hdr_row.setSpacing(6)
-        hdr = QLabel("📎  References")
+        hdr = QLabel("References")
+        set_label_icon(hdr, "reference", "References")
         hdr.setStyleSheet(f"color:{C['txt']};font-weight:700;font-size:12px;")
         hdr_row.addWidget(hdr)
         hdr_row.addStretch()
@@ -425,6 +436,9 @@ class ReferencePanel(QWidget):
         self.add_pdf_btn = QPushButton("＋ PDF")
         self.add_py_btn  = QPushButton("＋ .py")
         self.add_txt_btn = QPushButton("＋ Text")
+        set_button_icon(self.add_pdf_btn, "pdf", "PDF")
+        set_button_icon(self.add_py_btn, "file-code", ".py")
+        set_button_icon(self.add_txt_btn, "text", "Text")
         for b in (self.add_pdf_btn, self.add_py_btn, self.add_txt_btn):
             b.setFixedHeight(26)
             b.setStyleSheet(
@@ -442,7 +456,8 @@ class ReferencePanel(QWidget):
         root.addLayout(btn_row)
 
         # Multi-PDF summarize button
-        self.multi_pdf_btn = QPushButton("📚  Summarize Multiple PDFs")
+        self.multi_pdf_btn = QPushButton("Summarize Multiple PDFs")
+        set_button_icon(self.multi_pdf_btn, "files", "Summarize Multiple PDFs")
         self.multi_pdf_btn.setFixedHeight(28)
         self.multi_pdf_btn.setStyleSheet(
             f"QPushButton{{background:rgba(52,211,153,0.1);color:{C['ok']};"
@@ -488,11 +503,12 @@ class ReferencePanel(QWidget):
     def _refresh(self):
         self.ref_list.clear()
         for ref in self._store.refs.values():
-            icon  = {"pdf": "📄", "python": "🐍", "text": "📝"}.get(ref.ftype, "📎")
+            icon_name  = {"pdf": "pdf", "python": "file-code", "text": "text"}.get(ref.ftype, "reference")
             n_hot = len(ref._hot)
             n_tot = len(ref._chunks)
             ram_tag = f"  [{n_hot}/{n_tot} chunks in RAM]"
-            item  = QListWidgetItem(f"{icon}  {ref.name}{ram_tag}")
+            item  = QListWidgetItem(f"{ref.name}{ram_tag}")
+            item.setIcon(icon(icon_name))
             item.setData(Qt.ItemDataRole.UserRole, ref.ref_id)
             item.setToolTip(ref.full_text_preview())
             item.setForeground(QColor(C["txt"]))
@@ -503,7 +519,7 @@ class ReferencePanel(QWidget):
         if not item: return
         ref_id = item.data(Qt.ItemDataRole.UserRole)
         menu   = QMenu(self)
-        act_rm = menu.addAction("🗑  Remove Reference")
+        act_rm = add_menu_action(menu, "Remove Reference", "delete")
         chosen = menu.exec(self.ref_list.mapToGlobal(pos))
         if chosen == act_rm:
             self._store.remove(ref_id)
@@ -561,7 +577,7 @@ class ReferencePanel(QWidget):
     def _update_ram_badge(self):
         free_mb = ram_free_mb()
         if free_mb < RAM_WATCHDOG_MB():
-            self.ram_badge.setText(f"⚠️ RAM: {free_mb:.0f}MB free")
+            self.ram_badge.setText(f"Low RAM: {free_mb:.0f}MB free")
             self.ram_badge.setVisible(True)
         else:
             self.ram_badge.setVisible(False)

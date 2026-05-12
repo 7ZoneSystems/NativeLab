@@ -1,5 +1,6 @@
 from nativelab.imports.import_global import Dict, List, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont
 from nativelab.UI.buildUI import C
+from nativelab.UI.icons import add_menu_action, icon, set_button_icon, set_label_icon
 from nativelab.Server.server_global import Session
 class SessionSidebar(QWidget):
     session_selected = pyqtSignal(str)
@@ -23,13 +24,14 @@ class SessionSidebar(QWidget):
         root.addWidget(hdr)
 
         self.new_btn = QPushButton("＋  New Chat")
+        set_button_icon(self.new_btn, "plus", "New Chat")
         self.new_btn.setObjectName("btn_new")
         self.new_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.new_btn.clicked.connect(self.new_session)
         root.addWidget(self.new_btn)
 
         self.search = QLineEdit()
-        self.search.setPlaceholderText("🔍  Search…")
+        self.search.setPlaceholderText("Search...")
         self.search.textChanged.connect(self._redraw)
         root.addWidget(self.search)
 
@@ -62,7 +64,8 @@ class SessionSidebar(QWidget):
             grouped.setdefault(s.created, []).append(s)
 
         for date in sorted(grouped.keys(), reverse=True):
-            di = QListWidgetItem(f"  📅  {date}")
+            di = QListWidgetItem(f"  {date}")
+            di.setIcon(icon("calendar"))
             di.setFlags(Qt.ItemFlag.NoItemFlags)
             di.setData(Qt.ItemDataRole.ForegroundRole, QColor(C["txt2"]))
             f = di.font(); f.setPointSize(10); di.setFont(f)
@@ -76,7 +79,7 @@ class SessionSidebar(QWidget):
                     fo = item.font(); fo.setBold(True); item.setFont(fo)
                 elif s.id == self._busy:
                     item.setData(Qt.ItemDataRole.ForegroundRole, QColor(C["pipeline"]))
-                    item.setToolTip("⚡ Processing…")
+                    item.setToolTip("Processing...")
                     fo = item.font(); fo.setBold(True); item.setFont(fo)
                 self.lst.addItem(item)
     def _on_click(self, item: QListWidgetItem):
@@ -89,10 +92,10 @@ class SessionSidebar(QWidget):
         sid = item.data(Qt.ItemDataRole.UserRole)
         if not sid: return
         menu = QMenu(self)
-        act_rename = menu.addAction("✏️  Rename")
-        act_export = menu.addAction("📤  Export Markdown")
+        act_rename = add_menu_action(menu, "Rename", "pencil")
+        act_export = add_menu_action(menu, "Export Markdown", "export")
         menu.addSeparator()
-        act_del    = menu.addAction("🗑  Delete")
+        act_del    = add_menu_action(menu, "Delete", "delete")
         chosen = menu.exec(self.lst.mapToGlobal(pos))
         if chosen == act_del:
             self.session_deleted.emit(sid)
@@ -113,7 +116,8 @@ class LogConsole(QWidget):
         root.setContentsMargins(0, 0, 0, 0); root.setSpacing(0)
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(14, 8, 14, 6)
-        lbl = QLabel("🐞  Debug Console")
+        lbl = QLabel("Debug Console")
+        set_label_icon(lbl, "logs", "Debug Console")
         lbl.setObjectName("ref_hdr")
         clr = QPushButton("Clear")
         clr.setFixedSize(70, 28)

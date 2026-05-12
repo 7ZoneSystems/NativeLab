@@ -4,6 +4,7 @@ def _ui():
     return UI_global
 from nativelab.UI.Qt6widgets.refrencepanels import ReferencePanelV2
 from nativelab.GlobalConfig.config_global import RamWatchdog
+from nativelab.UI.icons import set_button_icon
 from .chatarea import ChatArea
 from .inputbar import InputBar
 class ChatModule(QWidget):
@@ -32,7 +33,8 @@ class ChatModule(QWidget):
         topbar.setContentsMargins(8, 4, 8, 0)
         topbar.setSpacing(6)
         topbar.addStretch()
-        self.ref_toggle_btn = QPushButton("📎  References  (0)")
+        self.ref_toggle_btn = QPushButton("References  (0)")
+        set_button_icon(self.ref_toggle_btn, "reference", "References  (0)")
         self.ref_toggle_btn.setFixedHeight(28)
         self.ref_toggle_btn.setCheckable(True)
         self.ref_toggle_btn.setStyleSheet(
@@ -143,7 +145,7 @@ class ChatModule(QWidget):
 
     def _update_ref_badge(self):
         n = len(self.ref_panel._store.refs)
-        self.ref_toggle_btn.setText(f"📎  References  ({n})")
+        set_button_icon(self.ref_toggle_btn, "reference", f"References  ({n})")
 
     # Proxy properties
     @property

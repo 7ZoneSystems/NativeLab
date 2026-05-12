@@ -74,7 +74,7 @@ class ChunkedSummaryWorker(QThread):
                     "paused_at": datetime.now().isoformat(), "summary_mode": mode,
                 }
                 save_paused_job(self.job_id, state)
-                self.progress.emit(f"⏸  Paused after chunk {i} / {total}. State saved to disk.")
+                self.progress.emit(f"Paused after chunk {i} / {total}. State saved to disk.")
                 self.err.emit(f"__PAUSED__:{self.job_id}")
                 return
 
@@ -131,10 +131,10 @@ class ChunkedSummaryWorker(QThread):
 
         final = self._infer_with(fin_eng, final_prompt, N_PRED_FINAL)
         if final is None:
-            self.progress.emit("⚠️ Final pass failed on secondary engine - retrying with primary…")
+            self.progress.emit("Final pass failed on secondary engine - retrying with primary...")
             final = self._infer_with(self.engine, final_prompt, N_PRED_FINAL)
         if final is None:
-            self.progress.emit("⚠️ Final pass failed - using section summaries as fallback.")
+            self.progress.emit("Final pass failed - using section summaries as fallback.")
             final = f"[Auto-fallback - final consolidation failed]\n\n" + all_sects
 
         delete_paused_job(self.job_id + "_autosave")
@@ -208,7 +208,7 @@ class ChunkedSummaryWorker(QThread):
                 return result.stdout.decode("utf-8", errors="replace")
             except subprocess.TimeoutExpired:
                 if attempt == 0:
-                    self.progress.emit(f"⚠️ CLI timed out, retrying with reduced n_predict…")
+                    self.progress.emit("CLI timed out, retrying with reduced n_predict...")
                     n_predict = max(n_predict // 2, 128)
                 else:
                     self.err.emit(f"CLI inference timed out after retry (prompt len={len(prompt)})")

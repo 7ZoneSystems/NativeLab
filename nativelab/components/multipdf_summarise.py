@@ -101,7 +101,7 @@ class MultiPdfSummaryWorker(QThread):
 
             spilled = RamWatchdog.check_and_spill(self.session_id)
             if spilled:
-                self.ram_warning.emit(f"⚠️ Low RAM before '{filename}' - spilled cache to disk.")
+                self.ram_warning.emit(f"Low RAM before '{filename}' - spilled cache to disk.")
 
             ci_start = start_ci if fi == start_fi else 0
             if fi > start_fi:
@@ -113,7 +113,7 @@ class MultiPdfSummaryWorker(QThread):
                     return
                 if self._pause:
                     self.save_state(fi, i, file_summaries_so_far, running_ctx, list(completed_file_summaries))
-                    self.progress.emit(f"⏸  Paused at file {fi+1}, chunk {i+1}. State saved.")
+                    self.progress.emit(f"Paused at file {fi+1}, chunk {i+1}. State saved.")
                     self.err.emit(f"__PAUSED__:{self.job_id}")
                     return
 
@@ -129,7 +129,7 @@ class MultiPdfSummaryWorker(QThread):
                 if i % 5 == 0:
                     spilled = RamWatchdog.check_and_spill(self.session_id)
                     if spilled:
-                        self.ram_warning.emit(f"⚠️ RAM low at chunk {i+1} of '{filename}'.")
+                        self.ram_warning.emit(f"RAM low at chunk {i+1} of '{filename}'.")
 
                 self.file_progress.emit(fi, f"Chunk {i+1}/{n_chunks}")
                 ctx_block = (f"Context from previous chunks:\n{running_ctx}\n\n" if running_ctx else "")
@@ -178,10 +178,10 @@ class MultiPdfSummaryWorker(QThread):
         if self._abort:
             return
 
-        self.progress.emit("♻️  Reactive reload before final consolidation…")
+        self.progress.emit("Reactive reload before final consolidation...")
         get_ref_store(self.session_id).reactive_reload(" ".join(fn for fn, _ in self.pdf_texts))
 
-        self.progress.emit("📝  Final cross-document consolidation…")
+        self.progress.emit("Final cross-document consolidation...")
         fin_eng = self.engine2 if (self.engine2 and self.engine2.is_loaded) else self.engine
         fin_fam = detect_model_family(getattr(fin_eng, "model_path", ""))
 
@@ -241,7 +241,7 @@ class MultiPdfSummaryWorker(QThread):
             time.sleep(300)  # 5 minutes
             nonlocal warned
             warned = True
-            self.progress.emit("⚠️ Response is taking longer than usual. You may retry if needed.")
+            self.progress.emit("Response is taking longer than usual. You may retry if needed.")
 
         t = threading.Thread(target=_warn_if_slow, daemon=True)
         t.start()
@@ -270,7 +270,7 @@ class MultiPdfSummaryWorker(QThread):
             time.sleep(300)  # 5 minutes
             nonlocal warned
             warned = True
-            self.progress.emit("⚠️ Response is taking longer than usual. You may retry if needed.")
+            self.progress.emit("Response is taking longer than usual. You may retry if needed.")
 
         t = threading.Thread(target=_warn_if_slow, daemon=True)
         t.start()

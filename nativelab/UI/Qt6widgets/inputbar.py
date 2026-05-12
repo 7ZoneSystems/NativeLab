@@ -12,6 +12,7 @@ from nativelab.Model.model_global import (
     is_api_model_ref,
     quant_info,
 )
+from nativelab.UI.icons import set_button_icon
 
 class InputBar(QWidget):
     send_requested       = pyqtSignal(str)
@@ -19,6 +20,8 @@ class InputBar(QWidget):
     pdf_requested        = pyqtSignal()
     clear_requested      = pyqtSignal()
     pipeline_run_requested = pyqtSignal()
+    load_model_requested = pyqtSignal()
+    unload_model_requested = pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -36,6 +39,20 @@ class InputBar(QWidget):
         self._populate_models()
         toolbar.addWidget(self.model_combo)
 
+        self.load_model_btn = QPushButton("Load Model")
+        set_button_icon(self.load_model_btn, "play", "Load Model")
+        self.load_model_btn.setFixedHeight(30)
+        self.load_model_btn.setToolTip("Load the selected model")
+        self.load_model_btn.clicked.connect(self.load_model_requested)
+        toolbar.addWidget(self.load_model_btn)
+
+        self.unload_model_btn = QPushButton("Unload")
+        set_button_icon(self.unload_model_btn, "power-off", "Unload")
+        self.unload_model_btn.setFixedHeight(30)
+        self.unload_model_btn.setToolTip("Unload the active chat model")
+        self.unload_model_btn.clicked.connect(self.unload_model_requested)
+        toolbar.addWidget(self.unload_model_btn)
+
         # Family info badge
         self.family_badge = QLabel("")
         self.family_badge.setObjectName("family_badge")
@@ -44,8 +61,10 @@ class InputBar(QWidget):
         self.model_combo.currentIndexChanged.connect(self._on_model_combo_changed)
         toolbar.addStretch()
 
-        self.pdf_btn   = QPushButton("📄  PDF")
-        self.clear_btn = QPushButton("🗑  Clear")
+        self.pdf_btn   = QPushButton("PDF")
+        self.clear_btn = QPushButton("Clear")
+        set_button_icon(self.pdf_btn, "pdf", "PDF")
+        set_button_icon(self.clear_btn, "clear", "Clear")
         for b in (self.pdf_btn, self.clear_btn):
             b.setFixedWidth(86); b.setFixedHeight(30)
         self.pdf_btn.clicked.connect(self.pdf_requested)
@@ -53,7 +72,8 @@ class InputBar(QWidget):
         toolbar.addWidget(self.pdf_btn)
         toolbar.addWidget(self.clear_btn)
 
-        self.code_btn = QPushButton("💻  Code")
+        self.code_btn = QPushButton("Code")
+        set_button_icon(self.code_btn, "code", "Code")
         self.code_btn.setFixedSize(80, 30)
         self.code_btn.setCheckable(True)
         self.code_btn.setObjectName("code_btn")
@@ -66,9 +86,9 @@ class InputBar(QWidget):
         self.summary_mode_combo.setFixedHeight(30)
         self.summary_mode_combo.setFixedWidth(110)
         self.summary_mode_combo.setObjectName("summary_combo")
-        self.summary_mode_combo.addItem("📋 Summary", "summary")
-        self.summary_mode_combo.addItem("🔬 Logical", "logical")
-        self.summary_mode_combo.addItem("💡 Advice", "advice")
+        self.summary_mode_combo.addItem("Summary", "summary")
+        self.summary_mode_combo.addItem("Logical", "logical")
+        self.summary_mode_combo.addItem("Advice", "advice")
         self.summary_mode_combo.setToolTip(
             "Summary: standard summary\n"
             "Logical: mechanism/logic explained with structured points\n"
@@ -89,13 +109,15 @@ class InputBar(QWidget):
         self.input.setMinimumHeight(58)
         self.input.installEventFilter(self)
 
-        self.send_btn = QPushButton("Send ➤")
+        self.send_btn = QPushButton("Send")
+        set_button_icon(self.send_btn, "send", "Send", 18)
         self.send_btn.setObjectName("btn_send")
         self.send_btn.setFixedSize(90, 52)
         self.send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.send_btn.clicked.connect(self._emit_send)
 
-        self.btn_pipeline_run = QPushButton("🔗  Pipeline")
+        self.btn_pipeline_run = QPushButton("Pipeline")
+        set_button_icon(self.btn_pipeline_run, "pipeline", "Pipeline")
         self.btn_pipeline_run.setObjectName("btn_pipeline")
         self.btn_pipeline_run.setFixedHeight(36)
         self.btn_pipeline_run.setToolTip("Run a saved pipeline on your current input")
@@ -106,7 +128,8 @@ class InputBar(QWidget):
             f"border-radius:6px;font-size:11px;font-weight:600;}}"
             f"QPushButton:hover{{background:{C['pipeline']};color:#fff;}}")
 
-        self.stop_btn = QPushButton("⏹  Stop")
+        self.stop_btn = QPushButton("Stop")
+        set_button_icon(self.stop_btn, "stop-circle", "Stop", 18)
         self.stop_btn.setObjectName("btn_stop")
         self.stop_btn.setFixedSize(90, 52)
         self.stop_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -150,15 +173,14 @@ class InputBar(QWidget):
             self.family_badge.setText("")
 
     def _on_model_combo_changed(self, index: int):
-        # Walk up to MainWindow and trigger primary model reload
+        # Walk up to MainWindow so it can mark the newly selected model as pending.
         w = self.parent()
-        while w and not hasattr(w, "_start_model_load"):
+        while w and not hasattr(w, "_on_chat_model_selected"):
             w = w.parent()
         if w:
-            # Small delay so UI settles before reload
-            start_load = getattr(w, "_start_model_load", None)
-            if start_load:
-                QTimer.singleShot(300, start_load)
+            on_selected = getattr(w, "_on_chat_model_selected", None)
+            if on_selected:
+                QTimer.singleShot(0, on_selected)
 
     def set_pipeline_mode(self, active: bool):
         active = bool(active)
@@ -166,7 +188,7 @@ class InputBar(QWidget):
             return
         self.pipeline_badge.setVisible(active)
         if active:
-            self.pipeline_badge.setText("🔗 Pipeline Mode")
+            self.pipeline_badge.setText("Pipeline Mode")
 
     def eventFilter(self, obj, event):
         if obj is self.input and event.type() == QEvent.Type.KeyPress:
@@ -186,6 +208,8 @@ class InputBar(QWidget):
         self.send_btn.setVisible(not active)
         self.stop_btn.setVisible(active)
         self.input.setEnabled(not active)
+        self.load_model_btn.setEnabled(not active)
+        self.unload_model_btn.setEnabled(not active)
 
     @property
     def selected_model(self) -> str:

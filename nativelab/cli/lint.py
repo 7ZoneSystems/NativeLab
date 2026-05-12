@@ -87,10 +87,10 @@ def lint_paths(paths: List[str]) -> int:
         result = lint_file(path)
         header = f"[{result['linter']}]  {path}"
         if result["ok"]:
-            print(f"\033[32m✓\033[0m  {header}  - clean")
+            print(f"\033[32mOK\033[0m  {header}  - clean")
             continue
         overall = 1
-        print(f"\033[33m⚠\033[0m  {header}")
+        print(f"\033[33mWARN\033[0m  {header}")
         for line in result["issues"]:
             print(f"    {line}")
     return overall

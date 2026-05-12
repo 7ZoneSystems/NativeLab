@@ -109,7 +109,7 @@ class LabEndpoints(QObject):
     @property
     def status_text(self) -> str:
         eng = self.active_engine()
-        return eng.status_text if eng else "⚪ No Engine"
+        return eng.status_text if eng else "No Engine"
 
     @property
     def model_path(self) -> str:

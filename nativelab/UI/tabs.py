@@ -9,6 +9,7 @@ from nativelab.Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchW
 from nativelab.Server.hfdwld import LlamaCppReleaseFetcher, LlamaCppDownloadWorker
 from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES
 from nativelab.labs import LabsTab, LabEndpoints
+from nativelab.UI.icons import add_menu_action, icon, icon_size, role_icon, set_button_icon, set_label_icon, set_status_label, status_icon
 class ConfigTab(QWidget):
     """Full configuration tab - all thresholds with descriptions."""
 
@@ -36,7 +37,8 @@ class ConfigTab(QWidget):
         inner.setLayout(root); scroll.setWidget(inner); outer.addWidget(scroll)
 
         # Header
-        hdr = QLabel("⚙️  App Configuration")
+        hdr = QLabel("App Configuration")
+        set_label_icon(hdr, "config", "App Configuration", 18)
         hdr.setStyleSheet("font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
         sub = QLabel(
@@ -49,13 +51,13 @@ class ConfigTab(QWidget):
 
         # Group fields by category
         categories = [
-            ("🧠  Memory & RAM",   ["ram_watchdog_mb", "max_ram_chunks", "auto_spill_on_start"]),
-            ("📄  Reference Engine", ["chunk_index_size", "ref_top_k", "ref_max_context_chars"]),
-            ("📝  Summarization",   ["summary_chunk_chars", "summary_ctx_carry",
+            ("Memory & RAM",   ["ram_watchdog_mb", "max_ram_chunks", "auto_spill_on_start"]),
+            ("Reference Engine", ["chunk_index_size", "ref_top_k", "ref_max_context_chars"]),
+            ("Summarization",   ["summary_chunk_chars", "summary_ctx_carry",
                                      "summary_n_pred_sect", "summary_n_pred_final",
                                      "pause_after_chunks"]),
-            ("📚  Multi-PDF",       ["multipdf_n_pred_sect", "multipdf_n_pred_final"]),
-            ("⚡  Model Defaults",  ["default_threads", "default_ctx", "default_n_predict"]),
+            ("Multi-PDF",       ["multipdf_n_pred_sect", "multipdf_n_pred_final"]),
+            ("Model Defaults",  ["default_threads", "default_ctx", "default_n_predict"]),
         ]
 
         for cat_title, keys in categories:
@@ -82,7 +84,8 @@ class ConfigTab(QWidget):
 
         # Paused jobs section
         root.addSpacing(14)
-        pj_lbl = QLabel("⏸  Paused Summarization Jobs")
+        pj_lbl = QLabel("Paused Summarization Jobs")
+        set_label_icon(pj_lbl, "circle-pause", "Paused Summarization Jobs", 16)
         pj_lbl.setStyleSheet(
             "font-size:12px;font-weight:bold;padding:2px 0;")
         root.addWidget(pj_lbl)
@@ -106,9 +109,12 @@ class ConfigTab(QWidget):
         pj_l.addWidget(self.paused_jobs_list)
 
         pj_btn_row = QHBoxLayout(); pj_btn_row.setSpacing(8)
-        self.btn_resume_job   = QPushButton("▶  Resume Job")
-        self.btn_delete_job   = QPushButton("🗑  Delete Job")
-        self.btn_refresh_jobs = QPushButton("↻  Refresh")
+        self.btn_resume_job   = QPushButton("Resume Job")
+        self.btn_delete_job   = QPushButton("Delete Job")
+        self.btn_refresh_jobs = QPushButton("Refresh")
+        set_button_icon(self.btn_resume_job, "play", "Resume Job")
+        set_button_icon(self.btn_delete_job, "delete", "Delete Job")
+        set_button_icon(self.btn_refresh_jobs, "refresh-cw", "Refresh")
         for b in (self.btn_resume_job, self.btn_delete_job, self.btn_refresh_jobs):
             b.setFixedHeight(28); pj_btn_row.addWidget(b)
         pj_btn_row.addStretch()
@@ -120,11 +126,13 @@ class ConfigTab(QWidget):
         # Save / Reset buttons
         root.addSpacing(14)
         btn_row = QHBoxLayout(); btn_row.setSpacing(10)
-        save_btn = QPushButton("💾  Save All Settings")
+        save_btn = QPushButton("Save All Settings")
+        set_button_icon(save_btn, "save", "Save All Settings")
         save_btn.setObjectName("btn_send")
         save_btn.setFixedHeight(34)
         save_btn.clicked.connect(self._save_all)
-        reset_btn = QPushButton("↺  Reset to Defaults")
+        reset_btn = QPushButton("Reset to Defaults")
+        set_button_icon(reset_btn, "refresh-cw", "Reset to Defaults")
         reset_btn.setFixedHeight(34)
         reset_btn.clicked.connect(self._reset_defaults)
         btn_row.addWidget(save_btn); btn_row.addWidget(reset_btn); btn_row.addStretch()
@@ -225,7 +233,8 @@ class ConfigTab(QWidget):
             tot   = job.get("total", "?")
             ts    = job.get("paused_at", "")[:16]
             item  = QListWidgetItem(
-                f"⏸  {fname}  -  chunk {nc}/{tot}  -  paused {ts}")
+                f"{fname}  -  chunk {nc}/{tot}  -  paused {ts}")
+            item.setIcon(icon("circle-pause"))
             item.setData(Qt.ItemDataRole.UserRole, jid)
             item.setForeground(QColor(C["warn"]))
             self.paused_jobs_list.addItem(item)
@@ -272,7 +281,7 @@ class ParallelLoadingDialog(QWidget):
 
         # ── warning banner ─────────────────────────────────────────────────────
         self.warn_banner = QLabel(
-            "⚠️  Parallel loading runs multiple model engines simultaneously.\n"
+            "Parallel loading runs multiple model engines simultaneously.\n"
             "Each model consumes its own RAM slice (typically 4–16 GB per model).\n"
             "High CPU/RAM usage is expected. Ensure your system has sufficient memory\n"
             "before enabling. Swap usage may cause severe performance degradation."
@@ -298,7 +307,9 @@ class ParallelLoadingDialog(QWidget):
         role_grid = QHBoxLayout(); role_grid.setSpacing(12)
         for role in MODEL_ROLES:
             if role == "general": continue  # always loaded
-            chk = QCheckBox(f"{ROLE_ICONS[role]} {role.capitalize()}")
+            chk = QCheckBox(ROLE_ICONS[role])
+            chk.setIcon(role_icon(role))
+            chk.setIconSize(icon_size(16))
             chk.setChecked(role in self._prefs.auto_load_roles)
             chk.setEnabled(self._prefs.enabled)
             chk.toggled.connect(self._save)
@@ -313,7 +324,7 @@ class ParallelLoadingDialog(QWidget):
 
         # ── pipeline mode ──────────────────────────────────────────────────────
         pipeline_row = QHBoxLayout(); pipeline_row.setSpacing(10)
-        self.chk_pipeline = QCheckBox("🔗  Enable Reasoning → Coding Pipeline Mode")
+        self.chk_pipeline = QCheckBox("Enable Reasoning -> Coding Pipeline Mode")
         self.chk_pipeline.setStyleSheet("font-size:12px;")
         self.chk_pipeline.setChecked(self._prefs.pipeline_mode)
         self.chk_pipeline.setEnabled(self._prefs.enabled)
@@ -324,8 +335,8 @@ class ParallelLoadingDialog(QWidget):
 
         pipeline_desc = QLabel(
             "When enabled and both Reasoning + Coding engines are loaded:\n"
-            "  1. 🧠 Reasoning model analyses your coding request → produces a detailed plan\n"
-            "  2. 💻 Coding model receives the plan as context → generates the code\n"
+            "  1. Reasoning model analyses your coding request -> produces a detailed plan\n"
+            "  2. Coding model receives the plan as context -> generates the code\n"
             "Only activates when the prompt looks like a coding request."
         )
         pipeline_desc.setWordWrap(True)
@@ -350,7 +361,7 @@ class ParallelLoadingDialog(QWidget):
     def _on_toggle(self, checked: bool):
         if checked and not self._prefs.warned:
             result = QMessageBox.warning(
-                self, "⚠️ Parallel Loading Warning",
+                self, "Parallel Loading Warning",
                 "Parallel model loading runs multiple GGUF engines simultaneously.\n\n"
                 "Each model occupies its own RAM allocation:\n"
                 "  • Q4 7B model  ≈  4–5 GB RAM\n"
@@ -450,17 +461,20 @@ class AppearanceTab(QWidget):
         bar_row.setContentsMargins(16, 10, 16, 10)
         bar_row.setSpacing(8)
 
-        lbl = QLabel("🎨  Theme Editor")
+        lbl = QLabel("Theme Editor")
+        set_label_icon(lbl, "appearance", "Theme Editor", 18)
         lbl.setObjectName("appearance_hdr")
         bar_row.addWidget(lbl)
         bar_row.addStretch()
 
-        self.btn_reset = QPushButton("↺  Reset")
+        self.btn_reset = QPushButton("Reset")
+        set_button_icon(self.btn_reset, "refresh-cw", "Reset")
         self.btn_reset.setObjectName("appearance_btn")
         self.btn_reset.setToolTip("Reset to current built-in palette")
         self.btn_reset.clicked.connect(self._reset)
 
-        self.btn_save = QPushButton("💾  Save")
+        self.btn_save = QPushButton("Save")
+        set_button_icon(self.btn_save, "save", "Save")
         self.btn_save.setObjectName("appearance_btn_acc")
         self.btn_save.setToolTip("Save palette to config (persists across restarts)")
         self.btn_save.clicked.connect(self._save)
@@ -698,7 +712,8 @@ class ServerTab(QWidget):
         outer.addWidget(scroll)
 
         # ── Header ────────────────────────────────────────────────────────────
-        hdr = QLabel("🖥️  Server & Binary Configuration")
+        hdr = QLabel("Server & Binary Configuration")
+        set_label_icon(hdr, "server", "Server & Binary Configuration", 18)
         hdr.setStyleSheet(
             "font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
@@ -843,16 +858,16 @@ class ServerTab(QWidget):
 
         # Backend badge
         if gpu_type == "cuda":
-            badge_txt = f"🟢  NVIDIA CUDA detected  ·  {n_gpus} GPU(s)"
+            badge_txt = f"NVIDIA CUDA detected  ·  {n_gpus} GPU(s)"
             badge_col = C["ok"]
         elif gpu_type == "metal":
-            badge_txt = f"🟢  Apple Metal detected  ·  {self._detected_gpus[0]['name']}"
+            badge_txt = f"Apple Metal detected  ·  {self._detected_gpus[0]['name']}"
             badge_col = C["ok"]
         elif gpu_type == "vulkan":
-            badge_txt = f"🟡  Vulkan GPU detected  ·  {n_gpus} device(s)"
+            badge_txt = f"Vulkan GPU detected  ·  {n_gpus} device(s)"
             badge_col = C["warn"]
         else:
-            badge_txt = "⚪  No GPU detected - CPU-only mode"
+            badge_txt = "No GPU detected - CPU-only mode"
             badge_col = C["txt2"]
         gpu_badge = QLabel(badge_txt)
         gpu_badge.setObjectName("gpu_badge")
@@ -992,10 +1007,12 @@ class ServerTab(QWidget):
         test_l.addWidget(test_note)
 
         test_row = QHBoxLayout(); test_row.setSpacing(8)
-        self.btn_test_cli = QPushButton("🧪  Test llama-cli")
+        self.btn_test_cli = QPushButton("Test llama-cli")
+        set_button_icon(self.btn_test_cli, "test-tube", "Test llama-cli")
         self.btn_test_cli.setFixedHeight(28)
         self.btn_test_cli.clicked.connect(lambda: self._test_binary("cli"))
-        self.btn_test_srv = QPushButton("🧪  Test llama-server")
+        self.btn_test_srv = QPushButton("Test llama-server")
+        set_button_icon(self.btn_test_srv, "test-tube", "Test llama-server")
         self.btn_test_srv.setFixedHeight(28)
         self.btn_test_srv.clicked.connect(lambda: self._test_binary("server"))
         test_row.addWidget(self.btn_test_cli)
@@ -1015,11 +1032,13 @@ class ServerTab(QWidget):
 
         # ── Save / Reset ──────────────────────────────────────────────────────
         btn_row = QHBoxLayout(); btn_row.setSpacing(10)
-        save_btn = QPushButton("💾  Save Server Settings")
+        save_btn = QPushButton("Save Server Settings")
+        set_button_icon(save_btn, "save", "Save Server Settings")
         save_btn.setObjectName("btn_send")
         save_btn.setFixedHeight(34)
         save_btn.clicked.connect(self._save)
-        reset_btn = QPushButton("↺  Reset to Defaults")
+        reset_btn = QPushButton("Reset to Defaults")
+        set_button_icon(reset_btn, "refresh-cw", "Reset to Defaults")
         reset_btn.setFixedHeight(34)
         reset_btn.clicked.connect(self._reset)
         btn_row.addWidget(save_btn)
@@ -1057,7 +1076,7 @@ class ServerTab(QWidget):
         else:
             resolved = path
         ok = Path(resolved).exists()
-        self._cli_status.setText("✅" if ok else "❌")
+        set_status_label(self._cli_status, "", "ok" if ok else "err", 15)
         self._cli_status.setToolTip(
             f"{'Found' if ok else 'Not found'}: {resolved}")
         self._refresh_resolved()
@@ -1069,7 +1088,7 @@ class ServerTab(QWidget):
         else:
             resolved = path
         ok = Path(resolved).exists()
-        self._srv_status.setText("✅" if ok else "❌")
+        set_status_label(self._srv_status, "", "ok" if ok else "err", 15)
         self._srv_status.setToolTip(
             f"{'Found' if ok else 'Not found'}: {resolved}")
         self._refresh_resolved()
@@ -1077,8 +1096,8 @@ class ServerTab(QWidget):
     def _refresh_resolved(self):
         cli_path  = self.cli_edit.text().strip() or LLAMA_CLI_DEFAULT
         srv_path  = self.srv_edit.text().strip() or LLAMA_SERVER_DEFAULT
-        cli_ok    = "✅" if Path(cli_path).exists() else "❌"
-        srv_ok    = "✅" if Path(srv_path).exists() else "❌"
+        cli_ok    = "OK" if Path(cli_path).exists() else "NO"
+        srv_ok    = "OK" if Path(srv_path).exists() else "NO"
         self._resolved_lbl.setText(
             f"Resolved  llama-cli:     {cli_ok}  {cli_path}\n"
             f"Resolved  llama-server:  {srv_ok}  {srv_path}")
@@ -1110,7 +1129,7 @@ class ServerTab(QWidget):
             path = self.srv_edit.text().strip() or LLAMA_SERVER_DEFAULT
 
         if not Path(path).exists():
-            self.test_output.setPlainText(f"❌  Binary not found:\n{path}")
+            self.test_output.setPlainText(f"Binary not found:\n{path}")
             return
 
         try:
@@ -1121,11 +1140,11 @@ class ServerTab(QWidget):
                 timeout=8)
             out = result.stdout.decode("utf-8", errors="replace").strip()
             self.test_output.setPlainText(
-                f"✅  {Path(path).name} --version\n\n{out or '(no output)'}")
+                f"{Path(path).name} --version\n\n{out or '(no output)'}")
         except subprocess.TimeoutExpired:
-            self.test_output.setPlainText(f"⚠️  Timed out after 8s:\n{path}")
+            self.test_output.setPlainText(f"Timed out after 8s:\n{path}")
         except Exception as e:
-            self.test_output.setPlainText(f"❌  Error:\n{e}")
+            self.test_output.setPlainText(f"Error:\n{e}")
 
     def _save(self):
         try:
@@ -1373,7 +1392,7 @@ class ModelDownloadTab(QWidget):
         root.addSpacing(18)
 
         # ── LLAMA.CPP BINARIES ────────────────────────────────────────────────
-        root.addWidget(self._section("⚙️  LLAMA.CPP RUNTIME"))
+        root.addWidget(self._section("LLAMA.CPP RUNTIME"))
         lc = self._card(); ll = QVBoxLayout(lc)
         ll.setContentsMargins(16, 14, 16, 14); ll.setSpacing(10)
 
@@ -1386,7 +1405,8 @@ class ModelDownloadTab(QWidget):
         ll.addWidget(lcpp_note)
 
         fetch_row = QHBoxLayout(); fetch_row.setSpacing(8)
-        self.btn_fetch_llama = QPushButton("🔍  Fetch Latest Releases")
+        self.btn_fetch_llama = QPushButton("Fetch Latest Releases")
+        set_button_icon(self.btn_fetch_llama, "search", "Fetch Latest Releases")
         self.btn_fetch_llama.setObjectName("btn_send")
         self.btn_fetch_llama.setFixedHeight(30)
         self.btn_fetch_llama.clicked.connect(self._fetch_llama_releases)
@@ -1440,7 +1460,7 @@ class ModelDownloadTab(QWidget):
         _llama_bin = Path("./llama/bin")
         _has_server = any(_llama_bin.glob("llama-server*")) if _llama_bin.exists() else False
         if _has_server:
-            self.llama_dl_status.setText(f"✅  llama.cpp already installed at {_llama_bin.resolve()}")
+            self.llama_dl_status.setText(f"llama.cpp already installed at {_llama_bin.resolve()}")
 
         llama_btn_row = QHBoxLayout(); llama_btn_row.setSpacing(8)
         self.btn_install_llama = QPushButton("⬇️  Download & Install")
@@ -1719,7 +1739,7 @@ class ModelDownloadTab(QWidget):
         self.llama_progress.setValue(100)
         self.btn_abort_llama.setVisible(False)
         self.btn_install_llama.setEnabled(True)
-        self.llama_dl_status.setText(f"✅  Installed to {path}")
+        self.llama_dl_status.setText(f"Installed to {path}")
         self._llama_dl = None
         QMessageBox.information(
             self, "llama.cpp Installed",
@@ -1731,7 +1751,7 @@ class ModelDownloadTab(QWidget):
         self.llama_progress.setValue(0)
         self.btn_abort_llama.setVisible(False)
         self.btn_install_llama.setEnabled(True)
-        self.llama_dl_status.setText(f"❌  Error: {msg}")
+        self.llama_dl_status.setText(f"Error: {msg}")
         self._llama_dl = None
                 
 class McpTab(QWidget):
@@ -1775,7 +1795,8 @@ class McpTab(QWidget):
         scroll.setWidget(inner); outer.addWidget(scroll)
 
         # Header
-        hdr = QLabel("🔌  MCP - Model Context Protocol")
+        hdr = QLabel("MCP - Model Context Protocol")
+        set_label_icon(hdr, "mcp", "MCP - Model Context Protocol", 18)
         hdr.setStyleSheet(
             "font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
@@ -1799,13 +1820,16 @@ class McpTab(QWidget):
         ll.addWidget(self.server_list)
 
         lb_row = QHBoxLayout(); lb_row.setSpacing(8)
-        self.btn_start = QPushButton("▶  Start")
+        self.btn_start = QPushButton("Start")
+        set_button_icon(self.btn_start, "play", "Start")
         self.btn_start.setObjectName("btn_send"); self.btn_start.setFixedHeight(28)
         self.btn_start.setEnabled(False); self.btn_start.clicked.connect(self._start_server)
-        self.btn_stop = QPushButton("⏹  Stop")
+        self.btn_stop = QPushButton("Stop")
+        set_button_icon(self.btn_stop, "stop-circle", "Stop")
         self.btn_stop.setObjectName("btn_stop"); self.btn_stop.setFixedHeight(28)
         self.btn_stop.setEnabled(False); self.btn_stop.clicked.connect(self._stop_server)
-        self.btn_del_srv = QPushButton("🗑  Remove")
+        self.btn_del_srv = QPushButton("Remove")
+        set_button_icon(self.btn_del_srv, "delete", "Remove")
         self.btn_del_srv.setFixedHeight(28); self.btn_del_srv.setEnabled(False)
         self.btn_del_srv.clicked.connect(self._remove_server)
         for b in (self.btn_start, self.btn_stop, self.btn_del_srv):
@@ -1855,7 +1879,8 @@ class McpTab(QWidget):
         self.add_desc.setFixedHeight(28)
         al.addLayout(_lrow("Description:", self.add_desc))
 
-        btn_add = QPushButton("＋  Add Server")
+        btn_add = QPushButton("Add Server")
+        set_button_icon(btn_add, "plus", "Add Server")
         btn_add.setObjectName("btn_send"); btn_add.setFixedHeight(30)
         btn_add.clicked.connect(self._add_server)
         al.addWidget(btn_add)
@@ -1897,11 +1922,11 @@ class McpTab(QWidget):
         for s in self._servers:
             running = (s["name"] in self._procs and
                        self._procs[s["name"]].poll() is None)
-            icon = "🟢" if running else "⚪"
-            label = (f"  {icon}  {s['name']}"
+            label = (f"  {s['name']}"
                      f"   [{s['transport']}]"
                      f"   {s.get('desc', '') or s['cmd'][:50]}")
             item = QListWidgetItem(label)
+            item.setIcon(status_icon("ok" if running else "idle"))
             item.setData(Qt.ItemDataRole.UserRole, s["name"])
             item.setForeground(QColor(C["ok"] if running else C["txt"]))
             self.server_list.addItem(item)
@@ -1962,9 +1987,9 @@ class McpTab(QWidget):
                 srv["cmd"], shell=True,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             self._procs[name] = proc
-            self._mcp_log_msg(f"✅  Started '{name}'  (PID {proc.pid})")
+            self._mcp_log_msg(f"Started '{name}'  (PID {proc.pid})")
         except Exception as e:
-            self._mcp_log_msg(f"❌  Failed to start '{name}': {e}")
+            self._mcp_log_msg(f"Failed to start '{name}': {e}")
         self._refresh_list(); self._on_srv_selected(item)
 
     def _stop_server(self):
@@ -1982,7 +2007,7 @@ class McpTab(QWidget):
                 try: proc.kill()
                 except Exception: pass
             del self._procs[name]
-            self._mcp_log_msg(f"⏹  Stopped '{name}'")
+            self._mcp_log_msg(f"Stopped '{name}'")
 API_REGISTRY = ApiRegistry()
 
 class ApiModelsTab(QWidget):
@@ -2032,7 +2057,8 @@ class ApiModelsTab(QWidget):
         root.setContentsMargins(24, 18, 24, 18)
         root.setSpacing(14)
 
-        hdr = QLabel("🌐  API Models")
+        hdr = QLabel("API Models")
+        set_label_icon(hdr, "api", "API Models", 18)
         hdr.setStyleSheet("font-size:15px;font-weight:700;")
         root.addWidget(hdr)
 
@@ -2185,8 +2211,10 @@ class ApiModelsTab(QWidget):
 
         # Buttons + status
         br = QHBoxLayout(); br.setSpacing(10)
-        self.btn_test = self._action_btn("⚡  Test & Load", "ok")
-        self.btn_save = self._action_btn("💾  Save Config",  "acc")
+        self.btn_test = self._action_btn("Test & Load", "ok")
+        self.btn_save = self._action_btn("Save Config",  "acc")
+        set_button_icon(self.btn_test, "zap", "Test & Load")
+        set_button_icon(self.btn_save, "save", "Save Config")
         self.btn_test.clicked.connect(self._test_and_load)
         self.btn_save.clicked.connect(self._save_config)
         br.addWidget(self.btn_test)
@@ -2194,8 +2222,9 @@ class ApiModelsTab(QWidget):
         br.addStretch()
         cl.addLayout(br)
 
-        self.lbl_status = QLabel("● Not connected")
+        self.lbl_status = QLabel("")
         self.lbl_status.setObjectName("api_status")
+        set_status_label(self.lbl_status, "Not connected", "idle")
         cl.addWidget(self.lbl_status)
         root.addWidget(card_scroll, 2)
 
@@ -2265,7 +2294,7 @@ class ApiModelsTab(QWidget):
 
     def _run_test(self, cfg: ApiConfig):
         self.btn_test.setEnabled(False)
-        self.lbl_status.setText("⏳  Testing connection…")
+        set_status_label(self.lbl_status, "Testing connection...", "loading")
         self.lbl_status.setProperty("state", "warn")
         self.lbl_status.style().unpolish(self.lbl_status)
         self.lbl_status.style().polish(self.lbl_status)
@@ -2286,7 +2315,7 @@ class ApiModelsTab(QWidget):
     def _test_and_load(self):
         cfg = self._collect_config()
         if not cfg.model_id:
-            self.lbl_status.setText("⚠  Select or enter a model ID first")
+            set_status_label(self.lbl_status, "Select or enter a model ID first", "warn")
             self.lbl_status.setProperty("state", "warn")
             self.lbl_status.style().unpolish(self.lbl_status)
             self.lbl_status.style().polish(self.lbl_status)
@@ -2296,8 +2325,8 @@ class ApiModelsTab(QWidget):
     def _on_test_done(self, ok: bool, msg: str, engine):
         self.btn_test.setEnabled(True)
         state = "ok" if ok else "err"
-        prefix = "✓" if ok else "✗"
-        self.lbl_status.setText(f"{prefix}  {msg}")
+        prefix = "OK" if ok else "Error"
+        set_status_label(self.lbl_status, f"{prefix}: {msg}", state)
         self.lbl_status.setProperty("state", state)
         self.lbl_status.style().unpolish(self.lbl_status)
         self.lbl_status.style().polish(self.lbl_status)
@@ -2321,22 +2350,18 @@ class ApiModelsTab(QWidget):
             self._add_saved_card(cfg)
 
     def _add_saved_card(self, cfg: ApiConfig):
-        ICONS = {"OpenAI": "⚡", "Anthropic": "◆", "Groq": "⚙",
-                 "Mistral": "🌊", "Together AI": "🤝", "OpenRouter": "🔀",
-                 "Ollama": "🦙", "Custom": "🔧"}
         card = QFrame()
         card.setObjectName("card")
         cl = QHBoxLayout(card)
         cl.setContentsMargins(14, 10, 14, 10)
         cl.setSpacing(10)
 
-        icon = ICONS.get(cfg.provider, "🌐")
         il = QVBoxLayout(); il.setSpacing(2)
-        t = QLabel(f"{icon}  <b>{cfg.name}</b>")
+        t = QLabel(f"<b>{cfg.name}</b>")
         t.setTextFormat(Qt.TextFormat.RichText)
         t.setStyleSheet("font-size:12px;")
         prov_display = getattr(cfg, "custom_provider_name", "") or cfg.provider
-        fmt_badge    = "  ·  🎨 custom fmt" if getattr(cfg, "use_custom_prompt", False) else ""
+        fmt_badge    = "  ·  custom fmt" if getattr(cfg, "use_custom_prompt", False) else ""
         s = QLabel(f"{prov_display}  ·  {cfg.model_id}{fmt_badge}")
         s.setObjectName("txt2_small")
         il.addWidget(t); il.addWidget(s)
@@ -2350,8 +2375,10 @@ class ApiModelsTab(QWidget):
             b.setProperty("btn_color", role)
             return b
 
-        bl = _sb("▶  Load", "ok")
-        bd = _sb("🗑", "err")
+        bl = _sb("Load", "ok")
+        bd = _sb("", "err")
+        set_button_icon(bl, "play", "Load")
+        set_button_icon(bd, "delete", "", 15)
         bl.clicked.connect(lambda _, c=cfg: self._load_saved(c))
         bd.clicked.connect(lambda _, c=cfg: self._delete_saved(c))
         cl.addWidget(bl); cl.addWidget(bd)

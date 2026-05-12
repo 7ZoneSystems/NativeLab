@@ -3,6 +3,7 @@ from nativelab.Model.model_global import get_model_registry, detect_model_family
 from nativelab.GlobalConfig.config_global import ROLE_ICONS
 from .pipblck import PipelineBlock
 from nativelab.UI.UI_const import C
+from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
 class LlmLogicEditorDialog(QDialog):
     """
     Configuration dialog for LLM-backed logic blocks.
@@ -13,7 +14,7 @@ class LlmLogicEditorDialog(QDialog):
     # Per-type documentation shown in the dialog
     _TYPE_INFO = {
         "llm_if": {
-            "icon":  "🧠 LLM IF / ELSE",
+            "icon":  "LLM IF / ELSE",
             "about": (
                 "The model reads the incoming text and your condition, then answers "
                 "YES or NO. YES routes to the TRUE (E) port, NO to the FALSE (W) port.\n\n"
@@ -27,7 +28,7 @@ class LlmLogicEditorDialog(QDialog):
             "branch_hint": "TRUE (E port) → YES    FALSE (W port) → NO",
         },
         "llm_switch": {
-            "icon":  "🧠 LLM SWITCH",
+            "icon":  "LLM SWITCH",
             "about": (
                 "The model classifies the incoming text into one of your defined categories. "
                 "Draw outgoing arrows and label each with the exact category name. "
@@ -40,7 +41,7 @@ class LlmLogicEditorDialog(QDialog):
             "branch_hint": "Connect outgoing arrows labelled with each category name.",
         },
         "llm_filter": {
-            "icon":  "🧠 LLM FILTER",
+            "icon":  "LLM FILTER",
             "about": (
                 "The model decides whether the incoming text should continue through "
                 "the pipeline (PASS) or be dropped (STOP). "
@@ -53,7 +54,7 @@ class LlmLogicEditorDialog(QDialog):
             "branch_hint": "PASS → continues    STOP → pipeline ends with reason",
         },
         "llm_transform": {
-            "icon":  "🧠 LLM TRANSFORM",
+            "icon":  "LLM TRANSFORM",
             "about": (
                 "The model rewrites or transforms the incoming text according to your "
                 "instruction. The result replaces the context for all downstream blocks. "
@@ -67,7 +68,7 @@ class LlmLogicEditorDialog(QDialog):
             "branch_hint": "Single output - transformed text flows to all connected blocks.",
         },
         "llm_score": {
-            "icon":  "🧠 LLM SCORE",
+            "icon":  "LLM SCORE",
             "about": (
                 "The model scores the incoming text from 1 to 10 on your criterion. "
                 "Route the result by score band:\n"
@@ -88,7 +89,7 @@ class LlmLogicEditorDialog(QDialog):
         super().__init__(parent)
         self._block = block
         info = self._TYPE_INFO.get(block.btype, {})
-        self.setWindowTitle(f"{info.get('icon','🧠')} - {block.label}")
+        self.setWindowTitle(f"{info.get('icon','LLM Logic')} - {block.label}")
         self.setMinimumSize(640, 480)
         self.resize(700, 530)
         self._build(info)
@@ -99,7 +100,8 @@ class LlmLogicEditorDialog(QDialog):
         root.setSpacing(12)
 
         # ── Header ───────────────────────────────────────────────────────────
-        hdr = QLabel(info.get("icon", "🧠  LLM Logic Block"))
+        hdr = QLabel(info.get("icon", "LLM Logic Block"))
+        set_label_icon(hdr, "reasoning", hdr.text(), 18)
         hdr.setStyleSheet(
             f"color:{C['txt']};font-size:14px;font-weight:bold;")
         root.addWidget(hdr)
@@ -113,7 +115,7 @@ class LlmLogicEditorDialog(QDialog):
         root.addWidget(about)
 
         # ── Branch routing hint ───────────────────────────────────────────────
-        hint_lbl = QLabel(f"📌  {info.get('branch_hint','')}")
+        hint_lbl = QLabel(info.get('branch_hint',''))
         hint_lbl.setStyleSheet(
             f"color:{C['ok']};font-size:10px;font-weight:600;"
             f"padding:4px 8px;background:{C['bg2']};border-radius:4px;")
@@ -135,14 +137,14 @@ class LlmLogicEditorDialog(QDialog):
         _sel_idx = 0
         for _i, _m in enumerate(_models):
             self.model_combo.addItem(
-                f"{ROLE_ICONS.get(_m.get('role','general'),'💬')}  {_m['name']}",
+                f"{ROLE_ICONS.get(_m.get('role','general'),'General')}  {_m['name']}",
                 _m["path"])
             if _m["path"] == _cur_path:
                 _sel_idx = _i
         if _models:
             self.model_combo.setCurrentIndex(_sel_idx)
         else:
-            self.model_combo.addItem("⚠️  No models registered - add one in Models tab", "")
+            self.model_combo.addItem("No models registered - add one in Models tab", "")
 
         btn_browse_model = QPushButton("Browse…")
         btn_browse_model.setFixedHeight(30); btn_browse_model.setFixedWidth(80)
@@ -230,10 +232,12 @@ class LlmLogicEditorDialog(QDialog):
 
         # ── Buttons ───────────────────────────────────────────────────────────
         btn_row = QHBoxLayout(); btn_row.setSpacing(10)
-        btn_save = QPushButton("💾  Save & Close")
+        btn_save = QPushButton("Save & Close")
+        set_button_icon(btn_save, "save", "Save & Close")
         btn_save.setObjectName("btn_send"); btn_save.setFixedHeight(32)
         btn_save.clicked.connect(self._save_and_close)
-        btn_cancel = QPushButton("✕  Cancel")
+        btn_cancel = QPushButton("Cancel")
+        set_button_icon(btn_cancel, "x", "Cancel")
         btn_cancel.setFixedHeight(32)
         btn_cancel.clicked.connect(self.reject)
         btn_row.addStretch()
@@ -251,7 +255,7 @@ class LlmLogicEditorDialog(QDialog):
     def _update_model_status(self):
         path = self.model_combo.currentData() or ""
         ok = bool(path) and Path(path).exists()
-        self.model_status.setText("✅" if ok else "❌")
+        set_status_label(self.model_status, "", "ok" if ok else "err", 15)
         self.model_status.setToolTip(path if path else "No model selected")
 
     def _browse_model(self):
@@ -265,7 +269,7 @@ class LlmLogicEditorDialog(QDialog):
             already = self.model_combo.findData(path)
             if already == -1:
                 fam = detect_model_family(path)
-                self.model_combo.addItem(f"💬  {Path(path).name}", path)
+                self.model_combo.addItem(Path(path).name, path)
                 already = self.model_combo.count() - 1
             self.model_combo.setCurrentIndex(already)
 
@@ -295,10 +299,10 @@ class LlmLogicEditorDialog(QDialog):
         # Build a readable label from the instruction
         _preview = instr.replace("\n", " ").strip()[:22]
         _icon_map = {
-            "llm_if": "🧠⑂", "llm_switch": "🧠⑃",
-            "llm_filter": "🧠⊘", "llm_transform": "🧠⟲", "llm_score": "🧠★",
+            "llm_if": "LLM-IF", "llm_switch": "LLM-SW",
+            "llm_filter": "LLM-FL", "llm_transform": "LLM-TX", "llm_score": "LLM-SC",
         }
-        _icon = _icon_map.get(self._block.btype, "🧠")
+        _icon = _icon_map.get(self._block.btype, "LLM")
         self._block.label = f"{_icon} {_preview}"
         self.accept()
 
@@ -408,20 +412,23 @@ log(f"Word count: {word_count}")
         root.addWidget(self.editor, 1)
 
         # ── Syntax status ─────────────────────────────────────────────────────
-        self.syntax_lbl = QLabel("✅  Syntax OK")
+        self.syntax_lbl = QLabel("Syntax OK")
         self.syntax_lbl.setStyleSheet(f"color:{C['ok']};font-size:11px;")
         root.addWidget(self.syntax_lbl)
 
         # ── Buttons ───────────────────────────────────────────────────────────
         btn_row = QHBoxLayout(); btn_row.setSpacing(10)
-        self.btn_test = QPushButton("🧪  Test with sample text…")
+        self.btn_test = QPushButton("Test with sample text...")
+        set_button_icon(self.btn_test, "test-tube", "Test with sample text...")
         self.btn_test.setFixedHeight(30)
         self.btn_test.clicked.connect(self._run_test)
-        btn_ok = QPushButton("💾  Save & Close")
+        btn_ok = QPushButton("Save & Close")
+        set_button_icon(btn_ok, "save", "Save & Close")
         btn_ok.setObjectName("btn_send")
         btn_ok.setFixedHeight(30)
         btn_ok.clicked.connect(self._save_and_close)
-        btn_cancel = QPushButton("✕  Cancel")
+        btn_cancel = QPushButton("Cancel")
+        set_button_icon(btn_cancel, "x", "Cancel")
         btn_cancel.setFixedHeight(30)
         btn_cancel.clicked.connect(self.reject)
         btn_row.addWidget(self.btn_test)
@@ -437,11 +444,11 @@ log(f"Word count: {word_count}")
         code = self.editor.toPlainText()
         try:
             compile(code, "<custom_code>", "exec")
-            self.syntax_lbl.setText("✅  Syntax OK")
+            self.syntax_lbl.setText("Syntax OK")
             self.syntax_lbl.setStyleSheet(f"color:{C['ok']};font-size:11px;")
         except SyntaxError as e:
             self.syntax_lbl.setText(
-                f"❌  Syntax error  line {e.lineno}: {e.msg}")
+                f"Syntax error  line {e.lineno}: {e.msg}")
             self.syntax_lbl.setStyleSheet(f"color:{C['err']};font-size:11px;")
 
     def _run_test(self):
@@ -474,12 +481,12 @@ log(f"Word count: {word_count}")
             out = str(ns.get("result", sample))
             log_s = "\n".join(log_lines) if log_lines else "(no log output)"
             QMessageBox.information(
-                self, "✅  Test Result",
+                self, "Test Result",
                 f"Log output:\n{log_s}\n\n"
                 f"result  ({len(out)} chars):\n{out[:600]}"
                 + ("…" if len(out) > 600 else ""))
         except Exception as e:
-            QMessageBox.critical(self, "❌  Runtime Error", str(e))
+            QMessageBox.critical(self, "Runtime Error", str(e))
 
     def _save_and_close(self):
         code = self.editor.toPlainText()

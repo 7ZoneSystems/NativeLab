@@ -56,8 +56,8 @@ means and what's safe to pick:
 The CLI looks for two helper programs called **llama-server** and
 **llama-cli** in `./llama/bin/`. These are what actually run the model.
 
-- **If both show in green ✓** - perfect, hit any answer to continue.
-- **If they're red ✗** - open the GUI once with just `python -m nativelab`,
+- **If both show in green OK** - perfect, hit any answer to continue.
+- **If they're red ERR** - open the GUI once with just `python -m nativelab`,
   click the **Download** tab, and let it install llama.cpp for you. Then come
   back here.
 
@@ -93,7 +93,7 @@ Just press **Enter** to accept the default if you're unsure.
 When the wizard finishes, you'll see:
 
 ```
-✓  Setup saved.
+OK  Setup saved.
 ```
 
 You're done with setup forever. Next time you run `nativelab --cli`, it goes

@@ -36,11 +36,11 @@ API_MODELS_FILE      = Path("./localllm/api_models.json")
 # ── model roles ───────────────────────────────────────────────────────────────
 MODEL_ROLES = ["general", "reasoning", "summarization", "coding", "secondary"]
 ROLE_ICONS  = {
-    "general":       "💬",
-    "reasoning":     "🧠",
-    "summarization": "📄",
-    "coding":        "💻",
-    "secondary":     "🔀",
+    "general":       "General",
+    "reasoning":     "Reasoning",
+    "summarization": "Summary",
+    "coding":        "Coding",
+    "secondary":     "Secondary",
 }
 
 # ═════════════════════════════ MODEL FAMILY DETECTION ═══════════════════════

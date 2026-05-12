@@ -1,4 +1,5 @@
 from nativelab.imports.import_global import List, QTextEdit, QFont, Optional, Qt, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QPushButton, QSizePolicy, QTextCursor, QTimer, QApplication
+from nativelab.UI.icons import set_button_icon
 
 class ThinkingBlock(QWidget):
     def __init__(self, total_chunks: int):
@@ -11,7 +12,8 @@ class ThinkingBlock(QWidget):
         root.setContentsMargins(16, 4, 16, 4)
         root.setSpacing(0)
 
-        self._toggle_btn = QPushButton(f"  🧠  Reasoning…   0 / {total_chunks} steps")
+        self._toggle_btn = QPushButton(f"Reasoning...   0 / {total_chunks} steps")
+        set_button_icon(self._toggle_btn, "reasoning", self._toggle_btn.text())
         self._toggle_btn.setObjectName("thinking_toggle")
         self._toggle_btn.clicked.connect(self._toggle)
         root.addWidget(self._toggle_btn)
@@ -39,14 +41,18 @@ class ThinkingBlock(QWidget):
         if len(chunk_text) > 300: preview += "…"
         entry = (
             f"─── Section {num} / {total} ───\n"
-            f"  📥 Input preview:  {preview}\n"
-            f"  📝 Summary:        {summary[:400].strip()}"
+            f"  Input preview:  {preview}\n"
+            f"  Summary:        {summary[:400].strip()}"
             + ("…" if len(summary) > 400 else "") + "\n"
         )
         self._entries.append(entry)
         self._te.append(entry)
         self._te.moveCursor(QTextCursor.MoveOperation.End)
-        self._toggle_btn.setText(f"▶  🧠 Thinking…  ({num} / {total} sections complete)")
+        set_button_icon(
+            self._toggle_btn,
+            "reasoning",
+            f"Thinking...  ({num} / {total} sections complete)",
+        )
 
     def add_phase(self, label: str):
         from nativelab.UI.buildUI import C       
@@ -58,7 +64,8 @@ class ThinkingBlock(QWidget):
         try:
             from nativelab.UI.buildUI import C
             self._toggle_btn.setText(
-                f"▼  ✅  Done  -  {self._done} / {self._total} steps")
+                f"Done  -  {self._done} / {self._total} steps")
+            set_button_icon(self._toggle_btn, "done", self._toggle_btn.text())
             self._toggle_btn.setStyleSheet(
                 f"QPushButton{{background:rgba(28,184,138,0.10);color:{C['ok']};"
                 f"border:1px solid rgba(28,184,138,0.24);border-radius:8px;"
@@ -72,8 +79,7 @@ class ThinkingBlock(QWidget):
     def _toggle(self):
         vis = not self._content_frame.isVisible()
         self._content_frame.setVisible(vis)
-        label = self._toggle_btn.text()
-        if label.startswith("▶"):
-            self._toggle_btn.setText(label.replace("▶", "▼", 1))
+        if vis:
+            set_button_icon(self._toggle_btn, "square-chevron-down", self._toggle_btn.text())
         else:
-            self._toggle_btn.setText(label.replace("▼", "▶", 1))
+            set_button_icon(self._toggle_btn, "square-chevron-right", self._toggle_btn.text())

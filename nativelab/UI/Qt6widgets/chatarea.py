@@ -2,6 +2,7 @@ from __future__ import annotations
 from nativelab.imports.import_global import TYPE_CHECKING, Qt, Any, QFrame, List, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTimer
 from .chatmodule import _ui
 from nativelab.UI.UI_const import C
+from nativelab.UI.icons import set_button_icon, set_status_label
 
 if TYPE_CHECKING:
     from nativelab.UI.UI_global import MessageWidget, ThinkingBlock
@@ -93,12 +94,14 @@ class ChatArea(QScrollArea):
         bl = QHBoxLayout()
         bl.setContentsMargins(14, 8, 14, 8); bl.setSpacing(10)
 
-        spinner = QLabel("⏳")
+        spinner = QLabel("")
+        set_status_label(spinner, "", "loading", 15)
         spinner.setStyleSheet(f"color:{_ui().C['warn']};font-size:13px;")
-        status_lbl = QLabel("Summarizing… click Pause to save state and stop.")
+        status_lbl = QLabel("Summarizing... click Pause to save state and stop.")
         status_lbl.setStyleSheet(f"color:{_ui().C['warn']};font-size:11px;")
 
-        pause_btn = QPushButton("⏸  Pause & Save")
+        pause_btn = QPushButton("Pause & Save")
+        set_button_icon(pause_btn, "circle-pause", "Pause & Save")
         pause_btn.setFixedHeight(28)
         pause_btn.setFixedWidth(120)
         pause_btn.setStyleSheet(
@@ -108,7 +111,8 @@ class ChatArea(QScrollArea):
             f"QPushButton:hover{{background:rgba(251,191,36,0.3);}}")
         pause_btn.clicked.connect(on_pause_cb)
 
-        abort_btn = QPushButton("⏹  Abort")
+        abort_btn = QPushButton("Abort")
+        set_button_icon(abort_btn, "stop-circle", "Abort")
         abort_btn.setFixedHeight(28)
         abort_btn.setFixedWidth(80)
         abort_btn.setStyleSheet(

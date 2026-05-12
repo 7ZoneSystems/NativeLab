@@ -297,7 +297,7 @@ class SessionReferenceStore:
         for ref in self._refs.values():
             snippet = ref.query(query, top_k=5)
             if snippet.strip():
-                label = {"pdf": "📄 PDF", "python": "🐍 Python", "text": "📝 Text"}.get(ref.ftype, "📎")
+                label = {"pdf": "PDF", "python": "Python", "text": "Text"}.get(ref.ftype, "Reference")
                 parts.append(f"[REFERENCE: {label} · {ref.name}]\n{snippet}\n[/REFERENCE]")
         return "\n\n".join(parts)
 
@@ -308,13 +308,13 @@ class SessionReferenceStore:
         for ref in self._refs.values():
             if isinstance(ref, ImageReference):
                 snippet = ref.query(query, top_k=1)
-                label = f"🖼 Image · {ref.name}"
+                label = f"Image · {ref.name}"
             elif isinstance(ref, ScriptSmartReference):
                 snippet = ref.query(query, top_k=6)
-                label   = f"💻 Script ({ref.lang_key.upper()}) · {ref.name}"
+                label   = f"Script ({ref.lang_key.upper()}) · {ref.name}"
             else:
                 snippet = ref.query(query, top_k=5)
-                ftype_label = {"pdf": "📄 PDF", "python": "🐍 Python", "text": "📝 Text"}.get(getattr(ref, "ftype", ""), "📎")
+                ftype_label = {"pdf": "PDF", "python": "Python", "text": "Text"}.get(getattr(ref, "ftype", ""), "Reference")
                 label = f"{ftype_label} · {ref.name}"
             if snippet.strip():
                 parts.append(f"[REFERENCE: {label}]\n{snippet}\n[/REFERENCE]")
@@ -389,15 +389,15 @@ class SessionReferenceStore:
         for ref in store._refs.values():
             if isinstance(ref, ImageReference):
                 snippet = ref.query(query, top_k=1)
-                label = f"🖼 Image · {ref.name}"
+                label = f"Image · {ref.name}"
             elif isinstance(ref, ScriptSmartReference):
                 snippet = ref.query(query, top_k=6)
-                label   = f"💻 Script ({ref.lang_key.upper()}) · {ref.name}"
+                label   = f"Script ({ref.lang_key.upper()}) · {ref.name}"
             else:
                 snippet = ref.query(query, top_k=5)
                 ftype_label = {
-                    "pdf": "📄 PDF", "python": "🐍 Python", "text": "📝 Text"
-                }.get(getattr(ref, "ftype", ""), "📎")
+                    "pdf": "PDF", "python": "Python", "text": "Text"
+                }.get(getattr(ref, "ftype", ""), "Reference")
                 label = f"{ftype_label} · {ref.name}"
 
             if snippet.strip():
