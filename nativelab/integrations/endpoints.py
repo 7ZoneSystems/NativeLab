@@ -349,9 +349,10 @@ class IntegrationEndpoints:
 
     def skills(self) -> list[Dict[str, Any]]:
         try:
-            from nativelab.skill import load_skills
+            from nativelab.skill import ensure_builtin_edit_skill, load_skills
         except Exception:
             return []
+        ensure_builtin_edit_skill()
         return load_skills()
 
     # Internals

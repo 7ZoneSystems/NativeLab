@@ -28,7 +28,8 @@ localllm/
 test/
 nativelab/llama/
 llama/bin/
-
+.codex/
+.agents/
 .env
 SETUP_BADGES.md
 !nativelab/assets/icons 

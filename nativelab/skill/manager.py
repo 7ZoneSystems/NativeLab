@@ -16,6 +16,23 @@ DEFAULT_SKILL: Dict[str, Any] = {
     "enabled": True,
 }
 
+BUILTIN_EDIT_SKILL: Dict[str, Any] = {
+    "name": "edit",
+    "description": (
+        "Make structured code edits by reading file structure, function names, "
+        "return values, variables, and requested changes before proposing patches."
+    ),
+    "instructions": (
+        "When editing code, first reason from the visible structure: file type, "
+        "function names, classes, arguments, return values, and local variables. "
+        "Prefer minimal structured edits over rewriting whole files. Return edits "
+        "as precise operations against functions or line ranges when the caller "
+        "supports structured edits. Preserve unrelated code, imports, formatting, "
+        "public APIs, and user comments unless the request explicitly changes them."
+    ),
+    "enabled": True,
+}
+
 
 def load_skills() -> List[Dict[str, Any]]:
     if not SKILLS_FILE.exists():
@@ -86,6 +103,22 @@ def active_skill_context(*, max_chars: int = 12000) -> str:
         lines.append("")
     text = "\n".join(lines).strip()
     return text[:max_chars]
+
+
+def ensure_builtin_edit_skill() -> Dict[str, Any]:
+    skills = load_skills()
+    for i, skill in enumerate(skills):
+        if skill.get("name") == "edit":
+            merged = _merge_skill({
+                **BUILTIN_EDIT_SKILL,
+                "enabled": skill.get("enabled", True),
+            })
+            skills[i] = merged
+            save_skills(skills)
+            return merged
+    skills.append(_merge_skill(BUILTIN_EDIT_SKILL))
+    save_skills(skills)
+    return skills[-1]
 
 
 def _merge_skill(skill: Dict[str, Any]) -> Dict[str, Any]:

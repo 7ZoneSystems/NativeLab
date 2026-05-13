@@ -34,6 +34,23 @@ select the same project root and output folder, keep the same settings, and run
 Generate again. NativeLab verifies the checkpoint and existing markdown files,
 then resumes from the last completed step.
 
+### structured-edit lab
+
+The structured-edit lab lives under **Dev > Labs**. It can attach an existing
+code file or start from an empty temp workspace, then ask the active model to
+return structured edit operations instead of rewriting the whole file.
+
+The working copy is saved continuously to:
+
+```text
+localllm/temp_code_edit.json
+localllm/temp_code_edit_file
+```
+
+The original file is not changed until **Save** or **Save As** is clicked. The
+lab shows the parsed file structure, including detected functions, line ranges,
+arguments, return expressions, and local variables where available.
+
 ---
 
 ## The contract for a lab panel

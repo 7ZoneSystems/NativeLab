@@ -21,6 +21,7 @@ from nativelab.imports.import_global import (
 from nativelab.UI.icons import icon as app_icon
 
 from .endpoints import LabEndpoints
+from .codeedit import CodeEditPanel
 from .pytodoc import PyToDocPanel
 
 
@@ -29,6 +30,7 @@ from .pytodoc import PyToDocPanel
 # and append it here.
 LAB_FEATURES: list[Type[QWidget]] = [
     PyToDocPanel,
+    CodeEditPanel,
 ]
 
 

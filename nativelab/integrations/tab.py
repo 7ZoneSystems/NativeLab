@@ -26,7 +26,6 @@ from nativelab.imports.import_global import (
     Qt,
     pyqtSignal,
 )
-from nativelab.UI.UI_const import C
 from nativelab.UI.icons import set_button_icon, set_label_icon
 
 from .endpoints import IntegrationEndpoints
@@ -218,7 +217,7 @@ class IntegrationsTab(QWidget):
 
         hdr = QLabel("Integrations")
         set_label_icon(hdr, "integrations", "Integrations", 18)
-        hdr.setStyleSheet(f"color:{C['txt']};font-size:16px;font-weight:bold;")
+        hdr.setStyleSheet("font-size:16px;font-weight:bold;")
         layout.addWidget(hdr)
 
         sub = QLabel(
@@ -330,7 +329,7 @@ class IntegrationsTab(QWidget):
 
         hdr = QLabel("Local HTTP Endpoint")
         set_label_icon(hdr, "server", "Local HTTP Endpoint", 18)
-        hdr.setStyleSheet(f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        hdr.setStyleSheet("font-size:14px;font-weight:bold;")
         box.addWidget(hdr)
 
         desc = QLabel("Start a localhost JSON endpoint for bots, webhooks, CLIs, or cloud bridge workers.")
@@ -378,7 +377,7 @@ class IntegrationsTab(QWidget):
 
         hdr = QLabel("Discord Bot Connector")
         set_label_icon(hdr, "discord", "Discord Bot Connector", 18)
-        hdr.setStyleSheet(f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        hdr.setStyleSheet("font-size:14px;font-weight:bold;")
         box.addWidget(hdr)
 
         desc = QLabel(
@@ -475,7 +474,7 @@ class IntegrationsTab(QWidget):
         box.addLayout(queue_row)
 
         prompt_h = QLabel("System Prompt")
-        prompt_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        prompt_h.setStyleSheet("font-weight:bold;")
         box.addWidget(prompt_h)
         prompt_row = QHBoxLayout()
         prompt_row.setSpacing(8)
@@ -495,7 +494,7 @@ class IntegrationsTab(QWidget):
         priv_l.setContentsMargins(10, 8, 10, 8)
         priv_l.setSpacing(6)
         priv_h = QLabel("Discord Privileges")
-        priv_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        priv_h.setStyleSheet("font-weight:bold;")
         priv_l.addWidget(priv_h)
         self.discord_priv_checks = {}
         for label, key in [
@@ -518,7 +517,7 @@ class IntegrationsTab(QWidget):
         cap_l.setContentsMargins(10, 8, 10, 8)
         cap_l.setSpacing(6)
         cap_h = QLabel("NativeLab Access")
-        cap_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        cap_h.setStyleSheet("font-weight:bold;")
         cap_l.addWidget(cap_h)
         self.discord_cap_checks = {}
         for label, key in [
@@ -565,7 +564,7 @@ class IntegrationsTab(QWidget):
         box.addWidget(self.discord_commands)
 
         log_h = QLabel("Bot Logs")
-        log_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        log_h.setStyleSheet("font-weight:bold;")
         box.addWidget(log_h)
         self.discord_log = QTextEdit()
         self.discord_log.setReadOnly(True)
@@ -870,7 +869,7 @@ class IntegrationsTab(QWidget):
 
         hdr = QLabel("WhatsApp Bot Connector")
         set_label_icon(hdr, "whatsapp", "WhatsApp Bot Connector", 18)
-        hdr.setStyleSheet(f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        hdr.setStyleSheet("font-size:14px;font-weight:bold;")
         box.addWidget(hdr)
 
         desc = QLabel(
@@ -966,7 +965,7 @@ class IntegrationsTab(QWidget):
         box.addLayout(reply)
 
         prompt_h = QLabel("System Prompt")
-        prompt_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        prompt_h.setStyleSheet("font-weight:bold;")
         box.addWidget(prompt_h)
         prompt_row = QHBoxLayout(); prompt_row.setSpacing(8)
         self.whatsapp_system_prompt = QTextEdit()
@@ -985,7 +984,7 @@ class IntegrationsTab(QWidget):
         cap_l.setContentsMargins(10, 8, 10, 8)
         cap_l.setSpacing(6)
         cap_h = QLabel("NativeLab Access")
-        cap_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        cap_h.setStyleSheet("font-weight:bold;")
         cap_l.addWidget(cap_h)
         self.whatsapp_cap_checks = {}
         for label, key in [
@@ -1033,7 +1032,7 @@ class IntegrationsTab(QWidget):
         box.addWidget(self.whatsapp_commands)
 
         log_h = QLabel("Bot Logs")
-        log_h.setStyleSheet(f"color:{C['txt']};font-weight:bold;")
+        log_h.setStyleSheet("font-weight:bold;")
         box.addWidget(log_h)
         self.whatsapp_log = QTextEdit()
         self.whatsapp_log.setReadOnly(True)

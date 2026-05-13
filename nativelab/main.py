@@ -27,7 +27,7 @@ from nativelab.pipelinebuilder.pipe_global import *
 from nativelab.UI.icons import add_menu_action, icon, icon_size, refresh_widget_icons, role_icon, set_button_icon, set_label_icon, status_icon, set_status_label
 from nativelab.labs import LabEndpoints, LabsTab
 from nativelab.integrations import IntegrationEndpoints, IntegrationsTab
-from nativelab.skill import active_skill_context
+from nativelab.skill import active_skill_context, ensure_builtin_edit_skill
 from nativelab.skill.tab import SkillsTab
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
@@ -114,6 +114,7 @@ class MainWindow(QMainWindow):
         self._ctx_reload_timer.timeout.connect(self._apply_new_context)
 
         self._load_sessions()
+        ensure_builtin_edit_skill()
         self._build_ui()
         self._build_menu()
         self._build_status_bar()
@@ -380,7 +381,7 @@ class MainWindow(QMainWindow):
         side_l.addWidget(hdr)
 
         self.dev_nav = QListWidget()
-        self.dev_nav.setObjectName("model_list")
+        self.dev_nav.setObjectName("labs_nav")
         self.dev_nav.setIconSize(icon_size(18))
         self.dev_nav.setFrameShape(QFrame.Shape.NoFrame)
         side_l.addWidget(self.dev_nav, 1)
@@ -401,6 +402,7 @@ class MainWindow(QMainWindow):
             self.dev_stack.addWidget(widget)
         self.dev_nav.currentRowChanged.connect(self._on_dev_nav_changed)
         self.dev_nav.setCurrentRow(0)
+        self._refresh_dev_nav_colors()
         return self.dev_stack
 
     def _on_dev_nav_changed(self, row: int):
@@ -408,6 +410,16 @@ class MainWindow(QMainWindow):
             return
         if 0 <= row < self.dev_stack.count():
             self.dev_stack.setCurrentIndex(row)
+        self._refresh_dev_nav_colors()
+
+    def _refresh_dev_nav_colors(self):
+        if not hasattr(self, "dev_nav"):
+            return
+        current = self.dev_nav.currentRow()
+        for i in range(self.dev_nav.count()):
+            item = self.dev_nav.item(i)
+            if item:
+                item.setForeground(QColor(C["acc"] if i == current else C["txt2"]))
 
     def _show_dev_page(self, label: str):
         if not hasattr(self, "dev_nav"):
@@ -2763,6 +2775,7 @@ class MainWindow(QMainWindow):
                 item = self.dev_nav.item(i)
                 if item:
                     item.setIcon(icon(dev_icons.get(item.text(), "code")))
+            self._refresh_dev_nav_colors()
 
     def _refresh_svg_icons(self):
         refresh_widget_icons(self)

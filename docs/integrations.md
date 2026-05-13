@@ -108,6 +108,10 @@ Skills are managed in **Dev > Skills** and saved to:
 localllm/skill/skills.json
 ```
 
+NativeLab seeds a built-in `edit` skill for structured code edits. It tells
+models to inspect file structure, function names, return values, and variables,
+then prefer precise operations over whole-file rewrites.
+
 The `/skills` route exposes the same library to integrations. Active skills are
 only injected into model calls when the chat **Skills** toggle is enabled. Since
 Discord, WhatsApp, Labs, and local HTTP `/call_llm` route through the shared

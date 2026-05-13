@@ -14,13 +14,14 @@ from nativelab.imports.import_global import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
+    QColor,
     Qt,
     pyqtSignal,
 )
 from nativelab.UI.UI_const import C
 from nativelab.UI.icons import icon, icon_size, set_button_icon, set_label_icon
 
-from .manager import SKILLS_FILE, delete_skill, load_skills, upsert_skill
+from .manager import SKILLS_FILE, delete_skill, ensure_builtin_edit_skill, load_skills, upsert_skill
 
 
 class SkillsTab(QWidget):
@@ -29,6 +30,7 @@ class SkillsTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._skills: list[dict] = []
+        ensure_builtin_edit_skill()
         self._build()
         self._reload()
 
@@ -43,10 +45,10 @@ class SkillsTab(QWidget):
         left_l.setContentsMargins(12, 12, 12, 12)
         left_l.setSpacing(8)
 
-        hdr = QLabel("Skills")
-        set_label_icon(hdr, "lightbulb", "Skills", 18)
-        hdr.setStyleSheet(f"color:{C['txt']};font-size:14px;font-weight:bold;")
-        left_l.addWidget(hdr)
+        self.hdr = QLabel("Skills")
+        set_label_icon(self.hdr, "lightbulb", "Skills", 18)
+        self.hdr.setStyleSheet("font-size:14px;font-weight:bold;")
+        left_l.addWidget(self.hdr)
 
         self.skill_list = QListWidget()
         self.skill_list.setObjectName("model_list")
@@ -78,10 +80,10 @@ class SkillsTab(QWidget):
         scroll.setWidget(body)
         root.addWidget(scroll, 1)
 
-        title = QLabel("Model Skill Library")
-        set_label_icon(title, "lightbulb", "Model Skill Library", 18)
-        title.setStyleSheet(f"color:{C['txt']};font-size:16px;font-weight:bold;")
-        form.addWidget(title)
+        self.title = QLabel("Model Skill Library")
+        set_label_icon(self.title, "lightbulb", "Model Skill Library", 18)
+        self.title.setStyleSheet("font-size:16px;font-weight:bold;")
+        form.addWidget(self.title)
 
         sub = QLabel(
             "Create reusable skills that can be injected into any model call when "
@@ -155,6 +157,16 @@ class SkillsTab(QWidget):
             self._load_selected()
         else:
             self._new_skill()
+        self.refresh_theme()
+
+    def refresh_theme(self):
+        set_label_icon(self.hdr, "lightbulb", "Skills", 18)
+        set_label_icon(self.title, "lightbulb", "Model Skill Library", 18)
+        current = self.skill_list.currentRow()
+        for i in range(self.skill_list.count()):
+            item = self.skill_list.item(i)
+            if item:
+                item.setForeground(QColor(C["acc"] if i == current else C["txt2"]))
 
     def _new_skill(self):
         self.skill_list.clearSelection()
@@ -164,6 +176,7 @@ class SkillsTab(QWidget):
         self.instructions_edit.clear()
 
     def _load_selected(self):
+        self.refresh_theme()
         item = self.skill_list.currentItem()
         if not item:
             return

@@ -15,6 +15,7 @@ Doing so means new labs never touch `MainWindow` or engine internals.
 """
 from .endpoints import LabEndpoints
 from .labs_tab  import LabsTab, LAB_FEATURES
+from .codeedit import CodeEditPanel, CodeEditWorker
 from .pytodoc   import (
     PyToDocPanel, PyToDocWorker,
     DEFAULT_OVERVIEW_PROMPT, DEFAULT_CLASS_PROMPT, DEFAULT_FUNC_PROMPT,
@@ -24,6 +25,7 @@ from .pytodoc   import (
 __all__ = [
     "LabEndpoints",
     "LabsTab", "LAB_FEATURES",
+    "CodeEditPanel", "CodeEditWorker",
     "PyToDocPanel", "PyToDocWorker",
     "DEFAULT_OVERVIEW_PROMPT", "DEFAULT_CLASS_PROMPT", "DEFAULT_FUNC_PROMPT",
     "parse_python_file",

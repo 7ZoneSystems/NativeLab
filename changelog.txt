@@ -1,9 +1,16 @@
-v0.3.0
+v0.3.1
 
-1) fixed error surface in labs endpoints to show errors instead of just htps 400 error 
+1) Fixed error surface in labs endpoints to show real endpoint errors instead of only HTTP 400 text.
 2) Added py-to-doc project pause/resume checkpoints in localllm/temp for restart and shutdown recovery.
 3) Moved Labs, Logs, Integrations, Pipeline, and MCP under a Dev tab with a contextual left sidebar, and moved Config to the top-right settings button.
 4) Added Dev > Skills with a shared localllm skill library, /skills endpoint, and chat toggle for skill injection across chat, labs, and integrations.
+5) Added built-in edit skill and structured-edit lab for temp-backed iterative code edits before saving to source files.
+6) Added live structured-edit response capture and colored + / - line counts for each model edit.
+7) Upgraded structured-edit into a chat-style edit workspace with saved checkpoints, branch-from-history, editable responses, clickable per-turn diffs, live file preview, and Python diagnostics.
+8) Added Python diagnostics in Code Edit with syntax checking, lightweight warnings, a Problems panel, and editor line highlighting.
+9) Moved detailed Code Edit diffs into per-message chat cards so users can inspect changes for every prompt in the conversation.
+10) Fixed Dev tab and Dev sub-tab heading colors so they update correctly when switching dark/light themes.
+11) Added independent scrolling to the Code Edit file sidebar so diagnostics, structure, logs, and the editor do not overlap on small screens.
 
 v0.3.0 
 1) Added que management for py to doc [labs feature]
@@ -16,7 +23,7 @@ v0.3.0
 8) Replaced emojis with corresponding svgs
 9) Ui chat area improved , no auto load of default model
 
-v0.3.0 [major update]
+v0.2.9 [major update]
 1) Added Integrations tab with endpoint browser and local HTTP bridge.
 2) Added integration routes for runtime, models, API models, limits, saved pipelines, labs, py_to_doc, call_llm, and saved Discord/WhatsApp bot profiles.
 3) Added Discord bot connector profiles saved in localllm/integrations/discord_bots.json.
