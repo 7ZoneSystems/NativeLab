@@ -27,6 +27,8 @@ from nativelab.pipelinebuilder.pipe_global import *
 from nativelab.UI.icons import add_menu_action, icon, icon_size, refresh_widget_icons, role_icon, set_button_icon, set_label_icon, status_icon, set_status_label
 from nativelab.labs import LabEndpoints, LabsTab
 from nativelab.integrations import IntegrationEndpoints, IntegrationsTab
+from nativelab.skill import active_skill_context
+from nativelab.skill.tab import SkillsTab
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
     log      = pyqtSignal(str, str)
@@ -285,7 +287,10 @@ class MainWindow(QMainWindow):
         self.sidebar.session_renamed.connect(self._rename_session)
         self.sidebar.session_exported.connect(
             lambda sid: self._export_session(sid, "md"))
-        self.splitter.addWidget(self.sidebar)
+        self.left_sidebar_stack = QStackedWidget()
+        self.left_sidebar_stack.setObjectName("session_sidebar")
+        self.left_sidebar_stack.addWidget(self.sidebar)
+        self.splitter.addWidget(self.left_sidebar_stack)
 
         self.tabs = QTabWidget()
         self._tab_overlay = FadeOverlay(self.tabs)
@@ -313,11 +318,11 @@ class MainWindow(QMainWindow):
         self.models_tab = self._build_models_tab()
         self.tabs.addTab(self.models_tab, icon("models"), "Models")
 
-        # ── Config tab ──
+        # ── Config panel (opened from top-right settings button) ──
+        self.config_dialog = None
         self.config_tab = ConfigTab()
         self.config_tab.config_changed.connect(self._on_config_changed)
         self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
-        self.tabs.addTab(self.config_tab, icon("config"), "Config")
 
         # ── Server tab ──
         self.server_tab = ServerTab()
@@ -325,9 +330,14 @@ class MainWindow(QMainWindow):
             lambda: self._log("INFO", "Server config updated."))
         self.tabs.addTab(self.server_tab, icon("server"), "Server")
 
-        # ── Pipeline Builder tab ──
+        # ── Dev surfaces ──
         self.pipeline_tab = PipelineBuilderTab(self.engine)
-        self.tabs.addTab(self.pipeline_tab, icon("pipeline"), "Pipeline")
+        self.integrations_tab = IntegrationsTab(self._integration_endpoints)
+        self.log_console = LogConsole()
+        self.labs_tab = LabsTab()
+        self.mcp_tab = McpTab()
+        self.skills_tab = SkillsTab()
+        self.skills_tab.skills_changed.connect(lambda: self._log("INFO", "Skill library updated."))
 
         # ── API Models tab ──
         self.api_tab = ApiModelsTab()
@@ -338,17 +348,10 @@ class MainWindow(QMainWindow):
         self.download_tab = ModelDownloadTab()
         self.tabs.addTab(self.download_tab, icon("download"), "Download")
 
-        # ── MCP tab ──
-        self.mcp_tab = McpTab()
-        self.tabs.addTab(self.mcp_tab, icon("mcp"), "MCP")
+        # ── Dev tab ──
+        self.dev_tab = self._build_dev_tab()
+        self.tabs.addTab(self.dev_tab, icon("code"), "Dev")
 
-        # ── Integrations tab ──
-        self.integrations_tab = IntegrationsTab(self._integration_endpoints)
-        self.tabs.addTab(self.integrations_tab, icon("integrations"), "Integrations")
-
-        # ── Logs tab ──
-        self.log_console = LogConsole()
-        self.tabs.addTab(self.log_console, icon("logs"), "Logs")
         self.appearance_tab = AppearanceTab()
         self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
         self.tabs.addTab(self.appearance_tab, icon("appearance"), "Appearance")
@@ -360,11 +363,61 @@ class MainWindow(QMainWindow):
         central.setLayout(ml)
         self.setCentralWidget(central)
 
-        # ── Labs tab ──
-        self.labs_tab = LabsTab()
-        self.tabs.addTab(self.labs_tab, icon("labs"), "Labs")
         self._apply_saved_view_state()
         self._wire_lab_endpoints()
+
+    def _build_dev_tab(self) -> QWidget:
+        self.dev_stack = QStackedWidget()
+        self.dev_sidebar = QWidget()
+        self.dev_sidebar.setObjectName("labs_sidebar")
+        side_l = QVBoxLayout(self.dev_sidebar)
+        side_l.setContentsMargins(10, 12, 10, 12)
+        side_l.setSpacing(8)
+
+        hdr = QLabel("Dev")
+        set_label_icon(hdr, "code", "Dev", 18)
+        hdr.setObjectName("labs_sidebar_hdr")
+        side_l.addWidget(hdr)
+
+        self.dev_nav = QListWidget()
+        self.dev_nav.setObjectName("model_list")
+        self.dev_nav.setIconSize(icon_size(18))
+        self.dev_nav.setFrameShape(QFrame.Shape.NoFrame)
+        side_l.addWidget(self.dev_nav, 1)
+        self.left_sidebar_stack.addWidget(self.dev_sidebar)
+
+        self._dev_pages = [
+            ("Labs", "labs", self.labs_tab),
+            ("Logs", "logs", self.log_console),
+            ("Integrations", "integrations", self.integrations_tab),
+            ("Pipeline", "pipeline", self.pipeline_tab),
+            ("MCP", "mcp", self.mcp_tab),
+            ("Skills", "lightbulb", self.skills_tab),
+        ]
+        for label, icon_name, widget in self._dev_pages:
+            item = QListWidgetItem(icon(icon_name), label)
+            item.setData(Qt.ItemDataRole.UserRole, label)
+            self.dev_nav.addItem(item)
+            self.dev_stack.addWidget(widget)
+        self.dev_nav.currentRowChanged.connect(self._on_dev_nav_changed)
+        self.dev_nav.setCurrentRow(0)
+        return self.dev_stack
+
+    def _on_dev_nav_changed(self, row: int):
+        if not hasattr(self, "dev_stack"):
+            return
+        if 0 <= row < self.dev_stack.count():
+            self.dev_stack.setCurrentIndex(row)
+
+    def _show_dev_page(self, label: str):
+        if not hasattr(self, "dev_nav"):
+            return
+        for i in range(self.dev_nav.count()):
+            item = self.dev_nav.item(i)
+            if item and item.data(Qt.ItemDataRole.UserRole) == label:
+                self.tabs.setCurrentWidget(self.dev_tab)
+                self.dev_nav.setCurrentRow(i)
+                return
         
     # ── models tab ───────────────────────────────────────────────────────────
 
@@ -973,12 +1026,14 @@ class MainWindow(QMainWindow):
         row.setContentsMargins(0, 0, 8, 0)
         row.setSpacing(6)
         self.btn_toggle_sidebar = QPushButton("")
-        self.btn_toggle_sidebar.setToolTip("Toggle session sidebar")
+        self.btn_toggle_sidebar.setToolTip("Toggle left sidebar")
         self.btn_toggle_topbar = QPushButton("")
         self.btn_toggle_topbar.setToolTip("Toggle top tab bar")
         self.btn_tab_menu = QPushButton("")
         self.btn_tab_menu.setToolTip("Choose visible tabs")
-        for b in (self.btn_toggle_sidebar, self.btn_toggle_topbar, self.btn_tab_menu):
+        self.btn_settings = QPushButton("")
+        self.btn_settings.setToolTip("Open app configuration")
+        for b in (self.btn_toggle_sidebar, self.btn_toggle_topbar, self.btn_tab_menu, self.btn_settings):
             b.setFixedSize(28, 24)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet(
@@ -991,6 +1046,7 @@ class MainWindow(QMainWindow):
         self.btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
         self.btn_toggle_topbar.clicked.connect(self._toggle_topbar)
         self.btn_tab_menu.clicked.connect(lambda: self._show_tab_visibility_menu())
+        self.btn_settings.clicked.connect(self._show_config_dialog)
         menu_bar.setCornerWidget(box, Qt.Corner.TopRightCorner)
         self._update_view_toggle_buttons()
 
@@ -1278,6 +1334,11 @@ class MainWindow(QMainWindow):
         w = self.tabs.widget(idx)
         if not w:
             return
+        if hasattr(self, "left_sidebar_stack"):
+            if hasattr(self, "dev_tab") and w is self.dev_tab:
+                self.left_sidebar_stack.setCurrentWidget(self.dev_sidebar)
+            else:
+                self.left_sidebar_stack.setCurrentWidget(self.sidebar)
         # Cover exactly the newly visible tab page
         self._tab_overlay.setGeometry(w.geometry())
         self._tab_overlay.raise_()
@@ -1362,6 +1423,7 @@ class MainWindow(QMainWindow):
             on_model  =self._labs_request_load_model,
             on_unload =self._labs_request_unload,
         )
+        ep.set_skill_context_provider(self._active_skill_context)
         ep.log_msg.connect(self.log_console.log)
         self.labs_tab.set_endpoints(ep)
         self._integration_endpoints.bind_lab_endpoints(ep)
@@ -1371,6 +1433,17 @@ class MainWindow(QMainWindow):
                 ep.engine_changed.connect(self.integrations_tab.refresh)
             except Exception:
                 pass
+
+    def _skills_enabled(self) -> bool:
+        return bool(
+            hasattr(self, "input_bar")
+            and getattr(self.input_bar, "skills_enabled", False)
+        )
+
+    def _active_skill_context(self) -> str:
+        if not self._skills_enabled():
+            return ""
+        return active_skill_context()
 
     def _notify_labs(self):
         """Emit engine_changed/status_changed so lab panels can refresh."""
@@ -1425,7 +1498,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(
                 self, "No Saved Pipelines",
                 "No saved pipelines found.\n\n"
-                "Build and save a pipeline in the Pipeline tab first.")
+                "Build and save a pipeline in Dev > Pipeline first.")
             return
 
         pipeline_name, ok = QInputDialog.getItem(
@@ -1576,7 +1649,7 @@ class MainWindow(QMainWindow):
                 self, "Summarization Active",
                 "A summarization job is in progress.\n\n"
                 "Please pause or abort it from the chat panel before sending new messages.\n"
-                "You can resume paused jobs from the Config tab.")
+                "You can resume paused jobs from the top-right settings button.")
             return
         ts = datetime.now().strftime("%H:%M")
         if not self.active.messages:
@@ -1594,6 +1667,13 @@ class MainWindow(QMainWindow):
             f"User request:\n{text}"
             if ref_ctx_for_turn else text
         )
+        skill_ctx = self._active_skill_context()
+        if skill_ctx:
+            pipeline_text = (
+                f"{skill_ctx}\n\n"
+                "Apply relevant active skills while answering.\n\n"
+                f"{pipeline_text}"
+            )
 
         # ── Pipeline mode ─────────────────────────────────────────────────────
         if self._can_use_pipeline(text):
@@ -1611,6 +1691,15 @@ class MainWindow(QMainWindow):
             model_path=active_eng.model_path,
             max_chars=ctx_chars
         )
+        if skill_ctx:
+            fam = detect_model_family(active_eng.model_path)
+            skill_block = (
+                f"{fam.bos}{fam.user_prefix}"
+                f"{skill_ctx}\n\n"
+                "Apply relevant active skills while answering."
+                f"{fam.user_suffix}{fam.assistant_prefix}"
+            )
+            prompt = skill_block + "\n" + prompt
         # Inject reference context if available
         ref_ctx = getattr(self, "_pending_ref_ctx", "")
         ref_images = list(getattr(self, "_pending_ref_images", []))
@@ -1653,6 +1742,8 @@ class MainWindow(QMainWindow):
         if isinstance(active_eng, ApiEngine):
             api_msgs = [{"role": m.role, "content": m.content}
                         for m in self.active.messages[-60:]]
+            if skill_ctx:
+                api_msgs = [{"role": "system", "content": skill_ctx}] + api_msgs
             if api_msgs:
                 last_user_idx = next(
                     (i for i in range(len(api_msgs) - 1, -1, -1)
@@ -1972,7 +2063,7 @@ class MainWindow(QMainWindow):
             self._summary_worker = None
             if hasattr(self, "_summary_bubble") and self._summary_bubble:
                 self._summary_bubble.append_text(
-                    "\n\nPaused & saved to disk. Resume from the Config tab.")
+                    "\n\nPaused & saved to disk. Resume from the top-right settings button.")
                 self._summary_bubble = None
             if hasattr(self, "config_tab"):
                 self.config_tab.refresh_paused_jobs()
@@ -1988,7 +2079,7 @@ class MainWindow(QMainWindow):
             self._multi_pdf_worker = None
             if hasattr(self, "_summary_bubble") and self._summary_bubble:
                 self._summary_bubble.append_text(
-                    "\n\nMulti-PDF paused & saved. Resume from the Config tab.")
+                    "\n\nMulti-PDF paused & saved. Resume from the top-right settings button.")
                 self._summary_bubble = None
             if hasattr(self, "config_tab"):
                 self.config_tab.refresh_paused_jobs()
@@ -2522,9 +2613,23 @@ class MainWindow(QMainWindow):
         else:
             print(f"[{level}] {msg}", file=sys.stderr)
 
+    def _show_config_dialog(self):
+        if self.config_dialog is None:
+            dlg = QDialog(self)
+            dlg.setWindowTitle("App Configuration")
+            dlg.resize(880, 720)
+            layout = QVBoxLayout(dlg)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.addWidget(self.config_tab)
+            self.config_dialog = dlg
+        self.config_dialog.show()
+        self.config_dialog.raise_()
+        self.config_dialog.activateWindow()
+
     def _toggle_sidebar(self):
-        self.sidebar.setVisible(not self.sidebar.isVisible())
-        APP_CONFIG["sidebar_visible"] = self.sidebar.isVisible()
+        target = self.left_sidebar_stack if hasattr(self, "left_sidebar_stack") else self.sidebar
+        target.setVisible(not target.isVisible())
+        APP_CONFIG["sidebar_visible"] = target.isVisible()
         save_app_config(APP_CONFIG)
         self._update_view_toggle_buttons()
 
@@ -2573,7 +2678,8 @@ class MainWindow(QMainWindow):
         menu.exec(global_pos)
 
     def _apply_saved_view_state(self):
-        self.sidebar.setVisible(bool(APP_CONFIG.get("sidebar_visible", True)))
+        sidebar_target = self.left_sidebar_stack if hasattr(self, "left_sidebar_stack") else self.sidebar
+        sidebar_target.setVisible(bool(APP_CONFIG.get("sidebar_visible", True)))
         self.tabs.tabBar().setVisible(bool(APP_CONFIG.get("topbar_visible", True)))
         tab_cfg = APP_CONFIG.get("tab_visibility", {})
         for i in range(self.tabs.count()):
@@ -2591,9 +2697,10 @@ class MainWindow(QMainWindow):
     def _update_view_toggle_buttons(self):
         if not hasattr(self, "btn_toggle_sidebar"):
             return
+        sidebar_target = self.left_sidebar_stack if hasattr(self, "left_sidebar_stack") else self.sidebar
         set_button_icon(
             self.btn_toggle_sidebar,
-            "panel-left" if self.sidebar.isVisible() else "panel-right-close",
+            "panel-left" if sidebar_target.isVisible() else "panel-right-close",
             "",
             16,
         )
@@ -2604,6 +2711,7 @@ class MainWindow(QMainWindow):
             16,
         )
         set_button_icon(self.btn_tab_menu, "more-horizontal", "", 16)
+        set_button_icon(self.btn_settings, "config", "", 16)
 
     def eventFilter(self, obj, event):
         if (hasattr(self, "tabs") and obj is self.tabs.tabBar()
@@ -2632,21 +2740,29 @@ class MainWindow(QMainWindow):
         tab_icons = {
             "Chat": "chat",
             "Models": "models",
-            "Config": "config",
             "Server": "server",
-            "Pipeline": "pipeline",
             "API Models": "api",
             "Download": "download",
-            "MCP": "mcp",
-            "Integrations": "integrations",
-            "Logs": "logs",
+            "Dev": "code",
             "Appearance": "appearance",
-            "Labs": "labs",
         }
         for i in range(self.tabs.count()):
             name = tab_icons.get(self.tabs.tabText(i))
             if name:
                 self.tabs.setTabIcon(i, icon(name))
+        if hasattr(self, "dev_nav"):
+            dev_icons = {
+                "Labs": "labs",
+                "Logs": "logs",
+                "Integrations": "integrations",
+                "Pipeline": "pipeline",
+                "MCP": "mcp",
+                "Skills": "lightbulb",
+            }
+            for i in range(self.dev_nav.count()):
+                item = self.dev_nav.item(i)
+                if item:
+                    item.setIcon(icon(dev_icons.get(item.text(), "code")))
 
     def _refresh_svg_icons(self):
         refresh_widget_icons(self)
@@ -2688,14 +2804,18 @@ class MainWindow(QMainWindow):
         self.models_tab = self._build_models_tab()
         self.tabs.insertTab(mt_idx, self.models_tab, icon("models"), "Models")
 
-        # Rebuild Config tab (has baked dark card backgrounds)
-        ct_idx = self.tabs.indexOf(self.config_tab)
-        self.config_tab.setParent(None)
-        self.config_tab.deleteLater()
+        # Rebuild Config panel (opened from top-right settings button)
+        old_config = self.config_tab
         self.config_tab = ConfigTab()
         self.config_tab.config_changed.connect(self._on_config_changed)
         self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
-        self.tabs.insertTab(ct_idx, self.config_tab, icon("config"), "Config")
+        if self.config_dialog is not None:
+            layout = self.config_dialog.layout()
+            if layout is not None:
+                layout.removeWidget(old_config)
+                layout.addWidget(self.config_tab)
+        old_config.setParent(None)
+        old_config.deleteLater()
 
         # Rebuild Server tab
         srv_idx = self.tabs.indexOf(self.server_tab)
@@ -2713,19 +2833,29 @@ class MainWindow(QMainWindow):
         self.download_tab = ModelDownloadTab()
         self.tabs.insertTab(dl_idx, self.download_tab, icon("download"), "Download")
 
-        # Rebuild MCP tab
-        mcp_idx = self.tabs.indexOf(self.mcp_tab)
-        self.mcp_tab.setParent(None)
-        self.mcp_tab.deleteLater()
+        # Rebuild MCP dev page
+        mcp_idx = self.dev_stack.indexOf(self.mcp_tab)
+        old_mcp = self.mcp_tab
         self.mcp_tab = McpTab()
-        self.tabs.insertTab(mcp_idx, self.mcp_tab, icon("mcp"), "MCP")
+        if mcp_idx >= 0:
+            self.dev_stack.removeWidget(old_mcp)
+            self.dev_stack.insertWidget(mcp_idx, self.mcp_tab)
+        old_mcp.setParent(None)
+        old_mcp.deleteLater()
 
-        # Rebuild Logs tab
-        log_idx = self.tabs.indexOf(self.log_console)
-        self.log_console.setParent(None)
-        self.log_console.deleteLater()
+        # Rebuild Logs dev page
+        log_idx = self.dev_stack.indexOf(self.log_console)
+        old_log = self.log_console
         self.log_console = LogConsole()
-        self.tabs.insertTab(log_idx, self.log_console, icon("logs"), "Logs")
+        if log_idx >= 0:
+            self.dev_stack.removeWidget(old_log)
+            self.dev_stack.insertWidget(log_idx, self.log_console)
+        old_log.setParent(None)
+        old_log.deleteLater()
+        try:
+            self._lab_endpoints.log_msg.connect(self.log_console.log)
+        except Exception:
+            pass
 
         # Refresh Appearance tab palette to match active theme
         self.appearance_tab.load_palette(C_LIGHT if CURRENT_THEME == "light" else C_DARK)
@@ -2738,7 +2868,7 @@ class MainWindow(QMainWindow):
         self._refresh_svg_icons()
 
     def _goto_logs(self):
-        self.tabs.setCurrentWidget(self.log_console)
+        self._show_dev_page("Logs")
 
     def _goto_models_tab(self):
         self.tabs.setCurrentWidget(self.models_tab)

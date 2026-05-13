@@ -9,9 +9,11 @@ identically against a local llama-server, llama-cli, or a remote API model.
 from __future__ import annotations
 
 import ast
+import hashlib
+import json
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from nativelab.imports.import_global import (
     QThread, pyqtSignal,
@@ -43,6 +45,8 @@ DEFAULT_FUNC_PROMPT = (
     "if inferrable), return value, and any important behaviour or side-effects. "
     "Be concise but precise."
 )
+
+PYTODOC_TEMP_STATE = Path("./localllm/temp")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -90,6 +94,7 @@ class PyToDocWorker(QThread):
     log_msg = pyqtSignal(str)
     chunk   = pyqtSignal(str)
     done    = pyqtSignal()
+    paused  = pyqtSignal(str)
     error   = pyqtSignal(str)
 
     def __init__(
@@ -122,10 +127,17 @@ class PyToDocWorker(QThread):
         self.prompt_function    = prompt_function or DEFAULT_FUNC_PROMPT
         self.endpoints          = endpoints
         self._abort             = False
+        self._pause             = False
         self._history: List[dict] = []
+        self._state: Optional[dict[str, Any]] = None
+        self._resuming = False
+        self._state_path = PYTODOC_TEMP_STATE
 
     def abort(self):
         self._abort = True
+
+    def pause(self):
+        self._pause = True
 
     # ── helpers ──────────────────────────────────────────────────────────────
     def _log(self, msg: str):
@@ -139,6 +151,205 @@ class PyToDocWorker(QThread):
 
     def _reset_context(self):
         self._history.clear()
+
+    def _project_enabled(self) -> bool:
+        return bool(self.project_root and self.file_list)
+
+    def _settings_fingerprint(self) -> str:
+        payload = {
+            "include_globals": self.include_globals,
+            "reset_per_function": self.reset_per_function,
+            "reset_per_class": self.reset_per_class,
+            "prompt_overview": self.prompt_overview,
+            "prompt_class": self.prompt_class,
+            "prompt_function": self.prompt_function,
+        }
+        raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _project_key(self) -> str:
+        raw = json.dumps({
+            "project_root": str(Path(self.project_root or "").resolve()),
+            "out_path": str(Path(self.out_path).resolve()),
+            "settings": self._settings_fingerprint(),
+        }, sort_keys=True)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _load_project_state(self) -> Optional[dict[str, Any]]:
+        if not self._project_enabled() or not self._state_path.exists():
+            return None
+        try:
+            state = json.loads(self._state_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self._log(f"Recovery checkpoint ignored: could not read temp ({exc})")
+            return None
+        if state.get("feature") != "py_to_doc" or state.get("project_key") != self._project_key():
+            self._log("Recovery checkpoint ignored: project, output folder, or settings changed")
+            return None
+        return state
+
+    def _fresh_project_state(self) -> dict[str, Any]:
+        return {
+            "feature": "py_to_doc",
+            "version": 1,
+            "status": "running",
+            "project_key": self._project_key(),
+            "project_root": str(Path(self.project_root or "").resolve()),
+            "out_path": str(Path(self.out_path).resolve()),
+            "settings_fingerprint": self._settings_fingerprint(),
+            "file_list": [str(Path(p).resolve()) for p in self.file_list],
+            "current_file": "",
+            "completed_files": [],
+            "files": {},
+            "history": [],
+            "updated_at": "",
+        }
+
+    def _save_project_state(self, status: Optional[str] = None):
+        if not self._project_enabled() or self._state is None:
+            return
+        if status:
+            self._state["status"] = status
+        self._state["updated_at"] = datetime.now().isoformat(timespec="seconds")
+        self._state["history"] = list(self._history)
+        self._state["file_list"] = [str(Path(p).resolve()) for p in self.file_list]
+        self._state_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self._state_path.with_name(self._state_path.name + ".tmp")
+        tmp.write_text(json.dumps(self._state, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(self._state_path)
+
+    def _prepare_project_state(self):
+        if not self._project_enabled():
+            return
+        state = self._load_project_state()
+        if state:
+            self._state = state
+            self._resuming = True
+            self._history = list(state.get("history", []))
+            self._log(f"Resume checkpoint found -> {self._state_path}")
+            self._verify_project_state()
+        else:
+            self._state = self._fresh_project_state()
+            self._save_project_state("running")
+            self._log(f"Project checkpoint created -> {self._state_path}")
+
+    def _verify_project_state(self):
+        if self._state is None:
+            return
+        completed = set(self._state.get("completed_files", []))
+        for file_path, info in list(self._state.get("files", {}).items()):
+            out_file = Path(info.get("out_file", ""))
+            if file_path in completed and not out_file.exists():
+                completed.discard(file_path)
+                info["completed"] = False
+                info["steps"] = []
+                info["offset"] = 0
+                self._log(f"Checkpoint repaired: missing output will regenerate {Path(file_path).name}")
+            elif not out_file.exists():
+                info["steps"] = []
+                info["offset"] = 0
+                info["completed"] = False
+        self._state["completed_files"] = sorted(completed)
+        self._save_project_state("running")
+
+    def _file_state(self, file_path: str, out_file: Path) -> dict[str, Any]:
+        source_sig = self._source_signature(file_path)
+        if self._state is None:
+            return {
+                "steps": [],
+                "offset": 0,
+                "completed": False,
+                "out_file": str(out_file),
+                "source": source_sig,
+            }
+        key = str(Path(file_path).resolve())
+        files = self._state.setdefault("files", {})
+        info = files.setdefault(key, {
+            "steps": [],
+            "offset": 0,
+            "completed": False,
+            "out_file": str(out_file),
+            "source": source_sig,
+        })
+        info["out_file"] = str(out_file)
+        if info.get("source") != source_sig:
+            info["steps"] = []
+            info["offset"] = 0
+            info["completed"] = False
+            info["source"] = source_sig
+            completed = set(self._state.get("completed_files", []))
+            completed.discard(key)
+            self._state["completed_files"] = sorted(completed)
+            self._log(f"Source changed since checkpoint; regenerating {Path(file_path).name}")
+            self._save_project_state("running")
+        return info
+
+    @staticmethod
+    def _source_signature(file_path: str) -> dict[str, int]:
+        try:
+            st = Path(file_path).stat()
+            return {"size": int(st.st_size), "mtime_ns": int(st.st_mtime_ns)}
+        except Exception:
+            return {"size": 0, "mtime_ns": 0}
+
+    def _step_done(self, file_path: str, step_id: str) -> bool:
+        if self._state is None:
+            return False
+        key = str(Path(file_path).resolve())
+        info = self._state.get("files", {}).get(key, {})
+        return step_id in set(info.get("steps", []))
+
+    def _mark_step(self, file_path: str, step_id: str, fh):
+        if self._state is None:
+            return
+        key = str(Path(file_path).resolve())
+        info = self._state["files"][key]
+        steps = list(info.get("steps", []))
+        if step_id not in steps:
+            steps.append(step_id)
+        info["steps"] = steps
+        info["offset"] = fh.tell()
+        info["completed"] = False
+        self._state["current_file"] = key
+        self._save_project_state("running")
+
+    def _mark_file_complete(self, file_path: str, fh):
+        if self._state is None:
+            return
+        key = str(Path(file_path).resolve())
+        info = self._state["files"][key]
+        info["completed"] = True
+        info["offset"] = fh.tell()
+        completed = set(self._state.get("completed_files", []))
+        completed.add(key)
+        self._state["completed_files"] = sorted(completed)
+        self._state["current_file"] = ""
+        self._save_project_state("running")
+
+    def _should_continue(self) -> bool:
+        if self._abort:
+            self._save_project_state("aborted")
+            return False
+        if self._pause:
+            self._save_project_state("paused")
+            self.paused.emit(str(self._state_path))
+            return False
+        return True
+
+    def _run_step(self, fh, file_path: str, step_id: str, build_text) -> bool:
+        if self._step_done(file_path, step_id):
+            return True
+        if not self._should_continue():
+            return False
+        history_len = len(self._history)
+        text = build_text()
+        if self._abort:
+            self._history = self._history[:history_len]
+            self._save_project_state("aborted")
+            return False
+        self._write(fh, text)
+        self._mark_step(file_path, step_id, fh)
+        return self._should_continue()
 
     def _call_llm(self, system_prompt: str, code: str) -> str:
         if self.endpoints is None or not self.endpoints.is_loaded:
@@ -164,14 +375,18 @@ class PyToDocWorker(QThread):
 
     def _pipeline(self):
         files = self.file_list if self.file_list else [self.file_path]
+        self._prepare_project_state()
         for file_path in files:
-            if self._abort:
+            if not self._should_continue():
                 return
             self._process_one(file_path)
+            if self._pause:
+                return
+        self._save_project_state("complete")
         self.done.emit()
 
     def _process_one(self, file_path: str):
-        if self._abort:
+        if not self._should_continue():
             return
 
         self._log(f"Parsing: {Path(file_path).name}")
@@ -192,71 +407,138 @@ class PyToDocWorker(QThread):
             out_dir.mkdir(parents=True, exist_ok=True)
             out_file = out_dir / self.out_name
 
-        fh = out_file.open("w", encoding="utf-8")
+        file_state = self._file_state(file_path, out_file) if self._project_enabled() else None
+        if file_state and file_state.get("completed") and out_file.exists():
+            self._log(f"Already complete, verified from temp -> {Path(file_path).name}")
+            return
+        if file_state and not out_file.exists():
+            file_state["steps"] = []
+            file_state["offset"] = 0
+            file_state["completed"] = False
+            self._save_project_state("running")
+
+        mode = "r+" if file_state and out_file.exists() else "w"
+        fh = out_file.open(mode, encoding="utf-8")
         try:
-            self._run_pipeline(fh, fname, src, lines, parsed)
+            if file_state:
+                offset = int(file_state.get("offset", 0) or 0)
+                try:
+                    fh.seek(0, 2)
+                    end = fh.tell()
+                    if 0 <= offset <= end:
+                        fh.seek(offset)
+                        fh.truncate()
+                    else:
+                        file_state["steps"] = []
+                        file_state["offset"] = 0
+                        file_state["completed"] = False
+                        fh.seek(0)
+                        fh.truncate()
+                        self._save_project_state("running")
+                except Exception:
+                    file_state["steps"] = []
+                    file_state["offset"] = 0
+                    file_state["completed"] = False
+                    fh.seek(0)
+                    fh.truncate()
+                    self._save_project_state("running")
+            if self._run_pipeline(fh, file_path, fname, src, lines, parsed):
+                self._mark_file_complete(file_path, fh)
         finally:
             fh.close()
 
-        self._log(f"README saved → {out_file}")
+        if not self._pause and not self._abort:
+            self._log(f"README saved -> {out_file}")
 
-    def _run_pipeline(self, fh, fname, src, lines, parsed):
-        self._write(fh, f"## Doc for {fname}\n---\n\n")
+    def _run_pipeline(self, fh, file_path, fname, src, lines, parsed) -> bool:
+        if not self._run_step(
+            fh, file_path, "header",
+            lambda: f"## Doc for {fname}\n---\n\n"
+        ):
+            return False
         self._log("README initialized")
 
-        if self._abort: return
+        if not self._should_continue(): return False
         self._log("Generating overview…")
-        overview_text = self._call_llm(self.prompt_overview, src)
-        self._write(fh, f"{overview_text}\n\n---\n\n")
+        if not self._run_step(
+            fh, file_path, "overview",
+            lambda: f"{self._call_llm(self.prompt_overview, src)}\n\n---\n\n"
+        ):
+            return False
         self._log("Overview generated")
 
         for cls in parsed["classes"]:
-            if self._abort: return
-            if self.reset_per_class:
-                self._reset_context()
+            if not self._should_continue(): return False
 
             class_code = _get_source(cls["node"], lines)
             self._log(f"Processing class: {cls['name']}")
 
-            class_desc = self._call_llm(self.prompt_class, class_code)
-            self._write(fh, f"### {cls['name']}\n{class_desc}\n\n")
+            class_step = f"class:{cls['name']}:{getattr(cls['node'], 'lineno', 0)}"
+            if self.reset_per_class and not self._step_done(file_path, class_step):
+                self._reset_context()
+            if not self._run_step(
+                fh, file_path, class_step,
+                lambda cls=cls, class_code=class_code: (
+                    f"### {cls['name']}\n"
+                    f"{self._call_llm(self.prompt_class, class_code)}\n\n"
+                )
+            ):
+                return False
 
-            self._write(fh, "### Functions\n\n")
+            functions_step = f"class-functions:{cls['name']}:{getattr(cls['node'], 'lineno', 0)}"
+            if not self._run_step(fh, file_path, functions_step, lambda: "### Functions\n\n"):
+                return False
             for method in cls["methods"]:
-                if self._abort: return
-                if self.reset_per_function:
-                    self._reset_context()
+                if not self._should_continue(): return False
 
                 fn_code = _get_source(method["node"], lines)
-                fn_out  = self._call_llm(self.prompt_function, fn_code)
-                self._write(
-                    fh,
-                    f"#### `{method['name']}`\n\n"
-                    f"{fn_out.strip()}\n\n"
-                    f"---\n\n"
+                method_step = (
+                    f"method:{cls['name']}.{method['name']}:"
+                    f"{getattr(method['node'], 'lineno', 0)}"
                 )
+                if self.reset_per_function and not self._step_done(file_path, method_step):
+                    self._reset_context()
+                if not self._run_step(
+                    fh, file_path, method_step,
+                    lambda method=method, fn_code=fn_code: (
+                        f"#### `{method['name']}`\n\n"
+                        f"{self._call_llm(self.prompt_function, fn_code).strip()}\n\n"
+                        f"---\n\n"
+                    )
+                ):
+                    return False
                 self._log(f"Function processed: {method['name']}")
 
             self._log(f"Class processed: {cls['name']}")
-            self._write(fh, "\n")
+            class_end_step = f"class-end:{cls['name']}:{getattr(cls['node'], 'lineno', 0)}"
+            if not self._run_step(fh, file_path, class_end_step, lambda: "\n"):
+                return False
 
         if self.include_globals and parsed["functions"]:
-            if self._abort: return
-            self._write(fh, "---\n\n## Global Functions\n\n### Functions\n\n")
+            if not self._should_continue(): return False
+            if not self._run_step(
+                fh, file_path, "global-functions-header",
+                lambda: "---\n\n## Global Functions\n\n### Functions\n\n"
+            ):
+                return False
             for fn in parsed["functions"]:
-                if self._abort: return
-                if self.reset_per_function:
-                    self._reset_context()
+                if not self._should_continue(): return False
 
                 fn_code = _get_source(fn["node"], lines)
-                fn_out  = self._call_llm(self.prompt_function, fn_code)
-                self._write(
-                    fh,
-                    f"#### `{fn['name']}`\n\n"
-                    f"{fn_out.strip()}\n\n"
-                    f"---\n\n"
-                )
+                fn_step = f"global:{fn['name']}:{getattr(fn['node'], 'lineno', 0)}"
+                if self.reset_per_function and not self._step_done(file_path, fn_step):
+                    self._reset_context()
+                if not self._run_step(
+                    fh, file_path, fn_step,
+                    lambda fn=fn, fn_code=fn_code: (
+                        f"#### `{fn['name']}`\n\n"
+                        f"{self._call_llm(self.prompt_function, fn_code).strip()}\n\n"
+                        f"---\n\n"
+                    )
+                ):
+                    return False
                 self._log(f"Function processed: {fn['name']}")
+        return True
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -487,7 +769,13 @@ class PyToDocPanel(QWidget):
         self.btn_abort.setFixedHeight(38)
         self.btn_abort.setVisible(False)
         self.btn_abort.clicked.connect(self._abort)
+        self.btn_pause = QPushButton("Pause")
+        set_button_icon(self.btn_pause, "circle-pause", "Pause")
+        self.btn_pause.setFixedHeight(38)
+        self.btn_pause.setVisible(False)
+        self.btn_pause.clicked.connect(self._pause_project)
         btn_row.addWidget(self.btn_generate, 1)
+        btn_row.addWidget(self.btn_pause)
         btn_row.addWidget(self.btn_abort)
         root.addLayout(btn_row)
         root.addSpacing(14)
@@ -647,9 +935,15 @@ class PyToDocPanel(QWidget):
         self._log("[aborted by user]")
         self._set_running(False)
 
+    def _pause_project(self):
+        if self._worker:
+            self._worker.pause()
+            self._log(f"[pause requested] checkpoint will save to {PYTODOC_TEMP_STATE}")
+
     def _set_running(self, running: bool):
         self.btn_generate.setEnabled(not running)
         self.btn_abort.setVisible(running)
+        self.btn_pause.setVisible(running and self._mode == "project")
 
     def _run_py_to_doc(self):
         mode     = self._mode
@@ -724,8 +1018,14 @@ class PyToDocPanel(QWidget):
         self._worker.log_msg.connect(self._log)
         self._worker.chunk.connect(self._on_chunk)
         self._worker.done.connect(self._on_done)
+        self._worker.paused.connect(self._on_paused)
         self._worker.error.connect(self._on_error)
         self._worker.start()
+
+    def _on_paused(self, state_path: str):
+        self._set_running(False)
+        self._log(f"Paused. Resume by selecting the same project/output and clicking Generate. Temp: {state_path}")
+        self._worker = None
 
     def _on_done(self):
         self._set_running(False)

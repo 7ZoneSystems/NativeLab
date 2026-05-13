@@ -75,7 +75,7 @@ If a dedicated summarization or reasoning engine is loaded, it runs the final co
 
 ### Pause / resume
 
-Click **⏹ Stop** mid-job to snapshot state (raw text, completed summaries, running context, progress, model path) to `paused_jobs/{job_id}.json`. The Config tab lists paused jobs with **▶ Resume Job**.
+Click **Stop** mid-job to snapshot state (raw text, completed summaries, running context, progress, model path) to `paused_jobs/{job_id}.json`. The top-right settings button opens Config, which lists paused jobs with **Resume Job**.
 
 The app also auto-suggests pausing after `pause_after_chunks` chunks if many remain - useful for long jobs split across sessions.
 
@@ -224,7 +224,7 @@ Persisted per block: type, position, size, model path, role, label, all metadata
 
 ## MCP
 
-The MCP tab manages **Model Context Protocol** servers - extending the LLM with filesystem, web, database, or custom-tool access.
+The **Dev > MCP** page manages **Model Context Protocol** servers - extending the LLM with filesystem, web, database, or custom-tool access.
 
 ### Server types
 

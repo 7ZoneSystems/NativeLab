@@ -57,6 +57,7 @@ class LabEndpoints(QObject):
         self._on_context_request: Callable[[int], bool] = lambda c: False
         self._on_model_request:   Callable[[str], bool] = lambda p: False
         self._on_unload_request:  Callable[[], None]    = lambda: None
+        self._skill_context_provider: Callable[[], str] = lambda: ""
 
     # ── wiring (host app) ────────────────────────────────────────────────────
     def bind_engines(
@@ -77,6 +78,9 @@ class LabEndpoints(QObject):
         if on_context is not None: self._on_context_request = on_context
         if on_model   is not None: self._on_model_request   = on_model
         if on_unload  is not None: self._on_unload_request  = on_unload
+
+    def set_skill_context_provider(self, provider: Callable[[], str]) -> None:
+        self._skill_context_provider = provider or (lambda: "")
 
     def notify_engine_changed(self) -> None:
         self.engine_changed.emit()
@@ -187,6 +191,9 @@ class LabEndpoints(QObject):
             msgs = [{"role": "system", "content": system_prompt}] + msgs
         if prompt is not None:
             msgs.append({"role": "user", "content": prompt})
+        skill_context = self._skill_context_provider()
+        if skill_context:
+            msgs = [{"role": "system", "content": skill_context}] + msgs
         if not msgs:
             raise RuntimeError("call_llm: no messages or prompt provided")
 

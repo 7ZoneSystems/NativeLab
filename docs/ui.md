@@ -70,7 +70,7 @@ The Appearance tab exposes every color token. Click any swatch → system color 
 | `Ctrl+N`       | New session                       |
 | `Ctrl+Q`       | Quit                              |
 | `Ctrl+B`       | Toggle session sidebar            |
-| `Ctrl+L`       | Switch to Logs tab                |
+| `Ctrl+L`       | Switch to Dev > Logs              |
 | `Ctrl+M`       | Switch to Models tab              |
 | `Ctrl+T`       | Toggle theme (light/dark)         |
 | `Enter`        | Send message                      |

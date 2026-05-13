@@ -84,7 +84,7 @@ Quick fix: in the Models tab, edit the model and change the `family` field to ma
 
 ### "Model load: Failed" with no detail
 
-Check the Logs tab. Most common causes:
+Check **Dev > Logs**. Most common causes:
 
 - Out of RAM - pick a smaller quant or lower the context.
 - Corrupted GGUF - re-download.
@@ -173,7 +173,7 @@ The base URL is wrong or the server isn't running. For self-hosted servers (Olla
 
 ### Anthropic API: "credit balance is too low"
 
-Anthropic returns 400s when out of credit. The error message in the Logs tab includes the upstream response body.
+Anthropic returns 400s when out of credit. The error message in **Dev > Logs** includes the upstream response body.
 
 ---
 
@@ -194,6 +194,6 @@ Models in `./localllm/*.gguf` are preserved. Re-launch and the wizard / GUI will
 
 ## Still stuck?
 
-- Logs tab in the GUI has the full error chain - it's the most useful single place to look.
+- **Dev > Logs** in the GUI has the full error chain - it's the most useful single place to look.
 - Run with `python -u -m nativelab --cli` to see all stderr in real time.
 - Open an issue with the relevant log lines + your OS / Python version: <https://github.com/7zonesystems/NativeLab/issues>.

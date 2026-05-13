@@ -84,6 +84,11 @@ class IntegrationEndpoints:
                 "method": "GET",
                 "description": "Saved WhatsApp connector profiles with tokens redacted.",
             },
+            {
+                "path": "/skills",
+                "method": "GET",
+                "description": "NativeLab skill library with active skill descriptions and instructions.",
+            },
         ]
 
     def catalog(self) -> Dict[str, Any]:
@@ -112,6 +117,7 @@ class IntegrationEndpoints:
                 "discord_bots": self.discord_bots(),
                 "whatsapp_bots": self.whatsapp_bots(),
             },
+            "skills": self.skills(),
         }
 
     def handle(self, path: str) -> Dict[str, Any]:
@@ -138,6 +144,8 @@ class IntegrationEndpoints:
             return {"discord_bots": self.discord_bots()}
         if clean == "/integrations/whatsapp_bots":
             return {"whatsapp_bots": self.whatsapp_bots()}
+        if clean == "/skills":
+            return {"skills": self.skills()}
         return {
             "error": "unknown integration endpoint",
             "path": clean,
@@ -338,6 +346,13 @@ class IntegrationEndpoints:
             clean["commands"] = command_catalog(bot)
             rows.append(clean)
         return rows
+
+    def skills(self) -> list[Dict[str, Any]]:
+        try:
+            from nativelab.skill import load_skills
+        except Exception:
+            return []
+        return load_skills()
 
     # Internals
     @staticmethod

@@ -50,7 +50,7 @@ nativelab --cli status                  # print saved CLI prefs
 
 ## How the CLI plugs into the rest of the app
 
-The CLI is a thin frontend. It builds a `LabEndpoints` instance - the exact same class the Labs tab uses - and routes everything through it:
+The CLI is a thin frontend. It builds a `LabEndpoints` instance - the exact same class **Dev > Labs** uses - and routes everything through it:
 
 ```
 ┌────────────┐      ┌─────────────────┐      ┌────────────────────────┐

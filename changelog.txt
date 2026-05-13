@@ -1,6 +1,9 @@
 v0.3.0
 
 1) fixed error surface in labs endpoints to show errors instead of just htps 400 error 
+2) Added py-to-doc project pause/resume checkpoints in localllm/temp for restart and shutdown recovery.
+3) Moved Labs, Logs, Integrations, Pipeline, and MCP under a Dev tab with a contextual left sidebar, and moved Config to the top-right settings button.
+4) Added Dev > Skills with a shared localllm skill library, /skills endpoint, and chat toggle for skill injection across chat, labs, and integrations.
 
 v0.3.0 
 1) Added que management for py to doc [labs feature]

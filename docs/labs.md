@@ -16,7 +16,23 @@ nativelab/labs/
 └── pytodoc.py         first feature: py-to-doc README generator
 ```
 
-The Labs tab in the GUI is a sidebar nav + stacked content area. Each panel is independent; switching the sidebar selection just swaps the visible panel.
+Labs now live under **Dev > Labs**. The Dev tab swaps the normal chat-history
+sidebar for a vertical developer sidebar containing Labs, Logs, Integrations,
+Pipeline, MCP, and Skills.
+
+### py-to-doc project recovery
+
+In py-to-doc Project mode, NativeLab writes a restart-safe checkpoint to:
+
+```text
+localllm/temp
+```
+
+The checkpoint is updated after each generated file section, including class and
+function documentation. If the app is paused, closed, or the machine shuts down,
+select the same project root and output folder, keep the same settings, and run
+Generate again. NativeLab verifies the checkpoint and existing markdown files,
+then resumes from the last completed step.
 
 ---
 
@@ -167,7 +183,7 @@ LAB_FEATURES: list[Type[QWidget]] = [
 
 ### 3. That's the whole change
 
-Restart the app. Your panel shows up in the Labs tab sidebar with the icon and name from the class attributes. It receives a `LabEndpoints` instance automatically.
+Restart the app. Your panel shows up in **Dev > Labs** with the icon and name from the class attributes. It receives a `LabEndpoints` instance automatically.
 
 ---
 

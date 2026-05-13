@@ -6,7 +6,7 @@ app can do without importing the main window.
 
 ## Where to find it
 
-Open the **Integrations** tab in the GUI. The tab is split into sub-tabs:
+Open **Dev > Integrations** in the GUI. The page is split into sub-tabs:
 
 - **Endpoints**: select a route, copy JSON responses, and start the local HTTP bridge.
 - **Discord Bot**: create reusable bot connector profiles and save credentials locally.
@@ -30,6 +30,7 @@ The endpoint returns plain JSON-compatible dictionaries.
 | `/labs` | GET | Registered Labs features and integration metadata. |
 | `/labs/py_to_doc` | GET | Metadata for the py-to-doc lab route. |
 | `/call_llm` | POST | Send a prompt/messages to the active NativeLab engine. |
+| `/skills` | GET | NativeLab skill library, including active descriptions and instructions. |
 | `/integrations/discord_bots` | GET | Saved Discord connector profiles with tokens redacted. |
 | `/integrations/whatsapp_bots` | GET | Saved WhatsApp connector profiles with tokens redacted. |
 
@@ -98,6 +99,19 @@ server.start()
 ```
 
 Inside the GUI this is already wired to the live NativeLab endpoint.
+
+## Skills endpoint
+
+Skills are managed in **Dev > Skills** and saved to:
+
+```text
+localllm/skill/skills.json
+```
+
+The `/skills` route exposes the same library to integrations. Active skills are
+only injected into model calls when the chat **Skills** toggle is enabled. Since
+Discord, WhatsApp, Labs, and local HTTP `/call_llm` route through the shared
+NativeLab endpoint, they inherit the same skill context while that toggle is on.
 
 ## Discord bot connector
 

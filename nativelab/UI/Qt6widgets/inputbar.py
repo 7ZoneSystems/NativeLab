@@ -82,6 +82,13 @@ class InputBar(QWidget):
         toolbar.addWidget(self.pdf_btn)
         toolbar.addWidget(self.clear_btn)
 
+        self.skills_btn = QPushButton("Skills")
+        set_button_icon(self.skills_btn, "lightbulb", "Skills")
+        self.skills_btn.setFixedSize(86, 30)
+        self.skills_btn.setCheckable(True)
+        self.skills_btn.setToolTip("Enable active NativeLab skills for model calls")
+        toolbar.addWidget(self.skills_btn)
+
         self.code_btn = QPushButton("Code")
         set_button_icon(self.code_btn, "code", "Code")
         self.code_btn.setFixedSize(80, 30)
@@ -226,6 +233,7 @@ class InputBar(QWidget):
         self.input.setEnabled(not active)
         self.load_model_btn.setEnabled(not active)
         self.unload_model_btn.setEnabled(not active)
+        self.skills_btn.setEnabled(not active)
 
     @property
     def selected_model(self) -> str:
@@ -234,3 +242,7 @@ class InputBar(QWidget):
     @property
     def summary_mode(self) -> str:
         return self.summary_mode_combo.currentData() or "summary"
+
+    @property
+    def skills_enabled(self) -> bool:
+        return self.skills_btn.isChecked()
