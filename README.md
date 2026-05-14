@@ -33,6 +33,93 @@ nativelab --cli      # terminal client (interactive setup → chat)
 
 ---
 
+## App screenshots
+
+<div style="overflow-x:auto; white-space:nowrap; padding:12px 0 22px 0;">
+  <figure id="slide-light" style="display:inline-block; width:960px; margin:0 18px 0 0; vertical-align:top;">
+    <table>
+      <tr>
+        <td align="center" width="46"><a href="#slide-ui"><b>‹</b></a></td>
+        <td align="center"><img src="images/light_mode.png" alt="NativeLab light mode chat workspace" width="860" /></td>
+        <td align="center" width="46"><a href="#slide-dark"><b>›</b></a></td>
+      </tr>
+    </table>
+    <figcaption align="center"><sub><b>Light chat workspace</b></sub></figcaption>
+  </figure>
+  <figure id="slide-dark" style="display:inline-block; width:960px; margin:0 18px 0 0; vertical-align:top;">
+    <table>
+      <tr>
+        <td align="center" width="46"><a href="#slide-light"><b>‹</b></a></td>
+        <td align="center"><img src="images/dark_mode.png" alt="NativeLab dark mode chat workspace" width="860" /></td>
+        <td align="center" width="46"><a href="#slide-dev"><b>›</b></a></td>
+      </tr>
+    </table>
+    <figcaption align="center"><sub><b>Dark mode</b></sub></figcaption>
+  </figure>
+  <figure id="slide-dev" style="display:inline-block; width:960px; margin:0 18px 0 0; vertical-align:top;">
+    <table>
+      <tr>
+        <td align="center" width="46"><a href="#slide-dark"><b>‹</b></a></td>
+        <td align="center"><img src="images/dev.png" alt="NativeLab Dev workspace with labs and tools" width="860" /></td>
+        <td align="center" width="46"><a href="#slide-pipeline"><b>›</b></a></td>
+      </tr>
+    </table>
+    <figcaption align="center"><sub><b>Dev workspace</b></sub></figcaption>
+  </figure>
+  <figure id="slide-pipeline" style="display:inline-block; width:960px; margin:0 18px 0 0; vertical-align:top;">
+    <table>
+      <tr>
+        <td align="center" width="46"><a href="#slide-dev"><b>‹</b></a></td>
+        <td align="center"><img src="images/pipeline.png" alt="NativeLab visual pipeline builder" width="860" /></td>
+        <td align="center" width="46"><a href="#slide-server"><b>›</b></a></td>
+      </tr>
+    </table>
+    <figcaption align="center"><sub><b>Pipeline builder</b></sub></figcaption>
+  </figure>
+  <figure id="slide-server" style="display:inline-block; width:960px; margin:0 18px 0 0; vertical-align:top;">
+    <table>
+      <tr>
+        <td align="center" width="46"><a href="#slide-pipeline"><b>‹</b></a></td>
+        <td align="center"><img src="images/server_controls.png" alt="NativeLab server and model controls" width="860" /></td>
+        <td align="center" width="46"><a href="#slide-skills"><b>›</b></a></td>
+      </tr>
+    </table>
+    <figcaption align="center"><sub><b>Server controls</b></sub></figcaption>
+  </figure>
+  <figure id="slide-skills" style="display:inline-block; width:960px; margin:0 18px 0 0; vertical-align:top;">
+    <table>
+      <tr>
+        <td align="center" width="46"><a href="#slide-server"><b>‹</b></a></td>
+        <td align="center"><img src="images/skill.png" alt="NativeLab skill management tab" width="860" /></td>
+        <td align="center" width="46"><a href="#slide-appearance"><b>›</b></a></td>
+      </tr>
+    </table>
+    <figcaption align="center"><sub><b>Skills</b></sub></figcaption>
+  </figure>
+  <figure id="slide-appearance" style="display:inline-block; width:960px; margin:0 18px 0 0; vertical-align:top;">
+    <table>
+      <tr>
+        <td align="center" width="46"><a href="#slide-skills"><b>‹</b></a></td>
+        <td align="center"><img src="images/appearance.png" alt="NativeLab appearance and theme controls" width="860" /></td>
+        <td align="center" width="46"><a href="#slide-ui"><b>›</b></a></td>
+      </tr>
+    </table>
+    <figcaption align="center"><sub><b>Appearance</b></sub></figcaption>
+  </figure>
+  <figure id="slide-ui" style="display:inline-block; width:960px; margin:0 18px 0 0; vertical-align:top;">
+    <table>
+      <tr>
+        <td align="center" width="46"><a href="#slide-appearance"><b>‹</b></a></td>
+        <td align="center"><img src="images/image%20copy.png" alt="NativeLab app screenshot" width="860" /></td>
+        <td align="center" width="46"><a href="#slide-light"><b>›</b></a></td>
+      </tr>
+    </table>
+    <figcaption align="center"><sub><b>NativeLab UI</b></sub></figcaption>
+  </figure>
+</div>
+
+---
+
 ## ✨ Highlights
 
 - 🖥️  **Desktop GUI** - Chat, model library, visual pipeline builder, MCP, HuggingFace downloader, Labs, theming.
