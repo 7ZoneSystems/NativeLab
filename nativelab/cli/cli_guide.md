@@ -96,14 +96,15 @@ When the wizard finishes, you'll see:
 OK  Setup saved.
 ```
 
-You're done with setup forever. Next time you run `nativelab --cli`, it goes
-straight to chat.
+You're done with setup forever. Next time you run `nativelab --cli`, it opens
+the terminal control center.
 
 ---
 
 ## Step 4 - Your first chat
 
-You'll see a prompt that looks like this:
+After setup, choose **Chat** from the menu. You'll see a prompt that looks like
+this:
 
 ```
 you ▸
@@ -134,10 +135,17 @@ Anything that **starts with a `/`** is a command, not a message to the model.
 | ---------------- | --------------------------------------------------------- |
 | `/help`          | Shows all the commands.                                   |
 | `/status`        | Shows which model is loaded and how it's running.         |
+| `/models`        | Lists local models.                                       |
+| `/api-models`    | Lists saved API model profiles.                           |
+| `/skills on`     | Enables shared skill instructions in chat.                |
+| `/skills off`    | Disables shared skill instructions in chat.               |
+| `/pipelines`     | Lists saved GUI pipelines.                                |
+| `/labs`          | Lists available Labs features.                            |
+| `/endpoint /snapshot` | Shows the integration endpoint catalog.              |
 | `/reset`         | Clears the conversation memory and starts fresh.          |
 | `/system You are a Python tutor.` | Sets a "personality" for the model.       |
 | `/save chat.json` | Saves the whole conversation to a file.                  |
-| `/load <path>`   | Switches to a different model file.                       |
+| `/load <path>`   | Switches to a different model file or API ref.            |
 | `/ctx 8192`      | Changes the memory window size and reloads.               |
 | `/quit`          | Exits.                                                    |
 
@@ -194,7 +202,7 @@ pip install pyflakes        # smallest and fastest
 ## All the ways to start the CLI
 
 ```bash
-# Setup-or-chat - the one you'll use most
+# Setup-or-menu - the one you'll use most
 python -m nativelab --cli
 
 # Skip the wizard, jump straight to chat
@@ -211,6 +219,16 @@ python -m nativelab --cli lint <file.py> ...
 
 # Just show what's currently saved
 python -m nativelab --cli status
+
+# List models and API profiles
+python -m nativelab --cli models list
+python -m nativelab --cli api-models list
+
+# Use Labs, pipelines, skills, and integrations from the terminal
+python -m nativelab --cli skills list
+python -m nativelab --cli labs list
+python -m nativelab --cli pipeline list
+python -m nativelab --cli endpoint /snapshot --json
 ```
 
 You can also pass options to `chat`:
@@ -234,7 +252,11 @@ strange system directories.
 | `./localllm/`                    | Where downloaded GGUF models live.            |
 | `./localllm/cli_prefs.json`      | Your saved model + ctx choice.                |
 | `./localllm/custom_models.json`  | Extra models you've added by hand.            |
+| `./localllm/api_models.json`     | Saved API model profiles from the GUI/CLI.    |
+| `./localllm/skill/skills.json`   | Shared model skills.                          |
+| `./localllm/temp_code_edit.json` | Structured Code Edit Lab history.             |
 | `./localllm/server_config.json`  | Paths to llama.cpp binaries (shared with GUI).|
+| `./localllm/integrations/`       | Discord and WhatsApp bot profiles.            |
 | `./llama/bin/`                   | The llama.cpp binaries themselves.            |
 | `./sessions/`                    | Saved chat sessions from the GUI.             |
 
@@ -290,8 +312,9 @@ Anything you set up in one shows up in the other.
 Once you're comfortable:
 
 - Try `/system "You are a code reviewer."` and paste files with `@`.
-- Set a faster default model in `/load <path>` and `/save` your favorite
-  conversation as a starting template.
+- Try `/code-edit my_file.py -- add input validation` for structured edits.
+- Use `python -m nativelab --cli serve --port 8765` when testing Discord,
+  WhatsApp, or other external integrations.
 - Open `nativelab/cli/cli_guide.md` (this file) any time - it's bundled with
   the project so it travels with the code.
 

@@ -28,7 +28,7 @@ NativeLab is a desktop and terminal client for running large language models ent
 ```bash
 pip install nativelab
 nativelab            # GUI
-nativelab --cli      # terminal client (interactive setup → chat)
+nativelab --cli      # terminal control center (setup, chat, models, labs, integrations)
 ```
 
 ---
@@ -123,7 +123,7 @@ nativelab --cli      # terminal client (interactive setup → chat)
 ## ✨ Highlights
 
 - 🖥️  **Desktop GUI** - Chat, model library, visual pipeline builder, MCP, HuggingFace downloader, Labs, theming.
-- ⌨️  **Terminal CLI** - `nativelab --cli` opens an interactive setup wizard, downloads a model, and drops you straight into a chat REPL with `@file` embedding, slash commands, and built-in linting.
+- ⌨️  **Terminal CLI** - `nativelab --cli` opens a full terminal control center for chat, local/API models, skills, Labs, saved pipelines, integrations, endpoint serving, `@file` embedding, slash commands, and linting.
 - 🧪  **Labs** - A dedicated experimentation layer with a shared endpoint API. New lab features get engine status, model swap, context change, and LLM calls for free.
 - 🔌  **Integrations** - Local JSON endpoint, route browser, and saved Discord/WhatsApp bot connector profiles.
 - 🔗  **Visual Pipeline Builder** - 20 node types (model, transform, branch, loop, custom Python), live execution log, save/load.
@@ -132,7 +132,7 @@ nativelab --cli      # terminal client (interactive setup → chat)
 - 🧠  **Auto family detection** - 20+ model families recognised from filename; correct prompt template applied.
 - 📦  **HuggingFace downloader** - Search any GGUF repo and pull files without leaving the app.
 
-> See [docs/features.md](docs/features.md) for the full v0.3.0 changelog and [docs/architecture.md](docs/architecture.md) for the layered design.
+> See [changelog.txt](changelog.txt) for the latest release notes and [docs/architecture.md](docs/architecture.md) for the layered design.
 
 ---
 
@@ -145,7 +145,7 @@ The docs are split into short, focused files so you can jump straight to what yo
 | [docs/README.md](docs/README.md) | Documentation index with one-line summaries. |
 | [docs/installation.md](docs/installation.md) | Install, llama.cpp setup, first-time workspace. |
 | [docs/cli.md](docs/cli.md) | `nativelab --cli` - quick reference + link to the beginner guide. |
-| [docs/features.md](docs/features.md) | What's new in v0.3.0 + the full feature catalogue. |
+| [docs/features.md](docs/features.md) | Full feature catalogue; latest release notes are in `changelog.txt`. |
 | [docs/architecture.md](docs/architecture.md) | Layered architecture, project structure, data flow. |
 | [docs/labs.md](docs/labs.md) | The Labs experimentation layer + how to add a feature. |
 | [docs/integrations.md](docs/integrations.md) | Integration endpoint routes, local HTTP bridge, Discord and WhatsApp bot connectors. |
@@ -184,14 +184,14 @@ The CLI runs an interactive wizard the first time:
 1. Verifies `llama-server` / `llama-cli` are present (or guides you to install them).
 2. Lets you pick or download a GGUF model from HuggingFace.
 3. Asks for a context size with sensible defaults.
-4. Drops you into a chat REPL with `@file` embedding and slash commands.
+4. Opens the terminal control center with Chat, Models, API Models, Skills, Labs, Pipelines, Integrations, Status, and Setup.
 
 ```text
-you ▸ explain what @nativelab/labs/endpoints.py does
-bot ▸ It's the shared surface every Labs panel uses to talk to engines…
-you ▸ /lint nativelab/cli/chat.py
-✓  [pyflakes]  nativelab/cli/chat.py - clean
-you ▸ /quit
+nativelab --cli models list
+nativelab --cli api-models list
+nativelab --cli skills chat-on
+nativelab --cli endpoint /snapshot --json
+nativelab --cli chat
 ```
 
 Full beginner walkthrough: [nativelab/cli/cli_guide.md](nativelab/cli/cli_guide.md).

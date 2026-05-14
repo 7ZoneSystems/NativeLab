@@ -7,9 +7,19 @@ Built-ins
 ---------
   /help            list commands
   /status          show backend, model, ctx, server port
+  /models          list registered local models
+  /api-models      list saved API model profiles
   /load <path>     load a different GGUF model
   /unload          unload the current local model
   /ctx <n>         change context size and reload
+  /skills on|off|list
+  /pipelines       list saved pipelines
+  /pipeline <name> show a saved pipeline
+  /labs            list Labs routes
+  /py-to-doc ...   run Python documentation lab
+  /code-edit ...   run structured code edit lab
+  /endpoint <path> inspect integration endpoint route
+  /serve [port]    serve the integration endpoint
   /system <text>   set / replace the system prompt
   /reset           clear conversation history
   /lint <file>     run a linter on a file (pyflakes/flake8/pylint)
@@ -25,13 +35,14 @@ from __future__ import annotations
 
 import json
 import re
+import shlex
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from nativelab.core.engine_global import LlamaEngine, ApiEngine
-from nativelab.labs import LabEndpoints
+from nativelab.labs.endpoints import LabEndpoints
 from nativelab.Model.model_global import (
     api_model_ref,
     getapi_registry,
@@ -39,7 +50,10 @@ from nativelab.Model.model_global import (
 )
 
 from . import lint as _lint
+from . import features
+from . import onboarding
 from . import ui
+from .runtime import CliRuntime
 
 
 _FILE_REF_RE = re.compile(r"@([^\s'\"()]+)")
@@ -186,8 +200,10 @@ def _expand_file_refs(text: str, cwd: Path) -> str:
 class ChatREPL:
     def __init__(self, endpoints: LabEndpoints,
                  system_prompt: str = "",
-                 cwd: Optional[Path] = None):
+                 cwd: Optional[Path] = None,
+                 runtime: Optional[CliRuntime] = None):
         self.endpoints = endpoints
+        self.runtime = runtime
         self.system    = system_prompt
         self.history: List[dict] = []
         self.cwd = cwd or Path.cwd()
@@ -227,13 +243,36 @@ class ChatREPL:
             self._cmd_help()
         elif cmd == "/status":
             self._cmd_status()
+        elif cmd == "/models":
+            features.list_models()
+        elif cmd == "/api-models":
+            features.list_api_models()
         elif cmd == "/load":
             self._cmd_load(rest)
         elif cmd == "/unload":
-            self.endpoints.request_unload()
+            if self.runtime:
+                self.runtime.unload()
+            else:
+                self.endpoints.request_unload()
             ui.ok("Engine unloaded.")
         elif cmd == "/ctx":
             self._cmd_ctx(rest)
+        elif cmd == "/skills":
+            self._cmd_skills(rest)
+        elif cmd == "/pipelines":
+            features.pipeline_list()
+        elif cmd == "/pipeline":
+            self._cmd_pipeline(rest)
+        elif cmd == "/labs":
+            features.endpoint_show("/labs", runtime=self.runtime)
+        elif cmd == "/py-to-doc":
+            self._cmd_py_to_doc(rest)
+        elif cmd == "/code-edit":
+            self._cmd_code_edit(rest)
+        elif cmd == "/endpoint":
+            features.endpoint_show(rest or "/snapshot", runtime=self.runtime)
+        elif cmd == "/serve":
+            self._cmd_serve(rest)
         elif cmd == "/system":
             self.system = rest
             ui.ok(f"System prompt set ({len(rest)} chars).")
@@ -252,9 +291,19 @@ class ChatREPL:
         print(ui.bold("Commands"))
         for k, v in [
             ("/status",        "current backend, model, ctx, server port"),
+            ("/models",        "list registered local models"),
+            ("/api-models",    "list saved API model profiles"),
             ("/load <path|@api/name>", "load a GGUF model or saved API config"),
             ("/unload",        "unload the current model"),
             ("/ctx <n>",       "change context size and reload"),
+            ("/skills on|off|list", "toggle/list shared skill injection"),
+            ("/pipelines",     "list saved visual pipelines"),
+            ("/pipeline <name>", "show a saved pipeline"),
+            ("/labs",          "list Labs endpoint routes"),
+            ("/py-to-doc <file>|project <dir>", "run py-to-doc from chat"),
+            ("/code-edit [file] -- <request>", "run structured code edit"),
+            ("/endpoint <route>", "inspect integration endpoint route"),
+            ("/serve [port]",  "serve integration endpoint until Ctrl+C"),
             ("/system <text>", "set the system prompt"),
             ("/reset",         "clear conversation history"),
             ("/lint <file>",   "run a linter on a file"),
@@ -271,12 +320,14 @@ class ChatREPL:
         print(ui.bold("Status"))
         for k, v in s.items():
             print(f"  {k:<12} {v}")
+        if self.runtime:
+            print(f"  {'skills':<12} {'on' if self.runtime.skills_enabled else 'off'}")
 
     def _cmd_load(self, rest: str) -> None:
         if not rest:
-            ui.warn("Usage: /load <path-to-gguf>")
+            ui.warn("Usage: /load <path-to-gguf|@api/name>")
             return
-        ok = self.endpoints.request_load_model(rest)
+        ok = self.runtime.load_model(rest) if self.runtime else self.endpoints.request_load_model(rest)
         ui.ok(f"Loaded {rest}") if ok else ui.err("Load failed.")
 
     def _cmd_ctx(self, rest: str) -> None:
@@ -285,8 +336,86 @@ class ChatREPL:
         except ValueError:
             ui.warn("Usage: /ctx <n>")
             return
-        ok = self.endpoints.request_context(n)
+        ok = self.runtime.set_context(n) if self.runtime else self.endpoints.request_context(n)
         ui.ok(f"Context now {n}") if ok else ui.err("Context change failed.")
+
+    def _cmd_skills(self, rest: str) -> None:
+        action = (rest or "list").strip().lower()
+        if action in {"list", "ls", ""}:
+            features.list_skills()
+        elif action in {"on", "enable", "enabled"}:
+            features.set_chat_skills(self.runtime, True)
+        elif action in {"off", "disable", "disabled"}:
+            features.set_chat_skills(self.runtime, False)
+        else:
+            ui.warn("Usage: /skills on|off|list")
+
+    def _cmd_pipeline(self, rest: str) -> None:
+        if not rest:
+            ui.warn("Usage: /pipeline <name>")
+            return
+        parts = shlex.split(rest)
+        if parts and parts[0] == "run":
+            if len(parts) < 2:
+                ui.warn("Usage: /pipeline run <name> [input text]")
+                return
+            name = parts[1]
+            text = " ".join(parts[2:]) or ui.ask("Pipeline input")
+            if self.runtime:
+                features.pipeline_run(self.runtime, name, text)
+            else:
+                ui.err("Pipeline execution requires the shared CLI runtime.")
+            return
+        features.pipeline_show(rest)
+
+    def _cmd_py_to_doc(self, rest: str) -> None:
+        if not self.runtime:
+            ui.err("py-to-doc requires the shared CLI runtime.")
+            return
+        parts = shlex.split(rest)
+        if not parts:
+            ui.warn("Usage: /py-to-doc <file.py> [...] or /py-to-doc project <dir>")
+            return
+        if parts[0] == "project":
+            if len(parts) < 2:
+                ui.warn("Usage: /py-to-doc project <dir>")
+                return
+            features.py_to_doc(self.runtime, mode="project", files=[], project=parts[1],
+                               out_dir="./docs/generated", out_name="README.md")
+            return
+        mode = "queue" if len(parts) > 1 else "single"
+        features.py_to_doc(self.runtime, mode=mode, files=parts, project="",
+                           out_dir="./docs/generated", out_name="README.md")
+
+    def _cmd_code_edit(self, rest: str) -> None:
+        if not self.runtime:
+            ui.err("code-edit requires the shared CLI runtime.")
+            return
+        file_path = ""
+        prompt = rest.strip()
+        if " -- " in rest:
+            file_path, prompt = [part.strip() for part in rest.split(" -- ", 1)]
+        else:
+            parts = shlex.split(rest)
+            if parts and Path(parts[0]).expanduser().exists():
+                file_path = parts[0]
+                prompt = " ".join(parts[1:])
+        if not prompt:
+            prompt = ui.ask("Structured edit request")
+        features.code_edit(self.runtime, file_path=file_path, prompt=prompt)
+
+    def _cmd_serve(self, rest: str) -> None:
+        if not self.runtime:
+            ui.err("serve requires the shared CLI runtime.")
+            return
+        port = 8765
+        if rest.strip():
+            try:
+                port = int(rest.strip())
+            except ValueError:
+                ui.warn("Usage: /serve [port]")
+                return
+        features.serve_endpoint(self.runtime, port=port)
 
     def _cmd_lint(self, rest: str) -> None:
         if not rest:
@@ -346,6 +475,11 @@ def run(model_path: str = "", ctx: int = 0,
     if ctx <= 0:
         ctx = DEFAULT_CTX()
 
-    endpoints = _build_endpoints(model_path, ctx)
-    repl      = ChatREPL(endpoints, system_prompt=system_prompt)
+    prefs = onboarding.load_prefs()
+    runtime = CliRuntime(model_path, ctx, skills_enabled=bool(prefs.get("skills_enabled", False)))
+    return run_with_runtime(runtime, system_prompt=system_prompt)
+
+
+def run_with_runtime(runtime: CliRuntime, system_prompt: str = "") -> int:
+    repl = ChatREPL(runtime.endpoints, system_prompt=system_prompt, runtime=runtime)
     return repl.run()

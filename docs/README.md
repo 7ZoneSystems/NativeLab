@@ -25,7 +25,7 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 
 | Page | Topic |
 |---|---|
-| [features.md](features.md) | Full feature catalogue + v0.3.0 changelog. |
+| [features.md](features.md) | Full feature catalogue. Latest release notes live in `changelog.txt`. |
 | [architecture.md](architecture.md) | Layered design, engine layer, project structure. |
 | [labs.md](labs.md) | The Labs experimentation layer + how to add a feature. |
 | [integrations.md](integrations.md) | External endpoint routes, local HTTP bridge, and Discord/WhatsApp bot connectors. |

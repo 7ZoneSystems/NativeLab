@@ -11,8 +11,18 @@ v0.3.1
 9) Moved detailed Code Edit diffs into per-message chat cards so users can inspect changes for every prompt in the conversation.
 10) Fixed Dev tab and Dev sub-tab heading colors so they update correctly when switching dark/light themes.
 11) Added independent scrolling to the Code Edit file sidebar so diagnostics, structure, logs, and the editor do not overlap on small screens.
+12) Upgraded `nativelab --cli` into a terminal control center with Chat, Models, API Models, Skills, Labs, Pipelines, Integrations, Status, Setup, and Quit.
+13) Added shared CLI runtime wiring so chat, Labs, pipelines, endpoint serving, integrations, local GGUF models, API models, and skill injection use the same backend surface.
+14) Added CLI commands for models, api-models, skills, labs, pipeline, integrations, endpoint, and serve, with `--json` on inspect/list/show flows.
+15) Expanded CLI chat slash commands with `/models`, `/api-models`, `/skills`, `/pipelines`, `/pipeline`, `/labs`, `/py-to-doc`, `/code-edit`, `/endpoint`, and `/serve`.
+16) Added CLI model/API management for listing, loading, and setting defaults in `localllm/cli_prefs.json`.
+17) Added CLI skill create/edit/delete/enable/disable controls and a saved chat skill toggle.
+18) Added CLI Labs support for py-to-doc single/queue/project modes and temp-backed structured code-edit sessions with terminal diffs, save/save-as, and optional editable model JSON responses.
+19) Added CLI saved pipeline list/show/run support and foreground integration endpoint serving.
+20) Added CLI Discord/WhatsApp profile list/show/create/edit/delete/run commands with redacted secret display.
+21) Refreshed CLI docs, beginner guide, README CLI section, and CLI smoke paths for clone/package usage.
 
-v0.3.0 
+v0.3.1 
 1) Added que management for py to doc [labs feature]
 2) Blackbox api key issue solved with log handler 
 3) Fixed issue where api models didnt came as seperate models nd glitched wiyh local models
