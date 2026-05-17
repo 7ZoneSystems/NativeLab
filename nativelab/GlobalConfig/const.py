@@ -1,6 +1,7 @@
 from nativelab.imports.import_global import _sys
 from pathlib import Path
 from .hardwareUtil import cpu_count
+from .timeouts import LONG_TIMEOUT_MS, LONG_TIMEOUT_NONE, LONG_TIMEOUT_SECONDS
 _sys.path.append(str(Path(__file__).resolve().parents[1]))
 # ── Reference system constants ────────────────────────────────────────────────
 REFS_DIR          = Path("chat_refs")
@@ -8,6 +9,7 @@ REF_CACHE_DIR     = Path("ref_cache")
 REF_INDEX_DIR     = Path("ref_index")
 PAUSED_JOBS_DIR   = Path("paused_jobs")
 APP_CONFIG_FILE   = Path("app_config.json")
+MAX_CONTEXT_TOKENS = 300000
 REFS_DIR.mkdir(parents=True, exist_ok=True)
 REF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 REF_INDEX_DIR.mkdir(parents=True, exist_ok=True)
@@ -32,8 +34,9 @@ APP_CONFIG_DEFAULTS = {
     "default_n_predict":      512,
     "tps_display":            True,
     "auto_spill_on_start":    False,
-    "stream_socket_timeout":  32000,   # seconds before a silent read errors
-    "stream_stall_timeout":   32000,    # seconds of no tokens before giving up  
+    "server_startup_timeout": LONG_TIMEOUT_SECONDS,
+    "stream_socket_timeout":  LONG_TIMEOUT_SECONDS,   # seconds before a silent read errors
+    "stream_stall_timeout":   LONG_TIMEOUT_SECONDS,   # seconds of no tokens before giving up
     "stream_max_buf_bytes":   65536, # max line buffer size
 }
 # ─── Config descriptions ──────────────────────────────────────────────────────
@@ -168,7 +171,7 @@ CONFIG_FIELD_META = {
             "Each 4096 additional tokens uses ~0.5 GB extra RAM. "
             "Recommended: 2048–8192 for most systems."
         ),
-        "min": 512, "max": 32768, "type": "int",
+        "min": 512, "max": MAX_CONTEXT_TOKENS, "type": "int",
     },
     "default_n_predict": {
         "label": "Default Max New Tokens",

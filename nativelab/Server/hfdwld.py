@@ -1,5 +1,6 @@
 # hfwld.py - HuggingFace GGUF download workers
 from nativelab.imports.import_global import QThread, pyqtSignal, Path
+from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 import threading
 
 
@@ -17,7 +18,7 @@ class HfSearchWorker(QThread):
         url = f"https://huggingface.co/api/models/{self._repo}"
         try:
             req = _ur.Request(url, headers={"User-Agent": "NativeLabPro/2"})
-            with _ur.urlopen(req, timeout=15) as r:
+            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
                 data = _j.loads(r.read())
             siblings = data.get("siblings", [])
             gguf = [s for s in siblings
@@ -135,7 +136,7 @@ class HfDownloadWorker(QThread):
         import urllib.request as _ur
         req = _ur.Request(url, headers={"User-Agent": "NativeLabPro/2"},
                           method="HEAD")
-        with _ur.urlopen(req, timeout=30) as r:
+        with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
             return r.url
 
     def _part_path(self, dest: Path) -> Path:
@@ -152,7 +153,7 @@ class HfDownloadWorker(QThread):
             headers["Range"] = f"bytes={resume_from}-"
 
         req = _ur.Request(final_url, headers=headers)
-        with _ur.urlopen(req, timeout=60) as r:
+        with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
             cl = r.headers.get("Content-Length")
 
             if resume_from and r.status == 206:   # server honoured Range
@@ -195,7 +196,7 @@ class LlamaCppReleaseFetcher(QThread):
         try:
             req = _ur.Request(url, headers={"User-Agent": "NativeLabPro/2",
                                             "Accept": "application/vnd.github+json"})
-            with _ur.urlopen(req, timeout=15) as r:
+            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
                 releases = _j.loads(r.read())
 
             sys_name = _pl.system().lower()
@@ -263,7 +264,7 @@ class LlamaCppDownloadWorker(QThread):
             # Download
             self.status.emit(f"Downloading {self._filename}…")
             req = _ur.Request(self._url, headers={"User-Agent": "NativeLabPro/2"})
-            with _ur.urlopen(req, timeout=60) as r:
+            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
                 total = self._expected_size or int(r.headers.get("Content-Length") or 0)
                 done  = 0
                 with open(archive, "wb") as f:

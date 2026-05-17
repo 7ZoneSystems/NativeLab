@@ -21,8 +21,15 @@ v0.3.1
 19) Added CLI saved pipeline list/show/run support and foreground integration endpoint serving.
 20) Added CLI Discord/WhatsApp profile list/show/create/edit/delete/run commands with redacted secret display.
 21) Refreshed CLI docs, beginner guide, README CLI section, and CLI smoke paths for clone/package usage.
+22) Enhanced py-to-doc project mode with recursive .gitignore-aware Python discovery and pre-created mirrored output directory structure.
+23) Fixed py-to-doc class method discovery to document every direct class method, repair incomplete completed checkpoints, and added explicit project resume controls in GUI and CLI.
+24) Expanded explicit server, model-loading, inference, labs, pipeline, download, subprocess, and integration bot timeouts to 24 hours.
+25) Added py-to-doc context policies with no-reset, fixed-reset, and auto budget reset modes plus GUI and CLI controls.
+26) Synced py-to-doc auto context budgets with local llama.cpp reloads and raised app context caps to 300k tokens.
+27) Added a py-to-doc saved project task card that lists checkpoints and resumes selected jobs automatically.
+28) Added endpoint-level context-exceeded errors and py-to-doc same-section retry after clearing/reloading context.
 
-v0.3.1 
+v0.3.0
 1) Added que management for py to doc [labs feature]
 2) Blackbox api key issue solved with log handler 
 3) Fixed issue where api models didnt came as seperate models nd glitched wiyh local models

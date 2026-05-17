@@ -1,6 +1,7 @@
 from nativelab.core.engines.llamaengine import LlamaEngine
 from nativelab.imports.import_global import QThread,Path, pyqtSignal, List, Dict, time, Optional, json, HAS_PDF
 from nativelab.Model.model_global import detect_model_family, get_model_registry, is_api_model_ref
+from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 from .blck_typ import PipelineConnection, PipelineBlockType
 from .pipblck import PipelineBlock
 class PipelineExecutionWorker(QThread):
@@ -676,7 +677,7 @@ class PipelineExecutionWorker(QThread):
         tokens: List[str] = []
         try:
             conn_h = http.client.HTTPConnection(
-                "127.0.0.1", eng.server_port, timeout=600)
+                "127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_SECONDS)
             body = json.dumps({
                 "prompt": prompt, "n_predict": cfg.n_predict,
                 "stream": True, "temperature": cfg.temperature,
@@ -763,7 +764,7 @@ class PipelineExecutionWorker(QThread):
 
         import http.client as _hc
         try:
-            ch = _hc.HTTPConnection("127.0.0.1", eng.server_port, timeout=120)
+            ch = _hc.HTTPConnection("127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_SECONDS)
             body = json.dumps({
                 "prompt":        prompt,
                 "n_predict":     max_tokens,
@@ -849,7 +850,7 @@ class PipelineExecutionWorker(QThread):
                         "anthropic-version": "2023-06-01",
                     },
                 )
-                with urllib.request.urlopen(req, timeout=900) as r:
+                with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
                     d = json.loads(r.read().decode("utf-8", errors="replace"))
                 content = d.get("content") or []
                 text = "".join(c.get("text", "") for c in content if isinstance(c, dict))
@@ -873,7 +874,7 @@ class PipelineExecutionWorker(QThread):
                         "Authorization": f"Bearer {cfg.api_key}",
                     },
                 )
-                with urllib.request.urlopen(req, timeout=900) as r:
+                with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
                     d = json.loads(r.read().decode("utf-8", errors="replace"))
                 choices = d.get("choices") or []
                 text = choices[0].get("message", {}).get("content", "") if choices else ""
@@ -1009,7 +1010,7 @@ class PipelineExecutionWorker(QThread):
                 import http.client
                 try:
                     ch = http.client.HTTPConnection(
-                        "127.0.0.1", eng.server_port, timeout=300)
+                        "127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_SECONDS)
                     ch.request("POST", "/completion",
                                json.dumps({"prompt": prompt, "n_predict": 400,
                                            "stream": False, "temperature": 0.3,

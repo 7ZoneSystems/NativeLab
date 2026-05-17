@@ -1,7 +1,7 @@
 from nativelab.imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime, json
 from nativelab.components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
 from nativelab.Model.model_global import MODE_SECTION_INSTRUCTIONS, MODE_FINAL_INSTRUCTIONS
-from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS, APP_CONFIG, simple_hash
+from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS, APP_CONFIG, simple_hash, LONG_TIMEOUT_SECONDS
 
 class ChunkedSummaryWorker(QThread):
     section_done  = pyqtSignal(int, int, str, str)
@@ -166,11 +166,9 @@ class ChunkedSummaryWorker(QThread):
         if not port:
             port = active_eng.server_port
 
-        # Fix: dynamic timeout scaled to prompt size
-        dynamic_timeout = min(120 + len(prompt) // 100, 900)
-
+        # Long timeout keeps large local inference jobs from being cut off.
         try:
-            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=dynamic_timeout)
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=LONG_TIMEOUT_SECONDS)
             body = json.dumps({
                 "prompt": prompt, "n_predict": n_predict,
                 "stream": False, "temperature": 0.3, "top_p": 0.9,
@@ -193,8 +191,6 @@ class ChunkedSummaryWorker(QThread):
         if not ctx: ctx = DEFAULT_CTX
         if not model_path: model_path = self.engine.model_path
 
-        dynamic_timeout = min(120 + len(prompt) // 100, 900)
-
         for attempt in range(2):
             try:
                 result = subprocess.run(
@@ -203,7 +199,7 @@ class ChunkedSummaryWorker(QThread):
                     "--no-display-prompt", "--no-escape",
                     "--temp", "0.3", "--repeat-penalty", "1.15", "-p", prompt],
                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                    stdin=subprocess.DEVNULL, timeout=dynamic_timeout,
+                    stdin=subprocess.DEVNULL, timeout=LONG_TIMEOUT_SECONDS,
                 )
                 return result.stdout.decode("utf-8", errors="replace")
             except subprocess.TimeoutExpired:

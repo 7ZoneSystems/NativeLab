@@ -12,6 +12,8 @@ import urllib.request
 from pathlib import Path
 from typing import List, Optional
 
+from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_SECONDS
+
 from . import ui
 
 
@@ -27,7 +29,7 @@ def list_repo_ggufs(repo_id: str) -> List[dict]:
     repo_id = repo_id.strip().strip("/")
     url = f"https://huggingface.co/api/models/{repo_id}"
     req = urllib.request.Request(url, headers=_HEADERS)
-    with urllib.request.urlopen(req, timeout=20) as r:
+    with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
         data = json.loads(r.read().decode("utf-8", errors="replace"))
 
     siblings = data.get("siblings") or []
@@ -84,7 +86,7 @@ def download_gguf(repo_id: str, filename: str, dest_dir: Path,
     url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
     try:
         head_req = urllib.request.Request(url, headers=_HEADERS, method="HEAD")
-        with urllib.request.urlopen(head_req, timeout=30) as r:
+        with urllib.request.urlopen(head_req, timeout=LONG_TIMEOUT_SECONDS) as r:
             url = r.url
     except Exception:
         pass  # use the original URL - the next request will follow redirects
@@ -98,7 +100,7 @@ def download_gguf(repo_id: str, filename: str, dest_dir: Path,
             headers["Range"] = f"bytes={resume_from}-"
         req = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
                 cl = r.headers.get("Content-Length")
                 if resume_from and r.status == 206:
                     total = resume_from + (int(cl) if cl else 0)

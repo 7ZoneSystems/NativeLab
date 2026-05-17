@@ -1,6 +1,6 @@
 from nativelab.imports.import_global import Optional, List, Dict, json, QThread
 from nativelab.core.streamer_global import ApiStreamWorker
-from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED
+from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED, LONG_TIMEOUT_SECONDS
 from nativelab.Model.model_global import ApiConfig, api_model_ref
 class ApiEngine:
     def __init__(self):
@@ -39,7 +39,7 @@ class ApiEngine:
                     f"{config.base_url.rstrip('/')}/chat/completions", data=body,
                     headers={"Content-Type": "application/json",
                              "Authorization": f"Bearer {config.api_key}"})
-            with urllib.request.urlopen(req, timeout=15) as r:
+            with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
                 r.read()
             self.mode = "api"
             print(f"[APIENGINE][INFO] API model verified: {config.model_id}", flush=True)

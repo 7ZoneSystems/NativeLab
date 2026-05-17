@@ -81,6 +81,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_doc.add_argument("--project", default="")
     p_doc.add_argument("--out-dir", default="./docs/generated")
     p_doc.add_argument("--out-name", default="README.md")
+    p_doc.add_argument("--resume", action="store_true")
+    p_doc.add_argument("--context-policy", choices=["none", "fixed", "auto"], default="none")
+    p_doc.add_argument("--reset-per-function", action="store_true")
+    p_doc.add_argument("--no-reset-per-function", action="store_false", dest="reset_per_function")
+    p_doc.add_argument("--reset-per-class", action="store_true")
+    p_doc.add_argument("--context-budget", type=int, default=4096)
 
     p_pipe = sub.add_parser("pipeline", help="list/show/run saved pipelines")
     p_pipe.add_argument("action", nargs="?", default="list", choices=["list", "show", "run"])
@@ -241,7 +247,19 @@ def _cmd_labs(args) -> int:
             diff=not args.no_diff,
         )
     if args.lab_cmd == "py-to-doc":
-        return features.py_to_doc(rt, mode=args.mode, files=args.file, project=args.project, out_dir=args.out_dir, out_name=args.out_name)
+        return features.py_to_doc(
+            rt,
+            mode=args.mode,
+            files=args.file,
+            project=args.project,
+            out_dir=args.out_dir,
+            out_name=args.out_name,
+            resume=args.resume,
+            context_policy=args.context_policy,
+            reset_per_function=args.reset_per_function,
+            reset_per_class=args.reset_per_class,
+            context_budget=args.context_budget,
+        )
     return 2
 
 
@@ -392,11 +410,39 @@ def _labs_menu(rt_factory) -> None:
         features.code_edit(rt_factory(), file_path=ui.ask("File path (blank for temp)"), prompt=ui.ask("Edit request"), save=ui.ask_yesno("Save to source?", False))
     elif choice == 1:
         mode = ["single", "queue", "project"][ui.choose("Mode", ["single", "queue", "project"], default=0)]
+        policy = ["fixed", "auto", "none"][ui.choose("Context policy", ["fixed reset", "auto budget", "no reset"], default=0)]
+        reset_fn = True
+        reset_cls = False
+        budget = 4096
+        if policy == "fixed":
+            reset_fn = ui.ask_yesno("Reset after each function?", True)
+            reset_cls = ui.ask_yesno("Reset after each class?", False)
+        elif policy == "auto":
+            try:
+                budget = int(ui.ask("Context budget tokens", "4096"))
+            except Exception:
+                budget = 4096
         if mode == "project":
-            features.py_to_doc(rt_factory(), mode=mode, files=[], project=ui.ask("Project root"), out_dir=ui.ask("Output dir", "./docs/generated"), out_name=ui.ask("Output name", "README.md"))
+            features.py_to_doc(
+                rt_factory(), mode=mode, files=[], project=ui.ask("Project root"),
+                out_dir=ui.ask("Output dir", "./docs/generated"),
+                out_name=ui.ask("Output name", "README.md"),
+                context_policy=policy,
+                reset_per_function=reset_fn,
+                reset_per_class=reset_cls,
+                context_budget=budget,
+            )
         else:
             files = ui.ask("Python file(s), comma-separated").split(",")
-            features.py_to_doc(rt_factory(), mode=mode, files=[f.strip() for f in files if f.strip()], project="", out_dir=ui.ask("Output dir", "./docs/generated"), out_name=ui.ask("Output name", "README.md"))
+            features.py_to_doc(
+                rt_factory(), mode=mode, files=[f.strip() for f in files if f.strip()],
+                project="", out_dir=ui.ask("Output dir", "./docs/generated"),
+                out_name=ui.ask("Output name", "README.md"),
+                context_policy=policy,
+                reset_per_function=reset_fn,
+                reset_per_class=reset_cls,
+                context_budget=budget,
+            )
 
 
 def _pipeline_menu(rt_factory) -> None:

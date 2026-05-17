@@ -27,6 +27,7 @@ from nativelab.integrations.whatsapp_connector import (
     load_whatsapp_bots,
     upsert_whatsapp_bot,
 )
+from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_MS
 from nativelab.skill import (
     active_skills,
     delete_skill,
@@ -445,7 +446,7 @@ def pipeline_run(runtime: CliRuntime, name: str, text: str) -> int:
     worker.pipeline_done.connect(done)
     worker.start()
     loop.exec()
-    worker.wait(1000)
+    worker.wait(LONG_TIMEOUT_MS)
     _ = app
     return int(result["code"])
 
@@ -563,21 +564,41 @@ def code_edit(
     return 0
 
 
-def py_to_doc(runtime: CliRuntime, *, mode: str, files: list[str], project: str, out_dir: str, out_name: str) -> int:
+def py_to_doc(
+    runtime: CliRuntime,
+    *,
+    mode: str,
+    files: list[str],
+    project: str,
+    out_dir: str,
+    out_name: str,
+    resume: bool = False,
+    context_policy: str = "none",
+    reset_per_function: bool = False,
+    reset_per_class: bool = False,
+    context_budget: int = 4096,
+) -> int:
     from PyQt6.QtCore import QCoreApplication, QEventLoop
     from nativelab.labs.pytodoc import (
         DEFAULT_CLASS_PROMPT,
         DEFAULT_FUNC_PROMPT,
         DEFAULT_OVERVIEW_PROMPT,
         PyToDocWorker,
+        AUTO_CONTEXT_DEFAULT,
+        AUTO_CONTEXT_MIN,
+        CONTEXT_POLICY_AUTO,
+        CONTEXT_POLICY_FIXED,
+        CONTEXT_POLICY_NONE,
+        discover_project_python_files,
+        mirror_project_directories,
     )
 
     if not runtime.endpoints.is_loaded:
         ui.err("Load a model/API profile before running py-to-doc.")
         return 1
     if mode == "project":
-        file_list = [str(p) for p in sorted(Path(project).expanduser().rglob("*.py"))]
         project_root = str(Path(project).expanduser())
+        file_list = discover_project_python_files(project_root)
     else:
         file_list = [str(Path(f).expanduser()) for f in files]
         project_root = None
@@ -585,6 +606,25 @@ def py_to_doc(runtime: CliRuntime, *, mode: str, files: list[str], project: str,
         ui.err("No Python files selected.")
         return 1
     Path(out_dir).mkdir(parents=True, exist_ok=True)
+    if context_policy not in {CONTEXT_POLICY_NONE, CONTEXT_POLICY_FIXED, CONTEXT_POLICY_AUTO}:
+        context_policy = CONTEXT_POLICY_FIXED
+    context_budget = max(AUTO_CONTEXT_MIN, int(context_budget or AUTO_CONTEXT_DEFAULT))
+    ui.info(f"Context policy: {context_policy}" + (f" (~{context_budget} tokens)" if context_policy == CONTEXT_POLICY_AUTO else ""))
+    if (
+        context_policy == CONTEXT_POLICY_AUTO
+        and runtime.llama
+        and runtime.llama.is_loaded
+        and not (runtime.api and runtime.api.is_loaded)
+        and int(getattr(runtime.llama, "ctx_value", 0) or 0) != context_budget
+    ):
+        ui.info(f"Reloading local model/server for py-to-doc context: {context_budget:,}")
+        if not runtime.endpoints.request_context(context_budget):
+            ui.err(f"Could not reload local model/server with context {context_budget:,}.")
+            return 1
+    if mode == "project":
+        mirrored = mirror_project_directories(project_root or "", out_dir)
+        ui.info(f"Project files selected: {len(file_list)}")
+        ui.info(f"Output directory structure prepared: {mirrored} directories")
     app = QCoreApplication.instance() or QCoreApplication([])
     loop = QEventLoop()
     result = {"code": 0}
@@ -593,14 +633,17 @@ def py_to_doc(runtime: CliRuntime, *, mode: str, files: list[str], project: str,
         out_path=out_dir,
         out_name=out_name,
         include_globals=True,
-        reset_per_function=False,
-        reset_per_class=False,
+        context_policy=context_policy,
+        fixed_reset_per_function=bool(reset_per_function),
+        fixed_reset_per_class=bool(reset_per_class),
+        auto_context_tokens=context_budget,
         prompt_overview=DEFAULT_OVERVIEW_PROMPT,
         prompt_class=DEFAULT_CLASS_PROMPT,
         prompt_function=DEFAULT_FUNC_PROMPT,
         endpoints=runtime.endpoints,
         file_list=file_list if mode in {"queue", "project"} else None,
         project_root=project_root,
+        resume_required=bool(resume),
     )
     worker.log_msg.connect(lambda msg: print(ui.dim(msg)))
     worker.chunk.connect(lambda text: (sys.stdout.write(text), sys.stdout.flush()))
@@ -609,7 +652,7 @@ def py_to_doc(runtime: CliRuntime, *, mode: str, files: list[str], project: str,
     worker.done.connect(lambda: (ui.ok("py-to-doc complete."), loop.quit()))
     worker.start()
     loop.exec()
-    worker.wait(1000)
+    worker.wait(LONG_TIMEOUT_MS)
     _ = app
     return int(result["code"])
 

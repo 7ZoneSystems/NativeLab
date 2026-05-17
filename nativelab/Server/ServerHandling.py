@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import HAS_PSUTIL, json, psutil, socket, _platform, subprocess, Path, dataclass, field, datetime, List
-from nativelab.GlobalConfig.config_global import SERVER_CONFIG_FILE, SESSIONS_DIR
+from nativelab.GlobalConfig.config_global import SERVER_CONFIG_FILE, SESSIONS_DIR, LONG_TIMEOUT_SECONDS
 from nativelab.Model.model_global import detect_model_family, FAMILY_TEMPLATES, ModelFamily
 
 @dataclass
@@ -73,7 +73,7 @@ def detect_gpus() -> list:
         out = subprocess.check_output(
             ["nvidia-smi", "--query-gpu=name,memory.total",
              "--format=csv,noheader,nounits"],
-            timeout=20, stderr=subprocess.DEVNULL).decode().strip()
+            timeout=LONG_TIMEOUT_SECONDS, stderr=subprocess.DEVNULL).decode().strip()
         for i, line in enumerate(out.splitlines()):
             parts = [p.strip() for p in line.split(",")]
             vram  = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else 0
@@ -86,7 +86,7 @@ def detect_gpus() -> list:
         try:
             out = subprocess.check_output(
                 ["system_profiler", "SPDisplaysDataType"],
-                timeout=6, stderr=subprocess.DEVNULL).decode()
+                timeout=LONG_TIMEOUT_SECONDS, stderr=subprocess.DEVNULL).decode()
             for line in out.splitlines():
                 stripped = line.strip()
                 if stripped.startswith("Chipset Model:") or stripped.startswith("Model:"):
@@ -104,7 +104,7 @@ def detect_gpus() -> list:
     if not gpus:
         try:
             out = subprocess.check_output(
-                ["vulkaninfo", "--summary"], timeout=20,
+                ["vulkaninfo", "--summary"], timeout=LONG_TIMEOUT_SECONDS,
                 stderr=subprocess.DEVNULL).decode()
             for line in out.splitlines():
                 if "deviceName" in line:

@@ -1,4 +1,5 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, json, time
+from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 class ApiStreamWorker(QThread):
     """Streams tokens from any OpenAI-compatible or Anthropic API endpoint."""
     token = pyqtSignal(str)
@@ -87,7 +88,7 @@ class ApiStreamWorker(QThread):
                     headers={"Content-Type": "application/json",
                              "x-api-key": self.api_key,
                              "anthropic-version": "2023-06-01"})
-                with urllib.request.urlopen(req, timeout=120) as resp:
+                with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as resp:
                     for raw in resp:
                         if self._abort: break
                         line = raw.decode("utf-8", errors="replace").strip()
@@ -112,7 +113,7 @@ class ApiStreamWorker(QThread):
                     f"{self.base_url}/chat/completions", data=body,
                     headers={"Content-Type": "application/json",
                              "Authorization": f"Bearer {self.api_key}"})
-                with urllib.request.urlopen(req, timeout=120) as resp:
+                with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as resp:
                     for raw in resp:
                         if self._abort: break
                         line = raw.decode("utf-8", errors="replace").strip()

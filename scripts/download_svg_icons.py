@@ -27,6 +27,8 @@ import urllib.request
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
+from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_SECONDS
+
 
 PACKAGE_NAME = "lucide-static"
 REGISTRY_URL = f"https://registry.npmjs.org/{PACKAGE_NAME}"
@@ -36,13 +38,13 @@ SVG_NAMESPACE = "http://www.w3.org/2000/svg"
 
 def _http_json(url: str) -> dict:
     request = urllib.request.Request(url, headers={"User-Agent": "NativeLab-icon-downloader"})
-    with urllib.request.urlopen(request, timeout=45) as response:
+    with urllib.request.urlopen(request, timeout=LONG_TIMEOUT_SECONDS) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def _http_bytes(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "NativeLab-icon-downloader"})
-    with urllib.request.urlopen(request, timeout=120) as response:
+    with urllib.request.urlopen(request, timeout=LONG_TIMEOUT_SECONDS) as response:
         return response.read()
 
 

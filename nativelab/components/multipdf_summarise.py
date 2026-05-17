@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import List, Tuple, Dict, Optional, Path, QThread, pyqtSignal, subprocess, time, datetime, json
-from nativelab.GlobalConfig.config_global import simple_hash, APP_CONFIG, REF_CACHE_DIR, LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX
+from nativelab.GlobalConfig.config_global import simple_hash, APP_CONFIG, REF_CACHE_DIR, LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_NONE
 from nativelab.GlobalConfig.hardwareUtil import RamWatchdog, get_ref_store
 from nativelab.Model.model_global import detect_model_family
 from .jobhandler import save_paused_job, load_paused_job, delete_paused_job
@@ -247,7 +247,7 @@ class MultiPdfSummaryWorker(QThread):
         t.start()
 
         try:
-            conn = http.client.HTTPConnection("127.0.0.1", eng.server_port, timeout=None)
+            conn = http.client.HTTPConnection("127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_NONE)
             body = json.dumps({
                 "prompt": prompt, "n_predict": n_predict, "stream": False,
                 "temperature": 0.3, "top_p": 0.9, "repeat_penalty": 1.15,
@@ -282,7 +282,7 @@ class MultiPdfSummaryWorker(QThread):
                 "-n", str(n_predict), "--no-display-prompt", "--no-escape",
                 "--temp", "0.3", "--repeat-penalty", "1.15", "-p", prompt],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL, timeout=None,
+                stdin=subprocess.DEVNULL, timeout=LONG_TIMEOUT_NONE,
             )
             return result.stdout.decode("utf-8", errors="replace")
         except Exception as e:

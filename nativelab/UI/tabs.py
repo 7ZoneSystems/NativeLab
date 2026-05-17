@@ -3,7 +3,7 @@ from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C,set_theme
 from .effects import fade_in
 from nativelab.core.engine_global import ApiConfig, ApiEngine
 from nativelab.Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
-from nativelab.GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths
+from nativelab.GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths, LONG_TIMEOUT_SECONDS
 from nativelab.components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
 from nativelab.Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchWorker, HfDownloadWorker, MCP_CONFIG_FILE
 from nativelab.Server.hfdwld import LlamaCppReleaseFetcher, LlamaCppDownloadWorker
@@ -1137,12 +1137,12 @@ class ServerTab(QWidget):
                 [path, "--version"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                timeout=8)
+                timeout=LONG_TIMEOUT_SECONDS)
             out = result.stdout.decode("utf-8", errors="replace").strip()
             self.test_output.setPlainText(
                 f"{Path(path).name} --version\n\n{out or '(no output)'}")
         except subprocess.TimeoutExpired:
-            self.test_output.setPlainText(f"Timed out after 8s:\n{path}")
+            self.test_output.setPlainText(f"Timed out after {LONG_TIMEOUT_SECONDS}s:\n{path}")
         except Exception as e:
             self.test_output.setPlainText(f"Error:\n{e}")
 
@@ -2002,7 +2002,7 @@ class McpTab(QWidget):
     def _stop_by_name(self, name: str):
         proc = self._procs.get(name)
         if proc:
-            try: proc.terminate(); proc.wait(3)
+            try: proc.terminate(); proc.wait(LONG_TIMEOUT_SECONDS)
             except Exception:
                 try: proc.kill()
                 except Exception: pass

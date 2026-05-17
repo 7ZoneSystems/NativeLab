@@ -36,6 +36,7 @@ from nativelab.integrations.whatsapp_connector import (
     command_catalog,
     get_whatsapp_bot,
 )
+from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_SECONDS
 
 
 PROFILE_NAME = os.getenv("WHATSAPP_BOT_PROFILE", "")
@@ -105,7 +106,7 @@ async def run_queued(factory: Callable[[], Awaitable[str]]) -> str:
 
 async def post_native(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     log(f"NativeLab POST {path}")
-    timeout = aiohttp.ClientTimeout(total=180)
+    timeout = aiohttp.ClientTimeout(total=LONG_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(f"{ENDPOINT_URL}{path}", json=payload) as response:
             data = await response.json(content_type=None)
@@ -116,7 +117,7 @@ async def post_native(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
 
 async def get_native(path: str) -> Dict[str, Any]:
     log(f"NativeLab GET {path}")
-    timeout = aiohttp.ClientTimeout(total=30)
+    timeout = aiohttp.ClientTimeout(total=LONG_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(f"{ENDPOINT_URL}{path}") as response:
             data = await response.json(content_type=None)
@@ -136,7 +137,7 @@ async def send_whatsapp(to: str, text: str):
         "text": {"preview_url": False, "body": clip(text)},
     }
     headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
-    timeout = aiohttp.ClientTimeout(total=60)
+    timeout = aiohttp.ClientTimeout(total=LONG_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(url, json=payload, headers=headers) as response:
             raw = await response.text()

@@ -1,6 +1,6 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, subprocess, time, json
 from nativelab.Model.model_global import detect_model_family
-from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX
+from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_SECONDS
 class PipelineWorker(QThread):
     """
     Multi-engine structural insight → coding pipeline.
@@ -176,9 +176,9 @@ class PipelineWorker(QThread):
         import socket
         fam = detect_model_family(getattr(eng, "model_path", ""))
         
-        # Dynamic connect timeout; streaming read gets its own per-chunk timeout
-        connect_timeout = min(120 + len(prompt) // 100, 600)
-        STREAM_READ_TIMEOUT = 60  # seconds to wait for next token before giving up
+        # Long connect timeout; streaming read gets its own per-chunk timeout.
+        connect_timeout = LONG_TIMEOUT_SECONDS
+        STREAM_READ_TIMEOUT = LONG_TIMEOUT_SECONDS  # seconds to wait for next token before giving up
 
         try:
             conn = http.client.HTTPConnection(
@@ -241,8 +241,8 @@ class PipelineWorker(QThread):
         import select
         import sys
 
-        dynamic_timeout = min(120 + len(prompt) // 100, 900)
-        TOKEN_STALL_TIMEOUT = 45  # seconds with no output before giving up
+        dynamic_timeout = LONG_TIMEOUT_SECONDS
+        TOKEN_STALL_TIMEOUT = LONG_TIMEOUT_SECONDS  # seconds with no output before giving up
 
         try:
             proc = subprocess.Popen(
@@ -280,13 +280,13 @@ class PipelineWorker(QThread):
                         token_cb(c)
 
             proc.terminate()
-            proc.wait(timeout=5)  # prevent zombie processes
+            proc.wait(timeout=LONG_TIMEOUT_SECONDS)  # prevent zombie processes
             return "".join(result)
         except Exception as e:
             self.err.emit(f"CLI inference error: {type(e).__name__}: {e}")
             try:
                 proc.kill()
-                proc.wait(timeout=3)
+                proc.wait(timeout=LONG_TIMEOUT_SECONDS)
             except Exception:
                 pass
             return None

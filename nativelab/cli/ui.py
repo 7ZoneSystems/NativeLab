@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Iterable, Optional
 
+from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_SECONDS
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Colors
@@ -110,7 +112,7 @@ def show_icon() -> None:
             subprocess.run(
                 ["kitten", "icat", "--align=left",
                  "--place=8x4@2x0", str(icon)],
-                check=False, timeout=5,
+                check=False, timeout=LONG_TIMEOUT_SECONDS,
             )
             return
         except Exception:

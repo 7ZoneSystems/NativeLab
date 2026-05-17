@@ -5,7 +5,8 @@ from nativelab.components.components_global import detect_model_family
 from nativelab.Model.model_global import detect_mmproj_for_model, detect_vision_model, get_model_registry
 from nativelab.core.streamer_global import ServerStreamWorker, CliStreamWorker
 from nativelab.GlobalConfig.config_global import (
-    DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, APP_CONFIG
+    DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, APP_CONFIG,
+    LONG_TIMEOUT_SECONDS,
 )
 import nativelab.GlobalConfig.binaryResolve as _binres
 from nativelab.Server.server_global import free_port, SERVER_CONFIG, PORT_RANGE_START, PORT_RANGE_END
@@ -165,11 +166,11 @@ class LlamaEngine:
                     proc.terminate()
             else:
                 proc.terminate()
-            proc.wait(timeout=5)
+            proc.wait(timeout=LONG_TIMEOUT_SECONDS)
         except Exception:
             pass
 
-    def _check_existing_server(self, port: int, timeout: float = 2.0) -> bool:
+    def _check_existing_server(self, port: int, timeout: float = LONG_TIMEOUT_SECONDS) -> bool:
         """Ping /health on the given port; return True if server is alive."""
         import http.client
         try:
@@ -188,7 +189,7 @@ class LlamaEngine:
             if not self._check_existing_server(test_port):
                 continue
             try:
-                conn = http.client.HTTPConnection("127.0.0.1", test_port, timeout=2)
+                conn = http.client.HTTPConnection("127.0.0.1", test_port, timeout=LONG_TIMEOUT_SECONDS)
                 conn.request("GET", "/props")
                 res   = conn.getresponse()
                 props = json.loads(res.read().decode("utf-8", errors="replace"))
@@ -252,7 +253,7 @@ class LlamaEngine:
             return False
 
         # ── 4. Poll until ready or timeout ──
-        max_wait   = int(APP_CONFIG.get("server_startup_timeout", 120))  # seconds, configurable
+        max_wait   = int(APP_CONFIG.get("server_startup_timeout", LONG_TIMEOUT_SECONDS))  # seconds, configurable
         poll_every = 0.5
         polls      = int(max_wait / poll_every)
 

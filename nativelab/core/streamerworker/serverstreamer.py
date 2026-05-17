@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, json, time, List, Optional
-from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED, APP_CONFIG
+from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED, APP_CONFIG, LONG_TIMEOUT_SECONDS
 
 class ServerStreamWorker(QThread):
     token = pyqtSignal(str)
@@ -25,8 +25,8 @@ class ServerStreamWorker(QThread):
         import http.client
 
         # Configurable timeouts
-        socket_timeout = int(APP_CONFIG.get("stream_socket_timeout", 32000))   # per-read stall limit
-        stall_timeout  = int(APP_CONFIG.get("stream_stall_timeout", 32000))     # no-token stall detection
+        socket_timeout = int(APP_CONFIG.get("stream_socket_timeout", LONG_TIMEOUT_SECONDS))   # per-read stall limit
+        stall_timeout  = int(APP_CONFIG.get("stream_stall_timeout", LONG_TIMEOUT_SECONDS))     # no-token stall detection
         max_buf        = int(APP_CONFIG.get("stream_max_buf_bytes", 65536))  # runaway buffer guard
 
         t0 = time.time()

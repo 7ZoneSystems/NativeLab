@@ -188,11 +188,11 @@ def run_wizard() -> Optional[dict]:
         ui.warn("Skipping model selection - chat will require API setup.")
         ctx = 4096
     else:
-        from nativelab.GlobalConfig.config_global import DEFAULT_CTX
+        from nativelab.GlobalConfig.config_global import DEFAULT_CTX, MAX_CONTEXT_TOKENS
         ctx = ui.ask_int(
             "Context size (tokens)",
             default=DEFAULT_CTX(),
-            lo=512, hi=131_072,
+            lo=512, hi=MAX_CONTEXT_TOKENS,
         )
 
     prefs = {"model_path": model_path or "", "ctx": int(ctx)}

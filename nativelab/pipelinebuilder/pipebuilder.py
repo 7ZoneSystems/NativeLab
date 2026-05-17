@@ -11,7 +11,7 @@ from nativelab.UI.icons import icon, set_button_icon, set_label_icon, set_status
 from .canvas import PipelineCanvas
 from .outrender import PipelineOutputRenderer
 from manual import make_manual_html, PIPELINE_MANUAL_HTML
-from nativelab.GlobalConfig.config_global import ROLE_ICONS, PIPELINES_DIR
+from nativelab.GlobalConfig.config_global import ROLE_ICONS, PIPELINES_DIR, LONG_TIMEOUT_MS
 class PipelineBuilderTab(QWidget):
     """
     Full-featured pipeline builder tab.
@@ -829,7 +829,7 @@ class PipelineBuilderTab(QWidget):
     def _stop_pipeline(self):
         if self._exec_worker:
             self._exec_worker.abort()
-            self._exec_worker.wait(2000)
+            self._exec_worker.wait(LONG_TIMEOUT_MS)
             self._exec_worker = None
         self._log("Stopped by user.")
         self.btn_run.setVisible(True)

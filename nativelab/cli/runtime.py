@@ -108,7 +108,8 @@ class CliRuntime:
         return bool(ok)
 
     def set_context(self, new_ctx: int, *, save: bool = True) -> bool:
-        self.ctx = int(new_ctx)
+        from nativelab.GlobalConfig.config_global import MAX_CONTEXT_TOKENS
+        self.ctx = max(512, min(MAX_CONTEXT_TOKENS, int(new_ctx)))
         if self.api and self.api.is_loaded:
             ui.warn("Context changes apply to local GGUF models; API context is configured in the API profile.")
             if save:

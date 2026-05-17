@@ -41,6 +41,8 @@ nativelab --cli labs code-edit [--file path] [--prompt text] [--save] [--save-as
 nativelab --cli labs py-to-doc --mode single --file path.py --out-dir docs/generated
 nativelab --cli labs py-to-doc --mode queue --file a.py --file b.py
 nativelab --cli labs py-to-doc --mode project --project ./src --out-dir docs/generated
+nativelab --cli labs py-to-doc --mode project --project ./src --out-dir docs/generated --resume
+nativelab --cli labs py-to-doc --mode project --project ./src --context-policy auto --context-budget 8192
 
 nativelab --cli pipeline list [--json]
 nativelab --cli pipeline show <name> [--json]
@@ -145,7 +147,18 @@ operations.
 
 `py-to-doc` supports single file, queue, and project modes. Project mode uses
 the GUI worker and its checkpoint/resume files under `localllm/temp`, so a
-restart can resume after previously completed files/functions.
+restart can resume after previously completed files/functions. Project mode
+recurses through subdirectories, skips project-root `.gitignore` matches, and
+pre-creates the same output directory structure before generation.
+Use `--resume` to require an existing matching checkpoint instead of starting a
+fresh project run.
+
+Context carry can be controlled with `--context-policy none|fixed|auto`.
+`auto` uses an approximate token budget (`--context-budget`) for py-to-doc's
+own carried chat history only. If a section crosses the budget, that section
+finishes and the next class/function/file starts with fresh py-to-doc context.
+For local GGUF models, auto mode reloads the local model/server with the
+selected budget so py-to-doc and llama.cpp use the same context window.
 
 ## Pipelines
 

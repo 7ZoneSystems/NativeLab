@@ -1,6 +1,7 @@
 from nativelab.imports.import_global import Path, json, Dict
 from .config import LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT
 from .const import APP_CONFIG_DEFAULTS, APP_CONFIG_FILE
+from .timeouts import LONG_TIMEOUT_SECONDS
 LLAMA_CLI    = LLAMA_CLI_DEFAULT
 LLAMA_SERVER = LLAMA_SERVER_DEFAULT
 def refresh_binary_paths():
@@ -22,6 +23,12 @@ def _load_app_config() -> Dict:
             cfg.update({k: v for k, v in saved.items() if k in cfg})
         except Exception:
             pass
+    for key in (
+        "server_startup_timeout",
+        "stream_socket_timeout",
+        "stream_stall_timeout",
+    ):
+        cfg[key] = LONG_TIMEOUT_SECONDS
     return cfg
 
 def save_app_config(cfg: Dict):

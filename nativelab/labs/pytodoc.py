@@ -9,21 +9,25 @@ identically against a local llama-server, llama-cli, or a remote API model.
 from __future__ import annotations
 
 import ast
+import fnmatch
 import hashlib
 import json
+import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 from nativelab.imports.import_global import (
     QThread, pyqtSignal,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QTextEdit, QFrame, QScrollArea, QCheckBox, QFileDialog, QMessageBox,
-    QFont, Qt,
+    QListWidget, QListWidgetItem,
+    QFont, Qt, QSlider,
 )
 from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
+from nativelab.GlobalConfig.const import MAX_CONTEXT_TOKENS
 
-from .endpoints import LabEndpoints
+from .endpoints import ContextWindowExceededError, LabEndpoints
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -47,6 +51,169 @@ DEFAULT_FUNC_PROMPT = (
 )
 
 PYTODOC_TEMP_STATE = Path("./localllm/temp")
+PYTODOC_JOBS_DIR = Path("./localllm/pytodoc_jobs")
+CONTEXT_POLICY_NONE = "none"
+CONTEXT_POLICY_FIXED = "fixed"
+CONTEXT_POLICY_AUTO = "auto"
+AUTO_CONTEXT_MIN = 512
+AUTO_CONTEXT_MAX = MAX_CONTEXT_TOKENS
+AUTO_CONTEXT_DEFAULT = 4096
+
+DEFAULT_PROJECT_IGNORE_DIRS = {
+    ".git",
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".tox",
+    ".nox",
+    ".venv",
+    "venv",
+    "env",
+    "node_modules",
+    "build",
+    "dist",
+    ".eggs",
+    ".cache",
+}
+
+
+class _GitignorePattern:
+    def __init__(self, pattern: str, *, negated: bool, anchored: bool, directory_only: bool):
+        self.pattern = pattern
+        self.negated = negated
+        self.anchored = anchored
+        self.directory_only = directory_only
+
+
+class _ProjectIgnoreMatcher:
+    """Small stdlib-only matcher for the project-root .gitignore subset we need."""
+
+    def __init__(self, project_root: Path):
+        self.root = project_root.resolve()
+        self.patterns = self._load_gitignore()
+
+    def is_ignored(self, path: Path, *, is_dir: bool) -> bool:
+        rel = self._rel(path)
+        if not rel:
+            return False
+        parts = rel.split("/")
+        if any(part in DEFAULT_PROJECT_IGNORE_DIRS for part in parts):
+            return True
+
+        ignored = False
+        for spec in self.patterns:
+            if self._matches(spec, rel, is_dir):
+                ignored = not spec.negated
+        return ignored
+
+    def _rel(self, path: Path) -> str:
+        try:
+            return path.resolve().relative_to(self.root).as_posix()
+        except Exception:
+            return ""
+
+    def _load_gitignore(self) -> list[_GitignorePattern]:
+        gitignore = self.root / ".gitignore"
+        if not gitignore.exists():
+            return []
+        patterns: list[_GitignorePattern] = []
+        for raw in gitignore.read_text(encoding="utf-8", errors="replace").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            negated = line.startswith("!")
+            if negated:
+                line = line[1:].strip()
+            if not line:
+                continue
+            anchored = line.startswith("/")
+            line = line.lstrip("/")
+            directory_only = line.endswith("/")
+            line = line.rstrip("/")
+            if line:
+                patterns.append(_GitignorePattern(
+                    line,
+                    negated=negated,
+                    anchored=anchored,
+                    directory_only=directory_only,
+                ))
+        return patterns
+
+    def _matches(self, spec: _GitignorePattern, rel: str, is_dir: bool) -> bool:
+        pattern = spec.pattern
+        if spec.directory_only:
+            if spec.anchored or "/" in pattern:
+                return rel == pattern or rel.startswith(pattern + "/")
+            return any(part == pattern or fnmatch.fnmatchcase(part, pattern) for part in rel.split("/"))
+
+        if spec.anchored or "/" in pattern:
+            return fnmatch.fnmatchcase(rel, pattern)
+        name = Path(rel).name
+        return fnmatch.fnmatchcase(name, pattern) or fnmatch.fnmatchcase(rel, pattern)
+
+
+def _walk_project(project_root: Union[str, Path], output_root: Optional[Union[str, Path]] = None):
+    root = Path(project_root).expanduser().resolve()
+    matcher = _ProjectIgnoreMatcher(root)
+    output_rel = None
+    if output_root:
+        try:
+            output_rel = Path(output_root).expanduser().resolve().relative_to(root).as_posix()
+        except Exception:
+            output_rel = None
+
+    def is_output_path(candidate: Path) -> bool:
+        if not output_rel:
+            return False
+        try:
+            rel = candidate.resolve().relative_to(root).as_posix()
+        except Exception:
+            return False
+        return rel == output_rel or rel.startswith(output_rel + "/")
+
+    for current, dirs, files in os.walk(root):
+        current_path = Path(current)
+
+        if is_output_path(current_path):
+            dirs[:] = []
+            continue
+
+        dirs[:] = sorted(
+            d for d in dirs
+            if not matcher.is_ignored(current_path / d, is_dir=True)
+            and not is_output_path(current_path / d)
+        )
+        yield current_path, dirs, sorted(files), matcher
+
+
+def discover_project_python_files(project_root: Union[str, Path]) -> list[str]:
+    """Return recursive Python files under project_root, filtered by project .gitignore."""
+    files: list[str] = []
+    for current_path, _, names, matcher in _walk_project(project_root):
+        for name in names:
+            path = current_path / name
+            if path.suffix == ".py" and not matcher.is_ignored(path, is_dir=False):
+                files.append(str(path))
+    return sorted(files)
+
+
+def mirror_project_directories(project_root: Union[str, Path], output_root: Union[str, Path]) -> int:
+    """Create a directory-only mirror of project_root inside output_root."""
+    root = Path(project_root).expanduser().resolve()
+    out = Path(output_root).expanduser().resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    created = 0
+    for current_path, dirs, _, _ in _walk_project(root, out):
+        for dirname in dirs:
+            src_dir = current_path / dirname
+            rel = src_dir.resolve().relative_to(root)
+            dst = out / rel
+            existed = dst.exists()
+            dst.mkdir(parents=True, exist_ok=True)
+            if not existed:
+                created += 1
+    return created
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -73,11 +240,11 @@ def parse_python_file(path: str) -> dict:
     for node in ast.iter_child_nodes(tree):
         if isinstance(node, ast.ClassDef):
             methods = [
-                {"name": m.name, "node": m}
-                for m in ast.walk(node)
-                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))
-                and m is not node
+                {"name": child.name, "node": child}
+                for child in node.body
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
             ]
+            methods.sort(key=lambda item: getattr(item["node"], "lineno", 0))
             classes.append({"name": node.name, "node": node, "methods": methods})
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             functions.append({"name": node.name, "node": node})
@@ -103,25 +270,36 @@ class PyToDocWorker(QThread):
         out_path:            str,
         out_name:            str,
         include_globals:     bool,
-        reset_per_function:  bool,
-        reset_per_class:     bool,
+        context_policy:      str,
+        fixed_reset_per_function: bool,
+        fixed_reset_per_class: bool,
+        auto_context_tokens: int,
         prompt_overview:     str,
         prompt_class:        str,
         prompt_function:     str,
         endpoints:           LabEndpoints,
         file_list:           Optional[List[str]] = None,
         project_root:        Optional[str] = None,
+        resume_required:     bool = False,
+        state_path:          Optional[str] = None,
         parent=None,
     ):
         super().__init__(parent)
         self.file_list    = file_list or []
         self.project_root = project_root
+        self.resume_required = resume_required
         self.file_path          = file_path
         self.out_path           = out_path
         self.out_name           = out_name
         self.include_globals    = include_globals
-        self.reset_per_function = reset_per_function
-        self.reset_per_class    = reset_per_class
+        self.context_policy     = context_policy if context_policy in {
+            CONTEXT_POLICY_NONE,
+            CONTEXT_POLICY_FIXED,
+            CONTEXT_POLICY_AUTO,
+        } else CONTEXT_POLICY_FIXED
+        self.reset_per_function = fixed_reset_per_function
+        self.reset_per_class    = fixed_reset_per_class
+        self.auto_context_tokens = max(AUTO_CONTEXT_MIN, int(auto_context_tokens or AUTO_CONTEXT_DEFAULT))
         self.prompt_overview    = prompt_overview or DEFAULT_OVERVIEW_PROMPT
         self.prompt_class       = prompt_class    or DEFAULT_CLASS_PROMPT
         self.prompt_function    = prompt_function or DEFAULT_FUNC_PROMPT
@@ -131,7 +309,10 @@ class PyToDocWorker(QThread):
         self._history: List[dict] = []
         self._state: Optional[dict[str, Any]] = None
         self._resuming = False
-        self._state_path = PYTODOC_TEMP_STATE
+        self._state_path = Path(state_path) if state_path else PYTODOC_TEMP_STATE
+        self._state_path_explicit = bool(state_path)
+        self._context_overflow_pending = False
+        self._budget_warned = False
 
     def abort(self):
         self._abort = True
@@ -151,19 +332,105 @@ class PyToDocWorker(QThread):
 
     def _reset_context(self):
         self._history.clear()
+        self._context_overflow_pending = False
+
+    @staticmethod
+    def _estimate_tokens_for_messages(messages: List[dict]) -> int:
+        chars = sum(len(str(m.get("content", ""))) for m in messages)
+        return max(0, (chars + 3) // 4)
+
+    def _history_token_estimate(self) -> int:
+        return self._estimate_tokens_for_messages(self._history)
+
+    def _effective_auto_context_budget(self) -> int:
+        budget = self.auto_context_tokens
+        try:
+            loaded_ctx = int(getattr(self.endpoints, "ctx_value", budget))
+        except Exception:
+            loaded_ctx = budget
+        if loaded_ctx > 0:
+            budget = min(budget, loaded_ctx)
+        return max(AUTO_CONTEXT_MIN, budget)
+
+    def _prepare_context_for_llm_call(self, upcoming_user_content: str):
+        if self.context_policy != CONTEXT_POLICY_AUTO:
+            return
+        budget = self._effective_auto_context_budget()
+        upcoming = self._estimate_tokens_for_messages([
+            {"role": "user", "content": upcoming_user_content}
+        ])
+        current = self._history_token_estimate()
+        combined = current + upcoming
+        if self._context_overflow_pending or combined >= budget:
+            if current:
+                self._log(
+                    "Auto context refresh: cleared carried py-to-doc history "
+                    f"before next section (~{combined:,}/{budget:,} tokens)"
+                )
+            self._reset_context()
+            if upcoming >= budget:
+                self._log(
+                    "Warning: current section alone is larger than the loaded "
+                    f"context (~{upcoming:,}/{budget:,} tokens); increase the "
+                    "loaded model context to avoid llama-server rejection"
+                )
+
+    def _update_context_budget_after_call(self):
+        if self.context_policy != CONTEXT_POLICY_AUTO:
+            return
+        budget = self._effective_auto_context_budget()
+        current = self._history_token_estimate()
+        if current >= budget:
+            self._context_overflow_pending = True
+            self._log(
+                "Auto context budget reached "
+                f"(~{current:,}/{budget:,} tokens); "
+                "next section will start with fresh py-to-doc context"
+            )
+
+    def _log_context_policy(self):
+        if self.context_policy == CONTEXT_POLICY_NONE:
+            self._log("Context policy: no reset")
+        elif self.context_policy == CONTEXT_POLICY_FIXED:
+            parts = []
+            if self.reset_per_function:
+                parts.append("function")
+            if self.reset_per_class:
+                parts.append("class")
+            self._log(f"Context policy: fixed reset ({', '.join(parts) or 'manual only'})")
+        else:
+            self._log(
+                f"Context policy: auto budget reset at ~{self.auto_context_tokens:,} tokens"
+            )
+            try:
+                loaded_ctx = int(getattr(self.endpoints, "ctx_value", AUTO_CONTEXT_DEFAULT))
+            except Exception:
+                loaded_ctx = AUTO_CONTEXT_DEFAULT
+            if self.auto_context_tokens > loaded_ctx and not self._budget_warned:
+                self._log(
+                    "Warning: auto budget is above loaded model context "
+                    f"({self.auto_context_tokens:,} > {loaded_ctx:,}); using "
+                    "loaded context as the reset threshold"
+                )
+                self._budget_warned = True
 
     def _project_enabled(self) -> bool:
         return bool(self.project_root and self.file_list)
 
-    def _settings_fingerprint(self) -> str:
-        payload = {
+    def _settings_payload(self) -> dict[str, Any]:
+        return {
             "include_globals": self.include_globals,
-            "reset_per_function": self.reset_per_function,
-            "reset_per_class": self.reset_per_class,
+            "context_policy": self.context_policy,
+            "fixed_reset_per_function": self.reset_per_function,
+            "fixed_reset_per_class": self.reset_per_class,
+            "auto_context_tokens": self.auto_context_tokens,
             "prompt_overview": self.prompt_overview,
             "prompt_class": self.prompt_class,
             "prompt_function": self.prompt_function,
         }
+
+    def _settings_fingerprint(self) -> str:
+        payload = self._settings_payload()
         raw = json.dumps(payload, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
@@ -175,18 +442,54 @@ class PyToDocWorker(QThread):
         }, sort_keys=True)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
+    def _job_state_path(self) -> Path:
+        return PYTODOC_JOBS_DIR / f"{self._project_key()}.json"
+
+    def _candidate_state_paths(self) -> list[Path]:
+        paths = [self._state_path]
+        if self._project_enabled():
+            paths.append(self._job_state_path())
+        paths.append(PYTODOC_TEMP_STATE)
+        out: list[Path] = []
+        seen: set[str] = set()
+        for path in paths:
+            key = str(path.resolve())
+            if key not in seen:
+                out.append(path)
+                seen.add(key)
+        return out
+
     def _load_project_state(self) -> Optional[dict[str, Any]]:
-        if not self._project_enabled() or not self._state_path.exists():
+        if not self._project_enabled():
             return None
-        try:
-            state = json.loads(self._state_path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            self._log(f"Recovery checkpoint ignored: could not read temp ({exc})")
-            return None
-        if state.get("feature") != "py_to_doc" or state.get("project_key") != self._project_key():
+        found_any = False
+        for path in self._candidate_state_paths():
+            if not path.exists():
+                continue
+            found_any = True
+            try:
+                state = json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                self._log(f"Recovery checkpoint ignored: could not read {path} ({exc})")
+                continue
+            if state.get("feature") != "py_to_doc":
+                continue
+            if state.get("project_key") == self._project_key():
+                self._state_path = path
+                return state
+            if (
+                self.resume_required
+                and self._state_path_explicit
+                and path.resolve() == self._state_path.resolve()
+                and str(Path(state.get("project_root", "")).resolve()) == str(Path(self.project_root or "").resolve())
+                and str(Path(state.get("out_path", "")).resolve()) == str(Path(self.out_path).resolve())
+            ):
+                self._log("Selected checkpoint loaded; settings metadata did not match current controls")
+                self._state_path = path
+                return state
+        if found_any:
             self._log("Recovery checkpoint ignored: project, output folder, or settings changed")
-            return None
-        return state
+        return None
 
     def _fresh_project_state(self) -> dict[str, Any]:
         return {
@@ -197,11 +500,13 @@ class PyToDocWorker(QThread):
             "project_root": str(Path(self.project_root or "").resolve()),
             "out_path": str(Path(self.out_path).resolve()),
             "settings_fingerprint": self._settings_fingerprint(),
+            "settings": self._settings_payload(),
             "file_list": [str(Path(p).resolve()) for p in self.file_list],
             "current_file": "",
             "completed_files": [],
             "files": {},
             "history": [],
+            "context_overflow_pending": False,
             "updated_at": "",
         }
 
@@ -212,11 +517,20 @@ class PyToDocWorker(QThread):
             self._state["status"] = status
         self._state["updated_at"] = datetime.now().isoformat(timespec="seconds")
         self._state["history"] = list(self._history)
+        self._state["context_overflow_pending"] = bool(self._context_overflow_pending)
         self._state["file_list"] = [str(Path(p).resolve()) for p in self.file_list]
-        self._state_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._state_path.with_name(self._state_path.name + ".tmp")
-        tmp.write_text(json.dumps(self._state, indent=2, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(self._state_path)
+        raw = json.dumps(self._state, indent=2, ensure_ascii=False)
+        targets = [self._state_path, PYTODOC_TEMP_STATE, self._job_state_path()]
+        seen: set[str] = set()
+        for target in targets:
+            key = str(target.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_name(target.name + ".tmp")
+            tmp.write_text(raw, encoding="utf-8")
+            tmp.replace(target)
 
     def _prepare_project_state(self):
         if not self._project_enabled():
@@ -226,9 +540,16 @@ class PyToDocWorker(QThread):
             self._state = state
             self._resuming = True
             self._history = list(state.get("history", []))
+            self._context_overflow_pending = bool(state.get("context_overflow_pending", False))
             self._log(f"Resume checkpoint found -> {self._state_path}")
             self._verify_project_state()
+        elif self.resume_required:
+            raise RuntimeError(
+                "No matching py-to-doc checkpoint found. Select the same "
+                "project root, output folder, and settings used before pausing."
+            )
         else:
+            self._state_path = self._job_state_path()
             self._state = self._fresh_project_state()
             self._save_project_state("running")
             self._log(f"Project checkpoint created -> {self._state_path}")
@@ -326,6 +647,49 @@ class PyToDocWorker(QThread):
         self._state["current_file"] = ""
         self._save_project_state("running")
 
+    def _expected_steps(self, parsed: dict) -> set[str]:
+        steps = {"header", "overview"}
+        for cls in parsed.get("classes", []):
+            class_name = cls["name"]
+            class_lineno = getattr(cls["node"], "lineno", 0)
+            methods = sorted(
+                cls.get("methods", []),
+                key=lambda item: getattr(item["node"], "lineno", 0),
+            )
+            steps.add(f"class:{class_name}:{class_lineno}")
+            if methods:
+                steps.add(f"class-functions:{class_name}:{class_lineno}")
+            for method in methods:
+                steps.add(
+                    f"method:{class_name}.{method['name']}:"
+                    f"{getattr(method['node'], 'lineno', 0)}"
+                )
+            steps.add(f"class-end:{class_name}:{class_lineno}")
+        if self.include_globals and parsed.get("functions"):
+            steps.add("global-functions-header")
+            for fn in parsed["functions"]:
+                steps.add(f"global:{fn['name']}:{getattr(fn['node'], 'lineno', 0)}")
+        return steps
+
+    def _repair_incomplete_complete_file(self, file_path: str, info: dict[str, Any], parsed: dict):
+        if self._state is None or not info.get("completed"):
+            return
+        missing = self._expected_steps(parsed).difference(set(info.get("steps", [])))
+        if not missing:
+            return
+        key = str(Path(file_path).resolve())
+        info["steps"] = []
+        info["offset"] = 0
+        info["completed"] = False
+        completed = set(self._state.get("completed_files", []))
+        completed.discard(key)
+        self._state["completed_files"] = sorted(completed)
+        self._log(
+            f"Checkpoint repaired: {Path(file_path).name} was marked complete "
+            f"with {len(missing)} missing sections"
+        )
+        self._save_project_state("running")
+
     def _should_continue(self) -> bool:
         if self._abort:
             self._save_project_state("aborted")
@@ -356,15 +720,54 @@ class PyToDocWorker(QThread):
             return "(no LLM engine loaded - load a model first)"
 
         user_content = f"{system_prompt}\n\n```python\n{code}\n```"
-        self._history.append({"role": "user", "content": user_content})
+        self._prepare_context_for_llm_call(user_content)
+        return self._call_llm_with_retry(user_content)
 
+    def _selected_context_value(self) -> int:
+        if self.context_policy == CONTEXT_POLICY_AUTO:
+            return max(AUTO_CONTEXT_MIN, int(self.auto_context_tokens or AUTO_CONTEXT_DEFAULT))
         try:
-            text = self.endpoints.call_llm(messages=self._history).strip()
-        except Exception as exc:
-            text = f"[LLM error: {exc}]"
+            return int(getattr(self.endpoints, "ctx_value", AUTO_CONTEXT_DEFAULT))
+        except Exception:
+            return AUTO_CONTEXT_DEFAULT
 
-        self._history.append({"role": "assistant", "content": text})
-        return text
+    def _recover_from_context_exceeded(self, exc: ContextWindowExceededError) -> bool:
+        target_ctx = self._selected_context_value()
+        self._log(
+            "Context exceeded while generating current section; clearing "
+            f"py-to-doc history and reloading context {target_ctx:,}"
+        )
+        self._reset_context()
+        try:
+            ok = self.endpoints.request_context(target_ctx)
+        except Exception as reload_exc:
+            self._log(f"Context reload failed: {reload_exc}")
+            ok = False
+        if not ok:
+            self._log(f"Context reload was not available after backend error: {exc}")
+        return bool(ok)
+
+    def _call_llm_with_retry(self, user_content: str) -> str:
+        for attempt in range(2):
+            self._history.append({"role": "user", "content": user_content})
+            try:
+                text = self.endpoints.call_llm(messages=self._history).strip()
+            except ContextWindowExceededError as exc:
+                self._history.pop()
+                self._context_overflow_pending = True
+                if attempt == 0 and self._recover_from_context_exceeded(exc):
+                    continue
+                return f"[LLM error: {exc}]"
+            except Exception as exc:
+                self._history.pop()
+                text = f"[LLM error: {exc}]"
+                self._context_overflow_pending = True
+                return text
+
+            self._history.append({"role": "assistant", "content": text})
+            self._update_context_budget_after_call()
+            return text
+        return "[LLM error: context retry failed]"
 
     # ── pipeline ─────────────────────────────────────────────────────────────
     def run(self):
@@ -376,6 +779,7 @@ class PyToDocWorker(QThread):
     def _pipeline(self):
         files = self.file_list if self.file_list else [self.file_path]
         self._prepare_project_state()
+        self._log_context_policy()
         for file_path in files:
             if not self._should_continue():
                 return
@@ -408,6 +812,8 @@ class PyToDocWorker(QThread):
             out_file = out_dir / self.out_name
 
         file_state = self._file_state(file_path, out_file) if self._project_enabled() else None
+        if file_state:
+            self._repair_incomplete_complete_file(file_path, file_state, parsed)
         if file_state and file_state.get("completed") and out_file.exists():
             self._log(f"Already complete, verified from temp -> {Path(file_path).name}")
             return
@@ -471,10 +877,18 @@ class PyToDocWorker(QThread):
             if not self._should_continue(): return False
 
             class_code = _get_source(cls["node"], lines)
-            self._log(f"Processing class: {cls['name']}")
+            methods = sorted(
+                cls.get("methods", []),
+                key=lambda item: getattr(item["node"], "lineno", 0),
+            )
+            self._log(f"Processing class: {cls['name']} ({len(methods)} methods)")
 
             class_step = f"class:{cls['name']}:{getattr(cls['node'], 'lineno', 0)}"
-            if self.reset_per_class and not self._step_done(file_path, class_step):
+            if (
+                self.context_policy == CONTEXT_POLICY_FIXED
+                and self.reset_per_class
+                and not self._step_done(file_path, class_step)
+            ):
                 self._reset_context()
             if not self._run_step(
                 fh, file_path, class_step,
@@ -485,10 +899,13 @@ class PyToDocWorker(QThread):
             ):
                 return False
 
-            functions_step = f"class-functions:{cls['name']}:{getattr(cls['node'], 'lineno', 0)}"
-            if not self._run_step(fh, file_path, functions_step, lambda: "### Functions\n\n"):
-                return False
-            for method in cls["methods"]:
+            if not methods:
+                self._log(f"No direct methods found for class: {cls['name']}")
+            else:
+                functions_step = f"class-functions:{cls['name']}:{getattr(cls['node'], 'lineno', 0)}"
+                if not self._run_step(fh, file_path, functions_step, lambda: "### Functions\n\n"):
+                    return False
+            for method in methods:
                 if not self._should_continue(): return False
 
                 fn_code = _get_source(method["node"], lines)
@@ -496,7 +913,11 @@ class PyToDocWorker(QThread):
                     f"method:{cls['name']}.{method['name']}:"
                     f"{getattr(method['node'], 'lineno', 0)}"
                 )
-                if self.reset_per_function and not self._step_done(file_path, method_step):
+                if (
+                    self.context_policy == CONTEXT_POLICY_FIXED
+                    and self.reset_per_function
+                    and not self._step_done(file_path, method_step)
+                ):
                     self._reset_context()
                 if not self._run_step(
                     fh, file_path, method_step,
@@ -509,7 +930,7 @@ class PyToDocWorker(QThread):
                     return False
                 self._log(f"Function processed: {method['name']}")
 
-            self._log(f"Class processed: {cls['name']}")
+            self._log(f"Class processed: {cls['name']} ({len(methods)} methods)")
             class_end_step = f"class-end:{cls['name']}:{getattr(cls['node'], 'lineno', 0)}"
             if not self._run_step(fh, file_path, class_end_step, lambda: "\n"):
                 return False
@@ -526,7 +947,11 @@ class PyToDocWorker(QThread):
 
                 fn_code = _get_source(fn["node"], lines)
                 fn_step = f"global:{fn['name']}:{getattr(fn['node'], 'lineno', 0)}"
-                if self.reset_per_function and not self._step_done(file_path, fn_step):
+                if (
+                    self.context_policy == CONTEXT_POLICY_FIXED
+                    and self.reset_per_function
+                    and not self._step_done(file_path, fn_step)
+                ):
                     self._reset_context()
                 if not self._run_step(
                     fh, file_path, fn_step,
@@ -557,6 +982,7 @@ class PyToDocPanel(QWidget):
         self._endpoints: Optional[LabEndpoints]  = None
         self._mode = "single"
         self._queue_files: list[str] = []
+        self._resume_state_path: str = ""
         self._build()
 
     # ── endpoint wiring ──────────────────────────────────────────────────────
@@ -564,11 +990,19 @@ class PyToDocPanel(QWidget):
         self._endpoints = endpoints
         endpoints.status_changed.connect(self._on_status_changed)
         self._on_status_changed(endpoints.status_text)
+        if not getattr(self, "_budget_user_touched", False):
+            self._set_auto_budget_value(getattr(endpoints, "ctx_value", AUTO_CONTEXT_DEFAULT), mark_touched=False)
 
     def _on_status_changed(self, status: str):
         if hasattr(self, "lbl_engine"):
             state = "idle" if "No Engine" in status or "Not Loaded" in status else "ok"
             set_status_label(self.lbl_engine, f"Active engine: {status}", state)
+        if (
+            self._endpoints is not None
+            and not getattr(self, "_budget_user_touched", False)
+            and hasattr(self, "ctx_budget_input")
+        ):
+            self._set_auto_budget_value(getattr(self._endpoints, "ctx_value", AUTO_CONTEXT_DEFAULT), mark_touched=False)
 
     # ── build ────────────────────────────────────────────────────────────────
     def _build(self):
@@ -633,6 +1067,32 @@ class PyToDocPanel(QWidget):
         self.btn_mode_project.clicked.connect(lambda: self._set_mode("project"))
         root.addWidget(mode_card)
         root.addSpacing(8)
+
+        root.addWidget(self._section_label("SAVED PROJECT TASKS"))
+        resume_card = self._card()
+        rc = QVBoxLayout(resume_card)
+        rc.setContentsMargins(16, 12, 16, 12)
+        rc.setSpacing(8)
+        self.resume_jobs = QListWidget()
+        self.resume_jobs.setObjectName("labs_resume_jobs")
+        self.resume_jobs.setFixedHeight(96)
+        rc.addWidget(self.resume_jobs)
+        resume_row = QHBoxLayout()
+        resume_row.setSpacing(8)
+        self.btn_refresh_jobs = QPushButton("Refresh")
+        set_button_icon(self.btn_refresh_jobs, "refresh-cw", "Refresh")
+        self.btn_refresh_jobs.setFixedHeight(28)
+        self.btn_refresh_jobs.clicked.connect(self._refresh_resume_jobs)
+        self.btn_resume_selected = QPushButton("Resume Selected")
+        set_button_icon(self.btn_resume_selected, "rotate-ccw", "Resume Selected")
+        self.btn_resume_selected.setFixedHeight(28)
+        self.btn_resume_selected.clicked.connect(self._resume_selected_job)
+        resume_row.addWidget(self.btn_refresh_jobs)
+        resume_row.addWidget(self.btn_resume_selected)
+        resume_row.addStretch()
+        rc.addLayout(resume_row)
+        root.addWidget(resume_card)
+        root.addSpacing(14)
 
         # File settings
         root.addWidget(self._section_label("FILE SETTINGS"))
@@ -719,12 +1179,66 @@ class PyToDocPanel(QWidget):
         oc.setContentsMargins(16, 14, 16, 14)
         oc.setSpacing(8)
 
-        self.chk_globals    = QCheckBox("Include module-level (global) functions")
-        self.chk_reset_fn   = QCheckBox("Reset LLM context after each function")
-        self.chk_reset_cls  = QCheckBox("Reset LLM context after each class")
+        self.chk_globals = QCheckBox("Include module-level (global) functions")
+        oc.addWidget(self.chk_globals)
+
+        mode_row = QHBoxLayout()
+        mode_row.setSpacing(6)
+        self.btn_ctx_none = QPushButton("No reset")
+        self.btn_ctx_fixed = QPushButton("Fixed reset")
+        self.btn_ctx_auto = QPushButton("Auto budget")
+        for btn in (self.btn_ctx_none, self.btn_ctx_fixed, self.btn_ctx_auto):
+            btn.setCheckable(True)
+            btn.setFixedHeight(30)
+            mode_row.addWidget(btn)
+        mode_row.addStretch()
+        oc.addLayout(mode_row)
+
+        self._context_policy = CONTEXT_POLICY_FIXED
+        self._budget_user_touched = False
+        self.btn_ctx_none.clicked.connect(lambda: self._set_context_policy(CONTEXT_POLICY_NONE))
+        self.btn_ctx_fixed.clicked.connect(lambda: self._set_context_policy(CONTEXT_POLICY_FIXED))
+        self.btn_ctx_auto.clicked.connect(lambda: self._set_context_policy(CONTEXT_POLICY_AUTO))
+
+        self._fixed_context_box = QWidget()
+        fixed_layout = QVBoxLayout(self._fixed_context_box)
+        fixed_layout.setContentsMargins(0, 0, 0, 0)
+        fixed_layout.setSpacing(6)
+        self.chk_reset_fn = QCheckBox("Reset LLM context after each function")
+        self.chk_reset_cls = QCheckBox("Reset LLM context after each class")
         self.chk_reset_fn.setChecked(True)
-        for chk in (self.chk_globals, self.chk_reset_fn, self.chk_reset_cls):
-            oc.addWidget(chk)
+        fixed_layout.addWidget(self.chk_reset_fn)
+        fixed_layout.addWidget(self.chk_reset_cls)
+        oc.addWidget(self._fixed_context_box)
+
+        self._auto_context_box = QWidget()
+        auto_layout = QVBoxLayout(self._auto_context_box)
+        auto_layout.setContentsMargins(0, 0, 0, 0)
+        auto_layout.setSpacing(6)
+        auto_row = QHBoxLayout()
+        auto_row.setSpacing(8)
+        auto_lbl = QLabel("Context budget:")
+        auto_lbl.setObjectName("txt2")
+        auto_lbl.setFixedWidth(110)
+        self.ctx_budget_slider = QSlider(Qt.Orientation.Horizontal)
+        self.ctx_budget_slider.setRange(AUTO_CONTEXT_MIN, AUTO_CONTEXT_MAX)
+        self.ctx_budget_slider.setSingleStep(512)
+        self.ctx_budget_slider.setPageStep(4096)
+        self.ctx_budget_input = QLineEdit(str(AUTO_CONTEXT_DEFAULT))
+        self.ctx_budget_input.setFixedHeight(30)
+        self.ctx_budget_input.setFixedWidth(96)
+        self.ctx_budget_slider.valueChanged.connect(self._sync_budget_from_slider)
+        self.ctx_budget_input.editingFinished.connect(self._sync_budget_from_input)
+        auto_row.addWidget(auto_lbl)
+        auto_row.addWidget(self.ctx_budget_slider, 1)
+        auto_row.addWidget(self.ctx_budget_input)
+        auto_layout.addLayout(auto_row)
+        auto_note = QLabel("Approximate tokens, py-to-doc history only")
+        auto_note.setObjectName("txt2_small")
+        auto_layout.addWidget(auto_note)
+        oc.addWidget(self._auto_context_box)
+        self._set_auto_budget_value(AUTO_CONTEXT_DEFAULT, mark_touched=False)
+        self._set_context_policy(CONTEXT_POLICY_FIXED)
 
         root.addWidget(opt_card)
         root.addSpacing(14)
@@ -763,6 +1277,11 @@ class PyToDocPanel(QWidget):
         self.btn_generate.setObjectName("labs_generate_btn")
         self.btn_generate.setMinimumHeight(38)
         self.btn_generate.clicked.connect(self._run_py_to_doc)
+        self.btn_resume = QPushButton("Resume Project")
+        set_button_icon(self.btn_resume, "rotate-ccw", "Resume Project")
+        self.btn_resume.setFixedHeight(38)
+        self.btn_resume.setVisible(False)
+        self.btn_resume.clicked.connect(lambda: self._run_py_to_doc(resume_requested=True))
         self.btn_abort = QPushButton("Abort")
         set_button_icon(self.btn_abort, "stop-circle", "Abort")
         self.btn_abort.setObjectName("btn_stop")
@@ -775,6 +1294,7 @@ class PyToDocPanel(QWidget):
         self.btn_pause.setVisible(False)
         self.btn_pause.clicked.connect(self._pause_project)
         btn_row.addWidget(self.btn_generate, 1)
+        btn_row.addWidget(self.btn_resume)
         btn_row.addWidget(self.btn_pause)
         btn_row.addWidget(self.btn_abort)
         root.addLayout(btn_row)
@@ -817,6 +1337,7 @@ class PyToDocPanel(QWidget):
         root.addWidget(prev_card)
 
         root.addStretch()
+        self._refresh_resume_jobs()
 
     # ── widget helpers ───────────────────────────────────────────────────────
     @staticmethod
@@ -855,6 +1376,145 @@ class PyToDocPanel(QWidget):
         te.setFixedHeight(68)
         return te
 
+    # ── saved project task helpers ───────────────────────────────────────────
+    @staticmethod
+    def _read_resume_state(path: Path) -> Optional[dict[str, Any]]:
+        try:
+            state = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        if state.get("feature") != "py_to_doc":
+            return None
+        state["_state_path"] = str(path)
+        return state
+
+    def _saved_job_states(self) -> list[dict[str, Any]]:
+        paths: list[Path] = []
+        if PYTODOC_TEMP_STATE.exists():
+            paths.append(PYTODOC_TEMP_STATE)
+        if PYTODOC_JOBS_DIR.exists():
+            paths.extend(sorted(PYTODOC_JOBS_DIR.glob("*.json")))
+        states: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for path in paths:
+            state = self._read_resume_state(path)
+            if not state:
+                continue
+            key = state.get("project_key") or str(path.resolve())
+            if key in seen:
+                continue
+            seen.add(key)
+            states.append(state)
+        states.sort(key=lambda s: s.get("updated_at", ""), reverse=True)
+        return states
+
+    @staticmethod
+    def _resume_job_label(state: dict[str, Any]) -> str:
+        root = Path(state.get("project_root", "")).name or "project"
+        out = Path(state.get("out_path", "")).name or "output"
+        status = state.get("status", "unknown")
+        files = state.get("file_list", []) or []
+        complete = len(state.get("completed_files", []) or [])
+        updated = state.get("updated_at", "")
+        return f"{root} -> {out}  [{status}]  {complete}/{len(files)} files  {updated}"
+
+    def _refresh_resume_jobs(self):
+        if not hasattr(self, "resume_jobs"):
+            return
+        self.resume_jobs.clear()
+        states = self._saved_job_states()
+        if not states:
+            item = QListWidgetItem("No saved py-to-doc project tasks")
+            item.setData(Qt.ItemDataRole.UserRole, "")
+            self.resume_jobs.addItem(item)
+            self.btn_resume_selected.setEnabled(False)
+            return
+        self.btn_resume_selected.setEnabled(True)
+        for state in states:
+            item = QListWidgetItem(self._resume_job_label(state))
+            item.setData(Qt.ItemDataRole.UserRole, state.get("_state_path", ""))
+            item.setToolTip(
+                f"Project: {state.get('project_root', '')}\n"
+                f"Output: {state.get('out_path', '')}"
+            )
+            self.resume_jobs.addItem(item)
+        self.resume_jobs.setCurrentRow(0)
+
+    def _apply_resume_state_to_ui(self, state: dict[str, Any]):
+        self._set_mode("project")
+        self.inp_project_src.setText(state.get("project_root", ""))
+        self.inp_out_dir.setText(state.get("out_path", ""))
+        settings = state.get("settings") or {}
+        if settings:
+            self.chk_globals.setChecked(bool(settings.get("include_globals", False)))
+            self._set_context_policy(settings.get("context_policy", CONTEXT_POLICY_FIXED))
+            self.chk_reset_fn.setChecked(bool(settings.get("fixed_reset_per_function", True)))
+            self.chk_reset_cls.setChecked(bool(settings.get("fixed_reset_per_class", False)))
+            self._set_auto_budget_value(
+                int(settings.get("auto_context_tokens", AUTO_CONTEXT_DEFAULT) or AUTO_CONTEXT_DEFAULT),
+                mark_touched=True,
+            )
+            self.inp_prompt_overview.setPlainText(settings.get("prompt_overview", DEFAULT_OVERVIEW_PROMPT))
+            self.inp_prompt_class.setPlainText(settings.get("prompt_class", DEFAULT_CLASS_PROMPT))
+            self.inp_prompt_function.setPlainText(settings.get("prompt_function", DEFAULT_FUNC_PROMPT))
+
+    def _resume_selected_job(self):
+        item = self.resume_jobs.currentItem() if hasattr(self, "resume_jobs") else None
+        if not item:
+            return
+        state_path = item.data(Qt.ItemDataRole.UserRole) or ""
+        if not state_path:
+            return
+        state = self._read_resume_state(Path(state_path))
+        if not state:
+            QMessageBox.warning(self, "Resume Failed", "Could not read the selected py-to-doc task.")
+            self._refresh_resume_jobs()
+            return
+        self._resume_state_path = state_path
+        self._apply_resume_state_to_ui(state)
+        self._run_py_to_doc(resume_requested=True)
+
+    # ── context option helpers ───────────────────────────────────────────────
+    def _set_context_policy(self, policy: str):
+        if policy not in {CONTEXT_POLICY_NONE, CONTEXT_POLICY_FIXED, CONTEXT_POLICY_AUTO}:
+            policy = CONTEXT_POLICY_FIXED
+        self._context_policy = policy
+        self.btn_ctx_none.setChecked(policy == CONTEXT_POLICY_NONE)
+        self.btn_ctx_fixed.setChecked(policy == CONTEXT_POLICY_FIXED)
+        self.btn_ctx_auto.setChecked(policy == CONTEXT_POLICY_AUTO)
+        self._fixed_context_box.setVisible(policy == CONTEXT_POLICY_FIXED)
+        self._auto_context_box.setVisible(policy == CONTEXT_POLICY_AUTO)
+
+    def _set_auto_budget_value(self, value: int, *, mark_touched: bool = True):
+        value = max(AUTO_CONTEXT_MIN, int(value or AUTO_CONTEXT_DEFAULT))
+        slider_value = min(value, AUTO_CONTEXT_MAX)
+        self.ctx_budget_input.blockSignals(True)
+        self.ctx_budget_slider.blockSignals(True)
+        self.ctx_budget_input.setText(str(value))
+        self.ctx_budget_slider.setValue(slider_value)
+        self.ctx_budget_input.blockSignals(False)
+        self.ctx_budget_slider.blockSignals(False)
+        if mark_touched:
+            self._budget_user_touched = True
+
+    def _sync_budget_from_slider(self, value: int):
+        self._set_auto_budget_value(int(value), mark_touched=True)
+
+    def _sync_budget_from_input(self):
+        raw = self.ctx_budget_input.text().strip()
+        try:
+            value = int(raw)
+        except Exception:
+            value = AUTO_CONTEXT_DEFAULT
+        self._set_auto_budget_value(value, mark_touched=True)
+
+    def _context_budget_value(self) -> int:
+        try:
+            return max(AUTO_CONTEXT_MIN, int(self.ctx_budget_input.text().strip()))
+        except Exception:
+            self._set_auto_budget_value(AUTO_CONTEXT_DEFAULT, mark_touched=True)
+            return AUTO_CONTEXT_DEFAULT
+
     # ── actions ──────────────────────────────────────────────────────────────
     def _browse_src(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -885,6 +1545,8 @@ class PyToDocPanel(QWidget):
         self._wgt_queue_row.setVisible(mode == "queue")
         self._wgt_project_row.setVisible(mode == "project")
         self._wgt_outname_row.setVisible(mode == "single")
+        if hasattr(self, "btn_resume"):
+            self.btn_resume.setVisible(mode == "project" and not bool(self._worker))
 
     def _browse_src_queue(self):
         paths, _ = QFileDialog.getOpenFileNames(
@@ -942,15 +1604,20 @@ class PyToDocPanel(QWidget):
 
     def _set_running(self, running: bool):
         self.btn_generate.setEnabled(not running)
+        self.btn_resume.setVisible((not running) and self._mode == "project")
         self.btn_abort.setVisible(running)
         self.btn_pause.setVisible(running and self._mode == "project")
 
-    def _run_py_to_doc(self):
+    def _run_py_to_doc(self, resume_requested: bool = False):
         mode     = self._mode
         out_dir  = self.inp_out_dir.text().strip()
         out_name = self.inp_out_name.text().strip() or "README.md"
         file_list:    list[str]    = []
         project_root: Optional[str] = None
+        mirrored_dirs = 0
+        state_path = self._resume_state_path if resume_requested else ""
+        if not resume_requested:
+            self._resume_state_path = ""
 
         if mode == "single":
             src = self.inp_src.text().strip()
@@ -973,7 +1640,7 @@ class PyToDocPanel(QWidget):
                 QMessageBox.warning(self, "Missing Project Root",
                                     "Please select a valid project root directory.")
                 return
-            file_list = [str(p) for p in sorted(Path(proj).rglob("*.py"))]
+            file_list = discover_project_python_files(proj)
             if not file_list:
                 QMessageBox.warning(self, "No Python Files",
                                     "No .py files found in the selected directory.")
@@ -993,6 +1660,42 @@ class PyToDocPanel(QWidget):
                 "model) from the main tabs first.")
             return
 
+        if mode == "project":
+            try:
+                mirrored_dirs = mirror_project_directories(project_root or "", out_dir)
+            except Exception as exc:
+                QMessageBox.warning(
+                    self, "Output Mirror Failed",
+                    f"Could not prepare the output directory structure:\n{exc}")
+                return
+
+        api_active = bool(
+            self._endpoints.api_engine and self._endpoints.api_engine.is_loaded
+        )
+        local_loaded = bool(
+            self._endpoints.llama_engine and self._endpoints.llama_engine.is_loaded
+        )
+        if (
+            self._context_policy == CONTEXT_POLICY_AUTO
+            and local_loaded
+            and not api_active
+        ):
+            target_ctx = self._context_budget_value()
+            current_ctx = int(getattr(self._endpoints, "ctx_value", 0) or 0)
+            if target_ctx != current_ctx:
+                self._log(
+                    f"Reloading local model/server for py-to-doc context: "
+                    f"{current_ctx:,} -> {target_ctx:,}"
+                )
+                if not self._endpoints.request_context(target_ctx):
+                    QMessageBox.warning(
+                        self, "Context Reload Failed",
+                        "Could not reload the local model/server with the "
+                        f"selected py-to-doc context ({target_ctx:,})."
+                    )
+                    return
+                self._log("Context reload complete")
+
         if self._endpoints.llama_engine and self._endpoints.api_engine \
                 and not self._endpoints.api_engine.is_loaded:
             self._endpoints.ensure_server(log_cb=lambda m: self._log(m))
@@ -1000,20 +1703,27 @@ class PyToDocPanel(QWidget):
         self.log_te.clear()
         self.preview_te.clear()
         self._set_running(True)
+        if mode == "project":
+            self._log(f"Project files selected: {len(file_list)}")
+            self._log(f"Output directory structure prepared: {mirrored_dirs} directories")
 
         self._worker = PyToDocWorker(
             file_path          = src,
             out_path           = out_dir,
             out_name           = out_name,
             include_globals    = self.chk_globals.isChecked(),
-            reset_per_function = self.chk_reset_fn.isChecked(),
-            reset_per_class    = self.chk_reset_cls.isChecked(),
+            context_policy     = self._context_policy,
+            fixed_reset_per_function = self.chk_reset_fn.isChecked(),
+            fixed_reset_per_class    = self.chk_reset_cls.isChecked(),
+            auto_context_tokens = self._context_budget_value(),
             prompt_overview    = self.inp_prompt_overview.toPlainText().strip(),
             prompt_class       = self.inp_prompt_class.toPlainText().strip(),
             prompt_function    = self.inp_prompt_function.toPlainText().strip(),
             endpoints          = self._endpoints,
             file_list          = file_list,
             project_root       = project_root,
+            resume_required    = resume_requested,
+            state_path         = state_path,
         )
         self._worker.log_msg.connect(self._log)
         self._worker.chunk.connect(self._on_chunk)
@@ -1026,9 +1736,11 @@ class PyToDocPanel(QWidget):
         self._set_running(False)
         self._log(f"Paused. Resume by selecting the same project/output and clicking Generate. Temp: {state_path}")
         self._worker = None
+        self._refresh_resume_jobs()
 
     def _on_done(self):
         self._set_running(False)
+        self._refresh_resume_jobs()
         if self._mode == "single":
             out = Path(self.inp_out_dir.text()) / self.inp_out_name.text()
             self._log(f"Done  ->  {out}")
@@ -1046,3 +1758,4 @@ class PyToDocPanel(QWidget):
         self._log(f"Error: {msg}")
         QMessageBox.critical(self, "Pipeline Error", msg)
         self._worker = None
+        self._refresh_resume_jobs()

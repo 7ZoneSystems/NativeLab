@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -26,11 +27,24 @@ from typing import Any, Callable, Dict, List, Optional
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from nativelab.GlobalConfig.config_global import (
-    DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED,
+    DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, LONG_TIMEOUT_SECONDS,
 )
 from nativelab.components.components_global import detect_model_family
 from nativelab.Model.model_global import FAMILY_TEMPLATES
 from nativelab.core.engine_global import LlamaEngine, ApiEngine
+
+
+class LabEndpointError(RuntimeError):
+    """Base error raised by the Labs endpoint layer."""
+
+
+class ContextWindowExceededError(LabEndpointError):
+    """Raised when the active backend rejects a prompt for exceeding context."""
+
+    def __init__(self, message: str, *, status: int = 0, raw: str = ""):
+        super().__init__(message)
+        self.status = int(status or 0)
+        self.raw = raw
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -254,9 +268,8 @@ class LabEndpoints(QObject):
             "repeat_penalty": repeat_penalty,
             "stop":           getattr(fam, "stop_tokens", []),
         })
-        timeout = min(120 + len(prompt_text) // 100, 900)
         conn = http.client.HTTPConnection(
-            "127.0.0.1", eng.server_port, timeout=timeout
+            "127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_SECONDS
         )
         conn.request("POST", "/completion", body,
                      {"Content-Type": "application/json"})
@@ -266,10 +279,7 @@ class LabEndpoints(QObject):
 
         if r.status != 200:
             self._log("ERROR", f"llama-server HTTP {r.status} — {raw[:120]}")
-            raise RuntimeError(
-                f"llama-server HTTP {r.status}\n\n"
-                f"Response body:\n{raw}"
-            )
+            self._raise_backend_error(r.status, raw, "llama-server")
 
         try:
             d = json.loads(raw)
@@ -279,6 +289,41 @@ class LabEndpoints(QObject):
             )
 
         return (d.get("content") or "").strip()
+
+    @staticmethod
+    def _error_message(raw: str) -> str:
+        try:
+            data = json.loads(raw)
+        except Exception:
+            return raw
+        err = data.get("error", data)
+        if isinstance(err, dict):
+            return str(err.get("message") or err.get("type") or raw)
+        return str(err or raw)
+
+    @staticmethod
+    def _is_context_error(raw: str) -> bool:
+        text = raw.lower()
+        return any(needle in text for needle in (
+            "context size has been exceeded",
+            "exceeds the available context size",
+            "exceed_context_size",
+            "context window",
+            "n_ctx",
+        ))
+
+    def _raise_backend_error(self, status: int, raw: str, backend: str):
+        message = self._error_message(raw)
+        if self._is_context_error(raw):
+            raise ContextWindowExceededError(
+                f"{backend} context exceeded: {message}",
+                status=status,
+                raw=raw,
+            )
+        raise LabEndpointError(
+            f"{backend} HTTP {status}\n\n"
+            f"Response body:\n{raw}"
+        )
 
     def _call_cli(self, eng, messages, n_predict,
                   temperature, repeat_penalty) -> str:
@@ -297,13 +342,12 @@ class LabEndpoints(QObject):
             "--repeat-penalty", str(repeat_penalty),
             "-p", prompt_text,
         ]
-        timeout = min(120 + len(prompt_text) // 100, 900)
         result = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
-            timeout=timeout,
+            timeout=LONG_TIMEOUT_SECONDS,
         )
         return result.stdout.decode("utf-8", errors="replace").strip()
 
@@ -343,8 +387,12 @@ class LabEndpoints(QObject):
                     "anthropic-version": "2023-06-01",
                 },
             )
-            with urllib.request.urlopen(req, timeout=900) as r:
-                d = json.loads(r.read().decode("utf-8", errors="replace"))
+            try:
+                with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+                    d = json.loads(r.read().decode("utf-8", errors="replace"))
+            except urllib.error.HTTPError as exc:
+                raw = exc.read().decode("utf-8", errors="replace")
+                self._raise_backend_error(exc.code, raw, "API")
             content = d.get("content") or []
             if isinstance(content, list):
                 return "".join(
@@ -368,8 +416,12 @@ class LabEndpoints(QObject):
                 "Authorization": f"Bearer {cfg.api_key}",
             },
         )
-        with urllib.request.urlopen(req, timeout=900) as r:
-            d = json.loads(r.read().decode("utf-8", errors="replace"))
+        try:
+            with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+                d = json.loads(r.read().decode("utf-8", errors="replace"))
+        except urllib.error.HTTPError as exc:
+            raw = exc.read().decode("utf-8", errors="replace")
+            self._raise_backend_error(exc.code, raw, "API")
         choices = d.get("choices") or []
         if choices:
             return (choices[0].get("message", {}).get("content") or "").strip()

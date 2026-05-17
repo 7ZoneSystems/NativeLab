@@ -34,6 +34,25 @@ select the same project root and output folder, keep the same settings, and run
 Generate again. NativeLab verifies the checkpoint and existing markdown files,
 then resumes from the last completed step.
 
+The **Resume Project** button requires a matching checkpoint and stops with a
+clear message if the selected project/output/settings do not match the saved
+state.
+
+The py-to-doc panel also shows saved project tasks from `localllm/temp` and
+`localllm/pytodoc_jobs`. Selecting one restores the project/output/settings
+when available and resumes from the saved checkpoint automatically.
+
+Project mode scans Python files recursively, applies the selected project
+root's `.gitignore`, and creates a matching directory tree in the output folder
+before writing generated markdown files.
+
+py-to-doc context can run in three modes: no reset, fixed reset after classes
+or functions, or auto budget reset. Auto budget reset uses approximate tokens
+for py-to-doc's carried history. For local GGUF models, selecting an auto
+budget reloads the local model/server to the same context window before
+generation begins. If a class/function/file generation crosses the budget, that
+generation finishes and the next section starts with fresh carried context.
+
 ### structured-edit lab
 
 The structured-edit lab lives under **Dev > Labs**. It can attach an existing

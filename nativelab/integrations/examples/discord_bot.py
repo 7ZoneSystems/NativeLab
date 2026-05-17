@@ -41,6 +41,7 @@ from nativelab.integrations.discord_connector import (
     command_catalog,
     get_discord_bot,
 )
+from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_SECONDS
 
 
 PROFILE_NAME = os.getenv("DISCORD_BOT_PROFILE", "")
@@ -93,7 +94,7 @@ def log(message: str):
 
 async def post_json(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     log(f"POST {path}")
-    timeout = aiohttp.ClientTimeout(total=180)
+    timeout = aiohttp.ClientTimeout(total=LONG_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(f"{ENDPOINT_URL}{path}", json=payload) as response:
             data = await response.json(content_type=None)
@@ -104,7 +105,7 @@ async def post_json(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
 
 async def get_json(path: str) -> Dict[str, Any]:
     log(f"GET {path}")
-    timeout = aiohttp.ClientTimeout(total=30)
+    timeout = aiohttp.ClientTimeout(total=LONG_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.get(f"{ENDPOINT_URL}{path}") as response:
             data = await response.json(content_type=None)

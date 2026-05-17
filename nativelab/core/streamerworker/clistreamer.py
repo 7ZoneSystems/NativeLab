@@ -1,4 +1,5 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, time, subprocess, Optional
+from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 class CliStreamWorker(QThread):
     token  = pyqtSignal(str)
     done   = pyqtSignal(float)
@@ -27,7 +28,7 @@ class CliStreamWorker(QThread):
                 if not b: break
                 c = b.decode("utf-8", errors="replace")
                 n += 1; self.token.emit(c)
-            self.proc.wait(timeout=5)
+            self.proc.wait(timeout=LONG_TIMEOUT_SECONDS)
             elapsed = time.time() - t0
             self.done.emit(n / elapsed if elapsed > 0 else 0.0)
         except Exception as e:

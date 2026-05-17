@@ -166,7 +166,7 @@ class MainWindow(QMainWindow):
             try: old_loader.finished.disconnect()
             except Exception: pass
             old_loader.quit()
-            old_loader.wait(2000)
+            old_loader.wait(LONG_TIMEOUT_MS)
 
         # Shutdown any existing engine for this role before creating a fresh one
         old_eng = getattr(self, attr, None)
@@ -197,9 +197,13 @@ class MainWindow(QMainWindow):
         if not self.engine.is_loaded:
             return
         new_ctx = self.ctx_slider.value()
-        if new_ctx == getattr(self.engine, "ctx_value", DEFAULT_CTX()):
+        force_reload = bool(getattr(self, "_force_ctx_reload_once", False))
+        self._force_ctx_reload_once = False
+        if new_ctx == getattr(self.engine, "ctx_value", DEFAULT_CTX()) and not force_reload:
             return
-        if new_ctx > 8192:
+        skip_confirm = bool(getattr(self, "_suppress_ctx_confirm_once", False))
+        self._suppress_ctx_confirm_once = False
+        if new_ctx > 8192 and not skip_confirm:
             ram_estimate = (new_ctx / 1024) * 0.5
             result = QMessageBox.question(
                 self, "Confirm Context Reload",
@@ -219,7 +223,7 @@ class MainWindow(QMainWindow):
         if self._worker:
             if hasattr(self._worker, "abort"):
                 self._worker.abort()
-            self._worker.wait(1000)
+            self._worker.wait(LONG_TIMEOUT_MS)
             self._worker = None
         self.engine.shutdown()
         self.current_ctx = new_ctx
@@ -266,7 +270,7 @@ class MainWindow(QMainWindow):
 
     def _on_ctx_input_changed(self):
         try:
-            value = max(512, min(32768, int(self.ctx_input.text())))
+            value = max(512, min(MAX_CONTEXT_TOKENS, int(self.ctx_input.text())))
             self.ctx_slider.setValue(value)
         except ValueError:
             self.ctx_input.setText(str(self.ctx_slider.value()))
@@ -843,7 +847,7 @@ class MainWindow(QMainWindow):
                 try: old_loader.finished.disconnect()
                 except Exception: pass
                 old_loader.quit()
-                old_loader.wait(2000)
+                old_loader.wait(LONG_TIMEOUT_MS)
 
             # Cleanly shut down any already-running engine for this role
             old_eng = getattr(self, attr, None)
@@ -1078,7 +1082,7 @@ class MainWindow(QMainWindow):
 
         sb.addWidget(QLabel("  Context:"))
         self.ctx_slider = QSlider(Qt.Orientation.Horizontal)
-        self.ctx_slider.setRange(512, 32768)
+        self.ctx_slider.setRange(512, MAX_CONTEXT_TOKENS)
         self.ctx_slider.setFixedWidth(140)
         self.ctx_slider.blockSignals(True)
         self.ctx_slider.setValue(DEFAULT_CTX())
@@ -1467,11 +1471,27 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "ctx_slider"):
             return False
         try:
-            self.ctx_slider.setValue(int(new_ctx))
+            requested_ctx = max(512, min(MAX_CONTEXT_TOKENS, int(new_ctx)))
+            force_same_ctx = requested_ctx == int(getattr(self.engine, "ctx_value", 0) or 0)
+            self.ctx_slider.setValue(requested_ctx)
         except Exception:
             return False
+        self._suppress_ctx_confirm_once = True
+        self._force_ctx_reload_once = force_same_ctx
         self._apply_new_context()
-        return True
+        loader = getattr(self, "_loader", None)
+        if loader and loader.isRunning():
+            try:
+                from PyQt6.QtCore import QEventLoop
+                loop = QEventLoop()
+                loader.finished.connect(lambda *_: loop.quit())
+                loop.exec()
+            except Exception:
+                loader.wait(LONG_TIMEOUT_MS)
+        return bool(
+            self.engine.is_loaded
+            and int(getattr(self.engine, "ctx_value", 0)) == requested_ctx
+        )
 
     def _labs_request_load_model(self, model_path: str) -> bool:
         """Reverse route: a lab feature asks the host to load a model."""
@@ -2050,7 +2070,7 @@ class MainWindow(QMainWindow):
         if self._pipeline_worker:
             if hasattr(self._pipeline_worker, "abort"):
                 self._pipeline_worker.abort()
-            self._pipeline_worker.wait(2000)
+            self._pipeline_worker.wait(LONG_TIMEOUT_MS)
             self._pipeline_worker = None
             for w in (self._pipeline_reason_w, self._pipeline_code_w):
                 if w:
@@ -2061,17 +2081,17 @@ class MainWindow(QMainWindow):
 
         if self._worker:
             if hasattr(self._worker, "abort"): self._worker.abort()
-            self._worker.wait(2000)
+            self._worker.wait(LONG_TIMEOUT_MS)
             self._worker = None
 
         if self._summary_worker:
             if hasattr(self._summary_worker, "request_pause"):
                 self._summary_worker.request_pause()
-                self._summary_worker.wait(4000)
+                self._summary_worker.wait(LONG_TIMEOUT_MS)
             else:
                 if hasattr(self._summary_worker, "abort"):
                     self._summary_worker.abort()
-                self._summary_worker.wait(2000)
+                self._summary_worker.wait(LONG_TIMEOUT_MS)
             self._summary_worker = None
             if hasattr(self, "_summary_bubble") and self._summary_bubble:
                 self._summary_bubble.append_text(
@@ -2083,11 +2103,11 @@ class MainWindow(QMainWindow):
         if self._multi_pdf_worker:
             if hasattr(self._multi_pdf_worker, "request_pause"):
                 self._multi_pdf_worker.request_pause()
-                self._multi_pdf_worker.wait(4000)
+                self._multi_pdf_worker.wait(LONG_TIMEOUT_MS)
             else:
                 if hasattr(self._multi_pdf_worker, "abort"):
                     self._multi_pdf_worker.abort()
-                self._multi_pdf_worker.wait(2000)
+                self._multi_pdf_worker.wait(LONG_TIMEOUT_MS)
             self._multi_pdf_worker = None
             if hasattr(self, "_summary_bubble") and self._summary_bubble:
                 self._summary_bubble.append_text(
@@ -2205,7 +2225,7 @@ class MainWindow(QMainWindow):
 
         if self._summary_worker:
             if hasattr(self._summary_worker, "abort"): self._summary_worker.abort()
-            self._summary_worker.wait(1000)
+            self._summary_worker.wait(LONG_TIMEOUT_MS)
 
         from math import ceil
         estimated_chunks = ceil(len(text) / int(APP_CONFIG["summary_chunk_chars"]))
@@ -2891,19 +2911,19 @@ class MainWindow(QMainWindow):
         if self._worker:
             try:
                 if hasattr(self._worker, "abort"): self._worker.abort()
-                self._worker.wait(1000)
+                self._worker.wait(LONG_TIMEOUT_MS)
             except Exception:
                 pass
         if self._pipeline_worker:
             try:
                 self._pipeline_worker.abort()
-                self._pipeline_worker.wait(1000)
+                self._pipeline_worker.wait(LONG_TIMEOUT_MS)
             except Exception:
                 pass
         if hasattr(self, "pipeline_tab") and self.pipeline_tab._exec_worker:
             try:
                 self.pipeline_tab._exec_worker.abort()
-                self.pipeline_tab._exec_worker.wait(1000)
+                self.pipeline_tab._exec_worker.wait(LONG_TIMEOUT_MS)
             except Exception:
                 pass
 
@@ -2914,7 +2934,7 @@ class MainWindow(QMainWindow):
                 try: ldr.finished.disconnect()
                 except Exception: pass
                 ldr.quit()
-                ldr.wait(1500)
+                ldr.wait(LONG_TIMEOUT_MS)
 
         self.engine.shutdown()
         for role in ("reasoning", "summarization", "coding", "secondary"):

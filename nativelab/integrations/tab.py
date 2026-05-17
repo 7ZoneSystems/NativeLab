@@ -26,6 +26,7 @@ from nativelab.imports.import_global import (
     Qt,
     pyqtSignal,
 )
+from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS, LONG_TIMEOUT_MS
 from nativelab.UI.icons import set_button_icon, set_label_icon
 
 from .endpoints import IntegrationEndpoints
@@ -109,7 +110,7 @@ class DiscordBotRunner(QThread):
         self.log.emit("Stopping Discord bot process")
         proc.terminate()
         try:
-            proc.wait(timeout=8)
+            proc.wait(timeout=LONG_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             self.log.emit("Bot did not exit after terminate; killing process")
             proc.kill()
@@ -169,7 +170,7 @@ class WhatsAppBotRunner(QThread):
         self.log.emit("Stopping WhatsApp bot process")
         proc.terminate()
         try:
-            proc.wait(timeout=8)
+            proc.wait(timeout=LONG_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             self.log.emit("WhatsApp bot did not exit after terminate; killing process")
             proc.kill()
@@ -799,7 +800,7 @@ class IntegrationsTab(QWidget):
             return
         if self._discord_runner.isRunning():
             self._discord_runner.stop()
-            self._discord_runner.wait(3000)
+            self._discord_runner.wait(LONG_TIMEOUT_MS)
         self._discord_runner = None
         self.btn_discord_start.setEnabled(True)
         self.btn_discord_stop.setEnabled(False)
@@ -1221,7 +1222,7 @@ class IntegrationsTab(QWidget):
             return
         if self._whatsapp_runner.isRunning():
             self._whatsapp_runner.stop()
-            self._whatsapp_runner.wait(3000)
+            self._whatsapp_runner.wait(LONG_TIMEOUT_MS)
         self._whatsapp_runner = None
         self.btn_whatsapp_start.setEnabled(True)
         self.btn_whatsapp_stop.setEnabled(False)

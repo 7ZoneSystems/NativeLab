@@ -18,11 +18,13 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
+from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_SECONDS
+
 
 def _run(cmd: list[str]) -> Tuple[int, str]:
     try:
         proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=120
+            cmd, capture_output=True, text=True, timeout=LONG_TIMEOUT_SECONDS
         )
         return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
     except FileNotFoundError:
