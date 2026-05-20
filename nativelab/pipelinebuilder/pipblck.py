@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import Path, Optional, QRect
-from nativelab.Model.model_global import api_model_name_from_ref, is_api_model_ref
+from nativelab.Model.model_global import api_model_name_from_ref, is_api_model_ref, model_ref_display_name
 from .blck_typ import PipelineBlockType
 
 class PipelineBlock:
@@ -30,7 +30,7 @@ class PipelineBlock:
         if self.model_path:
             if is_api_model_ref(self.model_path):
                 return api_model_name_from_ref(self.model_path)[:18]
-            return Path(self.model_path).stem[:18]
+            return model_ref_display_name(self.model_path)[:18]
         return "Model"
 
     def rect(self):

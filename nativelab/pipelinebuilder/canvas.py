@@ -3,7 +3,7 @@ from .pipblck import PipelineBlock, PipelineBlockType
 from .blck_typ import PipelineConnection
 from nativelab.Server.server_global import detect_model_family
 from nativelab.GlobalConfig.config_global import MODEL_ROLES
-from nativelab.Model.model_global import api_model_name_from_ref, detect_quant_type, detect_vision_model, is_api_model_ref
+from nativelab.Model.model_global import api_model_name_from_ref, detect_quant_type, detect_vision_model, is_api_model_ref, is_external_model_ref, model_ref_payload
 from .editordialogue import CodeEditorDialog, LlmLogicEditorDialog
 from nativelab.UI.UI_const import C
 from nativelab.UI.icons import add_menu_action
@@ -306,6 +306,10 @@ class PipelineCanvas(QWidget):
         if b.btype == PipelineBlockType.MODEL and b.model_path:
             if is_api_model_ref(b.model_path):
                 badge = "API"
+            elif is_external_model_ref(b.model_path):
+                fam = detect_model_family(model_ref_payload(b.model_path))
+                vi = detect_vision_model(model_ref_payload(b.model_path))
+                badge = ("OLLAMA" if b.model_path.startswith("ollama:") else "HF") + f"·{fam.name[:8]}" + ("·VLM" if vi.is_vision else "")
             else:
                 fam   = detect_model_family(b.model_path)
                 quant = detect_quant_type(b.model_path)

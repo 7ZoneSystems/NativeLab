@@ -9,7 +9,7 @@ End-to-end features that span engines, references, and the UI: pipelines, summar
 - [Parallel loading & pipeline mode](#parallel-loading--pipeline-mode)
 - [Visual pipeline builder](#visual-pipeline-builder)
 - [MCP](#mcp)
-- [HuggingFace downloader](#huggingface-downloader)
+- [Download tab](#download-tab)
 
 ---
 
@@ -237,16 +237,45 @@ Each entry stores name, transport, command/URL, optional env overrides, and a de
 
 ---
 
-## HuggingFace downloader
+## Download tab
 
-The Download tab provides a built-in interface for finding and downloading GGUFs without `huggingface-cli` or a browser.
+The Download tab provides model and runtime downloaders without leaving NativeLab.
 
-### Searching
+Each downloader includes a **Popular** selector populated from `nativelab/Model/templates.py`. Pick a preset to fill the repo/model field, then inspect/search/pull normally. The list covers current common GGUF repos, HF Transformers snapshots, and Ollama library names while still allowing custom entries.
+
+For gated or private Hugging Face repos, open **Accounts > Hugging Face** first and click **Login with Hugging Face**. NativeLab uses its built-in public OAuth client ID, saves credentials locally in `localllm/cred/huggingface.json`, and reuses the saved token for GGUF search/download, HF snapshot downloads, and `hf:` model loading. Manual access-token paste remains available as an advanced fallback. The Download tab shows the current auth state and links back to Accounts.
+
+### GGUF HuggingFace search
 
 Enter a repo ID (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`) and click **Search**. The results list shows GGUF files with sizes and last-modified dates.
-
-### Downloading
 
 Select a file and click **Download**. Streams directly to your models folder with a progress bar. If the target exists, you're warned before overwriting. `HfSearchWorker` and `HfDownloadWorker` (QThread subclasses) keep the UI responsive.
 
 The CLI's wizard does the same thing - `nativelab/cli/hf_download.py` is a synchronous version of the same logic with resume + retry.
+
+### HF Transformers snapshot
+
+Use this when you want `hf:<local-folder>` models to work offline with Transformers:
+
+1. Install the optional backend dependencies with `pip install -e ".[hf]"`.
+2. Enter a repo ID and revision, then click **Inspect**.
+3. Review the runtime files. NativeLab includes configs, tokenizer/processor files, safetensors or PyTorch shards and indexes, custom Python files, and repo metadata.
+4. Click **Download Snapshot**. Files are written under `localllm/hf_transformers/<namespace>/<repo>/` with subdirectories preserved.
+
+Downloads resume through `.part` files and can be paused, cancelled, or cancelled with partial files deleted. Completed snapshots are automatically registered as `hf:<downloaded-folder>`.
+
+Default revision, local-files-only mode, dtype, device map, safetensors policy, attention implementation, max-memory map, and quantization mode live in the top-right Settings button under **App Configuration > HF Transformers**. The legacy `hf_token` setting remains as a fallback when no Accounts token is saved.
+
+### Ollama model pull
+
+NativeLab does not install or start Ollama. If an Ollama daemon is already running:
+
+1. Confirm the host in **App Configuration > Ollama** or edit it directly in the Download tab.
+2. Click **Refresh** to list installed models from `/api/tags`.
+3. Type a remote model name, such as `llama3.2:3b`, and click **Pull**.
+
+Pull progress streams from `/api/pull`. When the pull completes, NativeLab registers the model as `ollama:<model>`. The shared engine uses the same host and `keep_alive` setting when loading and chatting with Ollama models.
+
+### llama.cpp runtime
+
+The llama.cpp section downloads prebuilt `llama-server` and `llama-cli` release assets into `./llama/bin/`, where the Server tab and CLI can find them automatically.

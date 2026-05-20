@@ -1,6 +1,6 @@
 from nativelab.imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime, json
 from nativelab.components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
-from nativelab.Model.model_global import MODE_SECTION_INSTRUCTIONS, MODE_FINAL_INSTRUCTIONS
+from nativelab.Model.model_global import MODE_SECTION_INSTRUCTIONS, MODE_FINAL_INSTRUCTIONS, model_ref_payload
 from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS, APP_CONFIG, simple_hash, LONG_TIMEOUT_SECONDS
 
 class ChunkedSummaryWorker(QThread):
@@ -58,7 +58,8 @@ class ChunkedSummaryWorker(QThread):
                 running_ctx       = state.get("running_ctx", "")
                 self.progress.emit(f"Resuming from chunk {start_idx + 1} / {total}…")
 
-        fam = detect_model_family(getattr(self.engine, "model_path", ""))
+        mp = getattr(self.engine, "model_path", "")
+        fam = detect_model_family(model_ref_payload(mp) or mp)
 
         for i in range(start_idx, total):
             if self._abort:
@@ -215,6 +216,12 @@ class ChunkedSummaryWorker(QThread):
 
 
     def _infer_with(self, eng, prompt: str, n_predict: int) -> Optional[str]:
+        if getattr(eng, "mode", "") in ("ollama", "hf_transformers") and hasattr(eng, "generate_sync"):
+            try:
+                return eng.generate_sync(prompt=prompt, n_predict=n_predict, temperature=0.3, raw_prompt=True)
+            except Exception as e:
+                self.err.emit(f"{getattr(eng, 'mode', 'engine')} inference error: {e}")
+                return None
         if eng.mode == "server":
             # Fix: pass eng through so _infer_server uses the right model
             return self._infer_server(prompt, n_predict, eng.server_port, eng=eng)

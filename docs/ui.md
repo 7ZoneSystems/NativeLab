@@ -11,11 +11,12 @@ GUI tour, theming, persistence, shortcuts, and live RAM management.
 | **💬 Chat** | The main conversation window. Sidebar of sessions, message bubbles, input bar with model selector. |
 | **📚 Models** | Library of GGUF models. Set roles, edit per-model parameters, browse for new files. |
 | **🌐 API Models** | Configure OpenAI / Anthropic / self-hosted endpoints. |
-| **⚙️ Config** | All `APP_CONFIG` thresholds with descriptions. Paused-job manager. |
+| **Accounts** | Account integrations. The **Hugging Face** sub-tab provides one-click browser login for private or gated repos and stores credentials locally in `localllm/cred/huggingface.json`. |
+| **Top-right Settings** | App Configuration, including backend defaults, HF Transformers load settings, Ollama host settings, and paused-job manager. |
 | **🖥️ Server** | llama.cpp binary paths, host/port range, GPU offload, extra args. |
 | **🔗 Pipeline** | Visual pipeline builder ([details](workflows.md#visual-pipeline-builder)). |
 | **🔌 MCP** | Model Context Protocol server manager ([details](workflows.md#mcp)). |
-| **⬇️ Download** | HuggingFace GGUF search + download, llama.cpp release installer. |
+| **⬇️ Download** | HuggingFace GGUF downloads, HF Transformers snapshots, Ollama pulls, and llama.cpp release installer. |
 | **⌬ Labs** | Experimentation tab ([details](labs.md)). |
 | **🎨 Appearance** | Color palette editor (light + dark, saved separately). |
 | **📋 Logs** | Color-coded log console (INFO / WARN / ERROR). |

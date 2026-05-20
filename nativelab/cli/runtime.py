@@ -10,7 +10,10 @@ from nativelab.labs.endpoints import LabEndpoints
 from nativelab.Model.model_global import (
     api_model_ref,
     getapi_registry,
+    is_external_model_ref,
     is_api_model_ref,
+    is_model_ref_valid,
+    model_ref_display_name,
 )
 from nativelab.skill import active_skill_context, ensure_builtin_edit_skill
 
@@ -63,8 +66,16 @@ class CliRuntime:
             return False
         if is_api_model_ref(target) or getapi_registry().get(target):
             return self._load_api(target, save=save)
-        path = Path(target).expanduser()
-        if not path.exists():
+        if is_external_model_ref(target):
+            load_target = target
+            display = model_ref_display_name(target)
+        else:
+            path = Path(target).expanduser()
+            if not path.exists():
+                return False
+            load_target = str(path)
+            display = path.name
+        if not is_model_ref_valid(load_target):
             return False
         if self.api and self.api.is_loaded:
             self.api.shutdown()
@@ -75,10 +86,10 @@ class CliRuntime:
             pass
         self.llama = LlamaEngine()
         self._bind()
-        ui.info(f"Loading model: {path.name}")
-        ok = self.llama.load(str(path), ctx=self.ctx, log_cb=lambda m: ui.info(m))
+        ui.info(f"Loading model: {display}")
+        ok = self.llama.load(load_target, ctx=self.ctx, log_cb=lambda m: ui.info(m))
         if ok:
-            self.model_path = str(path)
+            self.model_path = load_target
             if save:
                 self._save_model_prefs()
         self.endpoints.notify_engine_changed()
@@ -116,7 +127,7 @@ class CliRuntime:
                 self._save_model_prefs()
             return True
         current = self.model_path
-        if not current or not Path(current).exists():
+        if not current or not is_model_ref_valid(current):
             return False
         try:
             self.llama.shutdown()

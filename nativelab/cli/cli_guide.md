@@ -135,7 +135,7 @@ Anything that **starts with a `/`** is a command, not a message to the model.
 | ---------------- | --------------------------------------------------------- |
 | `/help`          | Shows all the commands.                                   |
 | `/status`        | Shows which model is loaded and how it's running.         |
-| `/models`        | Lists local models.                                       |
+| `/models`        | Lists registered GGUF, Ollama, and HF models.             |
 | `/api-models`    | Lists saved API model profiles.                           |
 | `/skills on`     | Enables shared skill instructions in chat.                |
 | `/skills off`    | Disables shared skill instructions in chat.               |

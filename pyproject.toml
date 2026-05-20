@@ -28,6 +28,14 @@ discord = [
 whatsapp = [
     "aiohttp>=3.9.0"
 ]
+hf = [
+    "transformers>=4.46.0",
+    "torch>=2.2.0",
+    "safetensors>=0.4.0",
+    "accelerate>=0.30.0",
+    "sentencepiece>=0.2.0",
+    "pillow>=10.0.0"
+]
 
 [project.scripts]
 nativelab = "nativelab.main:main"

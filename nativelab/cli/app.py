@@ -7,7 +7,7 @@ Subcommands
   chat              jump straight into the REPL using saved prefs
   lint <files>      run a linter on the given files
   status            print backend / model / ctx and exit
-  models            list/load local GGUF models
+  models            list/load local GGUF, Ollama, and HF models
   api-models        list/load saved API profiles
   skills            manage shared model skills
   labs              run CLI Labs workflows
@@ -41,14 +41,14 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="discard saved prefs before starting")
 
     p_chat = sub.add_parser("chat", help="open the chat REPL")
-    p_chat.add_argument("--model",  default="", help="path to .gguf to load")
+    p_chat.add_argument("--model",  default="", help="model path/ref to load")
     p_chat.add_argument("--ctx",    type=int, default=0, help="context size")
     p_chat.add_argument("--system", default="", help="system prompt")
 
     p_lint = sub.add_parser("lint", help="lint Python files")
     p_lint.add_argument("paths", nargs="+")
 
-    p_models = sub.add_parser("models", help="list/load local models")
+    p_models = sub.add_parser("models", help="list/load GGUF, Ollama, and HF models")
     p_models.add_argument("action", nargs="?", default="list", choices=["list", "load", "default"])
     p_models.add_argument("target", nargs="?", default="")
     p_models.add_argument("--ctx", type=int, default=0)
@@ -109,7 +109,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_serve = sub.add_parser("serve", help="run the local integration HTTP endpoint")
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=8765)
-    p_serve.add_argument("--model", default="")
+    p_serve.add_argument("--model", default="", help="model path/ref to load before serving")
     p_serve.add_argument("--ctx", type=int, default=0)
 
     sub.add_parser("status", help="print current model / backend and exit")
@@ -162,7 +162,8 @@ def _cmd_status() -> int:
     print(f"  model_path : {prefs.get('model_path') or '(none)'}")
     print(f"  ctx        : {prefs.get('ctx', '(unset)')}")
     p = prefs.get("model_path") or ""
-    if p and not Path(p).exists():
+    is_ref = p.startswith("@api/") or p.startswith("ollama:") or p.startswith("hf:")
+    if p and not is_ref and not Path(p).exists():
         ui.warn(f"Model file is missing: {p}")
     print(f"  skills     : {'on' if prefs.get('skills_enabled') else 'off'}")
     return 0
@@ -180,7 +181,7 @@ def _cmd_models(args) -> int:
     if args.action == "list":
         features.list_models(as_json=args.json)
         return 0
-    target = args.target or features.choose_api_target()
+    target = args.target or features.choose_model_target()
     if args.action == "default":
         features.set_default_model(target, args.ctx or None)
         return 0

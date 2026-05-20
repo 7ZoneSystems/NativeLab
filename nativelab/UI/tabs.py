@@ -1,4 +1,4 @@
-from nativelab.imports.import_global import QStackedWidget,QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame
+from nativelab.imports.import_global import QStackedWidget,QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame, QTabWidget
 from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C,set_theme
 from .effects import fade_in
 from nativelab.core.engine_global import ApiConfig, ApiEngine
@@ -6,8 +6,24 @@ from nativelab.Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
 from nativelab.GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths, LONG_TIMEOUT_SECONDS
 from nativelab.components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
 from nativelab.Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchWorker, HfDownloadWorker, MCP_CONFIG_FILE
-from nativelab.Server.hfdwld import LlamaCppReleaseFetcher, LlamaCppDownloadWorker
-from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES
+from nativelab.Server.hfdwld import (
+    HfSnapshotDownloadWorker,
+    HfSnapshotSearchWorker,
+    LlamaCppReleaseFetcher,
+    LlamaCppDownloadWorker,
+    OllamaListWorker,
+    OllamaPullWorker,
+)
+from nativelab.Server.hfauth import (
+    HF_TOKEN_SETTINGS_URL,
+    HfDirectTokenWorker,
+    HfOAuthLoginWorker,
+    HfValidateWorker,
+    clear_hf_credentials,
+    load_hf_credentials,
+    mask_hf_token,
+)
+from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES, make_hf_model_ref, make_ollama_model_ref, popular_model_presets
 from nativelab.labs import LabsTab, LabEndpoints
 from nativelab.UI.icons import add_menu_action, icon, icon_size, role_icon, set_button_icon, set_label_icon, set_status_label, status_icon
 class ConfigTab(QWidget):
@@ -58,6 +74,13 @@ class ConfigTab(QWidget):
                                      "pause_after_chunks"]),
             ("Multi-PDF",       ["multipdf_n_pred_sect", "multipdf_n_pred_final"]),
             ("Model Defaults",  ["default_threads", "default_ctx", "default_n_predict"]),
+            ("HF Transformers", [
+                "hf_transformers_dir", "hf_token", "hf_revision",
+                "hf_trust_remote_code", "hf_local_files_only", "hf_use_safetensors",
+                "hf_torch_dtype", "hf_device_map", "hf_low_cpu_mem_usage",
+                "hf_attn_implementation", "hf_max_memory", "hf_quantization",
+            ]),
+            ("Ollama", ["ollama_host", "ollama_keep_alive"]),
         ]
 
         for cat_title, keys in categories:
@@ -157,20 +180,39 @@ class ConfigTab(QWidget):
         if ftype == "bool":
             widget = QCheckBox()
             widget.setChecked(bool(current_val))
+        elif ftype == "choice":
+            widget = QComboBox()
+            widget.setFixedHeight(26)
+            widget.setFixedWidth(170)
+            for choice in meta.get("choices", []):
+                widget.addItem(str(choice), str(choice))
+            idx = widget.findData(str(current_val))
+            widget.setCurrentIndex(max(idx, 0))
         else:
             widget = QLineEdit(str(current_val))
-            widget.setFixedWidth(90)
+            widget.setFixedWidth(360 if ftype in ("str", "path", "password") else 90)
             widget.setFixedHeight(26)
-            widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            mn = meta.get("min", 0); mx = meta.get("max", 99999)
-            widget.setToolTip(f"Range: {mn} – {mx}")
+            if ftype == "password":
+                widget.setEchoMode(QLineEdit.EchoMode.Password)
+                widget.setPlaceholderText("Optional token")
+            elif ftype == "path":
+                widget.setPlaceholderText("Directory path")
+            if ftype == "int":
+                widget.setAlignment(Qt.AlignmentFlag.AlignCenter)
+                mn = meta.get("min", 0); mx = meta.get("max", 99999)
+                widget.setToolTip(f"Range: {mn} – {mx}")
 
         self._fields[key] = widget
         top_row.addWidget(widget)
 
         # Range hint
-        if ftype != "bool":
+        if ftype == "int":
             rng_lbl = QLabel(f"({meta.get('min', 0)} – {meta.get('max', '∞')})")
+            rng_lbl.setObjectName("txt2_xs")
+            top_row.addWidget(rng_lbl)
+        elif ftype == "choice":
+            choices = ", ".join(meta.get("choices", []))
+            rng_lbl = QLabel(choices)
             rng_lbl.setObjectName("txt2_xs")
             top_row.addWidget(rng_lbl)
         top_row.addStretch()
@@ -194,6 +236,10 @@ class ConfigTab(QWidget):
             mx    = meta.get("max", 999999)
             if ftype == "bool":
                 APP_CONFIG[key] = widget.isChecked()
+            elif ftype == "choice":
+                APP_CONFIG[key] = widget.currentData() or widget.currentText()
+            elif ftype in ("str", "path", "password"):
+                APP_CONFIG[key] = widget.text().strip()
             else:
                 try:
                     v = int(widget.text())
@@ -218,6 +264,9 @@ class ConfigTab(QWidget):
             val = APP_CONFIG_DEFAULTS.get(key, 0)
             if isinstance(widget, QCheckBox):
                 widget.setChecked(bool(val))
+            elif isinstance(widget, QComboBox):
+                idx = widget.findData(str(val))
+                widget.setCurrentIndex(max(idx, 0))
             else:
                 widget.setText(str(val))
         self.config_changed.emit()
@@ -253,6 +302,292 @@ class ConfigTab(QWidget):
     def get_selected_job_state(self) -> Optional[dict]:
         jid = self.get_selected_job_id()
         return load_paused_job(jid) if jid else None
+
+
+class HuggingFaceLoginTab(QWidget):
+    """Local Hugging Face OAuth/device login surface."""
+
+    auth_changed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._login_worker: Optional[HfOAuthLoginWorker] = None
+        self._token_worker: Optional[HfDirectTokenWorker] = None
+        self._validate_worker: Optional[HfValidateWorker] = None
+        self._build()
+        self.refresh_state()
+
+    def _build(self):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0); outer.setSpacing(0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setObjectName("chat_scroll")
+        inner = QWidget(); inner.setObjectName("chat_container")
+        root = QVBoxLayout(inner)
+        root.setContentsMargins(22, 18, 22, 22); root.setSpacing(12)
+        scroll.setWidget(inner); outer.addWidget(scroll)
+
+        hdr = QLabel("Hugging Face Login")
+        set_label_icon(hdr, "key", "Hugging Face Login", 18)
+        hdr.setStyleSheet("font-size:16px;font-weight:bold;margin-bottom:4px;")
+        root.addWidget(hdr)
+        sub = QLabel(
+            "Sign in once to use gated or private Hugging Face repos across GGUF downloads, "
+            "Transformers snapshots, and HF model loading. Tokens are stored locally under localllm/cred.")
+        sub.setWordWrap(True)
+        sub.setObjectName("txt2_small")
+        root.addWidget(sub)
+
+        token_card = QFrame(); token_card.setObjectName("tab_card")
+        tl = QVBoxLayout(token_card); tl.setContentsMargins(16, 14, 16, 14); tl.setSpacing(10)
+        token_title = QLabel("Advanced: Access Token")
+        token_title.setStyleSheet("font-size:12px;font-weight:bold;")
+        tl.addWidget(token_title)
+        token_hint = QLabel(
+            "Optional fallback. Paste a Hugging Face read or fine-grained access token "
+            "if browser login is unavailable.")
+        token_hint.setWordWrap(True); token_hint.setObjectName("txt2_small")
+        tl.addWidget(token_hint)
+
+        token_row = QHBoxLayout(); token_row.setSpacing(8)
+        token_lbl = QLabel("Token:")
+        token_lbl.setFixedWidth(78); token_lbl.setObjectName("txt2")
+        self.hf_token_edit = QLineEdit()
+        self.hf_token_edit.setPlaceholderText("hf_...")
+        self.hf_token_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.hf_token_edit.setFixedHeight(30)
+        self.btn_save_hf_token = QPushButton("Save Token")
+        set_button_icon(self.btn_save_hf_token, "save", "Save Token")
+        self.btn_save_hf_token.setFixedHeight(30)
+        self.btn_save_hf_token.clicked.connect(self._save_direct_token)
+        token_row.addWidget(token_lbl)
+        token_row.addWidget(self.hf_token_edit, 1)
+        token_row.addWidget(self.btn_save_hf_token)
+        tl.addLayout(token_row)
+
+        status = QFrame(); status.setObjectName("tab_card")
+        st = QVBoxLayout(status); st.setContentsMargins(16, 14, 16, 14); st.setSpacing(8)
+        status_title = QLabel("Auth Status")
+        status_title.setStyleSheet("font-size:12px;font-weight:bold;")
+        st.addWidget(status_title)
+        self.hf_auth_status = QLabel("")
+        self.hf_auth_status.setWordWrap(True)
+        self.hf_auth_status.setStyleSheet("font-size:12px;font-weight:600;")
+        st.addWidget(self.hf_auth_status)
+        self.hf_auth_details = QLabel("")
+        self.hf_auth_details.setWordWrap(True)
+        self.hf_auth_details.setObjectName("txt2_small")
+        st.addWidget(self.hf_auth_details)
+
+        self.hf_login_message = QLabel("")
+        self.hf_login_message.setWordWrap(True)
+        self.hf_login_message.setObjectName("txt2_small")
+        st.addWidget(self.hf_login_message)
+
+        self.hf_device_code_label = QLabel("")
+        self.hf_device_code_label.setWordWrap(True)
+        self.hf_device_code_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.hf_device_code_label.setStyleSheet(
+            f"font-size:18px;font-weight:700;color:{C['acc']};"
+            f"background:{C['bg2']};border:1px solid {C['bdr']};"
+            "border-radius:6px;padding:8px 10px;"
+        )
+        self.hf_device_code_label.setVisible(False)
+        st.addWidget(self.hf_device_code_label)
+
+        btn_row = QHBoxLayout(); btn_row.setSpacing(8)
+        self.btn_hf_login = QPushButton("Login with Hugging Face")
+        set_button_icon(self.btn_hf_login, "log-in", "Login with Hugging Face")
+        self.btn_hf_validate = QPushButton("Validate")
+        set_button_icon(self.btn_hf_validate, "done", "Validate")
+        self.btn_hf_logout = QPushButton("Logout")
+        set_button_icon(self.btn_hf_logout, "log-out", "Logout")
+        self.btn_hf_token_settings = QPushButton("Open Token Settings")
+        set_button_icon(self.btn_hf_token_settings, "settings", "Open Token Settings")
+        for btn in (self.btn_hf_login, self.btn_hf_validate, self.btn_hf_logout, self.btn_hf_token_settings):
+            btn.setFixedHeight(32)
+            btn_row.addWidget(btn)
+        btn_row.addStretch()
+        st.addLayout(btn_row)
+        self.btn_hf_login.clicked.connect(self._login)
+        self.btn_hf_validate.clicked.connect(self._validate)
+        self.btn_hf_logout.clicked.connect(self._logout)
+        self.btn_hf_token_settings.clicked.connect(lambda: self._open_url(HF_TOKEN_SETTINGS_URL))
+        root.addWidget(status)
+        root.addWidget(token_card)
+        root.addStretch()
+
+    def _format_ts(self, value) -> str:
+        try:
+            ts = int(value or 0)
+            if ts <= 0:
+                return ""
+            return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            return ""
+
+    def refresh_state(self):
+        creds = load_hf_credentials()
+        saved_token = str(creds.get("access_token", "") or "").strip()
+        fallback_token = str(APP_CONFIG.get("hf_token", "") or "").strip()
+        self.hf_token_edit.clear()
+        self.hf_token_edit.setPlaceholderText(
+            "Saved token present; paste a new token to replace" if saved_token else "hf_...")
+        username = str(creds.get("username", "") or "").strip()
+        details = []
+        if saved_token:
+            self.hf_auth_status.setText(f"Signed in{f' as {username}' if username else ''}.")
+            details.append(f"Token: {mask_hf_token(saved_token)}")
+        elif fallback_token:
+            self.hf_auth_status.setText("Using App Configuration token fallback.")
+            details.append(f"Token: {mask_hf_token(fallback_token)}")
+        else:
+            self.hf_auth_status.setText("Signed out. Public repositories only.")
+        scope = str(creds.get("scope", "") or "").strip()
+        if scope:
+            details.append(f"Scope: {scope}")
+        client_id = str(creds.get("client_id", "") or "").strip()
+        if client_id and not client_id.startswith("hf_"):
+            details.append("OAuth app: NativeLab")
+        expiry = self._format_ts(creds.get("expires_at"))
+        if expiry:
+            details.append(f"Expires: {expiry}")
+        validated = self._format_ts(creds.get("last_validated_at"))
+        if validated:
+            details.append(f"Last validated: {validated}")
+        last_error = str(creds.get("last_error", "") or "").strip()
+        if last_error:
+            details.append(f"Last error: {last_error}")
+        self.hf_auth_details.setText("\n".join(details) if details else "No saved Hugging Face token.")
+        if saved_token:
+            self.hf_device_code_label.setVisible(False)
+            self.hf_device_code_label.setText("")
+
+    def _save_direct_token(self):
+        token = self.hf_token_edit.text().strip()
+        if not token:
+            self.hf_login_message.setText("Paste a Hugging Face access token first.")
+            return
+        self.btn_save_hf_token.setEnabled(False)
+        self.hf_login_message.setText("Validating Hugging Face access token...")
+        self._token_worker = HfDirectTokenWorker(token)
+        self._token_worker.done.connect(self._on_direct_token_done)
+        self._token_worker.err.connect(self._on_direct_token_err)
+        self._token_worker.start()
+
+    def _on_direct_token_done(self, _creds: dict):
+        self.btn_save_hf_token.setEnabled(True)
+        self.hf_login_message.setText("Hugging Face token saved and validated.")
+        self.hf_token_edit.clear()
+        self.refresh_state()
+        self.auth_changed.emit()
+
+    def _on_direct_token_err(self, msg: str):
+        self.btn_save_hf_token.setEnabled(True)
+        self.hf_login_message.setText(msg)
+        self.refresh_state()
+
+    def _login(self):
+        self.btn_hf_login.setEnabled(False)
+        self.hf_login_message.setText("Starting Hugging Face login...")
+        self.hf_device_code_label.setVisible(False)
+        self.hf_device_code_label.setText("")
+        self._login_worker = HfOAuthLoginWorker()
+        self._login_worker.code_ready.connect(self._on_login_code)
+        self._login_worker.status.connect(self.hf_login_message.setText)
+        self._login_worker.done.connect(self._on_login_done)
+        self._login_worker.err.connect(self._on_login_err)
+        self._login_worker.start()
+
+    def _on_login_code(self, user_code: str, url: str):
+        if user_code:
+            self.hf_device_code_label.setText(f"Enter this code in Hugging Face:\n{user_code}")
+            self.hf_device_code_label.setVisible(True)
+            msg = "Browser opened for Hugging Face login. Enter the code shown below."
+        else:
+            self.hf_device_code_label.setVisible(False)
+            msg = "Browser opened for Hugging Face login. Follow the browser instructions."
+        self.hf_login_message.setText(msg)
+        self._open_url(url)
+
+    def _on_login_done(self, _creds: dict):
+        self.btn_hf_login.setEnabled(True)
+        self.hf_login_message.setText("Hugging Face login saved and validated.")
+        self.hf_device_code_label.setVisible(False)
+        self.hf_device_code_label.setText("")
+        self.refresh_state()
+        self.auth_changed.emit()
+
+    def _on_login_err(self, msg: str):
+        self.btn_hf_login.setEnabled(True)
+        self.hf_login_message.setText(msg)
+        self.hf_device_code_label.setVisible(False)
+        self.hf_device_code_label.setText("")
+        self.refresh_state()
+
+    def _validate(self):
+        self.btn_hf_validate.setEnabled(False)
+        self.hf_login_message.setText("Validating Hugging Face token...")
+        self._validate_worker = HfValidateWorker()
+        self._validate_worker.done.connect(self._on_validate_done)
+        self._validate_worker.err.connect(self._on_validate_err)
+        self._validate_worker.start()
+
+    def _on_validate_done(self, _creds: dict):
+        self.btn_hf_validate.setEnabled(True)
+        self.hf_login_message.setText("Hugging Face token is valid.")
+        self.refresh_state()
+        self.auth_changed.emit()
+
+    def _on_validate_err(self, msg: str):
+        self.btn_hf_validate.setEnabled(True)
+        self.hf_login_message.setText(msg)
+        self.refresh_state()
+
+    def _logout(self):
+        clear_hf_credentials(keep_client_id=False)
+        self.hf_login_message.setText("Signed out.")
+        self.hf_device_code_label.setVisible(False)
+        self.hf_device_code_label.setText("")
+        self.refresh_state()
+        self.auth_changed.emit()
+
+    def _open_url(self, url: str):
+        try:
+            import webbrowser
+            webbrowser.open(url)
+        except Exception as exc:
+            self.hf_login_message.setText(f"Open this URL manually: {url}\n{exc}")
+
+
+class AccountsTab(QWidget):
+    """Account integrations grouped by provider."""
+
+    auth_changed = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+        self.tabs = QTabWidget()
+        self.tabs.setObjectName("accounts_subtabs")
+        self.hf_login_tab = HuggingFaceLoginTab()
+        self.hf_login_tab.auth_changed.connect(self.auth_changed.emit)
+        self.tabs.addTab(self.hf_login_tab, icon("key"), "Hugging Face")
+        root.addWidget(self.tabs)
+
+    def show_hugging_face(self):
+        self.tabs.setCurrentWidget(self.hf_login_tab)
+
+    def refresh_state(self):
+        self.hf_login_tab.refresh_state()
+
+    def refresh_icons(self):
+        self.tabs.setTabIcon(0, icon("key"))
+
 
 class ParallelLoadingDialog(QWidget):
     """Embedded panel (not a popup) in the Models tab for parallel loading config."""
@@ -1228,7 +1563,9 @@ class ServerTab(QWidget):
         self._update_srv_status()
 
 class ModelDownloadTab(QWidget):
-    """HuggingFace GGUF Model Downloader tab."""
+    """Model and runtime downloader tab."""
+
+    hf_login_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1238,6 +1575,11 @@ class ModelDownloadTab(QWidget):
         self._llama_fetcher:  Optional[LlamaCppReleaseFetcher] = None
         self._llama_dl:       Optional[LlamaCppDownloadWorker] = None
         self._llama_releases: list = []
+        self._hf_snapshot_search: Optional[HfSnapshotSearchWorker] = None
+        self._hf_snapshot_dl: Optional[HfSnapshotDownloadWorker] = None
+        self._hf_snapshot_files: list = []
+        self._ollama_list_worker: Optional[OllamaListWorker] = None
+        self._ollama_pull_worker: Optional[OllamaPullWorker] = None
         self._build()
     # ── build ─────────────────────────────────────────────────────────────────
     def _build(self):
@@ -1255,17 +1597,32 @@ class ModelDownloadTab(QWidget):
         scroll.setWidget(inner); outer.addWidget(scroll)
 
         # Header
-        hdr = QLabel("HuggingFace GGUF Downloader")
+        hdr = QLabel("Model & Runtime Downloads")
         hdr.setStyleSheet(
             "font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
         sub = QLabel(
-            "Enter any HuggingFace repo ID to browse its GGUF files and download "
-            "them straight to your models folder.  Network access required.")
+            "Download GGUF models, full HF Transformers snapshots, Ollama models, "
+            "and llama.cpp runtime binaries. Network access required.")
         sub.setWordWrap(True)
         sub.setStyleSheet(
             f"color:{C['txt2']};font-size:11px;margin-bottom:14px;")
         root.addWidget(sub)
+
+        auth_card = self._card()
+        auth_l = QHBoxLayout(auth_card)
+        auth_l.setContentsMargins(14, 10, 14, 10); auth_l.setSpacing(8)
+        self.hf_auth_download_label = QLabel("")
+        self.hf_auth_download_label.setObjectName("txt2_small")
+        self.hf_auth_download_label.setWordWrap(True)
+        self.btn_hf_login_shortcut = QPushButton("Accounts")
+        set_button_icon(self.btn_hf_login_shortcut, "key", "Accounts")
+        self.btn_hf_login_shortcut.setFixedHeight(30)
+        self.btn_hf_login_shortcut.clicked.connect(lambda _=False: self.hf_login_requested.emit())
+        auth_l.addWidget(self.hf_auth_download_label, 1)
+        auth_l.addWidget(self.btn_hf_login_shortcut)
+        root.addWidget(auth_card)
+        root.addSpacing(14)
 
         # ── SEARCH ───────────────────────────────────────────────────────────
         root.addWidget(self._section("SEARCH REPOSITORY"))
@@ -1279,6 +1636,19 @@ class ModelDownloadTab(QWidget):
         hint.setWordWrap(True)
         hint.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
         sl.addWidget(hint)
+
+        preset_row = QHBoxLayout(); preset_row.setSpacing(8)
+        preset_lbl = QLabel("Popular:")
+        preset_lbl.setFixedWidth(60); preset_lbl.setObjectName("txt2")
+        self.gguf_preset_combo = QComboBox()
+        self.gguf_preset_combo.setFixedHeight(30)
+        self.gguf_preset_combo.addItem("Choose a popular GGUF repo...", None)
+        for preset in popular_model_presets("gguf"):
+            self.gguf_preset_combo.addItem(preset.get("label", preset.get("repo", "")), preset)
+        self.gguf_preset_combo.currentIndexChanged.connect(self._on_gguf_preset_selected)
+        preset_row.addWidget(preset_lbl)
+        preset_row.addWidget(self.gguf_preset_combo, 1)
+        sl.addLayout(preset_row)
 
         row1 = QHBoxLayout(); row1.setSpacing(8)
         self.repo_edit = QLineEdit()
@@ -1391,6 +1761,204 @@ class ModelDownloadTab(QWidget):
         root.addWidget(dc)
         root.addSpacing(18)
 
+        # ── HF TRANSFORMERS SNAPSHOTS ────────────────────────────────────────
+        root.addWidget(self._section("HF TRANSFORMERS SNAPSHOT"))
+        hfc = self._card(); hfl = QVBoxLayout(hfc)
+        hfl.setContentsMargins(16, 14, 16, 14); hfl.setSpacing(10)
+
+        hf_note = QLabel(
+            "Download a full Hugging Face Transformers runtime snapshot into "
+            "localllm/hf_transformers and register it as an hf:<folder> model. "
+            "Install optional dependencies with: pip install -e \".[hf]\"")
+        hf_note.setWordWrap(True)
+        hf_note.setObjectName("txt2_small")
+        hfl.addWidget(hf_note)
+
+        hf_preset_row = QHBoxLayout(); hf_preset_row.setSpacing(8)
+        hf_preset_lbl = QLabel("Popular:")
+        hf_preset_lbl.setFixedWidth(60); hf_preset_lbl.setObjectName("txt2")
+        self.hf_preset_combo = QComboBox()
+        self.hf_preset_combo.setFixedHeight(30)
+        self.hf_preset_combo.addItem("Choose a popular HF Transformers repo...", None)
+        for preset in popular_model_presets("hf_transformers"):
+            self.hf_preset_combo.addItem(preset.get("label", preset.get("repo", "")), preset)
+        self.hf_preset_combo.currentIndexChanged.connect(self._on_hf_preset_selected)
+        hf_preset_row.addWidget(hf_preset_lbl)
+        hf_preset_row.addWidget(self.hf_preset_combo, 1)
+        hfl.addLayout(hf_preset_row)
+
+        hf_repo_row = QHBoxLayout(); hf_repo_row.setSpacing(8)
+        hf_repo_lbl = QLabel("Repo:")
+        hf_repo_lbl.setFixedWidth(60); hf_repo_lbl.setObjectName("txt2")
+        self.hf_repo_edit = QLineEdit()
+        self.hf_repo_edit.setPlaceholderText("e.g. Qwen/Qwen2.5-0.5B-Instruct")
+        self.hf_repo_edit.setFixedHeight(30)
+        self.hf_revision_edit = QLineEdit(str(APP_CONFIG.get("hf_revision", "main")))
+        self.hf_revision_edit.setFixedWidth(120)
+        self.hf_revision_edit.setFixedHeight(30)
+        self.hf_revision_edit.setPlaceholderText("main")
+        self.btn_hf_snapshot_search = QPushButton("Inspect")
+        self.btn_hf_snapshot_search.setObjectName("btn_send")
+        self.btn_hf_snapshot_search.setFixedHeight(30)
+        self.btn_hf_snapshot_search.setFixedWidth(92)
+        self.btn_hf_snapshot_search.clicked.connect(self._hf_snapshot_search_repo)
+        self.hf_repo_edit.returnPressed.connect(self._hf_snapshot_search_repo)
+        hf_repo_row.addWidget(hf_repo_lbl)
+        hf_repo_row.addWidget(self.hf_repo_edit, 1)
+        hf_repo_row.addWidget(QLabel("Revision:"))
+        hf_repo_row.addWidget(self.hf_revision_edit)
+        hf_repo_row.addWidget(self.btn_hf_snapshot_search)
+        hfl.addLayout(hf_repo_row)
+
+        hf_dest_row = QHBoxLayout(); hf_dest_row.setSpacing(8)
+        hf_dest_lbl = QLabel("Save to:")
+        hf_dest_lbl.setFixedWidth(60); hf_dest_lbl.setObjectName("txt2")
+        self.hf_dest_edit = QLineEdit(str(Path(APP_CONFIG.get("hf_transformers_dir", "localllm/hf_transformers")).expanduser()))
+        self.hf_dest_edit.setReadOnly(True)
+        self.hf_dest_edit.setFixedHeight(28)
+        btn_hf_dest = QPushButton("Browse")
+        btn_hf_dest.setFixedHeight(28); btn_hf_dest.setFixedWidth(80)
+        btn_hf_dest.clicked.connect(self._browse_hf_dest)
+        hf_dest_row.addWidget(hf_dest_lbl)
+        hf_dest_row.addWidget(self.hf_dest_edit, 1)
+        hf_dest_row.addWidget(btn_hf_dest)
+        hfl.addLayout(hf_dest_row)
+
+        self.hf_snapshot_list = QListWidget()
+        self.hf_snapshot_list.setObjectName("model_list")
+        self.hf_snapshot_list.setMinimumHeight(150)
+        hfl.addWidget(self.hf_snapshot_list)
+
+        self.hf_snapshot_status = QLabel("No HF snapshot inspected.")
+        self.hf_snapshot_status.setWordWrap(True)
+        self.hf_snapshot_status.setObjectName("txt2_small")
+        hfl.addWidget(self.hf_snapshot_status)
+
+        self.hf_snapshot_progress = QProgressBar()
+        self.hf_snapshot_progress.setRange(0, 100); self.hf_snapshot_progress.setValue(0)
+        self.hf_snapshot_progress.setFixedHeight(10); self.hf_snapshot_progress.setTextVisible(False)
+        self.hf_snapshot_progress.setStyleSheet(
+            f"QProgressBar{{background:{C['bg2']};border:1px solid {C['bdr']};border-radius:4px;}}"
+            f"QProgressBar::chunk{{background:{C['acc2']};border-radius:4px;}}")
+        hfl.addWidget(self.hf_snapshot_progress)
+
+        hf_btn_row = QHBoxLayout(); hf_btn_row.setSpacing(8)
+        self.btn_hf_snapshot_download = QPushButton("Download Snapshot")
+        self.btn_hf_snapshot_download.setObjectName("btn_send")
+        self.btn_hf_snapshot_download.setFixedHeight(32)
+        self.btn_hf_snapshot_download.setEnabled(False)
+        self.btn_hf_snapshot_download.clicked.connect(self._hf_snapshot_start_download)
+        self.btn_hf_snapshot_pause = QPushButton("Pause")
+        self.btn_hf_snapshot_pause.setObjectName("btn_stop")
+        self.btn_hf_snapshot_pause.setFixedHeight(32)
+        self.btn_hf_snapshot_pause.setFixedWidth(80)
+        self.btn_hf_snapshot_pause.setVisible(False)
+        self.btn_hf_snapshot_pause.clicked.connect(self._hf_snapshot_toggle_pause)
+        self.btn_hf_snapshot_cancel = QPushButton("Cancel")
+        self.btn_hf_snapshot_cancel.setObjectName("btn_stop")
+        self.btn_hf_snapshot_cancel.setFixedHeight(32)
+        self.btn_hf_snapshot_cancel.setFixedWidth(80)
+        self.btn_hf_snapshot_cancel.setVisible(False)
+        self.btn_hf_snapshot_cancel.clicked.connect(lambda: self._hf_snapshot_abort(False))
+        self.btn_hf_snapshot_delete = QPushButton("Cancel & Delete")
+        self.btn_hf_snapshot_delete.setObjectName("btn_stop")
+        self.btn_hf_snapshot_delete.setFixedHeight(32)
+        self.btn_hf_snapshot_delete.setFixedWidth(120)
+        self.btn_hf_snapshot_delete.setVisible(False)
+        self.btn_hf_snapshot_delete.clicked.connect(lambda: self._hf_snapshot_abort(True))
+        hf_btn_row.addWidget(self.btn_hf_snapshot_download)
+        hf_btn_row.addWidget(self.btn_hf_snapshot_pause)
+        hf_btn_row.addWidget(self.btn_hf_snapshot_cancel)
+        hf_btn_row.addWidget(self.btn_hf_snapshot_delete)
+        hf_btn_row.addStretch()
+        hfl.addLayout(hf_btn_row)
+        root.addWidget(hfc); root.addSpacing(18)
+
+        # ── OLLAMA MODEL PULL ────────────────────────────────────────────────
+        root.addWidget(self._section("OLLAMA MODEL PULL"))
+        oc = self._card(); ol = QVBoxLayout(oc)
+        ol.setContentsMargins(16, 14, 16, 14); ol.setSpacing(10)
+
+        ollama_note = QLabel(
+            "Uses an already-running Ollama daemon. Pulling a model here registers "
+            "it as ollama:<model> after completion.")
+        ollama_note.setWordWrap(True)
+        ollama_note.setObjectName("txt2_small")
+        ol.addWidget(ollama_note)
+
+        ollama_preset_row = QHBoxLayout(); ollama_preset_row.setSpacing(8)
+        ollama_preset_lbl = QLabel("Popular:")
+        ollama_preset_lbl.setFixedWidth(60); ollama_preset_lbl.setObjectName("txt2")
+        self.ollama_preset_combo = QComboBox()
+        self.ollama_preset_combo.setFixedHeight(30)
+        self.ollama_preset_combo.addItem("Choose a popular Ollama model...", None)
+        for preset in popular_model_presets("ollama"):
+            self.ollama_preset_combo.addItem(preset.get("label", preset.get("model", "")), preset)
+        self.ollama_preset_combo.currentIndexChanged.connect(self._on_ollama_preset_selected)
+        ollama_preset_row.addWidget(ollama_preset_lbl)
+        ollama_preset_row.addWidget(self.ollama_preset_combo, 1)
+        ol.addLayout(ollama_preset_row)
+
+        ollama_host_row = QHBoxLayout(); ollama_host_row.setSpacing(8)
+        host_lbl = QLabel("Host:")
+        host_lbl.setFixedWidth(60); host_lbl.setObjectName("txt2")
+        self.ollama_host_edit = QLineEdit(str(APP_CONFIG.get("ollama_host", "http://127.0.0.1:11434")))
+        self.ollama_host_edit.setFixedHeight(30)
+        self.btn_ollama_refresh = QPushButton("Refresh")
+        self.btn_ollama_refresh.setFixedHeight(30)
+        self.btn_ollama_refresh.setFixedWidth(92)
+        self.btn_ollama_refresh.clicked.connect(self._ollama_refresh)
+        ollama_host_row.addWidget(host_lbl)
+        ollama_host_row.addWidget(self.ollama_host_edit, 1)
+        ollama_host_row.addWidget(self.btn_ollama_refresh)
+        ol.addLayout(ollama_host_row)
+
+        pull_row = QHBoxLayout(); pull_row.setSpacing(8)
+        pull_lbl = QLabel("Model:")
+        pull_lbl.setFixedWidth(60); pull_lbl.setObjectName("txt2")
+        self.ollama_model_edit = QLineEdit()
+        self.ollama_model_edit.setPlaceholderText("e.g. llama3.2:3b or qwen2.5:7b")
+        self.ollama_model_edit.setFixedHeight(30)
+        self.btn_ollama_pull = QPushButton("Pull")
+        self.btn_ollama_pull.setObjectName("btn_send")
+        self.btn_ollama_pull.setFixedHeight(30)
+        self.btn_ollama_pull.setFixedWidth(92)
+        self.btn_ollama_pull.clicked.connect(self._ollama_pull)
+        self.ollama_model_edit.returnPressed.connect(self._ollama_pull)
+        pull_row.addWidget(pull_lbl)
+        pull_row.addWidget(self.ollama_model_edit, 1)
+        pull_row.addWidget(self.btn_ollama_pull)
+        ol.addLayout(pull_row)
+
+        self.ollama_list = QListWidget()
+        self.ollama_list.setObjectName("model_list")
+        self.ollama_list.setMinimumHeight(110)
+        self.ollama_list.itemClicked.connect(lambda item: self.ollama_model_edit.setText(item.data(Qt.ItemDataRole.UserRole) or ""))
+        ol.addWidget(self.ollama_list)
+
+        self.ollama_progress = QProgressBar()
+        self.ollama_progress.setRange(0, 100); self.ollama_progress.setValue(0)
+        self.ollama_progress.setFixedHeight(10); self.ollama_progress.setTextVisible(False)
+        self.ollama_progress.setStyleSheet(
+            f"QProgressBar{{background:{C['bg2']};border:1px solid {C['bdr']};border-radius:4px;}}"
+            f"QProgressBar::chunk{{background:{C['ok']};border-radius:4px;}}")
+        ol.addWidget(self.ollama_progress)
+
+        ollama_status_row = QHBoxLayout(); ollama_status_row.setSpacing(8)
+        self.ollama_status = QLabel("Refresh to list installed Ollama models.")
+        self.ollama_status.setObjectName("txt2_small")
+        self.ollama_status.setWordWrap(True)
+        self.btn_ollama_cancel = QPushButton("Cancel Pull")
+        self.btn_ollama_cancel.setObjectName("btn_stop")
+        self.btn_ollama_cancel.setFixedHeight(30)
+        self.btn_ollama_cancel.setVisible(False)
+        self.btn_ollama_cancel.clicked.connect(self._ollama_abort_pull)
+        ollama_status_row.addWidget(self.ollama_status, 1)
+        ollama_status_row.addWidget(self.btn_ollama_cancel)
+        ol.addLayout(ollama_status_row)
+        root.addWidget(oc)
+        root.addSpacing(18)
+
         # ── LLAMA.CPP BINARIES ────────────────────────────────────────────────
         root.addWidget(self._section("LLAMA.CPP RUNTIME"))
         lc = self._card(); ll = QVBoxLayout(lc)
@@ -1479,6 +2047,7 @@ class ModelDownloadTab(QWidget):
         llama_btn_row.addStretch()
         ll.addLayout(llama_btn_row)
         root.addWidget(lc); root.addStretch()
+        self.refresh_hf_auth_state()
 
     # ── helpers ───────────────────────────────────────────────────────────────
     @staticmethod
@@ -1497,6 +2066,22 @@ class ModelDownloadTab(QWidget):
     def _fmt_bytes(b: int) -> str:
         return f"{b/1e9:.2f} GB" if b >= 1e9 else f"{b/1e6:.1f} MB"
 
+    def refresh_hf_auth_state(self):
+        creds = load_hf_credentials()
+        saved_token = str(creds.get("access_token", "") or "").strip()
+        fallback_token = str(APP_CONFIG.get("hf_token", "") or "").strip()
+        username = str(creds.get("username", "") or "").strip()
+        last_error = str(creds.get("last_error", "") or "").strip()
+        if saved_token:
+            text = f"Hugging Face: signed in{f' as {username}' if username else ''} ({mask_hf_token(saved_token)})."
+        elif fallback_token:
+            text = f"Hugging Face: using App Configuration token fallback ({mask_hf_token(fallback_token)})."
+        else:
+            text = "Hugging Face: signed out. Public repositories only."
+        if last_error:
+            text += f" Last error: {last_error}"
+        self.hf_auth_download_label.setText(text)
+
     def _reset_dl_ui(self, status: str = "No download in progress."):
         self.btn_download.setVisible(True)
         self.btn_download.setEnabled(True)
@@ -1505,6 +2090,40 @@ class ModelDownloadTab(QWidget):
         self.btn_abort.setVisible(False)
         self.btn_abort_delete.setVisible(False)
         self.dl_status.setText(status)
+
+    def _on_gguf_preset_selected(self, _idx: int):
+        preset = self.gguf_preset_combo.currentData()
+        if not preset:
+            return
+        repo = str(preset.get("repo", "")).strip()
+        if not repo:
+            return
+        self.repo_edit.setText(repo)
+        self.search_status.setText(
+            f"Preset selected: {preset.get('size', '')} {preset.get('task', '')}. Click Search to list quants.")
+
+    def _on_hf_preset_selected(self, _idx: int):
+        preset = self.hf_preset_combo.currentData()
+        if not preset:
+            return
+        repo = str(preset.get("repo", "")).strip()
+        if not repo:
+            return
+        self.hf_repo_edit.setText(repo)
+        self.hf_revision_edit.setText(str(preset.get("revision", "main") or "main"))
+        suffix = "vision model" if preset.get("vision") else "text model"
+        self.hf_snapshot_status.setText(f"Preset selected: {suffix}. Click Inspect to list snapshot files.")
+
+    def _on_ollama_preset_selected(self, _idx: int):
+        preset = self.ollama_preset_combo.currentData()
+        if not preset:
+            return
+        model = str(preset.get("model", "")).strip()
+        if not model:
+            return
+        self.ollama_model_edit.setText(model)
+        suffix = "vision model" if preset.get("vision") else str(preset.get("task", "model"))
+        self.ollama_status.setText(f"Preset selected: {model} ({preset.get('size', '')}, {suffix}). Click Pull.")
 
     # ── actions ───────────────────────────────────────────────────────────────
     def _do_search(self):
@@ -1546,6 +2165,7 @@ class ModelDownloadTab(QWidget):
 
     def _on_search_err(self, msg: str):
         self.btn_search.setEnabled(True)
+        self.refresh_hf_auth_state()
         self.search_status.setText(f"[FAIL]  Error: {msg}")
 
     def _on_file_selected(self, item, _=None):
@@ -1650,7 +2270,223 @@ class ModelDownloadTab(QWidget):
 
     def _on_dl_err(self, msg: str):
         self.dl_progress.setValue(0)
+        self.refresh_hf_auth_state()
         self._reset_dl_ui(f"[FAIL]  Error: {msg}")
+
+    # ── HF Transformers snapshot downloader ─────────────────────────────────
+
+    def _browse_hf_dest(self):
+        p = QFileDialog.getExistingDirectory(
+            self, "Select HF Snapshot Folder", self.hf_dest_edit.text())
+        if p:
+            self.hf_dest_edit.setText(p)
+            APP_CONFIG["hf_transformers_dir"] = p
+            save_app_config(APP_CONFIG)
+
+    def _hf_snapshot_search_repo(self):
+        repo = self.hf_repo_edit.text().strip()
+        if not repo:
+            self.hf_snapshot_status.setText("[WARN] Enter a Hugging Face repo ID first.")
+            return
+        revision = self.hf_revision_edit.text().strip() or "main"
+        APP_CONFIG["hf_revision"] = revision
+        APP_CONFIG["hf_transformers_dir"] = self.hf_dest_edit.text().strip()
+        save_app_config(APP_CONFIG)
+        self.btn_hf_snapshot_search.setEnabled(False)
+        self.btn_hf_snapshot_download.setEnabled(False)
+        self.hf_snapshot_list.clear()
+        self._hf_snapshot_files = []
+        self.hf_snapshot_status.setText("Inspecting Hugging Face repo...")
+        self._hf_snapshot_search = HfSnapshotSearchWorker(repo, revision)
+        self._hf_snapshot_search.results_ready.connect(self._hf_snapshot_on_results)
+        self._hf_snapshot_search.err.connect(self._hf_snapshot_on_search_err)
+        self._hf_snapshot_search.start()
+
+    def _hf_snapshot_on_results(self, payload: dict):
+        self.btn_hf_snapshot_search.setEnabled(True)
+        self._hf_snapshot_files = payload.get("files") or []
+        self.hf_snapshot_list.clear()
+        if not self._hf_snapshot_files:
+            self.hf_snapshot_status.setText("[WARN] No Transformers runtime files found in this repo.")
+            return
+        for row in self._hf_snapshot_files:
+            size = int(row.get("size") or 0)
+            item = QListWidgetItem(f"{row.get('name', '')}   {self._fmt_bytes(size) if size else ''}")
+            item.setData(Qt.ItemDataRole.UserRole, row)
+            self.hf_snapshot_list.addItem(item)
+        total = int(payload.get("total_size") or 0)
+        self.hf_snapshot_status.setText(
+            f"Found {len(self._hf_snapshot_files)} runtime file(s). "
+            f"Total: {self._fmt_bytes(total) if total else 'unknown size'}")
+        self.btn_hf_snapshot_download.setEnabled(True)
+
+    def _hf_snapshot_on_search_err(self, msg: str):
+        self.btn_hf_snapshot_search.setEnabled(True)
+        self.refresh_hf_auth_state()
+        self.hf_snapshot_status.setText(f"[FAIL] Error: {msg}")
+
+    def _hf_snapshot_start_download(self):
+        repo = self.hf_repo_edit.text().strip()
+        if not repo or not self._hf_snapshot_files:
+            return
+        dest_root = Path(self.hf_dest_edit.text().strip() or "localllm/hf_transformers")
+        revision = self.hf_revision_edit.text().strip() or "main"
+        APP_CONFIG["hf_transformers_dir"] = str(dest_root)
+        APP_CONFIG["hf_revision"] = revision
+        save_app_config(APP_CONFIG)
+        self.btn_hf_snapshot_download.setVisible(False)
+        self.btn_hf_snapshot_pause.setVisible(True)
+        self.btn_hf_snapshot_cancel.setVisible(True)
+        self.btn_hf_snapshot_delete.setVisible(True)
+        self.hf_snapshot_progress.setValue(0)
+        self.hf_snapshot_status.setText("Starting HF snapshot download...")
+        self._hf_snapshot_dl = HfSnapshotDownloadWorker(
+            repo, revision, self._hf_snapshot_files, dest_root)
+        self._hf_snapshot_dl.progress.connect(self._hf_snapshot_on_progress)
+        self._hf_snapshot_dl.status.connect(lambda m: self.hf_snapshot_status.setText(m))
+        self._hf_snapshot_dl.done.connect(self._hf_snapshot_on_done)
+        self._hf_snapshot_dl.err.connect(self._hf_snapshot_on_err)
+        self._hf_snapshot_dl.paused.connect(self._hf_snapshot_on_paused)
+        self._hf_snapshot_dl.start()
+
+    def _hf_snapshot_reset_download_ui(self, text: str):
+        self.btn_hf_snapshot_download.setVisible(True)
+        self.btn_hf_snapshot_download.setEnabled(bool(self._hf_snapshot_files))
+        self.btn_hf_snapshot_pause.setVisible(False)
+        self.btn_hf_snapshot_pause.setText("Pause")
+        self.btn_hf_snapshot_cancel.setVisible(False)
+        self.btn_hf_snapshot_delete.setVisible(False)
+        self.hf_snapshot_status.setText(text)
+
+    def _hf_snapshot_toggle_pause(self):
+        if not self._hf_snapshot_dl:
+            return
+        if self._hf_snapshot_dl.is_paused():
+            self._hf_snapshot_dl.resume()
+        else:
+            self._hf_snapshot_dl.pause()
+
+    def _hf_snapshot_on_paused(self, paused: bool):
+        self.btn_hf_snapshot_pause.setText("Resume" if paused else "Pause")
+
+    def _hf_snapshot_abort(self, delete_part: bool):
+        if self._hf_snapshot_dl:
+            self._hf_snapshot_dl.abort(delete_part=delete_part)
+        self.hf_snapshot_progress.setValue(0)
+        self._hf_snapshot_reset_download_ui(
+            "HF snapshot cancelled and partial files deleted." if delete_part
+            else "HF snapshot stopped. Partial files were kept for resume.")
+
+    def _hf_snapshot_on_progress(self, done: int, total: int, current: str):
+        if total > 0:
+            pct = max(0, min(100, int(done * 100 / total)))
+            self.hf_snapshot_progress.setValue(pct)
+            self.hf_snapshot_status.setText(
+                f"{self._fmt_bytes(done)} / {self._fmt_bytes(total)} ({pct}%)  -  {current}")
+        else:
+            self.hf_snapshot_status.setText(f"{self._fmt_bytes(done)} downloaded  -  {current}")
+
+    def _hf_snapshot_on_done(self, path: str):
+        self.hf_snapshot_progress.setValue(100)
+        ref = make_hf_model_ref(path)
+        get_model_registry().add(ref)
+        self._hf_snapshot_dl = None
+        self._hf_snapshot_reset_download_ui(f"[OK] HF snapshot saved and registered: {ref}")
+        QMessageBox.information(
+            self, "HF Snapshot Complete",
+            f"Snapshot saved to:\n{path}\n\nRegistered as:\n{ref}")
+
+    def _hf_snapshot_on_err(self, msg: str):
+        self.hf_snapshot_progress.setValue(0)
+        self._hf_snapshot_dl = None
+        self.refresh_hf_auth_state()
+        self._hf_snapshot_reset_download_ui(f"[FAIL] Error: {msg}")
+
+    # ── Ollama puller ────────────────────────────────────────────────────────
+
+    def _ollama_save_host(self) -> str:
+        host = self.ollama_host_edit.text().strip() or "http://127.0.0.1:11434"
+        APP_CONFIG["ollama_host"] = host
+        save_app_config(APP_CONFIG)
+        return host
+
+    def _ollama_refresh(self):
+        host = self._ollama_save_host()
+        self.btn_ollama_refresh.setEnabled(False)
+        self.ollama_status.setText("Connecting to Ollama...")
+        self.ollama_list.clear()
+        self._ollama_list_worker = OllamaListWorker(host)
+        self._ollama_list_worker.results_ready.connect(self._ollama_on_list)
+        self._ollama_list_worker.err.connect(self._ollama_on_list_err)
+        self._ollama_list_worker.start()
+
+    def _ollama_on_list(self, rows: list):
+        self.btn_ollama_refresh.setEnabled(True)
+        self.ollama_list.clear()
+        for row in rows:
+            name = str(row.get("name") or row.get("model") or "")
+            if not name:
+                continue
+            size = int(row.get("size") or 0)
+            item = QListWidgetItem(f"{name}   {self._fmt_bytes(size) if size else ''}")
+            item.setData(Qt.ItemDataRole.UserRole, name)
+            self.ollama_list.addItem(item)
+        self.ollama_status.setText(f"Found {self.ollama_list.count()} installed Ollama model(s).")
+
+    def _ollama_on_list_err(self, msg: str):
+        self.btn_ollama_refresh.setEnabled(True)
+        self.ollama_status.setText(f"[FAIL] Ollama connection error: {msg}")
+
+    def _ollama_pull(self):
+        model = self.ollama_model_edit.text().strip()
+        if not model:
+            self.ollama_status.setText("[WARN] Enter an Ollama model name first.")
+            return
+        host = self._ollama_save_host()
+        self.btn_ollama_pull.setEnabled(False)
+        self.btn_ollama_cancel.setVisible(True)
+        self.ollama_progress.setValue(0)
+        self.ollama_status.setText(f"Pulling {model}...")
+        self._ollama_pull_worker = OllamaPullWorker(host, model)
+        self._ollama_pull_worker.progress.connect(self._ollama_on_pull_progress)
+        self._ollama_pull_worker.status.connect(lambda m: self.ollama_status.setText(m))
+        self._ollama_pull_worker.done.connect(self._ollama_on_pull_done)
+        self._ollama_pull_worker.err.connect(self._ollama_on_pull_err)
+        self._ollama_pull_worker.start()
+
+    def _ollama_abort_pull(self):
+        if self._ollama_pull_worker:
+            self._ollama_pull_worker.abort()
+        self.btn_ollama_pull.setEnabled(True)
+        self.btn_ollama_cancel.setVisible(False)
+        self.ollama_progress.setValue(0)
+        self.ollama_status.setText("Ollama pull cancelled.")
+
+    def _ollama_on_pull_progress(self, done: int, total: int, status: str):
+        if total > 0:
+            pct = max(0, min(100, int(done * 100 / total)))
+            self.ollama_progress.setValue(pct)
+            self.ollama_status.setText(
+                f"{status}  {self._fmt_bytes(done)} / {self._fmt_bytes(total)} ({pct}%)")
+        elif status:
+            self.ollama_status.setText(status)
+
+    def _ollama_on_pull_done(self, model: str):
+        ref = make_ollama_model_ref(model)
+        get_model_registry().add(ref)
+        self.btn_ollama_pull.setEnabled(True)
+        self.btn_ollama_cancel.setVisible(False)
+        self.ollama_progress.setValue(100)
+        self.ollama_status.setText(f"[OK] Pulled and registered: {ref}")
+        self._ollama_pull_worker = None
+        self._ollama_refresh()
+
+    def _ollama_on_pull_err(self, msg: str):
+        self.btn_ollama_pull.setEnabled(True)
+        self.btn_ollama_cancel.setVisible(False)
+        self.ollama_progress.setValue(0)
+        self.ollama_status.setText(f"[FAIL] Ollama pull error: {msg}")
+        self._ollama_pull_worker = None
 
     # ── llama.cpp downloader ──────────────────────────────────────────────────
 

@@ -30,7 +30,7 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 | [labs.md](labs.md) | The Labs experimentation layer + how to add a feature. |
 | [integrations.md](integrations.md) | External endpoint routes, local HTTP bridge, and Discord/WhatsApp bot connectors. |
 | [models.md](models.md) | Model registry, family detection, quants, API models. |
-| [workflows.md](workflows.md) | Pipelines, references, summarization, MCP, HF downloads. |
+| [workflows.md](workflows.md) | Pipelines, references, summarization, MCP, model/runtime downloads. |
 | [ui.md](ui.md) | GUI components, theming, shortcuts, persistence. |
 
 ---
@@ -47,7 +47,7 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 → [workflows.md#summarization-pipeline](workflows.md#summarization-pipeline).
 
 **"I want to plug in OpenAI / Anthropic / a local Ollama."**
-→ [models.md#api-model-support](models.md#api-model-support).
+→ [models.md#local-and-api-backend-support](models.md#local-and-api-backend-support).
 
 **"I want to write a new experimental feature."**
 → [labs.md](labs.md).

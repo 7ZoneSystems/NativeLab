@@ -68,9 +68,9 @@ starting with `/` control the shared runtime:
 | --- | --- |
 | `/help` | List commands. |
 | `/status` | Show backend, loaded model, ctx, and skill injection state. |
-| `/models` | List registered local GGUF models. |
+| `/models` | List registered GGUF, Ollama, and HF models. |
 | `/api-models` | List saved API model profiles and refs. |
-| `/load <path|@api/name>` | Load a local model or API model profile. |
+| `/load <path|ollama:name|hf:repo-or-dir|@api/name>` | Load a local/backend/API model profile. |
 | `/unload` | Unload the active model/API profile. |
 | `/ctx <n>` | Change local model context and reload. |
 | `/skills on|off|list` | Toggle or inspect active skill injection for chat. |

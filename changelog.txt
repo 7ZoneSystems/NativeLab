@@ -28,6 +28,15 @@ v0.3.1
 26) Synced py-to-doc auto context budgets with local llama.cpp reloads and raised app context caps to 300k tokens.
 27) Added a py-to-doc saved project task card that lists checkpoints and resumes selected jobs automatically.
 28) Added endpoint-level context-exceeded errors and py-to-doc same-section retry after clearing/reloading context.
+29) Added Ollama backend refs (`ollama:<model>`) behind the shared local engine so chat, labs, pipelines, integrations, CLI, and status widgets can use running Ollama models.
+30) Added optional Hugging Face Transformers backend refs (`hf:<repo-or-dir>`) with safetensors/local-dir support and image-text model routing where Transformers supports the architecture.
+31) Added Models-tab controls for registering Ollama and HF models, plus CLI/backend ref loading for `ollama:` and `hf:` targets.
+32) Added Download-tab HF Transformers snapshot downloads with repo inspection, revision support, preserved subdirectories, `.part` resume, pause/cancel controls, token auth, and auto-registration as `hf:<local-folder>`.
+33) Added Download-tab Ollama model pulls through an already-running Ollama daemon with installed-model listing, streamed `/api/pull` progress, configurable host, and auto-registration as `ollama:<model>`.
+34) Added editable HF Transformers and Ollama backend settings in App Configuration, including HF cache/download dir, token, revision, trust remote code, local-files-only, safetensors, dtype, device map, low-CPU-memory load, attention implementation, max-memory map, quantization, Ollama host, and Ollama keep-alive.
+35) Wired `LlamaEngine` HF/Ollama loading and generation to read saved backend settings so chat, Labs, pipelines, integrations, CLI-visible status, and model-role loading share the same runtime behavior.
+36) Added curated popular model presets in `templates.py` for GGUF repos, HF Transformers snapshots, and Ollama library models, and wired them into the Download tab as repo/model pickers.
+37) Added a top-level Accounts tab with a Hugging Face sub-tab for one-click browser/device OAuth using NativeLab's public client ID, local credential storage in `localllm/cred/huggingface.json`, saved-token reuse for GGUF/HF downloads and `hf:` model loading, an advanced manual-token fallback, masked auth display, and clearer 401/403 login-required errors.
 
 v0.3.0
 1) Added que management for py to doc [labs feature]

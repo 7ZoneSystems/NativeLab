@@ -177,9 +177,10 @@ def _load_pipeline_definition(name: str) -> dict[str, Any]:
 
 def list_models(*, as_json: bool = False) -> list[dict[str, Any]]:
     try:
-        from nativelab.Model.model_global import get_model_registry
+        from nativelab.Model.model_global import get_model_registry, model_ref_display_name
         rows = [dict(m) for m in get_model_registry().all_models()]
     except Exception:
+        model_ref_display_name = lambda p: Path(p or "").name
         rows = _load_model_rows()
     if as_json:
         print_json({"models": rows})
@@ -187,14 +188,15 @@ def list_models(*, as_json: bool = False) -> list[dict[str, Any]]:
         table = [
             {
                 "#": i + 1,
-                "name": Path(m.get("path", "")).name,
+                "name": model_ref_display_name(m.get("path", "")),
+                "backend": m.get("backend", ""),
                 "role": m.get("role", ""),
                 "ctx": m.get("ctx", ""),
                 "path": m.get("path", ""),
             }
             for i, m in enumerate(rows)
         ]
-        print_rows(table, ["#", "name", "role", "ctx", "path"])
+        print_rows(table, ["#", "name", "backend", "role", "ctx", "path"])
     return rows
 
 
@@ -221,17 +223,18 @@ def list_api_models(*, as_json: bool = False) -> list[dict[str, Any]]:
 
 def choose_model_target() -> str:
     try:
-        from nativelab.Model.model_global import api_model_ref, get_model_registry, getapi_registry
+        from nativelab.Model.model_global import api_model_ref, get_model_registry, getapi_registry, model_ref_display_name
         local = list(get_model_registry().all_models())
         api = list(getapi_registry().all())
         api_target = lambda cfg: api_model_ref(cfg.name)
         api_label = lambda cfg: f"API: {cfg.name} ({cfg.model_id})"
     except Exception:
+        model_ref_display_name = lambda p: Path(p or "").name
         local = _load_model_rows()
         api = _load_api_rows()
         api_target = lambda cfg: cfg.get("ref", _api_ref(cfg.get("name", "")))
         api_label = lambda cfg: f"API: {cfg.get('name', '')} ({cfg.get('model_id', '')})"
-    labels = [f"Local: {Path(m.get('path', '')).name}" for m in local]
+    labels = [f"Local: {model_ref_display_name(m.get('path', ''))}" for m in local]
     labels += [api_label(cfg) for cfg in api]
     labels.append("Enter path/ref manually")
     idx = ui.choose("Select model/API profile", labels, default=0)

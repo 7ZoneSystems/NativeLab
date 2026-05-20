@@ -9,6 +9,8 @@ from nativelab.Model.model_global import (
     detect_vision_model,
     get_model_registry,
     getapi_registry,
+    is_external_model_ref,
+    model_ref_payload,
     is_api_model_ref,
     quant_info,
 )
@@ -186,10 +188,12 @@ class InputBar(QWidget):
                 self.family_badge.setText("API")
             return
         if path:
-            fam   = detect_model_family(path)
-            quant = detect_quant_type(path)
+            cfg = get_model_registry().get_config(path)
+            payload = model_ref_payload(path) or path
+            fam   = detect_model_family(payload)
+            quant = cfg.quant_type if is_external_model_ref(path) else detect_quant_type(path)
             ql, _ = quant_info(quant)
-            vi = detect_vision_model(path)
+            vi = cfg.vision_info if is_external_model_ref(path) else detect_vision_model(path)
             vision = f"  ·  VLM: {vi.label}" if vi.is_vision else ""
             self.family_badge.setText(f"{fam.name}  ·  {quant}  ·  {ql}{vision}")
         else:

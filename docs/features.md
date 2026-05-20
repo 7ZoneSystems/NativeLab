@@ -22,7 +22,7 @@ The same `LabEndpoints` that powers Labs panels also powers the CLI's chat REPL.
 ### Inference
 
 - **Local llama.cpp** - `LlamaEngine` starts `llama-server` for true HTTP streaming with the model resident in RAM, falling back to per-prompt `llama-cli` if the server binary is unavailable.
-- **API models** - `ApiEngine` is a drop-in replacement that talks to OpenAI-compatible (`/chat/completions`, Bearer auth) and Anthropic (`/v1/messages`, `x-api-key`) endpoints. Works with hosted services and self-hosted servers like LM Studio, Ollama, and vLLM. See [models.md#api-model-support](models.md#api-model-support).
+- **API models** - `ApiEngine` is a drop-in replacement that talks to OpenAI-compatible (`/chat/completions`, Bearer auth) and Anthropic (`/v1/messages`, `x-api-key`) endpoints. Works with hosted services and self-hosted servers like LM Studio, Ollama, and vLLM. See [models.md#local-and-api-backend-support](models.md#local-and-api-backend-support).
 - **GPU offload** - Server tab toggles `ngl`, `main_gpu`, and `tensor_split` for multi-GPU rigs.
 - **Parallel engines** - Load reasoning, summarization, coding, and secondary engines simultaneously, each on its own llama-server port. RAM warnings before activation.
 - **Pipeline mode** - Coding prompts trigger structural-insight passes through non-coding engines first, then feed those insights into the coding model. Higher-quality output than asking a coding model directly.
@@ -32,7 +32,7 @@ The same `LabEndpoints` that powers Labs panels also powers the CLI's chat REPL.
 - **Auto family detection** - 20+ chat templates recognised by filename (DeepSeek, DeepSeek-R1, Mistral, Mixtral, LLaMA-2/3, Phi-3/3.5, Qwen/ChatML, Gemma, CodeLlama, Falcon, Vicuna, OpenChat, Neural-Chat, Starling, Yi, Zephyr, Solar, Orca, Command-R).
 - **Quantization detection** - Every llama.cpp quant from legacy `Q4_0` through K-quants (`Q2_K`–`Q6_K`) and imatrix variants (`IQ1_S`–`IQ4_XS`). Color-coded quality tiers in the model list.
 - **Per-model parameters** - threads, ctx, temperature, top_p, repeat_penalty, n_predict - all editable per file and persisted to `model_configs.json`.
-- **HuggingFace downloader** - Search any GGUF repo, browse files with sizes, download into your models folder, resume on network drops.
+- **Downloaders** - Search GGUF repos, choose popular presets from `templates.py`, download full HF Transformers snapshots for `hf:<local-folder>`, pull Ollama models from a running daemon, and install llama.cpp runtime builds.
 
 ### Document & code workflows
 

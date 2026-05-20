@@ -1,5 +1,5 @@
 from nativelab.Model.ModelRegistry import get_model_registry
-from nativelab.Model.model_global import api_model_ref, getapi_registry, is_api_model_ref
+from nativelab.Model.model_global import api_model_ref, getapi_registry, is_api_model_ref, is_model_ref_valid
 from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
 from .pipefunctions import list_saved_pipelines, load_pipeline, save_pipeline
 from .blck_typ import PipelineBlockType 
@@ -537,6 +537,9 @@ class PipelineBuilderTab(QWidget):
         elif eng.mode == "server":
             set_status_label(self.server_badge, f"Server · port {eng.server_port}", "ok")
             self.server_badge.setProperty("state", "ok")
+        elif eng.mode in ("ollama", "hf_transformers"):
+            set_status_label(self.server_badge, eng.status_text, "ok")
+            self.server_badge.setProperty("state", "ok")
         else:
             set_status_label(self.server_badge, "CLI mode - will switch on run", "warn")
             self.server_badge.setProperty("state", "warn")
@@ -770,14 +773,14 @@ class PipelineBuilderTab(QWidget):
                     return (f"LLM logic block '{b.label}' has no instruction.\n"
                             f"Right-click it → Configure block…")
                 mp = b.model_path or meta.get("llm_model_path", "")
-                if not mp or (not is_api_model_ref(mp) and not Path(mp).exists()):
+                if not mp or (not is_api_model_ref(mp) and not is_model_ref_valid(mp)):
                     return (f"LLM logic block '{b.label}' has no valid model attached.\n"
                             f"Right-click it → Configure block… and select a model.")
         # Model blocks must have a valid file
         for b in blocks:
             if b.btype == PipelineBlockType.MODEL:
-                if not b.model_path or (not is_api_model_ref(b.model_path) and not Path(b.model_path).exists()):
-                    return (f"Model block '{b.label}' has no valid model file.\n"
+                if not b.model_path or (not is_api_model_ref(b.model_path) and not is_model_ref_valid(b.model_path)):
+                    return (f"Model block '{b.label}' has no valid model attached.\n"
                             f"Double-click a model in the sidebar to add it.")
         return None
 

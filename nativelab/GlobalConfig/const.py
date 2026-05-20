@@ -38,6 +38,20 @@ APP_CONFIG_DEFAULTS = {
     "stream_socket_timeout":  LONG_TIMEOUT_SECONDS,   # seconds before a silent read errors
     "stream_stall_timeout":   LONG_TIMEOUT_SECONDS,   # seconds of no tokens before giving up
     "stream_max_buf_bytes":   65536, # max line buffer size
+    "hf_transformers_dir":    "localllm/hf_transformers",
+    "hf_token":               "",
+    "hf_revision":            "main",
+    "hf_trust_remote_code":   True,
+    "hf_local_files_only":    False,
+    "hf_use_safetensors":     "auto",
+    "hf_torch_dtype":         "auto",
+    "hf_device_map":          "auto",
+    "hf_low_cpu_mem_usage":   True,
+    "hf_attn_implementation": "",
+    "hf_max_memory":          "",
+    "hf_quantization":        "none",
+    "ollama_host":            "http://127.0.0.1:11434",
+    "ollama_keep_alive":      "5m",
 }
 # ─── Config descriptions ──────────────────────────────────────────────────────
 CONFIG_FIELD_META = {
@@ -190,5 +204,99 @@ CONFIG_FIELD_META = {
             "very low RAM where you need the model to have maximum headroom."
         ),
         "min": 0, "max": 1, "type": "bool",
+    },
+    "hf_transformers_dir": {
+        "label": "HF Download Directory",
+        "desc": (
+            "Local directory where full Hugging Face Transformers snapshots are "
+            "downloaded. Completed snapshots are registered as hf:<folder> models."
+        ),
+        "type": "path",
+    },
+    "hf_token": {
+        "label": "HF Access Token",
+        "desc": (
+            "Optional Hugging Face token used for private/gated repos. It is saved "
+            "locally in app_config.json and masked in the UI."
+        ),
+        "type": "password",
+    },
+    "hf_revision": {
+        "label": "HF Default Revision",
+        "desc": "Branch, tag, or commit used for HF snapshot downloads and model loads.",
+        "type": "str",
+    },
+    "hf_trust_remote_code": {
+        "label": "HF Trust Remote Code",
+        "desc": (
+            "Pass trust_remote_code to Transformers. Required by some custom model "
+            "repos, but only enable it for repos you trust."
+        ),
+        "type": "bool",
+    },
+    "hf_local_files_only": {
+        "label": "HF Local Files Only",
+        "desc": "Prevent Transformers from downloading missing files during load.",
+        "type": "bool",
+    },
+    "hf_use_safetensors": {
+        "label": "HF Use Safetensors",
+        "desc": (
+            "auto lets Transformers choose. true forces safetensors. false allows "
+            "PyTorch binary weights."
+        ),
+        "type": "choice", "choices": ["auto", "true", "false"],
+    },
+    "hf_torch_dtype": {
+        "label": "HF Torch Dtype",
+        "desc": "torch_dtype passed to Transformers when loading models.",
+        "type": "choice", "choices": ["auto", "float16", "bfloat16", "float32"],
+    },
+    "hf_device_map": {
+        "label": "HF Device Map",
+        "desc": (
+            "device_map for Transformers. auto uses Accelerate when installed. "
+            "none omits device_map."
+        ),
+        "type": "choice", "choices": ["auto", "none", "cpu", "balanced", "sequential"],
+    },
+    "hf_low_cpu_mem_usage": {
+        "label": "HF Low CPU Memory",
+        "desc": "Pass low_cpu_mem_usage=True to reduce peak RAM during model load.",
+        "type": "bool",
+    },
+    "hf_attn_implementation": {
+        "label": "HF Attention Implementation",
+        "desc": (
+            "Optional attn_implementation value, such as sdpa or flash_attention_2. "
+            "Leave blank for Transformers default."
+        ),
+        "type": "str",
+    },
+    "hf_max_memory": {
+        "label": "HF Max Memory Map",
+        "desc": (
+            "Optional comma-separated map, e.g. cuda:0=12GiB,cpu=32GiB. "
+            "Passed as max_memory when loading."
+        ),
+        "type": "str",
+    },
+    "hf_quantization": {
+        "label": "HF Quantization",
+        "desc": (
+            "none, 8bit, or 4bit. 8bit/4bit require bitsandbytes installed in "
+            "the Python environment."
+        ),
+        "type": "choice", "choices": ["none", "8bit", "4bit"],
+    },
+    "ollama_host": {
+        "label": "Ollama Host",
+        "desc": "Base URL for the already-running Ollama daemon.",
+        "type": "str",
+    },
+    "ollama_keep_alive": {
+        "label": "Ollama Keep Alive",
+        "desc": "keep_alive value sent to Ollama chat requests, for example 5m or 1h.",
+        "type": "str",
     },
 }

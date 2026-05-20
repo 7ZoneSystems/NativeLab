@@ -1,6 +1,7 @@
 # hfwld.py - HuggingFace GGUF download workers
 from nativelab.imports.import_global import QThread, pyqtSignal, Path
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
+from nativelab.Server.hfauth import hf_auth_headers, normalize_hf_exception
 import threading
 
 
@@ -9,15 +10,16 @@ class HfSearchWorker(QThread):
     results_ready = pyqtSignal(list)
     err           = pyqtSignal(str)
 
-    def __init__(self, repo_id: str):
+    def __init__(self, repo_id: str, token: str = ""):
         super().__init__()
         self._repo = repo_id.strip().strip("/")
+        self._token = token
 
     def run(self):
         import urllib.request as _ur, json as _j
         url = f"https://huggingface.co/api/models/{self._repo}"
         try:
-            req = _ur.Request(url, headers={"User-Agent": "NativeLabPro/2"})
+            req = _ur.Request(url, headers=hf_auth_headers(self._token))
             with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
                 data = _j.loads(r.read())
             siblings = data.get("siblings", [])
@@ -25,7 +27,7 @@ class HfSearchWorker(QThread):
                     if s.get("rfilename", "").lower().endswith(".gguf")]
             self.results_ready.emit(gguf)
         except Exception as e:
-            self.err.emit(str(e))
+            self.err.emit(normalize_hf_exception(e))
 
 
 class _AbortedError(Exception):
@@ -52,12 +54,13 @@ class HfDownloadWorker(QThread):
     CHUNK       = 262144   # 256 KB
 
     def __init__(self, repo_id: str, filename: str, dest_dir: Path,
-                 expected_size: int = 0):
+                 expected_size: int = 0, token: str = ""):
         super().__init__()
         self._repo          = repo_id.strip().strip("/")
         self._filename      = filename
         self._dest_dir      = dest_dir
         self._expected_size = expected_size
+        self._token         = token
         self._abort         = False
         self._abort_delete  = False
         self._pause_event   = threading.Event()
@@ -115,7 +118,7 @@ class HfDownloadWorker(QThread):
             except Exception as exc:
                 if attempt >= self.MAX_RETRIES:
                     # Genuine failure - keep .part so user can resume next session
-                    self.err.emit(str(exc))
+                    self.err.emit(normalize_hf_exception(exc))
                     return
                 time.sleep(self.RETRY_WAIT)
                 # Next iteration resumes automatically from .part offset
@@ -134,7 +137,7 @@ class HfDownloadWorker(QThread):
     def _resolve_final_url(self, url: str) -> str:
         """Follow HuggingFace CDN redirects via HEAD and return the final URL."""
         import urllib.request as _ur
-        req = _ur.Request(url, headers={"User-Agent": "NativeLabPro/2"},
+        req = _ur.Request(url, headers=hf_auth_headers(self._token),
                           method="HEAD")
         with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
             return r.url
@@ -148,7 +151,7 @@ class HfDownloadWorker(QThread):
         # Resume: how many bytes do we already have from a previous run / retry?
         resume_from = part.stat().st_size if part.exists() else 0
 
-        headers = {"User-Agent": "NativeLabPro/2"}
+        headers = hf_auth_headers(self._token)
         if resume_from:
             headers["Range"] = f"bytes={resume_from}-"
 
@@ -183,6 +186,287 @@ class HfDownloadWorker(QThread):
 
         if total and done != total:
             raise ValueError(f"Size mismatch: expected {total} B, got {done} B")
+
+
+def _hf_auth_headers(token: str = "") -> dict:
+    return hf_auth_headers(token)
+
+
+def _hf_runtime_file(name: str) -> bool:
+    n = str(name or "").lower()
+    base = Path(n).name
+    if not n or n.endswith("/"):
+        return False
+    if base in {"readme.md", "license", "license.txt", ".gitattributes"}:
+        return True
+    if n.endswith((".safetensors", ".safetensors.index.json")):
+        return True
+    if base.startswith("pytorch_model") and n.endswith((".bin", ".bin.index.json")):
+        return True
+    if base in {
+        "config.json", "generation_config.json", "tokenizer.json",
+        "tokenizer_config.json", "special_tokens_map.json",
+        "preprocessor_config.json", "processor_config.json",
+        "chat_template.json", "added_tokens.json", "merges.txt",
+        "vocab.json", "vocab.txt", "tokenizer.model",
+        "sentencepiece.bpe.model", "modeling.py",
+    }:
+        return True
+    if n.endswith(".py"):
+        return True
+    if n.endswith(".json") and any(k in base for k in ("config", "tokenizer", "processor", "index")):
+        return True
+    return False
+
+
+class HfSnapshotSearchWorker(QThread):
+    """Queries a Hugging Face repo and returns files needed for Transformers."""
+    results_ready = pyqtSignal(dict)
+    err = pyqtSignal(str)
+
+    def __init__(self, repo_id: str, revision: str = "main", token: str = ""):
+        super().__init__()
+        self._repo = repo_id.strip().strip("/")
+        self._revision = (revision or "main").strip()
+        self._token = token
+
+    def run(self):
+        import urllib.request as _ur, json as _j
+        from urllib.parse import quote as _quote
+        try:
+            rev = _quote(self._revision, safe="")
+            url = f"https://huggingface.co/api/models/{self._repo}/revision/{rev}"
+            req = _ur.Request(url, headers=_hf_auth_headers(self._token))
+            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+                data = _j.loads(r.read().decode("utf-8", errors="replace"))
+            files = []
+            for sib in data.get("siblings", []):
+                name = sib.get("rfilename", "")
+                if not _hf_runtime_file(name):
+                    continue
+                size = int(sib.get("size") or sib.get("lfs", {}).get("size") or 0)
+                files.append({"name": name, "size": size})
+            files.sort(key=lambda x: x["name"].lower())
+            self.results_ready.emit({
+                "repo": self._repo,
+                "revision": self._revision,
+                "sha": data.get("sha", ""),
+                "files": files,
+                "total_size": sum(int(f.get("size") or 0) for f in files),
+            })
+        except Exception as e:
+            self.err.emit(normalize_hf_exception(e))
+
+
+class HfSnapshotDownloadWorker(QThread):
+    """Downloads a full HF Transformers runtime snapshot with resume support."""
+    progress = pyqtSignal(int, int, str)
+    status = pyqtSignal(str)
+    done = pyqtSignal(str)
+    err = pyqtSignal(str)
+    paused = pyqtSignal(bool)
+
+    CHUNK = 262144
+    MAX_RETRIES = 3
+    RETRY_WAIT = 4
+
+    def __init__(self, repo_id: str, revision: str, files: list, dest_root: Path, token: str = ""):
+        super().__init__()
+        self._repo = repo_id.strip().strip("/")
+        self._revision = (revision or "main").strip()
+        self._files = list(files or [])
+        self._dest_root = Path(dest_root)
+        self._token = token
+        self._abort = False
+        self._abort_delete = False
+        self._pause_event = threading.Event()
+        self._pause_event.set()
+        self._done_total = 0
+        self._expected_total = sum(int(f.get("size") or 0) for f in self._files)
+
+    def abort(self, delete_part: bool = False):
+        self._abort = True
+        self._abort_delete = bool(delete_part)
+        self._pause_event.set()
+
+    def pause(self):
+        self._pause_event.clear()
+        self.paused.emit(True)
+
+    def resume(self):
+        self._pause_event.set()
+        self.paused.emit(False)
+
+    def is_paused(self) -> bool:
+        return not self._pause_event.is_set()
+
+    def run(self):
+        import time
+
+        dest_dir = self._snapshot_dir()
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        self._done_total = self._existing_bytes(dest_dir)
+        self.progress.emit(self._done_total, self._expected_total, "Preparing snapshot")
+        for fdata in self._files:
+            if self._abort:
+                if self._abort_delete:
+                    self._delete_partials(dest_dir)
+                return
+            name = fdata.get("name", "")
+            expected = int(fdata.get("size") or 0)
+            self.status.emit(f"Downloading {name}")
+            for attempt in range(1, self.MAX_RETRIES + 1):
+                try:
+                    self._download_one(dest_dir, name, expected)
+                    break
+                except _AbortedError as e:
+                    if e.delete_part:
+                        self._delete_partials(dest_dir)
+                    return
+                except Exception as exc:
+                    if attempt >= self.MAX_RETRIES:
+                        self.err.emit(f"{name}: {normalize_hf_exception(exc)}")
+                        return
+                    time.sleep(self.RETRY_WAIT)
+        self.done.emit(str(dest_dir))
+
+    def _snapshot_dir(self) -> Path:
+        parts = [p for p in self._repo.split("/") if p]
+        if len(parts) >= 2:
+            return self._dest_root / parts[0] / parts[1]
+        return self._dest_root / self._repo.replace("/", "--")
+
+    def _existing_bytes(self, dest_dir: Path) -> int:
+        total = 0
+        for fdata in self._files:
+            dest = dest_dir / fdata.get("name", "")
+            part = self._part_path(dest)
+            expected = int(fdata.get("size") or 0)
+            if dest.exists():
+                size = dest.stat().st_size
+                if not expected or size >= expected:
+                    total += size
+                    continue
+            if part.exists():
+                total += part.stat().st_size
+        return total
+
+    def _part_path(self, dest: Path) -> Path:
+        return dest.with_name(dest.name + ".part")
+
+    def _delete_partials(self, dest_dir: Path):
+        for fdata in self._files:
+            name = fdata.get("name", "")
+            if not name:
+                continue
+            try:
+                self._part_path(dest_dir / name).unlink()
+            except Exception:
+                pass
+
+    def _resolve_url(self, filename: str) -> str:
+        from urllib.parse import quote as _quote
+        quoted = "/".join(_quote(part, safe="") for part in filename.split("/"))
+        rev = _quote(self._revision, safe="")
+        return f"https://huggingface.co/{self._repo}/resolve/{rev}/{quoted}"
+
+    def _download_one(self, dest_dir: Path, filename: str, expected_size: int):
+        import urllib.request as _ur
+
+        dest = dest_dir / filename
+        part = self._part_path(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists() and (not expected_size or dest.stat().st_size >= expected_size):
+            return
+        resume_from = part.stat().st_size if part.exists() else 0
+        headers = _hf_auth_headers(self._token)
+        if resume_from:
+            headers["Range"] = f"bytes={resume_from}-"
+        req = _ur.Request(self._resolve_url(filename), headers=headers)
+        with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+            if resume_from and getattr(r, "status", 200) != 206:
+                self._done_total = max(0, self._done_total - resume_from)
+                resume_from = 0
+            mode = "ab" if resume_from else "wb"
+            with open(part, mode) as fh:
+                while True:
+                    self._pause_event.wait()
+                    if self._abort:
+                        raise _AbortedError(delete_part=self._abort_delete)
+                    chunk = r.read(self.CHUNK)
+                    if not chunk:
+                        break
+                    fh.write(chunk)
+                    self._done_total += len(chunk)
+                    self.progress.emit(self._done_total, self._expected_total, filename)
+        part.replace(dest)
+
+
+class OllamaListWorker(QThread):
+    results_ready = pyqtSignal(list)
+    err = pyqtSignal(str)
+
+    def __init__(self, host: str):
+        super().__init__()
+        self._host = (host or "http://127.0.0.1:11434").rstrip("/")
+
+    def run(self):
+        import urllib.request as _ur, json as _j
+        try:
+            req = _ur.Request(f"{self._host}/api/tags", headers={"User-Agent": "NativeLabPro/2"})
+            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+                data = _j.loads(r.read().decode("utf-8", errors="replace"))
+            self.results_ready.emit(data.get("models") or [])
+        except Exception as e:
+            self.err.emit(str(e))
+
+
+class OllamaPullWorker(QThread):
+    progress = pyqtSignal(int, int, str)
+    done = pyqtSignal(str)
+    err = pyqtSignal(str)
+    status = pyqtSignal(str)
+
+    def __init__(self, host: str, model_name: str):
+        super().__init__()
+        self._host = (host or "http://127.0.0.1:11434").rstrip("/")
+        self._model = model_name.strip()
+        self._abort = False
+
+    def abort(self):
+        self._abort = True
+
+    def run(self):
+        import urllib.request as _ur, json as _j
+        try:
+            body = _j.dumps({"name": self._model, "stream": True}).encode("utf-8")
+            req = _ur.Request(
+                f"{self._host}/api/pull",
+                data=body,
+                headers={"Content-Type": "application/json", "User-Agent": "NativeLabPro/2"},
+            )
+            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+                last_status = ""
+                for raw in r:
+                    if self._abort:
+                        return
+                    line = raw.decode("utf-8", errors="replace").strip()
+                    if not line:
+                        continue
+                    data = _j.loads(line)
+                    if data.get("error"):
+                        self.err.emit(str(data.get("error")))
+                        return
+                    status = str(data.get("status") or "")
+                    last_status = status or last_status
+                    completed = int(data.get("completed") or 0)
+                    total = int(data.get("total") or 0)
+                    if status:
+                        self.status.emit(status)
+                    self.progress.emit(completed, total, status or last_status)
+            self.done.emit(self._model)
+        except Exception as e:
+            self.err.emit(str(e))
 
 
 class LlamaCppReleaseFetcher(QThread):

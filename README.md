@@ -23,7 +23,7 @@
 
 ---
 
-NativeLab is a desktop and terminal client for running large language models entirely on your machine. No API keys, no cloud, no data leaving your computer. It wraps [llama.cpp](https://github.com/ggerganov/llama.cpp) behind a polished PyQt6 GUI **and** a Claude-Code-style terminal CLI, with first-class support for multi-model pipelines, document references, long-document summarization, and a brand-new **Labs** experimentation layer.
+NativeLab is a desktop and terminal client for running large language models entirely on your machine. It wraps [llama.cpp](https://github.com/ggerganov/llama.cpp), running Ollama models, optional Hugging Face Transformers models, and API backends behind a polished PyQt6 GUI **and** a Claude-Code-style terminal CLI, with first-class support for multi-model pipelines, document references, long-document summarization, and a brand-new **Labs** experimentation layer.
 
 ```bash
 pip install nativelab
@@ -122,15 +122,16 @@ nativelab --cli      # terminal control center (setup, chat, models, labs, integ
 
 ## ✨ Highlights
 
-- 🖥️  **Desktop GUI** - Chat, model library, visual pipeline builder, MCP, HuggingFace downloader, Labs, theming.
+- 🖥️  **Desktop GUI** - Chat, model library, visual pipeline builder, MCP, Download tab, Labs, theming.
 - ⌨️  **Terminal CLI** - `nativelab --cli` opens a full terminal control center for chat, local/API models, skills, Labs, saved pipelines, integrations, endpoint serving, `@file` embedding, slash commands, and linting.
 - 🧪  **Labs** - A dedicated experimentation layer with a shared endpoint API. New lab features get engine status, model swap, context change, and LLM calls for free.
 - 🔌  **Integrations** - Local JSON endpoint, route browser, and saved Discord/WhatsApp bot connector profiles.
 - 🔗  **Visual Pipeline Builder** - 20 node types (model, transform, branch, loop, custom Python), live execution log, save/load.
-- 🌐  **API + local mixing** - OpenAI-compatible and Anthropic endpoints work side-by-side with local GGUFs.
+- 🌐  **Backend mixing** - Local GGUF, running Ollama models, optional Hugging Face Transformers models, OpenAI-compatible APIs, and Anthropic endpoints share the same app state.
+- 🔐  **Hugging Face login** - One-click browser login for gated/private repos, with access-token paste as an advanced fallback.
 - ⚡  **Parallel + pipeline mode** - Run reasoning + coding engines simultaneously and chain them automatically.
 - 🧠  **Auto family detection** - 20+ model families recognised from filename; correct prompt template applied.
-- 📦  **HuggingFace downloader** - Search any GGUF repo and pull files without leaving the app.
+- 📦  **Downloaders** - Pick popular presets or custom IDs for GGUFs, full HF Transformers snapshots, Ollama models, and llama.cpp binaries without leaving the app.
 
 > See [changelog.txt](changelog.txt) for the latest release notes and [docs/architecture.md](docs/architecture.md) for the layered design.
 
@@ -150,7 +151,7 @@ The docs are split into short, focused files so you can jump straight to what yo
 | [docs/labs.md](docs/labs.md) | The Labs experimentation layer + how to add a feature. |
 | [docs/integrations.md](docs/integrations.md) | Integration endpoint routes, local HTTP bridge, Discord and WhatsApp bot connectors. |
 | [docs/models.md](docs/models.md) | Model registry, families, quantization, API models. |
-| [docs/workflows.md](docs/workflows.md) | Pipelines, references, summarization, MCP, HF downloads. |
+| [docs/workflows.md](docs/workflows.md) | Pipelines, references, summarization, MCP, model/runtime downloads. |
 | [docs/ui.md](docs/ui.md) | GUI tour, theming, shortcuts, data persistence. |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common errors and their fixes. |
 
@@ -170,7 +171,7 @@ pip install nativelab
 nativelab
 ```
 
-The first launch opens the desktop app. Use the **Download** tab to install llama.cpp binaries and grab a GGUF model - no manual setup required.
+The first launch opens the desktop app. Use the **Download** tab to install llama.cpp binaries, grab a GGUF model, pull an Ollama model from a running Ollama daemon, or download a full HF Transformers snapshot. For gated/private Hugging Face repos, sign in from **Accounts > Hugging Face > Login with Hugging Face** first.
 
 ### CLI
 
@@ -229,6 +230,7 @@ Add a lab feature by dropping `nativelab/labs/<feature>.py` with a `QWidget` pan
 - **PyQt6** (installed automatically as a dependency)
 - **llama.cpp binaries** - `llama-server` / `llama-cli`. The GUI's Download tab installs these for you, or you can drop them in `./llama/bin/`.
 - Optional: `psutil` (RAM monitor), `PyPDF2` (PDF summarization), `pyflakes` / `flake8` / `pylint` (CLI lint).
+- Optional HF backend: `pip install -e ".[hf]"` for Transformers, Torch, safetensors, Accelerate, SentencePiece, and Pillow.
 
 Detailed instructions in [docs/installation.md](docs/installation.md).
 

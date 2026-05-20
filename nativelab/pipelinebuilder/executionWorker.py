@@ -1,6 +1,6 @@
 from nativelab.core.engines.llamaengine import LlamaEngine
 from nativelab.imports.import_global import QThread,Path, pyqtSignal, List, Dict, time, Optional, json, HAS_PDF
-from nativelab.Model.model_global import detect_model_family, get_model_registry, is_api_model_ref
+from nativelab.Model.model_global import detect_model_family, get_model_registry, is_api_model_ref, is_model_ref_valid, model_ref_display_name, model_ref_payload
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 from .blck_typ import PipelineConnection, PipelineBlockType
 from .pipblck import PipelineBlock
@@ -599,14 +599,18 @@ class PipelineExecutionWorker(QThread):
         _SERVER_RETRIES times. Returns True only when confirmed server mode.
         """
         if not eng.is_loaded or eng.model_path != target:
-            self.log_msg.emit(f"Loading model: {Path(target).name}")
+            self.log_msg.emit(f"Loading model: {model_ref_display_name(target)}")
             if eng.is_loaded:
                 eng.shutdown()
             ok = eng.load(target, log_cb=lambda m: self.log_msg.emit(m))
             if not ok:
-                self.err.emit(f"Could not load model: {Path(target).name}")
+                self.err.emit(f"Could not load model: {model_ref_display_name(target)}")
                 return False
             self.log_msg.emit("Model loaded.")
+
+        if eng.mode in ("ollama", "hf_transformers"):
+            self.log_msg.emit(f"Backend ready: {eng.status_text}")
+            return True
 
         if eng.mode == "server":
             self.log_msg.emit(f"Server already running on port {eng.server_port}")
@@ -629,7 +633,7 @@ class PipelineExecutionWorker(QThread):
                     time.sleep(0.1)
 
         self.err.emit(
-            f"'{Path(target).name}' could not start in SERVER mode "
+            f"'{model_ref_display_name(target)}' could not start in SERVER mode "
             f"after {self._SERVER_RETRIES} attempts.\n\n"
             f"Pipeline requires llama-server (not llama-cli).\n"
             f"Check that llama-server binary is present and the model path is valid.\n"
@@ -640,12 +644,18 @@ class PipelineExecutionWorker(QThread):
         target = b.model_path
         eng = self.primary_engine
         if eng and getattr(eng, "mode", "") == "api" and (
-            not target or is_api_model_ref(target) or not Path(target).exists()
+            not target or is_api_model_ref(target) or not is_model_ref_valid(target)
         ):
             return self._run_api_model_block(b, context)
+        if eng and getattr(eng, "mode", "") == "api":
+            self.err.emit(
+                f"Model block '{b.label}' targets a local backend model, but the active pipeline engine is API. "
+                "Load a local/Ollama/HF engine before running this block."
+            )
+            return None
 
-        if not target or not Path(target).exists():
-            self.err.emit(f"Model file not found: {target}"); return None
+        if not target or not is_model_ref_valid(target):
+            self.err.emit(f"Model not found: {target}"); return None
 
         if not eng:
             self.err.emit("No engine available."); return None
@@ -654,7 +664,6 @@ class PipelineExecutionWorker(QThread):
         if not self._ensure_server(eng, target):
             return None   # error already emitted by _ensure_server
 
-        fam = detect_model_family(target)
         cfg = get_model_registry().get_config(target)
 
         ROLE_SYSTEM = {
@@ -666,53 +675,21 @@ class PipelineExecutionWorker(QThread):
         }
         sys_msg = ROLE_SYSTEM.get(b.role, ROLE_SYSTEM["general"])
 
-        prompt = (
-            fam.bos
-            + fam.system_prefix + sys_msg + fam.system_suffix
-            + fam.user_prefix + context + fam.user_suffix
-            + fam.assistant_prefix
-        )
-
-        import http.client
-        tokens: List[str] = []
         try:
-            conn_h = http.client.HTTPConnection(
-                "127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_SECONDS)
-            body = json.dumps({
-                "prompt": prompt, "n_predict": cfg.n_predict,
-                "stream": True, "temperature": cfg.temperature,
-                "top_p": cfg.top_p, "repeat_penalty": cfg.repeat_penalty,
-                "stop": fam.stop_tokens,
-            })
-            conn_h.request("POST", "/completion", body,
-                           {"Content-Type": "application/json"})
-            r = conn_h.getresponse()
-            if r.status != 200:
-                self.err.emit(f"Server HTTP {r.status}"); return None
-            buf = b""
-            while not self._abort:
-                byte = r.read(1)
-                if not byte:
-                    break
-                buf += byte
-                if byte == b"\n":
-                    line = buf.decode("utf-8", errors="replace").strip()
-                    buf  = b""
-                    if line.startswith("data: "):
-                        try:
-                            d = json.loads(line[6:])
-                            if d.get("stop"):
-                                break
-                            tok = d.get("content", "")
-                            if tok:
-                                tokens.append(tok)
-                                self.step_token.emit(b.bid, tok)
-                        except json.JSONDecodeError:
-                            pass
+            return eng.generate_sync(
+                messages=[
+                    {"role": "system", "content": sys_msg},
+                    {"role": "user", "content": context},
+                ],
+                n_predict=cfg.n_predict,
+                temperature=cfg.temperature,
+                top_p=cfg.top_p,
+                repeat_penalty=cfg.repeat_penalty,
+                token_cb=lambda tok: self.step_token.emit(b.bid, tok),
+                abort_cb=lambda: self._abort,
+            ).strip()
         except Exception as e:
-            self.err.emit(f"Server error during model block: {e}"); return None
-
-        return "".join(tokens).strip()
+            self.err.emit(f"Model block error: {e}"); return None
 
     def _run_api_model_block(self, b: PipelineBlock, context: str) -> Optional[str]:
         eng = self.primary_engine
@@ -753,33 +730,15 @@ class PipelineExecutionWorker(QThread):
             return self._api_query_sync(system_prompt, user_prompt, max_tokens, temperature)
         if not self._ensure_server(eng, model_path):
             return None
-
-        fam = detect_model_family(model_path)
-        prompt = (
-            fam.bos
-            + fam.system_prefix + system_prompt + fam.system_suffix
-            + fam.user_prefix   + user_prompt   + fam.user_suffix
-            + fam.assistant_prefix
-        )
-
-        import http.client as _hc
         try:
-            ch = _hc.HTTPConnection("127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_SECONDS)
-            body = json.dumps({
-                "prompt":        prompt,
-                "n_predict":     max_tokens,
-                "stream":        False,
-                "temperature":   temperature,
-                "stop":          fam.stop_tokens,
-            })
-            ch.request("POST", "/completion", body,
-                       {"Content-Type": "application/json"})
-            resp = ch.getresponse()
-            if resp.status != 200:
-                self.log_msg.emit(f"LLM query HTTP {resp.status}")
-                return None
-            data = json.loads(resp.read().decode("utf-8", errors="replace"))
-            return data.get("content", "").strip()
+            return eng.generate_sync(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                n_predict=max_tokens,
+                temperature=temperature,
+            ).strip()
         except Exception as _e:
             self.log_msg.emit(f"LLM query error: {_e}")
             return None
@@ -796,7 +755,7 @@ class PipelineExecutionWorker(QThread):
 
         if getattr(self.primary_engine, "mode", "") == "api":
             model_path = model_path or getattr(self.primary_engine, "model_path", "")
-        elif not model_path or not Path(model_path).exists():
+        elif not model_path or not is_model_ref_valid(model_path):
             msg = f"LLM block '{b.label}': model not found - {model_path}"
             self.log_msg.emit(msg)
             if passthru:
@@ -994,33 +953,22 @@ class PipelineExecutionWorker(QThread):
             chunks.append(text[:cut].strip())
             text = text[cut:].lstrip()
 
-        fam       = detect_model_family(getattr(eng, "model_path", ""))
+        mp = getattr(eng, "model_path", "")
+        fam = detect_model_family(model_ref_payload(mp) or mp)
         summaries = []
         for i, chunk in enumerate(chunks):
             if self._abort:
                 return None
             self.log_msg.emit(f"  Summarising chunk {i+1}/{len(chunks)}...")
-            prompt = (
-                fam.bos + fam.user_prefix +
+            plain_prompt = (
                 f"Summarise this document section concisely. "
-                f"File: '{fname}' - Section {i+1}/{len(chunks)}\n\n{chunk}" +
-                fam.user_suffix + fam.assistant_prefix
+                f"File: '{fname}' - Section {i+1}/{len(chunks)}\n\n{chunk}"
             )
-            if eng and eng.mode == "server":
-                import http.client
+            if eng and eng.is_loaded and hasattr(eng, "generate_sync"):
                 try:
-                    ch = http.client.HTTPConnection(
-                        "127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_SECONDS)
-                    ch.request("POST", "/completion",
-                               json.dumps({"prompt": prompt, "n_predict": 400,
-                                           "stream": False, "temperature": 0.3,
-                                           "stop": fam.stop_tokens}),
-                               {"Content-Type": "application/json"})
-                    resp = ch.getresponse()
-                    if resp.status == 200:
-                        d = json.loads(resp.read().decode("utf-8", errors="replace"))
-                        summaries.append(f"[§{i+1}] {d.get('content','').strip()}")
-                        continue
+                    result = eng.generate_sync(prompt=plain_prompt, n_predict=400, temperature=0.3)
+                    summaries.append(f"[§{i+1}] {result.strip()}")
+                    continue
                 except Exception:
                     pass
             summaries.append(f"[§{i+1}] {chunk[:600]}…")

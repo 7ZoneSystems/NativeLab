@@ -84,13 +84,24 @@ NativeLab's path resolution order:
 
 ## 4. Install or download a model
 
-You need at least one **GGUF** model file. Pick one of:
+You need at least one model. GGUF is the simplest local path, but NativeLab can also register running Ollama models and optional HF Transformers snapshots.
 
 ### From the GUI
 
 - Open the **⬇️ Download** tab.
 - Type a HuggingFace repo (e.g. `TheBloke/Mistral-7B-Instruct-v0.2-GGUF`) and click **Search**.
 - Download a quantization that fits your RAM.
+
+The same Download tab can also:
+
+- Download full HF Transformers snapshots into `localllm/hf_transformers/` and register them as `hf:<local-folder>`.
+- Pull Ollama models through an already-running Ollama daemon and register them as `ollama:<model>`.
+
+HF Transformers support is optional:
+
+```bash
+pip install -e ".[hf]"
+```
 
 ### From the CLI
 

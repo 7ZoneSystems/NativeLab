@@ -1,7 +1,7 @@
 from nativelab.imports.import_global import List, Tuple, Dict, Optional, Path, QThread, pyqtSignal, subprocess, time, datetime, json
 from nativelab.GlobalConfig.config_global import simple_hash, APP_CONFIG, REF_CACHE_DIR, LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_NONE
 from nativelab.GlobalConfig.hardwareUtil import RamWatchdog, get_ref_store
-from nativelab.Model.model_global import detect_model_family
+from nativelab.Model.model_global import detect_model_family, model_ref_payload
 from .jobhandler import save_paused_job, load_paused_job, delete_paused_job
 
 class MultiPdfSummaryWorker(QThread):
@@ -106,7 +106,8 @@ class MultiPdfSummaryWorker(QThread):
             ci_start = start_ci if fi == start_fi else 0
             if fi > start_fi:
                 file_summaries_so_far = []
-            fam = detect_model_family(getattr(self.engine, "model_path", ""))
+            mp = getattr(self.engine, "model_path", "")
+            fam = detect_model_family(model_ref_payload(mp) or mp)
 
             for i in range(ci_start, n_chunks):
                 if self._abort:
@@ -227,6 +228,12 @@ class MultiPdfSummaryWorker(QThread):
         return self._infer_with(self.engine, prompt, n_predict)
 
     def _infer_with(self, eng, prompt: str, n_predict: int) -> Optional[str]:
+        if getattr(eng, "mode", "") in ("ollama", "hf_transformers") and hasattr(eng, "generate_sync"):
+            try:
+                return eng.generate_sync(prompt=prompt, n_predict=n_predict, temperature=0.3, raw_prompt=True)
+            except Exception as e:
+                self.err.emit(f"{getattr(eng, 'mode', 'engine')} inference error: {e}")
+                return None
         if eng.mode == "server":
             return self._infer_server(eng, prompt, n_predict)
         return self.infer_cli(eng, prompt, n_predict)
@@ -234,7 +241,8 @@ class MultiPdfSummaryWorker(QThread):
     def _infer_server(self, eng, prompt: str, n_predict: int) -> Optional[str]:
         import http.client
         import threading
-        fam = detect_model_family(getattr(eng, "model_path", ""))
+        mp = getattr(eng, "model_path", "")
+        fam = detect_model_family(model_ref_payload(mp) or mp)
         
         warned = False
         def _warn_if_slow():

@@ -9,7 +9,7 @@ Built-ins
   /status          show backend, model, ctx, server port
   /models          list registered local models
   /api-models      list saved API model profiles
-  /load <path>     load a different GGUF model
+  /load <ref>      load a GGUF path, ollama:<name>, hf:<repo-or-dir>, or @api/name
   /unload          unload the current local model
   /ctx <n>         change context size and reload
   /skills on|off|list
@@ -47,6 +47,8 @@ from nativelab.Model.model_global import (
     api_model_ref,
     getapi_registry,
     is_api_model_ref,
+    is_model_ref_valid,
+    model_ref_display_name,
 )
 
 from . import lint as _lint
@@ -86,8 +88,8 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
             ui.warn(f"API config not found: {model_path}")
     elif model_path and load_api(model_path):
         pass
-    elif model_path and Path(model_path).exists():
-        ui.info(f"Loading model: {Path(model_path).name}")
+    elif model_path and is_model_ref_valid(model_path):
+        ui.info(f"Loading model: {model_ref_display_name(model_path)}")
         ok = eng.load(model_path, ctx=ctx, log_cb=lambda m: ui.info(m))
         if not ok:
             ui.warn("Engine reported load failure - chat will run in degraded mode.")
@@ -112,7 +114,7 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
             llama_provider=lambda: eng,
             api_provider  =lambda: api,
         )
-        if not model_path or not Path(model_path).exists():
+        if not model_path or not is_model_ref_valid(model_path):
             return False
         ok = eng.load(model_path, ctx=int(new_ctx),
                       log_cb=lambda m: ui.info(m))
@@ -131,7 +133,7 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
                 model_path = new_path
             endpoints.notify_engine_changed()
             return bool(ok)
-        if not new_path or not Path(new_path).exists():
+        if not new_path or not is_model_ref_valid(new_path):
             return False
         if api and api.is_loaded:
             api.shutdown()
@@ -293,7 +295,7 @@ class ChatREPL:
             ("/status",        "current backend, model, ctx, server port"),
             ("/models",        "list registered local models"),
             ("/api-models",    "list saved API model profiles"),
-            ("/load <path|@api/name>", "load a GGUF model or saved API config"),
+            ("/load <path|ollama:|hf:|@api>", "load a local/API backend model"),
             ("/unload",        "unload the current model"),
             ("/ctx <n>",       "change context size and reload"),
             ("/skills on|off|list", "toggle/list shared skill injection"),
@@ -325,7 +327,7 @@ class ChatREPL:
 
     def _cmd_load(self, rest: str) -> None:
         if not rest:
-            ui.warn("Usage: /load <path-to-gguf|@api/name>")
+            ui.warn("Usage: /load <path-to-gguf|ollama:name|hf:repo-or-dir|@api/name>")
             return
         ok = self.runtime.load_model(rest) if self.runtime else self.endpoints.request_load_model(rest)
         ui.ok(f"Loaded {rest}") if ok else ui.err("Load failed.")

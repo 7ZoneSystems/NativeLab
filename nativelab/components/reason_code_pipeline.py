@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, subprocess, time, json
-from nativelab.Model.model_global import detect_model_family
+from nativelab.Model.model_global import detect_model_family, model_ref_payload
 from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_SECONDS
 class PipelineWorker(QThread):
     """
@@ -81,7 +81,8 @@ class PipelineWorker(QThread):
 
             self.insight_started.emit(idx, label)
 
-            fam = detect_model_family(getattr(eng, "model_path", ""))
+            mp = getattr(eng, "model_path", "")
+            fam = detect_model_family(model_ref_payload(mp) or mp)
             insight_prompt = (
                 fam.bos +
                 fam.user_prefix +
@@ -166,6 +167,18 @@ class PipelineWorker(QThread):
     def _infer_blocking(self, eng, prompt: str,
                         n_predict: int, token_cb=None):
         """Blocking inference that calls token_cb for each token."""
+        if getattr(eng, "mode", "") in ("ollama", "hf_transformers") and hasattr(eng, "generate_sync"):
+            try:
+                return eng.generate_sync(
+                    prompt=prompt,
+                    n_predict=n_predict,
+                    token_cb=token_cb,
+                    abort_cb=lambda: self._abort,
+                    raw_prompt=True,
+                )
+            except Exception as exc:
+                self.err.emit(f"{getattr(eng, 'mode', 'engine')} inference error: {exc}")
+                return None
         if eng.mode == "server":
             return self._infer_server(eng, prompt, n_predict, token_cb)
         return self._infer_cli(eng, prompt, n_predict, token_cb)
@@ -174,7 +187,8 @@ class PipelineWorker(QThread):
                     n_predict: int, token_cb=None):
         import http.client
         import socket
-        fam = detect_model_family(getattr(eng, "model_path", ""))
+        mp = getattr(eng, "model_path", "")
+        fam = detect_model_family(model_ref_payload(mp) or mp)
         
         # Long connect timeout; streaming read gets its own per-chunk timeout.
         connect_timeout = LONG_TIMEOUT_SECONDS

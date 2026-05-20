@@ -13,11 +13,13 @@ from pathlib import Path
 from typing import List, Optional
 
 from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_SECONDS
+from nativelab.Server.hfauth import hf_auth_headers, normalize_hf_exception
 
 from . import ui
 
 
-_HEADERS = {"User-Agent": "NativeLabPro-CLI/1"}
+def _headers() -> dict:
+    return hf_auth_headers(user_agent="NativeLabPro-CLI/1")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -28,9 +30,12 @@ def list_repo_ggufs(repo_id: str) -> List[dict]:
     """Return GGUF siblings of a HuggingFace model repo (with size when available)."""
     repo_id = repo_id.strip().strip("/")
     url = f"https://huggingface.co/api/models/{repo_id}"
-    req = urllib.request.Request(url, headers=_HEADERS)
-    with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
-        data = json.loads(r.read().decode("utf-8", errors="replace"))
+    req = urllib.request.Request(url, headers=_headers())
+    try:
+        with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+            data = json.loads(r.read().decode("utf-8", errors="replace"))
+    except Exception as exc:
+        raise RuntimeError(normalize_hf_exception(exc)) from exc
 
     siblings = data.get("siblings") or []
     out = []
@@ -85,7 +90,7 @@ def download_gguf(repo_id: str, filename: str, dest_dir: Path,
 
     url = f"https://huggingface.co/{repo_id}/resolve/main/{filename}"
     try:
-        head_req = urllib.request.Request(url, headers=_HEADERS, method="HEAD")
+        head_req = urllib.request.Request(url, headers=_headers(), method="HEAD")
         with urllib.request.urlopen(head_req, timeout=LONG_TIMEOUT_SECONDS) as r:
             url = r.url
     except Exception:
@@ -95,7 +100,7 @@ def download_gguf(repo_id: str, filename: str, dest_dir: Path,
 
     for attempt in range(1, MAX_RETRIES + 1):
         resume_from = part.stat().st_size if part.exists() else 0
-        headers = dict(_HEADERS)
+        headers = _headers()
         if resume_from:
             headers["Range"] = f"bytes={resume_from}-"
         req = urllib.request.Request(url, headers=headers)
@@ -130,7 +135,7 @@ def download_gguf(repo_id: str, filename: str, dest_dir: Path,
             if attempt >= MAX_RETRIES:
                 bar.done()
                 raise RuntimeError(
-                    f"Download failed after {MAX_RETRIES} attempts: {e}"
+                    f"Download failed after {MAX_RETRIES} attempts: {normalize_hf_exception(e)}"
                 ) from e
             ui.warn(f"Network blip ({e}) - retrying in {RETRY_WAIT}s "
                     f"(attempt {attempt + 1}/{MAX_RETRIES})")

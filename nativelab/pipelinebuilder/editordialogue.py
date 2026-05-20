@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QCheckBox, QMessageBox, Qt, Path
-from nativelab.Model.model_global import get_model_registry, detect_model_family
+from nativelab.Model.model_global import get_model_registry, detect_model_family, is_model_ref_valid
 from nativelab.GlobalConfig.config_global import ROLE_ICONS
 from .pipblck import PipelineBlock
 from nativelab.UI.UI_const import C
@@ -254,7 +254,7 @@ class LlmLogicEditorDialog(QDialog):
 
     def _update_model_status(self):
         path = self.model_combo.currentData() or ""
-        ok = bool(path) and Path(path).exists()
+        ok = bool(path) and is_model_ref_valid(path)
         set_status_label(self.model_status, "", "ok" if ok else "err", 15)
         self.model_status.setToolTip(path if path else "No model selected")
 
@@ -279,7 +279,7 @@ class LlmLogicEditorDialog(QDialog):
             QMessageBox.warning(self, "Missing Instruction",
                                 "Please enter a condition or instruction."); return
         model_path = self.model_combo.currentData() or ""
-        if not model_path or not Path(model_path).exists():
+        if not model_path or not is_model_ref_valid(model_path):
             ans = QMessageBox.question(
                 self, "No Model Selected",
                 "No valid model is selected. The block will fail at runtime.\n\n"

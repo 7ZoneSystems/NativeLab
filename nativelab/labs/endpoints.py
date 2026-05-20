@@ -30,7 +30,7 @@ from nativelab.GlobalConfig.config_global import (
     DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, LONG_TIMEOUT_SECONDS,
 )
 from nativelab.components.components_global import detect_model_family
-from nativelab.Model.model_global import FAMILY_TEMPLATES
+from nativelab.Model.model_global import FAMILY_TEMPLATES, model_ref_display_name, model_ref_payload
 from nativelab.core.engine_global import LlamaEngine, ApiEngine
 
 
@@ -137,7 +137,7 @@ class LabEndpoints(QObject):
     @property
     def model_name(self) -> str:
         p = self.model_path
-        return Path(p).name if p else ""
+        return model_ref_display_name(p) if p else ""
 
     @property
     def mode(self) -> str:
@@ -155,7 +155,7 @@ class LabEndpoints(QObject):
         return getattr(eng, "server_port", 0) if eng else 0
 
     def model_family(self):
-        return detect_model_family(self.model_path) if self.model_path \
+        return detect_model_family(model_ref_payload(self.model_path) or self.model_path) if self.model_path \
                else FAMILY_TEMPLATES.get("mistral")
 
     def snapshot(self) -> Dict[str, Any]:
@@ -218,6 +218,24 @@ class LabEndpoints(QObject):
 
         llama = self.llama_engine
         if llama and llama.is_loaded:
+            if hasattr(llama, "generate_sync"):
+                self._log("INFO", f"Routing → local {getattr(llama, 'mode', 'engine')}  {Path(getattr(llama, 'model_path', '')).name}")
+                try:
+                    return llama.generate_sync(
+                        messages=msgs,
+                        n_predict=n_predict,
+                        temperature=temperature,
+                        top_p=top_p,
+                        repeat_penalty=repeat_penalty,
+                    )
+                except Exception as exc:
+                    raw = str(exc)
+                    if self._is_context_error(raw):
+                        raise ContextWindowExceededError(
+                            f"{getattr(llama, 'mode', 'local')} context exceeded: {raw}",
+                            raw=raw,
+                        )
+                    raise
             if llama.mode == "server":
                 self._log("INFO", f"Routing → llama-server  port={llama.server_port}")
                 return self._call_server(
@@ -234,7 +252,7 @@ class LabEndpoints(QObject):
     # ── internals ────────────────────────────────────────────────────────────
     def _build_text_prompt(self, messages: List[Dict[str, str]],
                            model_path: str) -> str:
-        fam = detect_model_family(model_path) if model_path \
+        fam = detect_model_family(model_ref_payload(model_path) or model_path) if model_path \
               else FAMILY_TEMPLATES.get("mistral")
         out: List[str] = []
         sys_buf = ""

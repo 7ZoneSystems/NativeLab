@@ -104,9 +104,42 @@ Each quant maps to a quality tier with a color label:
 
 ---
 
-## API model support
+## Local and API backend support
 
-In addition to local GGUFs, NativeLab speaks two API formats. Mix and match in the same session.
+In addition to local GGUFs, NativeLab can use running Ollama models, optional Hugging Face Transformers models, and two API formats. All of these appear in the same model selector and use the shared engine/status surface.
+
+### Local backend refs
+
+| Backend | Ref format | Notes |
+| --- | --- | --- |
+| llama.cpp GGUF | filesystem path | Existing `.gguf` behavior is unchanged. |
+| Ollama | `ollama:<model-name>` | Requires an already running Ollama service at `http://127.0.0.1:11434`. |
+| HF Transformers | `hf:<repo-id-or-local-dir>` | Install with `pip install -e ".[hf]"`; supports safetensors model dirs/repos with config/tokenizer metadata. |
+
+The Models tab includes buttons for adding installed Ollama models and HF repo/local-directory refs. HF vision models use the Transformers image-text-to-text path when the model architecture is supported.
+
+### Download tab support
+
+The Download tab now has three model/runtime paths:
+
+- **GGUF HuggingFace search** downloads one `.gguf` file into `localllm/` for llama.cpp.
+- **HF Transformers snapshot** inspects a repo revision, selects runtime files, preserves repo subdirectories, downloads into `localllm/hf_transformers/<namespace>/<repo>/`, resumes with `.part` files, and registers the result as `hf:<local-folder>`.
+- **Ollama model pull** connects to the configured Ollama host, lists installed models from `/api/tags`, streams `/api/pull` progress, and registers completed pulls as `ollama:<model>`.
+
+The built-in **Popular** selectors are defined in `POPULAR_MODEL_PRESETS` in `nativelab/Model/templates.py`, grouped as `gguf`, `hf_transformers`, and `ollama`. They fill the relevant repo/model field but do not block custom IDs.
+
+For private or gated repos, sign in from **Accounts > Hugging Face** with **Login with Hugging Face**. NativeLab uses its built-in public OAuth client ID, stores credentials locally at `localllm/cred/huggingface.json`, masks tokens in the UI/logs, and uses that token for GGUF search/download, HF snapshot downloads, and `hf:` model loading. Manual `hf_...` token paste remains available as an advanced fallback, and the older App Configuration `hf_token` field remains as a lower-priority fallback when no saved login exists.
+
+### HF and Ollama settings
+
+Open the top-right Settings button, then **App Configuration**, to edit backend load behavior:
+
+| Setting group | Fields |
+| --- | --- |
+| HF Transformers | download/cache directory, token, default revision, trust remote code, local-files-only, safetensors policy, torch dtype, device map, low CPU memory loading, attention implementation, max-memory map, quantization mode |
+| Ollama | host URL and default `keep_alive` |
+
+`LlamaEngine` reads these settings before loading `hf:` or `ollama:` refs, so chat, Labs, pipelines, integrations, and CLI-visible engine state stay consistent. HF 8-bit and 4-bit quantization modes require a compatible `bitsandbytes` install; leave quantization as `none` otherwise.
 
 ### Formats
 

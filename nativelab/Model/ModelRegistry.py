@@ -1,6 +1,97 @@
 from nativelab.imports.import_global import Dict, dataclass, Path, json, field
 from .model_family import *
 # ═════════════════════════════ MODEL REGISTRY ═══════════════════════════════
+OLLAMA_REF_PREFIX = "ollama:"
+HF_REF_PREFIX = "hf:"
+
+
+def is_ollama_model_ref(ref: str) -> bool:
+    return str(ref or "").strip().lower().startswith(OLLAMA_REF_PREFIX)
+
+
+def is_hf_model_ref(ref: str) -> bool:
+    return str(ref or "").strip().lower().startswith(HF_REF_PREFIX)
+
+
+def is_external_model_ref(ref: str) -> bool:
+    return is_ollama_model_ref(ref) or is_hf_model_ref(ref)
+
+
+def model_ref_backend(ref: str) -> str:
+    if is_ollama_model_ref(ref):
+        return "ollama"
+    if is_hf_model_ref(ref):
+        return "hf_transformers"
+    return "llama_cpp"
+
+
+def model_ref_payload(ref: str) -> str:
+    text = str(ref or "")
+    if is_ollama_model_ref(text):
+        return text[len(OLLAMA_REF_PREFIX):].strip()
+    if is_hf_model_ref(text):
+        return text[len(HF_REF_PREFIX):].strip()
+    return text
+
+
+def make_ollama_model_ref(model_name: str) -> str:
+    return OLLAMA_REF_PREFIX + str(model_name or "").strip()
+
+
+def make_hf_model_ref(model_id_or_path: str) -> str:
+    return HF_REF_PREFIX + str(model_id_or_path or "").strip()
+
+
+def model_ref_display_name(ref: str) -> str:
+    text = str(ref or "")
+    payload = model_ref_payload(text)
+    if is_ollama_model_ref(text):
+        return payload or "Ollama model"
+    if is_hf_model_ref(text):
+        p = Path(payload)
+        if p.exists():
+            return p.name
+        return payload.rstrip("/").split("/")[-1] or payload or "HF model"
+    p = Path(text)
+    return p.name if text else ""
+
+
+def is_model_ref_valid(ref: str) -> bool:
+    text = str(ref or "").strip()
+    if not text:
+        return False
+    if is_ollama_model_ref(text):
+        return bool(model_ref_payload(text))
+    if is_hf_model_ref(text):
+        return bool(model_ref_payload(text))
+    return Path(text).exists()
+
+
+def _looks_like_hf_dir(path: Path) -> bool:
+    if not path.is_dir() or not (path / "config.json").exists():
+        return False
+    has_weights = any(path.glob("*.safetensors")) or any(path.glob("pytorch_model*.bin"))
+    has_index = any(path.glob("*.safetensors.index.json")) or any(path.glob("pytorch_model*.bin.index.json"))
+    has_tokenizer = any((path / name).exists() for name in (
+        "tokenizer.json", "tokenizer.model", "tokenizer_config.json", "preprocessor_config.json",
+        "processor_config.json",
+    ))
+    return bool((has_weights or has_index) and has_tokenizer)
+
+
+def _path_size_mb(path: Path) -> float:
+    try:
+        if path.is_file():
+            return round(path.stat().st_size / 1e6, 1)
+        total = 0
+        for f in path.rglob("*"):
+            if f.is_file():
+                total += f.stat().st_size
+        return round(total / 1e6, 1)
+    except Exception:
+        return 0.0
+
+
 def _cfg():
     from nativelab.GlobalConfig import config_global
     return config_global
@@ -21,6 +112,8 @@ def _default_n_pred():
 class ModelConfig:
     path: str
     role: str = "general"
+    backend: str = "llama_cpp"
+    vision: bool = False
 
     threads: int = field(default_factory=_default_threads)
     ctx: int = field(default_factory=_default_ctx)
@@ -34,6 +127,8 @@ class ModelConfig:
     def to_dict(self) -> Dict:
         return {
             "path": self.path, "role": self.role,
+            "backend": self.backend or model_ref_backend(self.path),
+            "vision": bool(self.vision),
             "threads":        int(self.threads)        if not callable(self.threads)        else int(self.threads()),
             "ctx":            int(self.ctx)             if not callable(self.ctx)             else int(self.ctx()),
             "n_predict":      int(self.n_predict)       if not callable(self.n_predict)       else int(self.n_predict()),
@@ -49,24 +144,31 @@ class ModelConfig:
 
     @property
     def name(self) -> str:
-        return Path(self.path).name
+        return model_ref_display_name(self.path)
 
     @property
     def size_mb(self) -> float:
-        p = Path(self.path)
-        return round(p.stat().st_size / 1e6, 1) if p.exists() else 0.0
+        p = Path(model_ref_payload(self.path))
+        return _path_size_mb(p) if p.exists() else 0.0
 
     @property
     def detected_family(self) -> ModelFamily:
-        return detect_model_family(self.path)
+        return detect_model_family(model_ref_payload(self.path) or self.path)
 
     @property
     def quant_type(self) -> str:
+        if is_ollama_model_ref(self.path):
+            return "OLLAMA"
+        if is_hf_model_ref(self.path):
+            return "TRANSFORMERS"
         return detect_quant_type(self.path)
 
     @property
     def vision_info(self) -> VisionModelInfo:
-        return detect_vision_model(self.path)
+        vi = detect_vision_model(model_ref_payload(self.path) or self.path)
+        if self.vision and not vi.is_vision:
+            return VisionModelInfo(True, "Vision model", "vlm", False)
+        return vi
 
 
 class ModelRegistry:
@@ -102,8 +204,14 @@ class ModelRegistry:
         if path not in self._custom:
             self._custom.append(path)
         if path not in self._configs:
-            fam = detect_model_family(path)
-            self._configs[path] = ModelConfig(path=path, family=fam.family)
+            fam = detect_model_family(model_ref_payload(path) or path)
+            vi = detect_vision_model(model_ref_payload(path) or path)
+            self._configs[path] = ModelConfig(
+                path=path,
+                family=fam.family,
+                backend=model_ref_backend(path),
+                vision=vi.is_vision,
+            )
         self.save()
 
     def remove(self, path: str):
@@ -113,8 +221,18 @@ class ModelRegistry:
 
     def get_config(self, path: str) -> ModelConfig:
         if path not in self._configs:
-            fam = detect_model_family(path)
-            self._configs[path] = ModelConfig(path=path, family=fam.family)
+            fam = detect_model_family(model_ref_payload(path) or path)
+            vi = detect_vision_model(model_ref_payload(path) or path)
+            self._configs[path] = ModelConfig(
+                path=path,
+                family=fam.family,
+                backend=model_ref_backend(path),
+                vision=vi.is_vision,
+            )
+        else:
+            cfg = self._configs[path]
+            if not getattr(cfg, "backend", ""):
+                cfg.backend = model_ref_backend(path)
         return self._configs[path]
 
     def set_config(self, path: str, cfg: ModelConfig):
@@ -135,26 +253,44 @@ class ModelRegistry:
                 models.append({
                     "path": str(f), "name": f.name,
                     "size_mb": round(f.stat().st_size / 1e6, 1),
-                    "source": "auto", "role": cfg.role,
+                    "source": "auto", "role": cfg.role, "backend": "llama_cpp",
                     "family": fam.name, "quant": qt,
                     "vision": vi.is_vision, "vision_label": vi.label,
                     "mmproj": detect_mmproj_for_model(str(f)),
                 })
+            for d in sorted((p for p in MODELS_DIR.iterdir() if p.is_dir()), key=lambda p: p.name.lower()):
+                ref = make_hf_model_ref(str(d))
+                if _looks_like_hf_dir(d) and ref not in seen:
+                    seen.add(ref)
+                    cfg = self.get_config(ref)
+                    fam = detect_model_family(d.name)
+                    vi = detect_vision_model(d.name)
+                    models.append({
+                        "path": ref, "name": d.name,
+                        "size_mb": _path_size_mb(d),
+                        "source": "auto", "role": cfg.role, "backend": "hf_transformers",
+                        "family": fam.name, "quant": "TRANSFORMERS",
+                        "vision": vi.is_vision or cfg.vision,
+                        "vision_label": vi.label or ("Vision model" if cfg.vision else ""),
+                        "mmproj": "",
+                    })
         for p in self._custom:
-            fp = Path(p)
-            if fp.exists() and p not in seen:
+            fp = Path(model_ref_payload(p))
+            if is_model_ref_valid(p) and p not in seen:
                 seen.add(p)
                 cfg = self.get_config(p)
-                fam = detect_model_family(p)
-                qt  = detect_quant_type(p)
-                vi  = detect_vision_model(p)
+                payload = model_ref_payload(p) or p
+                fam = detect_model_family(payload)
+                qt  = cfg.quant_type
+                vi  = cfg.vision_info
+                backend = cfg.backend or model_ref_backend(p)
                 models.append({
-                    "path": p, "name": fp.name,
-                    "size_mb": round(fp.stat().st_size / 1e6, 1),
-                    "source": "custom", "role": cfg.role,
+                    "path": p, "name": model_ref_display_name(p),
+                    "size_mb": _path_size_mb(fp) if fp.exists() else 0.0,
+                    "source": "custom", "role": cfg.role, "backend": backend,
                     "family": fam.name, "quant": qt,
                     "vision": vi.is_vision, "vision_label": vi.label,
-                    "mmproj": detect_mmproj_for_model(p),
+                    "mmproj": detect_mmproj_for_model(p) if backend == "llama_cpp" else "",
                 })
         return models
 

@@ -40,7 +40,11 @@ class ModelLoaderThread(QThread):
         self.ctx        = ctx
 
     def run(self):
-        ok = self.engine.load(self.model_path, ctx=self.ctx)
+        ok = self.engine.load(
+            self.model_path,
+            ctx=self.ctx,
+            log_cb=lambda m: self.log.emit("INFO", str(m)),
+        )
         self.finished.emit(ok, self.engine.status_text)
 
 
@@ -151,7 +155,7 @@ class MainWindow(QMainWindow):
         for role in PARALLEL_PREFS.auto_load_roles:
             models = get_model_registry().all_models()
             for m in models:
-                if m.get("role") == role and Path(m["path"]).exists():
+                if m.get("role") == role and is_model_ref_valid(m["path"]):
                     self._start_role_engine_load(role, m["path"])
                     break
 
@@ -182,14 +186,14 @@ class MainWindow(QMainWindow):
         loader = ModelLoaderThread(new_eng, path, cfg.ctx)
         loader.log.connect(self._log)
         loader.finished.connect(
-            lambda ok, st, r=role, n=Path(path).name:
+            lambda ok, st, r=role, n=model_ref_display_name(path):
             self._on_role_engine_loaded(ok, st, r, n, None))
         loader.start()
         setattr(self, loader_attr, loader)
 
         # Give immediate visual feedback so the user sees something changed
         self._refresh_engine_status()
-        self._log("INFO", f"Loading {role} engine: {Path(path).name}")
+        self._log("INFO", f"Loading {role} engine: {model_ref_display_name(path)}")
 
     # ── context management ────────────────────────────────────────────────────
 
@@ -349,8 +353,15 @@ class MainWindow(QMainWindow):
         self.api_tab.api_model_loaded.connect(self._on_api_model_loaded)
         self.tabs.addTab(self.api_tab, icon("api"), "API Models")
 
+        # ── Accounts tab ──
+        self.accounts_tab = AccountsTab()
+        self.hf_login_tab = self.accounts_tab.hf_login_tab
+        self.accounts_tab.auth_changed.connect(self._on_hf_auth_changed)
+        self.tabs.addTab(self.accounts_tab, icon("key"), "Accounts")
+
         # ── Model Download tab ──
         self.download_tab = ModelDownloadTab()
+        self.download_tab.hf_login_requested.connect(self._show_hf_login_tab)
         self.tabs.addTab(self.download_tab, icon("download"), "Download")
 
         # ── Dev tab ──
@@ -434,6 +445,16 @@ class MainWindow(QMainWindow):
                 self.tabs.setCurrentWidget(self.dev_tab)
                 self.dev_nav.setCurrentRow(i)
                 return
+
+    def _show_hf_login_tab(self):
+        if hasattr(self, "accounts_tab"):
+            self.tabs.setCurrentWidget(self.accounts_tab)
+            self.accounts_tab.show_hugging_face()
+
+    def _on_hf_auth_changed(self):
+        self._log("INFO", "Hugging Face auth updated.")
+        if hasattr(self, "download_tab"):
+            self.download_tab.refresh_hf_auth_state()
         
     # ── models tab ───────────────────────────────────────────────────────────
 
@@ -466,8 +487,8 @@ class MainWindow(QMainWindow):
             card.setLayout(layout); return card
 
         # ── header ───────────────────────────────────────────────────────────
-        hdr = QLabel("GGUF Model Manager")
-        set_label_icon(hdr, "models", "GGUF Model Manager", 18)
+        hdr = QLabel("Model Manager")
+        set_label_icon(hdr, "models", "Model Manager", 18)
         hdr.setStyleSheet(f"color:{C['txt']};font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
         note = QLabel("Add models, assign roles, and configure the reasoning→coding pipeline.")
@@ -503,20 +524,26 @@ class MainWindow(QMainWindow):
         btn_strip = QHBoxLayout()
         btn_strip.setContentsMargins(10, 8, 10, 8); btn_strip.setSpacing(8)
         self.btn_browse_model = QPushButton("Browse GGUF...")
+        self.btn_add_ollama = QPushButton("Add Ollama")
+        self.btn_add_hf = QPushButton("Add HF")
         self.btn_load_primary = QPushButton("Load Selected")
         self.btn_load_primary.setObjectName("btn_send")
         self.btn_remove_model = QPushButton("Remove")
         self.btn_remove_model.setObjectName("btn_stop")
         set_button_icon(self.btn_browse_model, "folder-open", "Browse GGUF...")
+        set_button_icon(self.btn_add_ollama, "api", "Add Ollama")
+        set_button_icon(self.btn_add_hf, "models", "Add HF")
         set_button_icon(self.btn_load_primary, "zap", "Load Selected")
         set_button_icon(self.btn_remove_model, "delete", "Remove")
-        for b in (self.btn_browse_model, self.btn_load_primary, self.btn_remove_model):
+        for b in (self.btn_browse_model, self.btn_add_ollama, self.btn_add_hf, self.btn_load_primary, self.btn_remove_model):
             b.setFixedHeight(30); btn_strip.addWidget(b)
         btn_strip.addStretch()
         list_card_l.addLayout(btn_strip)
         root.addWidget(_card(list_card_l))
         root.addSpacing(14)
         self.btn_browse_model.clicked.connect(self._browse_add_model)
+        self.btn_add_ollama.clicked.connect(self._add_ollama_model)
+        self.btn_add_hf.clicked.connect(self._add_hf_model)
         self.btn_load_primary.clicked.connect(self._load_selected_as_primary)
         self.btn_remove_model.clicked.connect(self._remove_selected_model)
 
@@ -727,14 +754,17 @@ class MainWindow(QMainWindow):
         if not path: return
 
         # Update family / quant labels
-        fam   = detect_model_family(path)
-        quant = detect_quant_type(path)
+        cfg = get_model_registry().get_config(path)
+        payload = model_ref_payload(path) or path
+        fam   = detect_model_family(payload)
+        quant = cfg.quant_type
         ql, qcolor = quant_info(quant)
-        vi = detect_vision_model(path)
+        vi = cfg.vision_info
         vision_txt = f"  ·  VLM: {vi.label}" if vi.is_vision else ""
-        mmproj = detect_mmproj_for_model(path) if vi.is_vision else ""
+        mmproj = detect_mmproj_for_model(path) if vi.is_vision and not is_external_model_ref(path) else ""
+        backend_txt = f"  ·  {cfg.backend}"
         self.cfg_family_lbl.setText(
-            f"{fam.name}  (template: {fam.template}){vision_txt}"
+            f"{fam.name}  (template: {fam.template}){backend_txt}{vision_txt}"
             + (f"  ·  mmproj: {Path(mmproj).name}" if mmproj else "")
         )
         self.cfg_quant_lbl.setText(f"{quant}  ·  {ql}")
@@ -742,7 +772,6 @@ class MainWindow(QMainWindow):
             f"color:{qcolor};font-size:11px;"
             f"background:{C['bg2']};border-radius:4px;padding:3px 8px;")
 
-        cfg = get_model_registry().get_config(path)
         idx = self.cfg_role.findData(cfg.role)
         self.cfg_role.setCurrentIndex(max(idx, 0))
         self.cfg_threads.setText(str(cfg.threads))
@@ -780,15 +809,18 @@ class MainWindow(QMainWindow):
             ) != QMessageBox.StandardButton.Yes:
                 return
 
-        fam = detect_model_family(path)
+        payload = model_ref_payload(path) or path
+        fam = detect_model_family(payload)
+        vi = detect_vision_model(payload)
         cfg = ModelConfig(
             path=path, role=self.cfg_role.currentData() or "general",
+            backend=model_ref_backend(path), vision=vi.is_vision,
             threads=threads, ctx=ctx, temperature=temp, top_p=topp,
             repeat_penalty=rep, n_predict=npred, family=fam.family,
         )
         get_model_registry().set_config(path, cfg)
         self._refresh_model_list()
-        self._log("INFO", f"Saved config for {Path(path).name}: family={fam.name}, "
+        self._log("INFO", f"Saved config for {model_ref_display_name(path)}: family={fam.name}, "
                           f"role={cfg.role}, ctx={cfg.ctx}")
 
         if path == getattr(self.engine, "model_path", ""):
@@ -804,7 +836,7 @@ class MainWindow(QMainWindow):
         item = self.model_list.currentItem()
         if not item: return
         path = item.data(Qt.ItemDataRole.UserRole)
-        if not path or not Path(path).exists():
+        if not path or not is_model_ref_valid(path):
             QMessageBox.warning(self, "File Not Found", f"Cannot find:\n{path}"); return
         cfg = get_model_registry().get_config(path)
         role = cfg.role
@@ -815,7 +847,7 @@ class MainWindow(QMainWindow):
                            if getattr(self, f"{r}_engine", None) and
                            getattr(self, f"{r}_engine").is_loaded)
             if n_loaded >= 1:
-                size_mb = ModelConfig(path=path).size_mb
+                size_mb = get_model_registry().get_config(path).size_mb
                 ram_est = max(size_mb * 1.1 / 1000, 1)
                 QMessageBox.information(
                     self, "Parallel RAM Usage",
@@ -827,7 +859,7 @@ class MainWindow(QMainWindow):
         if role == "general":
             idx = self.input_bar.model_combo.findData(path)
             if idx == -1:
-                self.input_bar.model_combo.addItem(Path(path).name, path)
+                self.input_bar.model_combo.addItem(model_ref_display_name(path), path)
                 idx = self.input_bar.model_combo.findData(path)
             self.input_bar.model_combo.setCurrentIndex(idx)
             self.engine.shutdown()
@@ -859,7 +891,7 @@ class MainWindow(QMainWindow):
             setattr(self, attr, new_eng)
             cfg = get_model_registry().get_config(path)
 
-            def _on_loaded_reenable(ok, st, r=role, n=Path(path).name):
+            def _on_loaded_reenable(ok, st, r=role, n=model_ref_display_name(path)):
                 self._on_role_engine_loaded(ok, st, r, n, None)
                 self.btn_load_role_engine.setEnabled(True)
                 set_button_icon(self.btn_load_role_engine, "zap", "Load Engine for Role")
@@ -869,7 +901,7 @@ class MainWindow(QMainWindow):
             loader.finished.connect(_on_loaded_reenable)
             loader.start()
             setattr(self, loader_attr, loader)
-            self._log("INFO", f"Loading {role} engine: {Path(path).name}")
+            self._log("INFO", f"Loading {role} engine: {model_ref_display_name(path)}")
 
         self._refresh_engine_status()
 
@@ -898,11 +930,12 @@ class MainWindow(QMainWindow):
             if eng:
                 engines[role.capitalize()] = eng
         for role_name, eng in engines.items():
-            model_name = Path(eng.model_path).name if eng.model_path else "not loaded"
+            model_name = model_ref_display_name(eng.model_path) if eng.model_path else "not loaded"
             fam_tag    = ""
             if eng.model_path:
-                fam = detect_model_family(eng.model_path)
-                qt  = detect_quant_type(eng.model_path)
+                cfg = get_model_registry().get_config(eng.model_path)
+                fam = detect_model_family(model_ref_payload(eng.model_path) or eng.model_path)
+                qt  = cfg.quant_type
                 fam_tag = f"  [{fam.name} · {qt}]"
             mode_tag = f"  [{eng.mode}]" if eng.is_loaded else ""
             item = QListWidgetItem(
@@ -934,7 +967,13 @@ class MainWindow(QMainWindow):
         self.model_list.clear()
         active = getattr(self.engine, "model_path", "")
         for m in get_model_registry().all_models():
-            source_label = "Custom" if m["source"] == "custom" else "Bundled"
+            backend = m.get("backend", "llama_cpp")
+            if backend == "ollama":
+                source_label = "Ollama"
+            elif backend == "hf_transformers":
+                source_label = "HF"
+            else:
+                source_label = "Custom" if m["source"] == "custom" else "Bundled"
             role_label = ROLE_ICONS.get(m.get("role", "general"), "General")
             ql, qc    = quant_info(m.get("quant", ""))
             vision = f"  VLM: {m.get('vision_label') or 'vision'}" if m.get("vision") else ""
@@ -986,20 +1025,77 @@ class MainWindow(QMainWindow):
             f"Added model: {Path(path).name}  →  {fam.name}  ·  {quant}  ·  {ql}"
             + (f"  ·  VLM: {vi.label}" if vi.is_vision else ""))
 
+    def _fetch_ollama_model_names(self) -> list:
+        import urllib.request
+        import urllib.error
+        host = str(APP_CONFIG.get("ollama_host", "http://127.0.0.1:11434") or "http://127.0.0.1:11434").rstrip("/")
+        try:
+            with urllib.request.urlopen(f"{host}/api/tags", timeout=LONG_TIMEOUT_SECONDS) as r:
+                data = json.loads(r.read().decode("utf-8", errors="replace"))
+            rows = data.get("models") or []
+            return sorted({str(row.get("name") or row.get("model") or "").strip() for row in rows if row.get("name") or row.get("model")})
+        except Exception as exc:
+            self._log("ERROR", f"Ollama model list failed at {host}: {exc}")
+            return []
+
+    def _add_ollama_model(self):
+        names = self._fetch_ollama_model_names()
+        if names:
+            chosen, ok = QInputDialog.getItem(
+                self, "Add Ollama Model",
+                "Select an installed Ollama model:",
+                names, 0, False)
+        else:
+            chosen, ok = QInputDialog.getText(
+                self, "Add Ollama Model",
+                "Ollama was not reachable or returned no models.\nEnter model name manually:")
+        if not ok or not str(chosen).strip():
+            return
+        ref = make_ollama_model_ref(str(chosen).strip())
+        get_model_registry().add(ref)
+        self._refresh_model_list()
+        self._sync_input_bar_combo()
+        self._log("INFO", f"Added Ollama model: {model_ref_display_name(ref)}")
+
+    def _add_hf_model(self):
+        choice, ok = QInputDialog.getItem(
+            self, "Add HF Transformers Model",
+            "Source type:",
+            ["Hugging Face repo id", "Local model directory"],
+            0, False)
+        if not ok:
+            return
+        if choice == "Local model directory":
+            value = QFileDialog.getExistingDirectory(
+                self, "Select HF model directory", str(MODELS_DIR))
+        else:
+            value, ok = QInputDialog.getText(
+                self, "Add HF Transformers Model",
+                "Repo id, for example: Qwen/Qwen2.5-0.5B-Instruct")
+            if not ok:
+                return
+        if not str(value).strip():
+            return
+        ref = make_hf_model_ref(str(value).strip())
+        get_model_registry().add(ref)
+        self._refresh_model_list()
+        self._sync_input_bar_combo()
+        self._log("INFO", f"Added HF Transformers model: {model_ref_payload(ref)}")
+
     def _load_selected_as_primary(self):
         item = self.model_list.currentItem()
         if not item: return
         path = item.data(Qt.ItemDataRole.UserRole)
-        if not path or not Path(path).exists():
+        if not path or not is_model_ref_valid(path):
             QMessageBox.warning(self, "File Not Found", f"Cannot find:\n{path}"); return
         idx = self.input_bar.model_combo.findData(path)
         if idx == -1:
-            self.input_bar.model_combo.addItem(Path(path).name, path)
+            self.input_bar.model_combo.addItem(model_ref_display_name(path), path)
             idx = self.input_bar.model_combo.findData(path)
         self.input_bar.model_combo.setCurrentIndex(idx)
         self.engine.shutdown()
         QTimer.singleShot(200, self._start_model_load)
-        self._log("INFO", f"Loading primary model: {Path(path).name}")
+        self._log("INFO", f"Loading primary model: {model_ref_display_name(path)}")
 
     def _remove_selected_model(self):
         item = self.model_list.currentItem()
@@ -1234,6 +1330,12 @@ class MainWindow(QMainWindow):
             self._set_engine_status(f"{label} (not loaded)", "idle")
             self.lbl_family.setText("API")
             return
+        if is_external_model_ref(selected):
+            if selected and selected == getattr(self.engine, "model_path", "") and self.engine.is_loaded:
+                self._set_engine_status(self.engine.status_text, "ok")
+                return
+            self._set_engine_status(f"Selected {model_ref_backend(selected)} model not loaded", "idle")
+            return
         loaded_path = getattr(self.engine, "model_path", "")
         if selected and selected == loaded_path and self.engine.is_loaded:
             self._set_engine_status(self.engine.status_text, "ok")
@@ -1245,7 +1347,7 @@ class MainWindow(QMainWindow):
         if is_api_model_ref(model):
             self._start_api_model_load(model)
             return
-        if not model or not Path(model).exists():
+        if not model or not is_model_ref_valid(model):
             model = str(MODELS_DIR / DEFAULT_MODEL)
         if self.engine.is_loaded and getattr(self.engine, "model_path", "") == model:
             self._set_engine_status(self.engine.status_text, "ok")
@@ -1253,13 +1355,15 @@ class MainWindow(QMainWindow):
         if self._api_engine and self._api_engine.is_loaded:
             self._api_engine.shutdown()
         self._set_engine_status("Loading model...", "loading")
-        fam   = detect_model_family(model)
-        quant = detect_quant_type(model)
-        vi    = detect_vision_model(model)
+        cfg = get_model_registry().get_config(model)
+        payload = model_ref_payload(model) or model
+        fam   = detect_model_family(payload)
+        quant = cfg.quant_type
+        vi    = cfg.vision_info
         ql, _ = quant_info(quant)
         vision = f"  ·  VLM: {vi.label}" if vi.is_vision else ""
         self.lbl_family.setText(f"{fam.name}  ·  {quant}  ·  {ql}{vision}")
-        self._log("INFO", f"Loading model: {Path(model).name}  [{fam.name} / {quant}{vision}]")
+        self._log("INFO", f"Loading model: {model_ref_display_name(model)}  [{fam.name} / {quant}{vision}]")
         self._loader = ModelLoaderThread(self.engine, model, self.ctx_slider.value())
         self._loader.log.connect(self._log)
         self._loader.finished.connect(self._on_model_loaded)
@@ -1505,11 +1609,11 @@ class MainWindow(QMainWindow):
             self.input_bar.model_combo.setCurrentIndex(idx)
             self._start_api_model_load(model_path)
             return True
-        if not model_path or not Path(model_path).exists():
+        if not model_path or not is_model_ref_valid(model_path):
             return False
         idx = self.input_bar.model_combo.findData(model_path)
         if idx == -1:
-            self.input_bar.model_combo.addItem(Path(model_path).name, model_path)
+            self.input_bar.model_combo.addItem(model_ref_display_name(model_path), model_path)
             idx = self.input_bar.model_combo.findData(model_path)
         self.input_bar.model_combo.setCurrentIndex(idx)
         self.engine.shutdown()
@@ -1724,7 +1828,7 @@ class MainWindow(QMainWindow):
             max_chars=ctx_chars
         )
         if skill_ctx:
-            fam = detect_model_family(active_eng.model_path)
+            fam = detect_model_family(model_ref_payload(active_eng.model_path) or active_eng.model_path)
             skill_block = (
                 f"{fam.bos}{fam.user_prefix}"
                 f"{skill_ctx}\n\n"
@@ -1736,7 +1840,7 @@ class MainWindow(QMainWindow):
         ref_ctx = getattr(self, "_pending_ref_ctx", "")
         ref_images = list(getattr(self, "_pending_ref_images", []))
         if ref_ctx:
-            fam = detect_model_family(active_eng.model_path)
+            fam = detect_model_family(model_ref_payload(active_eng.model_path) or active_eng.model_path)
             ref_block = (
                 f"{fam.bos}{fam.user_prefix}"
                 f"The following reference material is provided for context:\n\n"
@@ -1748,7 +1852,7 @@ class MainWindow(QMainWindow):
             self._pending_ref_ctx = ""
         if ref_images and not isinstance(active_eng, ApiEngine):
             llama_images = self._llama_image_data_from_parts(ref_images)
-            if active_eng.mode == "server" and llama_images and hasattr(active_eng, "set_images"):
+            if active_eng.mode in ("server", "ollama", "hf_transformers") and llama_images and hasattr(active_eng, "set_images"):
                 active_eng.set_images(llama_images)
                 prompt = (
                     "The user attached image reference(s). Inspect the attached image data "
@@ -1757,9 +1861,8 @@ class MainWindow(QMainWindow):
             else:
                 prompt = (
                     "The user attached image reference(s), but the active local model is not "
-                    "running in llama-server vision mode. Use any image filenames listed in "
-                    "the reference context as metadata only. For local VLMs, start llama-server "
-                    "with the matching multimodal projector in extra server flags.\n\n" + prompt
+                    "running in a vision-capable backend. Use any image filenames listed in "
+                    "the reference context as metadata only.\n\n" + prompt
                 )
 
         cfg_pred = DEFAULT_N_PRED
@@ -2441,6 +2544,10 @@ class MainWindow(QMainWindow):
 
     def _on_config_changed(self):
         self._log("INFO", "App config updated and saved.")
+        if hasattr(self, "hf_login_tab"):
+            self.hf_login_tab.refresh_state()
+        if hasattr(self, "download_tab"):
+            self.download_tab.refresh_hf_auth_state()
 
     def _resume_paused_job(self):
         state = self.config_tab.get_selected_job_state()
@@ -2774,6 +2881,7 @@ class MainWindow(QMainWindow):
             "Models": "models",
             "Server": "server",
             "API Models": "api",
+            "Accounts": "key",
             "Download": "download",
             "Dev": "code",
             "Appearance": "appearance",
@@ -2782,6 +2890,8 @@ class MainWindow(QMainWindow):
             name = tab_icons.get(self.tabs.tabText(i))
             if name:
                 self.tabs.setTabIcon(i, icon(name))
+        if hasattr(self, "accounts_tab"):
+            self.accounts_tab.refresh_icons()
         if hasattr(self, "dev_nav"):
             dev_icons = {
                 "Labs": "labs",
@@ -2864,6 +2974,7 @@ class MainWindow(QMainWindow):
         self.download_tab.setParent(None)
         self.download_tab.deleteLater()
         self.download_tab = ModelDownloadTab()
+        self.download_tab.hf_login_requested.connect(self._show_hf_login_tab)
         self.tabs.insertTab(dl_idx, self.download_tab, icon("download"), "Download")
 
         # Rebuild MCP dev page

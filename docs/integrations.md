@@ -22,7 +22,7 @@ The endpoint returns plain JSON-compatible dictionaries.
 |---|---:|---|
 | `/snapshot` | GET | Full catalog: routes, runtime, limits, models, API models, pipelines, labs. |
 | `/runtime` | GET | Active backend, model name/path, context size, server port, loaded state. |
-| `/models` | GET | Registered local GGUF models with role, family, quant, and vision metadata. |
+| `/models` | GET | Registered GGUF, Ollama, and HF models with role, backend, family, quant, and vision metadata. |
 | `/api_models` | GET | Saved API model configs with API keys redacted. |
 | `/limits` | GET | Defaults, roles, app config, and config field metadata. |
 | `/pipelines` | GET | Saved visual pipelines with block and connection counts. |
