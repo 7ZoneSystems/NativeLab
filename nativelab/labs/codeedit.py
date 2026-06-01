@@ -19,11 +19,12 @@ from typing import Any, Optional
 from nativelab.imports.import_global import (
     QThread, pyqtSignal,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
-    QTextEdit, QFrame, QScrollArea, QCheckBox, QFileDialog, QMessageBox,
+    QTextEdit, QFrame, QScrollArea, QFileDialog, QMessageBox,
     QFont, Qt, QSplitter, QSizePolicy, QDialog, QColor,
 )
 from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
 from nativelab.UI.buildUI import prepare_adaptive_window
+from nativelab.UI.toggle import ToggleSwitch
 
 from .endpoints import LabEndpoints
 
@@ -430,7 +431,7 @@ class CodeEditPanel(QWidget):
         layout.addWidget(self.prompt_te)
 
         actions = QHBoxLayout()
-        self.chk_generate = QCheckBox("Generate if temp is empty")
+        self.chk_generate = ToggleSwitch("Generate if temp is empty")
         self.chk_generate.setChecked(True)
         self.btn_apply = QPushButton("Apply Structured Edit")
         set_button_icon(self.btn_apply, "replace", "Apply Structured Edit")

@@ -1,4 +1,4 @@
-v0.3.1
+v0.3.2
 
 1) Fixed error surface in labs endpoints to show real endpoint errors instead of only HTTP 400 text.
 2) Added py-to-doc project pause/resume checkpoints in localllm/temp for restart and shutdown recovery.

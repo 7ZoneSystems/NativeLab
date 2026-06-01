@@ -27,6 +27,7 @@ from nativelab.Server.ollama_helpers import normalize_ollama_host
 from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES, make_hf_model_ref, make_ollama_model_ref, popular_model_presets
 from nativelab.labs import LabsTab, LabEndpoints
 from nativelab.UI.icons import add_menu_action, icon, icon_size, role_icon, set_button_icon, set_label_icon, set_status_label, status_icon
+from nativelab.UI.toggle import ToggleSwitch
 CONFIG_SECTIONS = [
     ("Memory & RAM", ["ram_watchdog_mb", "max_ram_chunks", "auto_spill_on_start"]),
     ("Reference Engine", ["chunk_index_size", "ref_top_k", "ref_max_context_chars"]),
@@ -203,7 +204,7 @@ class ConfigTab(QWidget):
 
         ftype = meta.get("type", "int")
         if ftype == "bool":
-            widget = QCheckBox()
+            widget = ToggleSwitch()
             widget.setChecked(bool(current_val))
         elif ftype == "choice":
             widget = QComboBox()
@@ -648,7 +649,7 @@ class ParallelLoadingDialog(QWidget):
 
         # ── enable toggle ──────────────────────────────────────────────────────
         top_row = QHBoxLayout(); top_row.setSpacing(10)
-        self.chk_enable = QCheckBox("Enable Parallel Model Loading")
+        self.chk_enable = ToggleSwitch("Enable Parallel Model Loading")
         self.chk_enable.setStyleSheet("font-weight:600;font-size:12px;")
         self.chk_enable.setChecked(self._prefs.enabled)
         self.chk_enable.toggled.connect(self._on_toggle)
@@ -684,7 +685,7 @@ class ParallelLoadingDialog(QWidget):
         role_grid = QHBoxLayout(); role_grid.setSpacing(12)
         for role in MODEL_ROLES:
             if role == "general": continue  # always loaded
-            chk = QCheckBox(ROLE_ICONS[role])
+            chk = ToggleSwitch(ROLE_ICONS[role])
             chk.setIcon(role_icon(role))
             chk.setIconSize(icon_size(16))
             chk.setChecked(role in self._prefs.auto_load_roles)
@@ -701,7 +702,7 @@ class ParallelLoadingDialog(QWidget):
 
         # ── pipeline mode ──────────────────────────────────────────────────────
         pipeline_row = QHBoxLayout(); pipeline_row.setSpacing(10)
-        self.chk_pipeline = QCheckBox("Enable Reasoning -> Coding Pipeline Mode")
+        self.chk_pipeline = ToggleSwitch("Enable Reasoning -> Coding Pipeline Mode")
         self.chk_pipeline.setStyleSheet("font-size:12px;")
         self.chk_pipeline.setChecked(self._prefs.pipeline_mode)
         self.chk_pipeline.setEnabled(self._prefs.enabled)
@@ -1266,7 +1267,7 @@ class ServerTab(QWidget):
 
         # Enable GPU checkbox
         enable_row = QHBoxLayout(); enable_row.setSpacing(10)
-        self.chk_gpu = QCheckBox("Enable GPU offloading  (--ngl flag)")
+        self.chk_gpu = ToggleSwitch("Enable GPU offloading  (--ngl flag)")
         self.chk_gpu.setStyleSheet("font-weight:600;font-size:12px;")
         self.chk_gpu.setChecked(self._cfg.enable_gpu)
         self.chk_gpu.setEnabled(bool(self._detected_gpus))
@@ -3032,7 +3033,7 @@ class ApiModelsTab(QWidget):
 
         pf_hdr = QHBoxLayout()
         pf_lbl = self._sec_lbl("PROMPT FORMAT")
-        self.chk_custom_prompt = QCheckBox("Use custom format")
+        self.chk_custom_prompt = ToggleSwitch("Use custom format")
         self.chk_custom_prompt.toggled.connect(self._toggle_prompt_format)
         pf_hdr.addWidget(pf_lbl)
         pf_hdr.addStretch()

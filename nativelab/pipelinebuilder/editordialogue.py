@@ -1,10 +1,11 @@
-from nativelab.imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QCheckBox, QMessageBox, Qt, Path
+from nativelab.imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QMessageBox, Qt, Path
 from nativelab.Model.model_global import get_model_registry, detect_model_family, is_model_ref_valid
 from nativelab.GlobalConfig.config_global import ROLE_ICONS
 from .pipblck import PipelineBlock
 from nativelab.UI.UI_const import C
 from nativelab.UI.buildUI import prepare_adaptive_window
 from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
+from nativelab.UI.toggle import ToggleSwitch
 class LlmLogicEditorDialog(QDialog):
     """
     Configuration dialog for LLM-backed logic blocks.
@@ -214,13 +215,13 @@ class LlmLogicEditorDialog(QDialog):
             "Use 0–15 for routing decisions, 30–60 for creative transforms.")
         _adv_row("Temperature (×100):", self.spin_temp)
 
-        self.check_show_reasoning = QCheckBox("Show model reasoning in log")
+        self.check_show_reasoning = ToggleSwitch("Show model reasoning in log")
         self.check_show_reasoning.setChecked(
             bool(self._block.metadata.get("llm_show_reasoning", True)))
         self.check_show_reasoning.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
         adv_l.addWidget(self.check_show_reasoning)
 
-        self.check_passthrough_on_err = QCheckBox(
+        self.check_passthrough_on_err = ToggleSwitch(
             "Pass text through unchanged if model call fails (instead of stopping pipeline)")
         self.check_passthrough_on_err.setChecked(
             bool(self._block.metadata.get("llm_passthrough_on_err", False)))

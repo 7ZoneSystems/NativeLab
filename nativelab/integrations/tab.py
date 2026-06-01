@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 
 from nativelab.imports.import_global import (
     QApplication,
-    QCheckBox,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -28,6 +27,7 @@ from nativelab.imports.import_global import (
 )
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS, LONG_TIMEOUT_MS
 from nativelab.UI.icons import set_button_icon, set_label_icon
+from nativelab.UI.toggle import ToggleSwitch
 
 from .endpoints import IntegrationEndpoints
 from .http_endpoint import IntegrationHttpEndpoint
@@ -443,9 +443,9 @@ class IntegrationsTab(QWidget):
         self.discord_reply_mode.addItem("Interaction reply", "interaction_reply")
         self.discord_reply_mode.addItem("Channel message", "channel_message")
         reply_row.addWidget(self.discord_reply_mode)
-        self.discord_ephemeral = QCheckBox("Ephemeral replies")
+        self.discord_ephemeral = ToggleSwitch("Ephemeral replies")
         reply_row.addWidget(self.discord_ephemeral)
-        self.discord_direct_mentions = QCheckBox("Reply to @mentions")
+        self.discord_direct_mentions = ToggleSwitch("Reply to @mentions")
         self.discord_direct_mentions.stateChanged.connect(lambda *_: self._on_direct_mentions_changed())
         reply_row.addWidget(self.discord_direct_mentions)
         reply_row.addWidget(QLabel("Max chars:"))
@@ -458,7 +458,7 @@ class IntegrationsTab(QWidget):
 
         queue_row = QHBoxLayout()
         queue_row.setSpacing(8)
-        self.discord_queue_enabled = QCheckBox("Request queue")
+        self.discord_queue_enabled = ToggleSwitch("Request queue")
         self.discord_queue_enabled.setChecked(True)
         queue_row.addWidget(self.discord_queue_enabled)
         queue_row.addWidget(QLabel("Concurrent:"))
@@ -508,7 +508,7 @@ class IntegrationsTab(QWidget):
             ("Read message history", "read_message_history"),
             ("Use external emojis", "use_external_emojis"),
         ]:
-            chk = QCheckBox(label)
+            chk = ToggleSwitch(label)
             self.discord_priv_checks[key] = chk
             priv_l.addWidget(chk)
         box.addWidget(priv_card)
@@ -528,7 +528,7 @@ class IntegrationsTab(QWidget):
             ("Labs routes", "labs"),
             ("Models catalog", "models"),
         ]:
-            chk = QCheckBox(label)
+            chk = ToggleSwitch(label)
             chk.stateChanged.connect(lambda *_: self._refresh_discord_commands())
             self.discord_cap_checks[key] = chk
             cap_l.addWidget(chk)
@@ -940,11 +940,11 @@ class IntegrationsTab(QWidget):
         box.addLayout(webhook)
 
         reply = QHBoxLayout(); reply.setSpacing(8)
-        self.whatsapp_direct_messages = QCheckBox("Reply to normal messages")
+        self.whatsapp_direct_messages = ToggleSwitch("Reply to normal messages")
         self.whatsapp_direct_messages.setChecked(True)
         self.whatsapp_direct_messages.stateChanged.connect(lambda *_: self._refresh_whatsapp_commands())
         reply.addWidget(self.whatsapp_direct_messages)
-        self.whatsapp_queue_enabled = QCheckBox("Request queue")
+        self.whatsapp_queue_enabled = ToggleSwitch("Request queue")
         self.whatsapp_queue_enabled.setChecked(True)
         reply.addWidget(self.whatsapp_queue_enabled)
         reply.addWidget(QLabel("Concurrent:"))
@@ -995,7 +995,7 @@ class IntegrationsTab(QWidget):
             ("Labs routes", "labs"),
             ("Models catalog", "models"),
         ]:
-            chk = QCheckBox(label)
+            chk = ToggleSwitch(label)
             chk.stateChanged.connect(lambda *_: self._refresh_whatsapp_commands())
             self.whatsapp_cap_checks[key] = chk
             cap_l.addWidget(chk)

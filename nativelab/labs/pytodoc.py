@@ -20,11 +20,12 @@ from typing import Any, List, Optional, Union
 from nativelab.imports.import_global import (
     QThread, pyqtSignal,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
-    QTextEdit, QFrame, QScrollArea, QCheckBox, QFileDialog, QMessageBox,
+    QTextEdit, QFrame, QScrollArea, QFileDialog, QMessageBox,
     QListWidget, QListWidgetItem,
     QFont, Qt, QSlider, QSpinBox,
 )
 from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
+from nativelab.UI.toggle import ToggleSwitch
 from nativelab.GlobalConfig.const import LONG_TIMEOUT_MS, MAX_CONTEXT_TOKENS
 
 from .endpoints import ContextWindowExceededError, LabEndpoints
@@ -1279,7 +1280,7 @@ class PyToDocPanel(QWidget):
         oc.setContentsMargins(16, 14, 16, 14)
         oc.setSpacing(8)
 
-        self.chk_globals = QCheckBox("Include module-level (global) functions")
+        self.chk_globals = ToggleSwitch("Include module-level (global) functions")
         oc.addWidget(self.chk_globals)
 
         mode_row = QHBoxLayout()
@@ -1304,8 +1305,8 @@ class PyToDocPanel(QWidget):
         fixed_layout = QVBoxLayout(self._fixed_context_box)
         fixed_layout.setContentsMargins(0, 0, 0, 0)
         fixed_layout.setSpacing(6)
-        self.chk_reset_fn = QCheckBox("Reset LLM context after each function")
-        self.chk_reset_cls = QCheckBox("Reset LLM context after each class")
+        self.chk_reset_fn = ToggleSwitch("Reset LLM context after each function")
+        self.chk_reset_cls = ToggleSwitch("Reset LLM context after each class")
         self.chk_reset_fn.setChecked(True)
         fixed_layout.addWidget(self.chk_reset_fn)
         fixed_layout.addWidget(self.chk_reset_cls)
@@ -1337,7 +1338,7 @@ class PyToDocPanel(QWidget):
         auto_note.setObjectName("txt2_small")
         auto_layout.addWidget(auto_note)
 
-        self.chk_auto_reload_model = QCheckBox("Auto model reload when free RAM is below")
+        self.chk_auto_reload_model = ToggleSwitch("Auto model reload when free RAM is below")
         self.chk_auto_reload_model.toggled.connect(self._sync_reload_ram_enabled)
         auto_layout.addWidget(self.chk_auto_reload_model)
 

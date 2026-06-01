@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from nativelab.imports.import_global import (
-    QCheckBox,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -20,6 +19,7 @@ from nativelab.imports.import_global import (
 )
 from nativelab.UI.UI_const import C
 from nativelab.UI.icons import icon, icon_size, set_button_icon, set_label_icon
+from nativelab.UI.toggle import ToggleSwitch
 
 from .manager import SKILLS_FILE, delete_skill, ensure_builtin_edit_skill, load_skills, upsert_skill
 
@@ -99,7 +99,7 @@ class SkillsTab(QWidget):
         self.name_edit.setFixedHeight(30)
         form.addLayout(self._field("Name:", self.name_edit))
 
-        self.enabled_chk = QCheckBox("Active")
+        self.enabled_chk = ToggleSwitch("Active")
         self.enabled_chk.setChecked(True)
         form.addWidget(self.enabled_chk)
 
