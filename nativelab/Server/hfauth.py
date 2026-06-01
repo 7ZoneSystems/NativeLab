@@ -164,7 +164,26 @@ def hf_auth_headers(token: Optional[str] = None, user_agent: str = "NativeLabPro
     return headers
 
 
-def _http_error_text(exc: urllib.error.HTTPError) -> str:
+def hf_repo_url(repo_id: str = "") -> str:
+    repo = str(repo_id or "").strip().strip("/")
+    return f"https://huggingface.co/{repo}" if repo else "https://huggingface.co/models"
+
+
+def _hf_access_denied_message(repo_id: str = "") -> str:
+    if get_hf_access_token():
+        repo_txt = str(repo_id or "this repository").strip()
+        return (
+            f"Hugging Face access denied for {repo_txt}. You are signed in, but this "
+            "account may not have accepted the gated model terms, the access request may "
+            "still be pending, or the request may have been rejected. Open "
+            f"{hf_repo_url(repo_id)} in your browser, accept/request access, wait for "
+            "approval if required, then retry. If access was just granted, logout and "
+            "login again from Accounts > Hugging Face to refresh the token."
+        )
+    return HF_REQUIRED_MESSAGE
+
+
+def _http_error_text(exc: urllib.error.HTTPError, repo_id: str = "") -> str:
     try:
         raw = exc.read().decode("utf-8", errors="replace")
     except Exception:
@@ -176,29 +195,34 @@ def _http_error_text(exc: urllib.error.HTTPError) -> str:
             payload = {}
         if payload.get("error") == "invalid_client":
             return HF_BAD_CLIENT_ID_MESSAGE
-    if exc.code in (401, 403):
+    if exc.code == 401:
         return f"{HF_REQUIRED_MESSAGE} HTTP {exc.code}."
+    if exc.code == 403:
+        return f"{_hf_access_denied_message(repo_id)} HTTP {exc.code}."
     return f"Hugging Face HTTP {exc.code}: {raw[:300] or exc.reason}"
 
 
-def normalize_hf_exception(exc: Exception) -> str:
+def normalize_hf_exception(exc: Exception, repo_id: str = "") -> str:
     if isinstance(exc, urllib.error.HTTPError):
-        msg = _http_error_text(exc)
+        msg = _http_error_text(exc, repo_id=repo_id)
         if exc.code in (401, 403):
             save_hf_credentials({"last_error": msg})
         return msg
     status_code = getattr(getattr(exc, "response", None), "status_code", None)
-    if status_code in (401, 403):
+    if status_code == 401:
         msg = f"{HF_REQUIRED_MESSAGE} HTTP {status_code}."
         save_hf_credentials({"last_error": msg})
         return msg
+    if status_code == 403:
+        msg = f"{_hf_access_denied_message(repo_id)} HTTP {status_code}."
+        save_hf_credentials({"last_error": msg})
+        return msg
     text = str(exc)
-    if (
-        "401 Client Error" in text
-        or "403 Client Error" in text
-        or "Unauthorized" in text
-        or "Forbidden" in text
-    ):
+    if "403 Client Error" in text or "Forbidden" in text:
+        msg = _hf_access_denied_message(repo_id)
+        save_hf_credentials({"last_error": msg})
+        return msg
+    if "401 Client Error" in text or "Unauthorized" in text:
         msg = HF_REQUIRED_MESSAGE
         save_hf_credentials({"last_error": msg})
         return msg

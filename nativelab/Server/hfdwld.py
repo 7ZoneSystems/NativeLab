@@ -2,6 +2,7 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, Path
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 from nativelab.Server.hfauth import hf_auth_headers, normalize_hf_exception
+from nativelab.Server.ollama_helpers import normalize_ollama_exception, normalize_ollama_host
 import threading
 
 
@@ -27,7 +28,7 @@ class HfSearchWorker(QThread):
                     if s.get("rfilename", "").lower().endswith(".gguf")]
             self.results_ready.emit(gguf)
         except Exception as e:
-            self.err.emit(normalize_hf_exception(e))
+            self.err.emit(normalize_hf_exception(e, repo_id=self._repo))
 
 
 class _AbortedError(Exception):
@@ -118,7 +119,7 @@ class HfDownloadWorker(QThread):
             except Exception as exc:
                 if attempt >= self.MAX_RETRIES:
                     # Genuine failure - keep .part so user can resume next session
-                    self.err.emit(normalize_hf_exception(exc))
+                    self.err.emit(normalize_hf_exception(exc, repo_id=self._repo))
                     return
                 time.sleep(self.RETRY_WAIT)
                 # Next iteration resumes automatically from .part offset
@@ -255,7 +256,7 @@ class HfSnapshotSearchWorker(QThread):
                 "total_size": sum(int(f.get("size") or 0) for f in files),
             })
         except Exception as e:
-            self.err.emit(normalize_hf_exception(e))
+            self.err.emit(normalize_hf_exception(e, repo_id=self._repo))
 
 
 class HfSnapshotDownloadWorker(QThread):
@@ -325,7 +326,7 @@ class HfSnapshotDownloadWorker(QThread):
                     return
                 except Exception as exc:
                     if attempt >= self.MAX_RETRIES:
-                        self.err.emit(f"{name}: {normalize_hf_exception(exc)}")
+                        self.err.emit(f"{name}: {normalize_hf_exception(exc, repo_id=self._repo)}")
                         return
                     time.sleep(self.RETRY_WAIT)
         self.done.emit(str(dest_dir))
@@ -408,7 +409,7 @@ class OllamaListWorker(QThread):
 
     def __init__(self, host: str):
         super().__init__()
-        self._host = (host or "http://127.0.0.1:11434").rstrip("/")
+        self._host = normalize_ollama_host(host)
 
     def run(self):
         import urllib.request as _ur, json as _j
@@ -418,7 +419,7 @@ class OllamaListWorker(QThread):
                 data = _j.loads(r.read().decode("utf-8", errors="replace"))
             self.results_ready.emit(data.get("models") or [])
         except Exception as e:
-            self.err.emit(str(e))
+            self.err.emit(normalize_ollama_exception(e, self._host, action="list models from"))
 
 
 class OllamaPullWorker(QThread):
@@ -429,7 +430,7 @@ class OllamaPullWorker(QThread):
 
     def __init__(self, host: str, model_name: str):
         super().__init__()
-        self._host = (host or "http://127.0.0.1:11434").rstrip("/")
+        self._host = normalize_ollama_host(host)
         self._model = model_name.strip()
         self._abort = False
 
@@ -466,7 +467,7 @@ class OllamaPullWorker(QThread):
                     self.progress.emit(completed, total, status or last_status)
             self.done.emit(self._model)
         except Exception as e:
-            self.err.emit(str(e))
+            self.err.emit(normalize_ollama_exception(e, self._host, action="pull from"))
 
 
 class LlamaCppReleaseFetcher(QThread):

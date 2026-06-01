@@ -23,6 +23,7 @@ from nativelab.Server.hfauth import (
     load_hf_credentials,
     mask_hf_token,
 )
+from nativelab.Server.ollama_helpers import normalize_ollama_host
 from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES, make_hf_model_ref, make_ollama_model_ref, popular_model_presets
 from nativelab.labs import LabsTab, LabEndpoints
 from nativelab.UI.icons import add_menu_action, icon, icon_size, role_icon, set_button_icon, set_label_icon, set_status_label, status_icon
@@ -2405,7 +2406,8 @@ class ModelDownloadTab(QWidget):
     # ── Ollama puller ────────────────────────────────────────────────────────
 
     def _ollama_save_host(self) -> str:
-        host = self.ollama_host_edit.text().strip() or "http://127.0.0.1:11434"
+        host = normalize_ollama_host(self.ollama_host_edit.text())
+        self.ollama_host_edit.setText(host)
         APP_CONFIG["ollama_host"] = host
         save_app_config(APP_CONFIG)
         return host

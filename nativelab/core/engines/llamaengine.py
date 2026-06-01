@@ -17,6 +17,7 @@ from nativelab.GlobalConfig.config_global import (
     LONG_TIMEOUT_SECONDS,
 )
 from nativelab.Server.hfauth import get_hf_access_token, normalize_hf_exception
+from nativelab.Server.ollama_helpers import normalize_ollama_exception, normalize_ollama_host
 import nativelab.GlobalConfig.binaryResolve as _binres
 from nativelab.Server.server_global import free_port, SERVER_CONFIG, PORT_RANGE_START, PORT_RANGE_END
 
@@ -30,7 +31,7 @@ class LlamaEngine:
         self.mode = "unloaded"
         self._log = lambda m: None
         self._pending_images: list = []
-        self.ollama_host = str(APP_CONFIG.get("ollama_host", "http://127.0.0.1:11434")).strip() or "http://127.0.0.1:11434"
+        self.ollama_host = normalize_ollama_host(str(APP_CONFIG.get("ollama_host", "http://127.0.0.1:11434")))
         self._hf_model = None
         self._hf_tokenizer = None
         self._hf_processor = None
@@ -225,7 +226,7 @@ class LlamaEngine:
         if self.server_proc:
             self._kill_proc(self.server_proc)
             self.server_proc = None
-        self.ollama_host = str(APP_CONFIG.get("ollama_host", self.ollama_host)).strip() or self.ollama_host
+        self.ollama_host = normalize_ollama_host(str(APP_CONFIG.get("ollama_host", self.ollama_host)))
         try:
             req = urllib.request.Request(
                 f"{self.ollama_host.rstrip('/')}/api/show",
@@ -237,11 +238,10 @@ class LlamaEngine:
                     self._log(f"[ERROR] Ollama rejected model '{model}'")
                     return False
         except urllib.error.HTTPError as exc:
-            raw = exc.read().decode("utf-8", errors="replace")
-            self._log(f"[ERROR] Ollama model not available: {model} ({exc.code}) {raw[:200]}")
+            self._log(f"[ERROR] Ollama model not available: {model}. {normalize_ollama_exception(exc, self.ollama_host, action='load')}")
             return False
         except Exception as exc:
-            self._log(f"[ERROR] Could not reach Ollama at {self.ollama_host}: {exc}")
+            self._log(f"[ERROR] {normalize_ollama_exception(exc, self.ollama_host, action='load')}")
             return False
         self.mode = "ollama"
         self.model_path = ref
@@ -312,7 +312,8 @@ class LlamaEngine:
                 pass
         except Exception as exc:
             self._unload_hf()
-            self._log(f"[ERROR] Could not load HF Transformers model '{target}': {normalize_hf_exception(exc)}")
+            repo_id = "" if Path(str(target)).expanduser().exists() else str(target)
+            self._log(f"[ERROR] Could not load HF Transformers model '{target}': {normalize_hf_exception(exc, repo_id=repo_id)}")
             self._log(f"[ERROR] HF settings used: {self._hf_settings_summary()}")
             self._log("[ERROR] Check Settings → App Configuration → HF Transformers for dtype/device/safetensors/quantization options.")
             return False
@@ -645,9 +646,8 @@ class LlamaEngine:
                             break
                     return "".join(out).strip()
                 data = json.loads(resp.read().decode("utf-8", errors="replace"))
-        except urllib.error.HTTPError as exc:
-            raw = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Ollama HTTP {exc.code}: {raw}")
+        except Exception as exc:
+            raise RuntimeError(normalize_ollama_exception(exc, self.ollama_host, action="chat with")) from exc
         return (((data.get("message") or {}).get("content")) or data.get("response") or "").strip()
 
     def _hf_prompt_text(self, messages) -> str:

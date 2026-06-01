@@ -243,7 +243,7 @@ The Download tab provides model and runtime downloaders without leaving NativeLa
 
 Each downloader includes a **Popular** selector populated from `nativelab/Model/templates.py`. Pick a preset to fill the repo/model field, then inspect/search/pull normally. The list covers current common GGUF repos, HF Transformers snapshots, and Ollama library names while still allowing custom entries.
 
-For gated or private Hugging Face repos, open **Accounts > Hugging Face** first and click **Login with Hugging Face**. NativeLab uses its built-in public OAuth client ID, saves credentials locally in `localllm/cred/huggingface.json`, and reuses the saved token for GGUF search/download, HF snapshot downloads, and `hf:` model loading. Manual access-token paste remains available as an advanced fallback. The Download tab shows the current auth state and links back to Accounts.
+For gated or private Hugging Face repos, open **Accounts > Hugging Face** first and click **Login with Hugging Face**. NativeLab uses its built-in public OAuth client ID, saves credentials locally in `localllm/cred/huggingface.json`, and reuses the saved token for GGUF search/download, HF snapshot downloads, and `hf:` model loading. Manual access-token paste remains available as an advanced fallback. The Download tab shows the current auth state and links back to Accounts. If Hugging Face still returns HTTP 403 while signed in, open the repo page in your browser and accept/request gated access for that specific model before retrying.
 
 ### GGUF HuggingFace search
 
@@ -274,7 +274,7 @@ NativeLab does not install or start Ollama. If an Ollama daemon is already runni
 2. Click **Refresh** to list installed models from `/api/tags`.
 3. Type a remote model name, such as `llama3.2:3b`, and click **Pull**.
 
-Pull progress streams from `/api/pull`. When the pull completes, NativeLab registers the model as `ollama:<model>`. The shared engine uses the same host and `keep_alive` setting when loading and chatting with Ollama models.
+Pull progress streams from `/api/pull`. When the pull completes, NativeLab registers the model as `ollama:<model>`. The shared engine uses the same host and `keep_alive` setting when loading and chatting with Ollama models. If the daemon is not reachable, NativeLab reports that explicitly; start the Ollama app or run `ollama serve`, then retry.
 
 ### llama.cpp runtime
 

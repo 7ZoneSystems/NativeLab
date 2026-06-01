@@ -29,6 +29,7 @@ from nativelab.labs import LabEndpoints, LabsTab
 from nativelab.integrations import IntegrationEndpoints, IntegrationsTab
 from nativelab.skill import active_skill_context, ensure_builtin_edit_skill
 from nativelab.skill.tab import SkillsTab
+from nativelab.Server.ollama_helpers import normalize_ollama_exception, normalize_ollama_host
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
     log      = pyqtSignal(str, str)
@@ -1028,14 +1029,14 @@ class MainWindow(QMainWindow):
     def _fetch_ollama_model_names(self) -> list:
         import urllib.request
         import urllib.error
-        host = str(APP_CONFIG.get("ollama_host", "http://127.0.0.1:11434") or "http://127.0.0.1:11434").rstrip("/")
+        host = normalize_ollama_host(str(APP_CONFIG.get("ollama_host", "http://127.0.0.1:11434")))
         try:
             with urllib.request.urlopen(f"{host}/api/tags", timeout=LONG_TIMEOUT_SECONDS) as r:
                 data = json.loads(r.read().decode("utf-8", errors="replace"))
             rows = data.get("models") or []
             return sorted({str(row.get("name") or row.get("model") or "").strip() for row in rows if row.get("name") or row.get("model")})
         except Exception as exc:
-            self._log("ERROR", f"Ollama model list failed at {host}: {exc}")
+            self._log("ERROR", normalize_ollama_exception(exc, host, action="list models from"))
             return []
 
     def _add_ollama_model(self):

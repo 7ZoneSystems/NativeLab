@@ -35,7 +35,7 @@ def list_repo_ggufs(repo_id: str) -> List[dict]:
         with urllib.request.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
             data = json.loads(r.read().decode("utf-8", errors="replace"))
     except Exception as exc:
-        raise RuntimeError(normalize_hf_exception(exc)) from exc
+        raise RuntimeError(normalize_hf_exception(exc, repo_id=repo_id)) from exc
 
     siblings = data.get("siblings") or []
     out = []
@@ -135,7 +135,7 @@ def download_gguf(repo_id: str, filename: str, dest_dir: Path,
             if attempt >= MAX_RETRIES:
                 bar.done()
                 raise RuntimeError(
-                    f"Download failed after {MAX_RETRIES} attempts: {normalize_hf_exception(e)}"
+                    f"Download failed after {MAX_RETRIES} attempts: {normalize_hf_exception(e, repo_id=repo_id)}"
                 ) from e
             ui.warn(f"Network blip ({e}) - retrying in {RETRY_WAIT}s "
                     f"(attempt {attempt + 1}/{MAX_RETRIES})")
