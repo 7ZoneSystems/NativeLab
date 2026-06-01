@@ -580,6 +580,8 @@ def py_to_doc(
     reset_per_function: bool = False,
     reset_per_class: bool = False,
     context_budget: int = 4096,
+    auto_model_reload: bool = False,
+    auto_reload_free_ram_mb: int = 0,
 ) -> int:
     from PyQt6.QtCore import QCoreApplication, QEventLoop
     from nativelab.labs.pytodoc import (
@@ -612,13 +614,12 @@ def py_to_doc(
     if context_policy not in {CONTEXT_POLICY_NONE, CONTEXT_POLICY_FIXED, CONTEXT_POLICY_AUTO}:
         context_policy = CONTEXT_POLICY_FIXED
     context_budget = max(AUTO_CONTEXT_MIN, int(context_budget or AUTO_CONTEXT_DEFAULT))
+    auto_reload_free_ram_mb = max(0, int(auto_reload_free_ram_mb or 0))
     ui.info(f"Context policy: {context_policy}" + (f" (~{context_budget} tokens)" if context_policy == CONTEXT_POLICY_AUTO else ""))
     if (
         context_policy == CONTEXT_POLICY_AUTO
-        and runtime.llama
-        and runtime.llama.is_loaded
-        and not (runtime.api and runtime.api.is_loaded)
-        and int(getattr(runtime.llama, "ctx_value", 0) or 0) != context_budget
+        and runtime.endpoints.is_local_active
+        and int(getattr(runtime.endpoints, "ctx_value", 0) or 0) != context_budget
     ):
         ui.info(f"Reloading local model/server for py-to-doc context: {context_budget:,}")
         if not runtime.endpoints.request_context(context_budget):
@@ -640,6 +641,8 @@ def py_to_doc(
         fixed_reset_per_function=bool(reset_per_function),
         fixed_reset_per_class=bool(reset_per_class),
         auto_context_tokens=context_budget,
+        auto_model_reload=bool(auto_model_reload),
+        auto_reload_free_ram_mb=auto_reload_free_ram_mb,
         prompt_overview=DEFAULT_OVERVIEW_PROMPT,
         prompt_class=DEFAULT_CLASS_PROMPT,
         prompt_function=DEFAULT_FUNC_PROMPT,

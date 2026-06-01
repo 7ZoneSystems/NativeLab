@@ -87,6 +87,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_doc.add_argument("--no-reset-per-function", action="store_false", dest="reset_per_function")
     p_doc.add_argument("--reset-per-class", action="store_true")
     p_doc.add_argument("--context-budget", type=int, default=4096)
+    p_doc.add_argument("--auto-model-reload", action="store_true")
+    p_doc.add_argument("--reload-free-ram-gb", type=int, default=0)
+    p_doc.add_argument("--reload-free-ram-mb", type=int, default=0)
 
     p_pipe = sub.add_parser("pipeline", help="list/show/run saved pipelines")
     p_pipe.add_argument("action", nargs="?", default="list", choices=["list", "show", "run"])
@@ -260,6 +263,12 @@ def _cmd_labs(args) -> int:
             reset_per_function=args.reset_per_function,
             reset_per_class=args.reset_per_class,
             context_budget=args.context_budget,
+            auto_model_reload=args.auto_model_reload,
+            auto_reload_free_ram_mb=max(
+                0,
+                int(args.reload_free_ram_gb or 0) * 1024
+                + int(args.reload_free_ram_mb or 0),
+            ),
         )
     return 2
 
@@ -423,6 +432,16 @@ def _labs_menu(rt_factory) -> None:
                 budget = int(ui.ask("Context budget tokens", "4096"))
             except Exception:
                 budget = 4096
+        auto_reload = False
+        reload_ram_mb = 0
+        if policy == "auto":
+            auto_reload = ui.ask_yesno("Auto-reload local model on low RAM?", False)
+            if auto_reload:
+                try:
+                    reload_ram_mb = int(ui.ask("Free RAM threshold GB", "1")) * 1024
+                    reload_ram_mb += int(ui.ask("Free RAM threshold MB", "0"))
+                except Exception:
+                    reload_ram_mb = 1024
         if mode == "project":
             features.py_to_doc(
                 rt_factory(), mode=mode, files=[], project=ui.ask("Project root"),
@@ -432,6 +451,8 @@ def _labs_menu(rt_factory) -> None:
                 reset_per_function=reset_fn,
                 reset_per_class=reset_cls,
                 context_budget=budget,
+                auto_model_reload=auto_reload,
+                auto_reload_free_ram_mb=reload_ram_mb,
             )
         else:
             files = ui.ask("Python file(s), comma-separated").split(",")
@@ -443,6 +464,8 @@ def _labs_menu(rt_factory) -> None:
                 reset_per_function=reset_fn,
                 reset_per_class=reset_cls,
                 context_budget=budget,
+                auto_model_reload=auto_reload,
+                auto_reload_free_ram_mb=reload_ram_mb,
             )
 
 

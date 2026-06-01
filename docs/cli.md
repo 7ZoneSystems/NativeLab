@@ -159,6 +159,9 @@ own carried chat history only. If a section crosses the budget, that section
 finishes and the next class/function/file starts with fresh py-to-doc context.
 For local GGUF models, auto mode reloads the local model/server with the
 selected budget so py-to-doc and llama.cpp use the same context window.
+Add `--auto-model-reload --reload-free-ram-gb N --reload-free-ram-mb N` to
+restart the active local model between files when available RAM falls below
+that threshold.
 
 ## Pipelines
 

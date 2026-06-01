@@ -1543,6 +1543,9 @@ class MainWindow(QMainWindow):
             on_context=self._labs_request_context,
             on_model  =self._labs_request_load_model,
             on_unload =self._labs_request_unload,
+            on_reload =self._labs_request_reload_active_model,
+            on_wait_loaded=self._labs_wait_until_loaded,
+            on_is_loading=self._labs_is_model_loading,
         )
         ep.set_skill_context_provider(self._active_skill_context)
         ep.log_msg.connect(self.log_console.log)
@@ -1620,6 +1623,71 @@ class MainWindow(QMainWindow):
         self.engine.shutdown()
         QTimer.singleShot(200, self._start_model_load)
         return True
+
+    def _labs_wait_until_loaded(self, timeout_ms: int = LONG_TIMEOUT_MS) -> bool:
+        """Reverse route: let labs patiently wait for a host-side load."""
+        if self._lab_endpoints.is_loaded:
+            return True
+        loaders = [
+            getattr(self, "_loader", None),
+            getattr(self, "_api_loader", None),
+        ]
+        running = [loader for loader in loaders if loader and loader.isRunning()]
+        if not running:
+            return False
+        deadline = time.monotonic() + (max(0, int(timeout_ms or 0)) / 1000.0)
+        for loader in running:
+            if not loader or not loader.isRunning():
+                continue
+            remaining_ms = int(max(1, (deadline - time.monotonic()) * 1000))
+            if remaining_ms <= 0:
+                break
+            loader.wait(remaining_ms)
+        return bool(self._lab_endpoints.is_loaded)
+
+    def _labs_is_model_loading(self) -> bool:
+        loaders = [
+            getattr(self, "_loader", None),
+            getattr(self, "_api_loader", None),
+        ]
+        return any(loader and loader.isRunning() for loader in loaders)
+
+    def _labs_request_reload_active_model(self) -> bool:
+        """Reverse route: a lab feature asks for a fresh local model instance."""
+        if self._api_engine and self._api_engine.is_loaded:
+            self._log("INFO", "py-to-doc model reload skipped for active API backend")
+            return True
+        if not self._labs_wait_until_loaded(LONG_TIMEOUT_MS) and not self.engine.is_loaded:
+            return False
+        if not self.engine or not self.engine.is_loaded:
+            return False
+        model = getattr(self.engine, "model_path", "")
+        ctx = int(
+            getattr(self.engine, "ctx_value", self.ctx_slider.value())
+            or self.ctx_slider.value()
+        )
+        if not model or not is_model_ref_valid(model):
+            return False
+        self._log("INFO", f"py-to-doc reloading active model: {model_ref_display_name(model)}")
+        if self._worker:
+            if hasattr(self._worker, "abort"):
+                self._worker.abort()
+            self._worker.wait(LONG_TIMEOUT_MS)
+            self._worker = None
+        try:
+            self.engine.shutdown()
+        except Exception:
+            pass
+        self.engine = LlamaEngine()
+        self.ctx_slider.setValue(max(512, min(MAX_CONTEXT_TOKENS, ctx)))
+        self.current_ctx = self.ctx_slider.value()
+        self._set_engine_status("Reloading model...", "loading")
+        self._notify_labs()
+        self._loader = ModelLoaderThread(self.engine, model, self.current_ctx)
+        self._loader.log.connect(self._log)
+        self._loader.finished.connect(self._on_model_loaded)
+        self._loader.start()
+        return self._labs_wait_until_loaded(LONG_TIMEOUT_MS)
 
     def _labs_request_unload(self) -> None:
         """Reverse route: a lab feature asks the host to unload the primary engine."""

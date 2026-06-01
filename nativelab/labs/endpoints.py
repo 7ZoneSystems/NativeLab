@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -71,6 +72,9 @@ class LabEndpoints(QObject):
         self._on_context_request: Callable[[int], bool] = lambda c: False
         self._on_model_request:   Callable[[str], bool] = lambda p: False
         self._on_unload_request:  Callable[[], None]    = lambda: None
+        self._on_reload_request:  Optional[Callable[[], bool]] = None
+        self._on_wait_loaded:     Optional[Callable[[int], bool]] = None
+        self._on_is_loading:      Optional[Callable[[], bool]] = None
         self._skill_context_provider: Callable[[], str] = lambda: ""
 
     # ── wiring (host app) ────────────────────────────────────────────────────
@@ -88,10 +92,16 @@ class LabEndpoints(QObject):
         on_context: Optional[Callable[[int], bool]] = None,
         on_model:   Optional[Callable[[str], bool]] = None,
         on_unload:  Optional[Callable[[], None]]    = None,
+        on_reload:  Optional[Callable[[], bool]]    = None,
+        on_wait_loaded: Optional[Callable[[int], bool]] = None,
+        on_is_loading: Optional[Callable[[], bool]] = None,
     ) -> None:
         if on_context is not None: self._on_context_request = on_context
         if on_model   is not None: self._on_model_request   = on_model
         if on_unload  is not None: self._on_unload_request  = on_unload
+        if on_reload  is not None: self._on_reload_request  = on_reload
+        if on_wait_loaded is not None: self._on_wait_loaded = on_wait_loaded
+        if on_is_loading is not None: self._on_is_loading = on_is_loading
 
     def set_skill_context_provider(self, provider: Callable[[], str]) -> None:
         self._skill_context_provider = provider or (lambda: "")
@@ -123,6 +133,31 @@ class LabEndpoints(QObject):
     def is_loaded(self) -> bool:
         eng = self.active_engine()
         return bool(eng and eng.is_loaded)
+
+    @property
+    def is_api_active(self) -> bool:
+        api = self.api_engine
+        return bool(api and api.is_loaded)
+
+    @property
+    def is_local_active(self) -> bool:
+        llama = self.llama_engine
+        return bool(llama and llama.is_loaded and not self.is_api_active)
+
+    @property
+    def can_reload_active_model(self) -> bool:
+        return self.is_local_active
+
+    @property
+    def is_loading(self) -> bool:
+        if self.is_loaded:
+            return False
+        if self._on_is_loading is None:
+            return False
+        try:
+            return bool(self._on_is_loading())
+        except Exception:
+            return False
 
     @property
     def status_text(self) -> str:
@@ -169,6 +204,8 @@ class LabEndpoints(QObject):
             "server_port": self.server_port,
             "backend":     "api" if (self.api_engine and self.api_engine.is_loaded)
                            else self.mode,
+            "can_reload_active_model": self.can_reload_active_model,
+            "is_loading": self.is_loading,
         }
 
     # ── reverse routing ──────────────────────────────────────────────────────
@@ -181,6 +218,28 @@ class LabEndpoints(QObject):
     def request_unload(self) -> None:
         self._on_unload_request()
 
+    def request_active_model_reload(self) -> bool:
+        """Ask the host to restart the active local model, keeping its context."""
+        if self.is_api_active:
+            return True
+        if not self.is_local_active:
+            return False
+        if self._on_reload_request is not None:
+            return bool(self._on_reload_request())
+        return bool(self.request_context(self.ctx_value))
+
+    def wait_until_loaded(self, timeout_ms: int = 0) -> bool:
+        """Wait for an in-flight host model load to finish without exposing engines."""
+        if self.is_loaded:
+            return True
+        if self._on_wait_loaded is not None:
+            try:
+                if self._on_wait_loaded(int(timeout_ms or 0)):
+                    return True
+            except Exception as exc:
+                self._log("WARN", f"wait_until_loaded route failed: {exc}")
+        return self._poll_loaded(timeout_ms)
+
     def ensure_server(self, log_cb=None) -> bool:
         eng = self.active_engine()
         if eng is None:
@@ -188,6 +247,17 @@ class LabEndpoints(QObject):
         if hasattr(eng, "ensure_server"):
             return bool(eng.ensure_server(log_cb=log_cb))
         return bool(eng.is_loaded)
+
+    def _poll_loaded(self, timeout_ms: int = 0) -> bool:
+        deadline = None
+        if timeout_ms and timeout_ms > 0:
+            deadline = time.monotonic() + (timeout_ms / 1000.0)
+        while True:
+            if self.is_loaded:
+                return True
+            if deadline is None or time.monotonic() >= deadline:
+                return False
+            time.sleep(0.25)
 
     # ── LLM call (sync; safe to invoke from a QThread) ───────────────────────
     def call_llm(

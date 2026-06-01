@@ -47,6 +47,9 @@ class CliRuntime:
             on_context=self.set_context,
             on_model=self.load_model,
             on_unload=self.unload,
+            on_reload=self.reload_active_model,
+            on_wait_loaded=self.wait_until_loaded,
+            on_is_loading=lambda: False,
         )
         self.endpoints.set_skill_context_provider(
             lambda: active_skill_context() if self.skills_enabled else ""
@@ -140,6 +143,20 @@ class CliRuntime:
             self._save_model_prefs()
         self.endpoints.notify_engine_changed()
         return bool(ok)
+
+    def reload_active_model(self) -> bool:
+        if self.api and self.api.is_loaded:
+            return True
+        current = self.model_path or getattr(self.llama, "model_path", "")
+        if not current:
+            return False
+        ctx = int(getattr(self.llama, "ctx_value", self.ctx) or self.ctx)
+        self.ctx = ctx
+        return self.load_model(current, save=False)
+
+    def wait_until_loaded(self, timeout_ms: int = 0) -> bool:
+        _ = timeout_ms
+        return bool(self.endpoints.is_loaded)
 
     def unload(self) -> None:
         try:

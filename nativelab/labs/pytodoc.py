@@ -22,12 +22,17 @@ from nativelab.imports.import_global import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QTextEdit, QFrame, QScrollArea, QCheckBox, QFileDialog, QMessageBox,
     QListWidget, QListWidgetItem,
-    QFont, Qt, QSlider,
+    QFont, Qt, QSlider, QSpinBox,
 )
 from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
-from nativelab.GlobalConfig.const import MAX_CONTEXT_TOKENS
+from nativelab.GlobalConfig.const import LONG_TIMEOUT_MS, MAX_CONTEXT_TOKENS
 
 from .endpoints import ContextWindowExceededError, LabEndpoints
+
+try:
+    import psutil as _psutil
+except Exception:
+    _psutil = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -58,6 +63,8 @@ CONTEXT_POLICY_AUTO = "auto"
 AUTO_CONTEXT_MIN = 512
 AUTO_CONTEXT_MAX = MAX_CONTEXT_TOKENS
 AUTO_CONTEXT_DEFAULT = 4096
+AUTO_RELOAD_RAM_GB_DEFAULT = 1
+AUTO_RELOAD_RAM_MB_DEFAULT = 0
 
 DEFAULT_PROJECT_IGNORE_DIRS = {
     ".git",
@@ -274,6 +281,8 @@ class PyToDocWorker(QThread):
         fixed_reset_per_function: bool,
         fixed_reset_per_class: bool,
         auto_context_tokens: int,
+        auto_model_reload: bool,
+        auto_reload_free_ram_mb: int,
         prompt_overview:     str,
         prompt_class:        str,
         prompt_function:     str,
@@ -300,6 +309,8 @@ class PyToDocWorker(QThread):
         self.reset_per_function = fixed_reset_per_function
         self.reset_per_class    = fixed_reset_per_class
         self.auto_context_tokens = max(AUTO_CONTEXT_MIN, int(auto_context_tokens or AUTO_CONTEXT_DEFAULT))
+        self.auto_model_reload = bool(auto_model_reload)
+        self.auto_reload_free_ram_mb = max(0, int(auto_reload_free_ram_mb or 0))
         self.prompt_overview    = prompt_overview or DEFAULT_OVERVIEW_PROMPT
         self.prompt_class       = prompt_class    or DEFAULT_CLASS_PROMPT
         self.prompt_function    = prompt_function or DEFAULT_FUNC_PROMPT
@@ -313,6 +324,7 @@ class PyToDocWorker(QThread):
         self._state_path_explicit = bool(state_path)
         self._context_overflow_pending = False
         self._budget_warned = False
+        self._ram_watch_warned = False
 
     def abort(self):
         self._abort = True
@@ -402,6 +414,11 @@ class PyToDocWorker(QThread):
             self._log(
                 f"Context policy: auto budget reset at ~{self.auto_context_tokens:,} tokens"
             )
+            if self.auto_model_reload and self.auto_reload_free_ram_mb > 0:
+                self._log(
+                    "Auto model reload: enabled when free RAM drops below "
+                    f"{self.auto_reload_free_ram_mb:,} MB after a file"
+                )
             try:
                 loaded_ctx = int(getattr(self.endpoints, "ctx_value", AUTO_CONTEXT_DEFAULT))
             except Exception:
@@ -424,6 +441,8 @@ class PyToDocWorker(QThread):
             "fixed_reset_per_function": self.reset_per_function,
             "fixed_reset_per_class": self.reset_per_class,
             "auto_context_tokens": self.auto_context_tokens,
+            "auto_model_reload": self.auto_model_reload,
+            "auto_reload_free_ram_mb": self.auto_reload_free_ram_mb,
             "prompt_overview": self.prompt_overview,
             "prompt_class": self.prompt_class,
             "prompt_function": self.prompt_function,
@@ -715,13 +734,84 @@ class PyToDocWorker(QThread):
         self._mark_step(file_path, step_id, fh)
         return self._should_continue()
 
+    def _wait_for_engine_ready(self) -> bool:
+        if self.endpoints is None:
+            return False
+        if self.endpoints.is_loaded:
+            return True
+        self._log("Model is still loading; waiting before writing this section")
+        try:
+            return bool(self.endpoints.wait_until_loaded(LONG_TIMEOUT_MS))
+        except Exception as exc:
+            self._log(f"Model wait failed: {exc}")
+            return False
+
     def _call_llm(self, system_prompt: str, code: str) -> str:
-        if self.endpoints is None or not self.endpoints.is_loaded:
-            return "(no LLM engine loaded - load a model first)"
+        if not self._wait_for_engine_ready():
+            raise RuntimeError(
+                "No LLM engine is loaded. Load a model first, then rerun py-to-doc."
+            )
 
         user_content = f"{system_prompt}\n\n```python\n{code}\n```"
         self._prepare_context_for_llm_call(user_content)
         return self._call_llm_with_retry(user_content)
+
+    @staticmethod
+    def _is_engine_not_ready_error(raw: str) -> bool:
+        text = raw.lower()
+        return any(needle in text for needle in (
+            "no engine loaded",
+            "not loaded",
+            "model is not loaded",
+            "no local engine loaded",
+            "api config not loaded",
+        ))
+
+    @staticmethod
+    def _available_ram_mb() -> Optional[int]:
+        if _psutil is None:
+            return None
+        try:
+            return int(_psutil.virtual_memory().available // (1024 * 1024))
+        except Exception:
+            return None
+
+    def _maybe_auto_reload_after_file(self, file_path: str, *, has_more_files: bool):
+        if (
+            not has_more_files
+            or self.context_policy != CONTEXT_POLICY_AUTO
+            or not self.auto_model_reload
+            or self.auto_reload_free_ram_mb <= 0
+        ):
+            return
+        if self.endpoints is None:
+            return
+        if not getattr(self.endpoints, "can_reload_active_model", False):
+            return
+        free_mb = self._available_ram_mb()
+        if free_mb is None:
+            if not self._ram_watch_warned:
+                self._log("Auto model reload skipped: RAM stats are not available")
+                self._ram_watch_warned = True
+            return
+        if free_mb >= self.auto_reload_free_ram_mb:
+            return
+
+        self._log(
+            f"Free RAM {free_mb:,} MB is below threshold "
+            f"{self.auto_reload_free_ram_mb:,} MB after {Path(file_path).name}; "
+            "reloading active local model"
+        )
+        self._reset_context()
+        self._save_project_state("running")
+        try:
+            ok = bool(self.endpoints.request_active_model_reload())
+        except Exception as exc:
+            raise RuntimeError(f"Auto model reload failed: {exc}") from exc
+        if not ok or not self._wait_for_engine_ready():
+            raise RuntimeError("Auto model reload failed; active model is not ready")
+        self._save_project_state("running")
+        self._log("Auto model reload complete")
 
     def _selected_context_value(self) -> int:
         if self.context_policy == CONTEXT_POLICY_AUTO:
@@ -760,6 +850,12 @@ class PyToDocWorker(QThread):
                 return f"[LLM error: {exc}]"
             except Exception as exc:
                 self._history.pop()
+                if self._is_engine_not_ready_error(str(exc)):
+                    if attempt == 0 and self._wait_for_engine_ready():
+                        continue
+                    raise RuntimeError(
+                        "LLM engine is not ready; no documentation was written for this section"
+                    ) from exc
                 text = f"[LLM error: {exc}]"
                 self._context_overflow_pending = True
                 return text
@@ -780,12 +876,16 @@ class PyToDocWorker(QThread):
         files = self.file_list if self.file_list else [self.file_path]
         self._prepare_project_state()
         self._log_context_policy()
-        for file_path in files:
+        for index, file_path in enumerate(files):
             if not self._should_continue():
                 return
             self._process_one(file_path)
-            if self._pause:
+            if self._pause or self._abort:
                 return
+            self._maybe_auto_reload_after_file(
+                file_path,
+                has_more_files=(index < len(files) - 1),
+            )
         self._save_project_state("complete")
         self.done.emit()
 
@@ -1236,6 +1336,32 @@ class PyToDocPanel(QWidget):
         auto_note = QLabel("Approximate tokens, py-to-doc history only")
         auto_note.setObjectName("txt2_small")
         auto_layout.addWidget(auto_note)
+
+        self.chk_auto_reload_model = QCheckBox("Auto model reload when free RAM is below")
+        self.chk_auto_reload_model.toggled.connect(self._sync_reload_ram_enabled)
+        auto_layout.addWidget(self.chk_auto_reload_model)
+
+        reload_row = QHBoxLayout()
+        reload_row.setSpacing(8)
+        reload_lbl = QLabel("Reload below:")
+        reload_lbl.setObjectName("txt2")
+        reload_lbl.setFixedWidth(110)
+        self.reload_ram_gb = QSpinBox()
+        self.reload_ram_gb.setRange(0, 1024)
+        self.reload_ram_gb.setSuffix(" GB")
+        self.reload_ram_gb.setValue(AUTO_RELOAD_RAM_GB_DEFAULT)
+        self.reload_ram_gb.setFixedHeight(30)
+        self.reload_ram_mb = QSpinBox()
+        self.reload_ram_mb.setRange(0, 1023)
+        self.reload_ram_mb.setSuffix(" MB")
+        self.reload_ram_mb.setValue(AUTO_RELOAD_RAM_MB_DEFAULT)
+        self.reload_ram_mb.setFixedHeight(30)
+        reload_row.addWidget(reload_lbl)
+        reload_row.addWidget(self.reload_ram_gb)
+        reload_row.addWidget(self.reload_ram_mb)
+        reload_row.addStretch()
+        auto_layout.addLayout(reload_row)
+        self._sync_reload_ram_enabled(False)
         oc.addWidget(self._auto_context_box)
         self._set_auto_budget_value(AUTO_CONTEXT_DEFAULT, mark_touched=False)
         self._set_context_policy(CONTEXT_POLICY_FIXED)
@@ -1454,6 +1580,11 @@ class PyToDocPanel(QWidget):
                 int(settings.get("auto_context_tokens", AUTO_CONTEXT_DEFAULT) or AUTO_CONTEXT_DEFAULT),
                 mark_touched=True,
             )
+            threshold_mb = int(settings.get("auto_reload_free_ram_mb", 0) or 0)
+            self.chk_auto_reload_model.setChecked(bool(settings.get("auto_model_reload", False)) and threshold_mb > 0)
+            self.reload_ram_gb.setValue(max(0, threshold_mb // 1024))
+            self.reload_ram_mb.setValue(max(0, threshold_mb % 1024))
+            self._sync_reload_ram_enabled(self.chk_auto_reload_model.isChecked())
             self.inp_prompt_overview.setPlainText(settings.get("prompt_overview", DEFAULT_OVERVIEW_PROMPT))
             self.inp_prompt_class.setPlainText(settings.get("prompt_class", DEFAULT_CLASS_PROMPT))
             self.inp_prompt_function.setPlainText(settings.get("prompt_function", DEFAULT_FUNC_PROMPT))
@@ -1514,6 +1645,23 @@ class PyToDocPanel(QWidget):
         except Exception:
             self._set_auto_budget_value(AUTO_CONTEXT_DEFAULT, mark_touched=True)
             return AUTO_CONTEXT_DEFAULT
+
+    def _sync_reload_ram_enabled(self, enabled: bool):
+        if hasattr(self, "reload_ram_gb"):
+            self.reload_ram_gb.setEnabled(bool(enabled))
+        if hasattr(self, "reload_ram_mb"):
+            self.reload_ram_mb.setEnabled(bool(enabled))
+
+    def _auto_reload_threshold_mb(self) -> int:
+        if (
+            self._context_policy != CONTEXT_POLICY_AUTO
+            or not getattr(self, "chk_auto_reload_model", None)
+            or not self.chk_auto_reload_model.isChecked()
+        ):
+            return 0
+        gb = int(self.reload_ram_gb.value()) if hasattr(self, "reload_ram_gb") else 0
+        mb = int(self.reload_ram_mb.value()) if hasattr(self, "reload_ram_mb") else 0
+        return max(0, (gb * 1024) + mb)
 
     # ── actions ──────────────────────────────────────────────────────────────
     def _browse_src(self):
@@ -1653,11 +1801,31 @@ class PyToDocPanel(QWidget):
                                 "Please select an output folder.")
             return
 
-        if self._endpoints is None or not self._endpoints.is_loaded:
+        if self._endpoints is None:
             QMessageBox.warning(
                 self, "No Engine",
                 "No LLM engine is loaded. Load a model (or connect an API "
                 "model) from the main tabs first.")
+            return
+        if not self._endpoints.is_loaded and not self._endpoints.is_loading:
+            QMessageBox.warning(
+                self, "No Engine",
+                "No LLM engine is loaded. Load a model (or connect an API "
+                "model) from the main tabs first.")
+            return
+        waiting_for_initial_load = self._endpoints.is_loading
+
+        auto_reload_threshold_mb = self._auto_reload_threshold_mb()
+        auto_reload_enabled = (
+            self._context_policy == CONTEXT_POLICY_AUTO
+            and self.chk_auto_reload_model.isChecked()
+        )
+        if auto_reload_enabled and auto_reload_threshold_mb <= 0:
+            QMessageBox.warning(
+                self,
+                "Invalid RAM Threshold",
+                "Set the auto model reload RAM threshold above 0 MB."
+            )
             return
 
         if mode == "project":
@@ -1669,16 +1837,9 @@ class PyToDocPanel(QWidget):
                     f"Could not prepare the output directory structure:\n{exc}")
                 return
 
-        api_active = bool(
-            self._endpoints.api_engine and self._endpoints.api_engine.is_loaded
-        )
-        local_loaded = bool(
-            self._endpoints.llama_engine and self._endpoints.llama_engine.is_loaded
-        )
         if (
             self._context_policy == CONTEXT_POLICY_AUTO
-            and local_loaded
-            and not api_active
+            and self._endpoints.is_local_active
         ):
             target_ctx = self._context_budget_value()
             current_ctx = int(getattr(self._endpoints, "ctx_value", 0) or 0)
@@ -1696,13 +1857,14 @@ class PyToDocPanel(QWidget):
                     return
                 self._log("Context reload complete")
 
-        if self._endpoints.llama_engine and self._endpoints.api_engine \
-                and not self._endpoints.api_engine.is_loaded:
+        if self._endpoints.is_local_active:
             self._endpoints.ensure_server(log_cb=lambda m: self._log(m))
 
         self.log_te.clear()
         self.preview_te.clear()
         self._set_running(True)
+        if waiting_for_initial_load:
+            self._log("Model is still loading; py-to-doc will wait before the first LLM call")
         if mode == "project":
             self._log(f"Project files selected: {len(file_list)}")
             self._log(f"Output directory structure prepared: {mirrored_dirs} directories")
@@ -1716,6 +1878,8 @@ class PyToDocPanel(QWidget):
             fixed_reset_per_function = self.chk_reset_fn.isChecked(),
             fixed_reset_per_class    = self.chk_reset_cls.isChecked(),
             auto_context_tokens = self._context_budget_value(),
+            auto_model_reload = auto_reload_enabled,
+            auto_reload_free_ram_mb = auto_reload_threshold_mb,
             prompt_overview    = self.inp_prompt_overview.toPlainText().strip(),
             prompt_class       = self.inp_prompt_class.toPlainText().strip(),
             prompt_function    = self.inp_prompt_function.toPlainText().strip(),

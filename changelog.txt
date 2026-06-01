@@ -38,7 +38,8 @@ v0.3.1
 36) Added curated popular model presets in `templates.py` for GGUF repos, HF Transformers snapshots, and Ollama library models, and wired them into the Download tab as repo/model pickers.
 37) Added a top-level Accounts tab with a Hugging Face sub-tab for one-click browser/device OAuth using NativeLab's public client ID, local credential storage in `localllm/cred/huggingface.json`, saved-token reuse for GGUF/HF downloads and `hf:` model loading, an advanced manual-token fallback, masked auth display, and clearer 401/403 login/access errors.
 38) Improved gated Hugging Face repo failures so signed-in 403 responses explain that model-specific access may still need acceptance or approval instead of incorrectly asking the user to sign in again.
-39) Improved Ollama connection handling across downloads, model loading, and chat so connection-refused errors explain that the Ollama daemon must be started or the host setting updated.
+39) Added py-to-doc auto-mode RAM-triggered local model reloads between files and endpoint-only model reload/wait routing for Labs.
+40) Improved Ollama connection handling across downloads, model loading, and chat so connection-refused errors explain that the Ollama daemon must be started or the host setting updated.
 
 v0.3.0
 1) Added que management for py to doc [labs feature]

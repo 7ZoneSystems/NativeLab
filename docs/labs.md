@@ -50,8 +50,11 @@ py-to-doc context can run in three modes: no reset, fixed reset after classes
 or functions, or auto budget reset. Auto budget reset uses approximate tokens
 for py-to-doc's carried history. For local GGUF models, selecting an auto
 budget reloads the local model/server to the same context window before
-generation begins. If a class/function/file generation crosses the budget, that
-generation finishes and the next section starts with fresh carried context.
+generation begins. Auto mode can also reload the active local model after the
+current file when available RAM drops below the configured GB/MB threshold,
+clearing backend caches before the next file starts. If a class/function/file
+generation crosses the budget, that generation finishes and the next section
+starts with fresh carried context.
 
 ### structured-edit lab
 
@@ -100,6 +103,9 @@ endpoints.model_path      # absolute GGUF path
 endpoints.model_name      # filename only
 endpoints.ctx_value       # int
 endpoints.server_port     # int
+endpoints.is_api_active   # bool
+endpoints.is_local_active # bool
+endpoints.is_loading      # bool
 endpoints.snapshot()      # all of the above as a dict
 endpoints.model_family()  # ModelFamily template (BOS/EOS, prefixes, stops)
 ```
@@ -124,6 +130,8 @@ reply = endpoints.call_llm(
 ```python
 endpoints.request_load_model("/path/to/other.gguf")  # → True/False
 endpoints.request_context(8192)                      # → True/False
+endpoints.request_active_model_reload()              # → True/False
+endpoints.wait_until_loaded()                        # → True/False
 endpoints.request_unload()                           # → None
 endpoints.ensure_server(log_cb=lambda m: print(m))   # → True/False
 ```
