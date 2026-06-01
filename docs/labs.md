@@ -16,9 +16,10 @@ nativelab/labs/
 └── pytodoc.py         first feature: py-to-doc README generator
 ```
 
-Labs now live under **Dev > Labs**. The Dev tab swaps the normal chat-history
-sidebar for a vertical developer sidebar containing Labs, Logs, Integrations,
-Pipeline, MCP, and Skills.
+Labs now live under **Dev > Labs**. Enable **Settings > General > Developer Mode**
+if the Dev tab is hidden. The Dev tab swaps the normal chat-history sidebar for
+a vertical developer sidebar containing Labs, Logs, Integrations, Pipeline,
+MCP, and Skills.
 
 ### py-to-doc project recovery
 

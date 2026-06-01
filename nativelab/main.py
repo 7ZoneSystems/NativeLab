@@ -76,8 +76,16 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Native Lab Pro")
-        self.setMinimumSize(1100, 700)
-        self.resize(1300, 840)
+        prepare_adaptive_window(
+            self,
+            1300,
+            840,
+            min_width=900,
+            min_height=600,
+            max_width_ratio=0.96,
+            max_height_ratio=0.94,
+            center=False,
+        )
 
         self.engine   = LlamaEngine()
         self._lab_endpoints = LabEndpoints(self)
@@ -130,7 +138,9 @@ class MainWindow(QMainWindow):
             APP_CONFIG.get("custom_light_palette"),
             APP_CONFIG.get("custom_dark_palette"),
         )
+        apply_theme_palette(self, C)
         self.setStyleSheet(build_qss(C))
+        apply_theme_palette(self, C)
         self.appearance_tab.load_palette(C_LIGHT if CURRENT_THEME == "light" else C_DARK)
 
         if self.sessions:
@@ -330,15 +340,7 @@ class MainWindow(QMainWindow):
 
         # ── Config panel (opened from top-right settings button) ──
         self.config_dialog = None
-        self.config_tab = ConfigTab()
-        self.config_tab.config_changed.connect(self._on_config_changed)
-        self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
-
-        # ── Server tab ──
-        self.server_tab = ServerTab()
-        self.server_tab.config_changed.connect(
-            lambda: self._log("INFO", "Server config updated."))
-        self.tabs.addTab(self.server_tab, icon("server"), "Server")
+        self._create_settings_pages()
 
         # ── Dev surfaces ──
         self.pipeline_tab = PipelineBuilderTab(self.engine)
@@ -354,12 +356,6 @@ class MainWindow(QMainWindow):
         self.api_tab.api_model_loaded.connect(self._on_api_model_loaded)
         self.tabs.addTab(self.api_tab, icon("api"), "API Models")
 
-        # ── Accounts tab ──
-        self.accounts_tab = AccountsTab()
-        self.hf_login_tab = self.accounts_tab.hf_login_tab
-        self.accounts_tab.auth_changed.connect(self._on_hf_auth_changed)
-        self.tabs.addTab(self.accounts_tab, icon("key"), "Accounts")
-
         # ── Model Download tab ──
         self.download_tab = ModelDownloadTab()
         self.download_tab.hf_login_requested.connect(self._show_hf_login_tab)
@@ -368,10 +364,6 @@ class MainWindow(QMainWindow):
         # ── Dev tab ──
         self.dev_tab = self._build_dev_tab()
         self.tabs.addTab(self.dev_tab, icon("code"), "Dev")
-
-        self.appearance_tab = AppearanceTab()
-        self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
-        self.tabs.addTab(self.appearance_tab, icon("appearance"), "Appearance")
 
         self.splitter.addWidget(self.tabs)
         self.splitter.setSizes([220, 1080])
@@ -382,6 +374,175 @@ class MainWindow(QMainWindow):
 
         self._apply_saved_view_state()
         self._wire_lab_endpoints()
+
+    def _create_settings_pages(self):
+        general_sections = [
+            ("Memory & RAM", ["ram_watchdog_mb", "max_ram_chunks", "auto_spill_on_start"]),
+            ("Reference Engine", ["chunk_index_size", "ref_top_k", "ref_max_context_chars"]),
+            ("Model Defaults", ["default_threads", "default_ctx", "default_n_predict"]),
+            ("Developer Mode", ["developer_mode"]),
+        ]
+        docs_sections = [
+            ("Summarization", [
+                "summary_chunk_chars", "summary_ctx_carry",
+                "summary_n_pred_sect", "summary_n_pred_final",
+                "pause_after_chunks",
+            ]),
+            ("Multi-PDF", ["multipdf_n_pred_sect", "multipdf_n_pred_final"]),
+        ]
+        hf_sections = [
+            ("HF Transformers", [
+                "hf_transformers_dir", "hf_token", "hf_revision",
+                "hf_trust_remote_code", "hf_local_files_only", "hf_use_safetensors",
+                "hf_torch_dtype", "hf_device_map", "hf_low_cpu_mem_usage",
+                "hf_attn_implementation", "hf_max_memory", "hf_quantization",
+            ]),
+        ]
+        ollama_sections = [
+            ("Ollama", ["ollama_host", "ollama_keep_alive"]),
+        ]
+
+        self.config_tab = ConfigTab(
+            title="General Settings",
+            subtitle="Memory, references, defaults, paused jobs, and developer mode.",
+            sections=general_sections,
+            include_paused_jobs=True,
+            icon_name="config",
+        )
+        self.config_tab.config_changed.connect(self._on_config_changed)
+        self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
+
+        self.docs_config_tab = ConfigTab(
+            title="Document Settings",
+            subtitle="Summarization and multi-PDF processing limits.",
+            sections=docs_sections,
+            include_paused_jobs=False,
+            icon_name="docs",
+        )
+        self.docs_config_tab.config_changed.connect(self._on_config_changed)
+
+        self.hf_config_tab = ConfigTab(
+            title="Hugging Face Settings",
+            subtitle="Transformers download, loading, memory, dtype, and quantization options.",
+            sections=hf_sections,
+            include_paused_jobs=False,
+            icon_name="huggingface",
+        )
+        self.hf_config_tab.config_changed.connect(self._on_config_changed)
+
+        self.ollama_config_tab = ConfigTab(
+            title="Ollama Settings",
+            subtitle="Connection and model keep-alive settings for an existing Ollama daemon.",
+            sections=ollama_sections,
+            include_paused_jobs=False,
+            icon_name="ollama",
+        )
+        self.ollama_config_tab.config_changed.connect(self._on_config_changed)
+
+        self.server_tab = ServerTab()
+        self.server_tab.config_changed.connect(
+            lambda: self._log("INFO", "Server config updated."))
+
+        self.accounts_tab = AccountsTab()
+        self.hf_login_tab = self.accounts_tab.hf_login_tab
+        self.accounts_tab.auth_changed.connect(self._on_hf_auth_changed)
+
+        self.appearance_tab = AppearanceTab()
+        self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
+        self.settings_panel = self._build_settings_panel()
+
+    def _build_settings_panel(self) -> QWidget:
+        panel = QWidget()
+        root = QHBoxLayout(panel)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        sidebar = QWidget()
+        sidebar.setObjectName("labs_sidebar")
+        sidebar.setFixedWidth(190)
+        side_l = QVBoxLayout(sidebar)
+        side_l.setContentsMargins(10, 12, 10, 12)
+        side_l.setSpacing(8)
+
+        hdr = QLabel("Settings")
+        set_label_icon(hdr, "config", "Settings", 18)
+        hdr.setObjectName("labs_sidebar_hdr")
+        side_l.addWidget(hdr)
+
+        self.settings_nav = QListWidget()
+        self.settings_nav.setObjectName("labs_nav")
+        self.settings_nav.setIconSize(icon_size(18))
+        self.settings_nav.setFrameShape(QFrame.Shape.NoFrame)
+        side_l.addWidget(self.settings_nav, 1)
+
+        self.settings_stack = QStackedWidget()
+        self._settings_pages = [
+            ("General", "config", self.config_tab),
+            ("Docs", "docs", self.docs_config_tab),
+            ("Hugging Face", "huggingface", self.hf_config_tab),
+            ("Ollama", "ollama", self.ollama_config_tab),
+            ("Server", "server", self.server_tab),
+            ("Appearance", "appearance", self.appearance_tab),
+            ("Accounts", "key", self.accounts_tab),
+        ]
+        for label, icon_name, widget in self._settings_pages:
+            item = QListWidgetItem(icon(icon_name), label)
+            item.setData(Qt.ItemDataRole.UserRole, label)
+            self.settings_nav.addItem(item)
+            self.settings_stack.addWidget(widget)
+
+        self.settings_nav.currentRowChanged.connect(self._on_settings_nav_changed)
+        root.addWidget(sidebar)
+        root.addWidget(self.settings_stack, 1)
+        self.settings_nav.setCurrentRow(0)
+        self._refresh_settings_nav_colors()
+        return panel
+
+    def _on_settings_nav_changed(self, row: int):
+        if hasattr(self, "settings_stack") and 0 <= row < self.settings_stack.count():
+            self.settings_stack.setCurrentIndex(row)
+        self._refresh_settings_nav_colors()
+
+    def _refresh_settings_nav_colors(self):
+        if not hasattr(self, "settings_nav"):
+            return
+        current = self.settings_nav.currentRow()
+        for i in range(self.settings_nav.count()):
+            item = self.settings_nav.item(i)
+            if item:
+                item.setForeground(QColor(C["acc"] if i == current else C["txt2"]))
+
+    def _show_settings_page(self, label: str):
+        if not hasattr(self, "settings_nav"):
+            return
+        for i in range(self.settings_nav.count()):
+            item = self.settings_nav.item(i)
+            if item and item.data(Qt.ItemDataRole.UserRole) == label:
+                self.settings_nav.setCurrentRow(i)
+                return
+
+    def _current_settings_page(self) -> str:
+        if not hasattr(self, "settings_nav"):
+            return "General"
+        item = self.settings_nav.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item else "General"
+
+    def _rebuild_settings_panel(self):
+        old_panel = getattr(self, "settings_panel", None)
+        current_page = self._current_settings_page()
+        if self.config_dialog is not None and old_panel is not None:
+            layout = self.config_dialog.layout()
+            if layout is not None:
+                layout.removeWidget(old_panel)
+        self._create_settings_pages()
+        if self.config_dialog is not None:
+            layout = self.config_dialog.layout()
+            if layout is not None:
+                layout.addWidget(self.settings_panel)
+            self._show_settings_page(current_page)
+        if old_panel is not None:
+            old_panel.setParent(None)
+            old_panel.deleteLater()
 
     def _build_dev_tab(self) -> QWidget:
         self.dev_stack = QStackedWidget()
@@ -438,6 +599,9 @@ class MainWindow(QMainWindow):
                 item.setForeground(QColor(C["acc"] if i == current else C["txt2"]))
 
     def _show_dev_page(self, label: str):
+        if not self._developer_mode_enabled():
+            self._log("WARN", "Enable Developer Mode in Settings > General to use Dev pages.")
+            return
         if not hasattr(self, "dev_nav"):
             return
         for i in range(self.dev_nav.count()):
@@ -449,7 +613,7 @@ class MainWindow(QMainWindow):
 
     def _show_hf_login_tab(self):
         if hasattr(self, "accounts_tab"):
-            self.tabs.setCurrentWidget(self.accounts_tab)
+            self._show_config_dialog(default_page="Accounts")
             self.accounts_tab.show_hugging_face()
 
     def _on_hf_auth_changed(self):
@@ -532,8 +696,8 @@ class MainWindow(QMainWindow):
         self.btn_remove_model = QPushButton("Remove")
         self.btn_remove_model.setObjectName("btn_stop")
         set_button_icon(self.btn_browse_model, "folder-open", "Browse GGUF...")
-        set_button_icon(self.btn_add_ollama, "api", "Add Ollama")
-        set_button_icon(self.btn_add_hf, "models", "Add HF")
+        set_button_icon(self.btn_add_ollama, "ollama", "Add Ollama")
+        set_button_icon(self.btn_add_hf, "huggingface", "Add HF")
         set_button_icon(self.btn_load_primary, "zap", "Load Selected")
         set_button_icon(self.btn_remove_model, "delete", "Remove")
         for b in (self.btn_browse_model, self.btn_add_ollama, self.btn_add_hf, self.btn_load_primary, self.btn_remove_model):
@@ -1159,7 +1323,7 @@ class MainWindow(QMainWindow):
         self.btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
         self.btn_toggle_topbar.clicked.connect(self._toggle_topbar)
         self.btn_tab_menu.clicked.connect(lambda: self._show_tab_visibility_menu())
-        self.btn_settings.clicked.connect(self._show_config_dialog)
+        self.btn_settings.clicked.connect(lambda: self._show_config_dialog())
         menu_bar.setCornerWidget(box, Qt.Corner.TopRightCorner)
         self._update_view_toggle_buttons()
 
@@ -2613,6 +2777,7 @@ class MainWindow(QMainWindow):
 
     def _on_config_changed(self):
         self._log("INFO", "App config updated and saved.")
+        self._apply_developer_mode_visibility()
         if hasattr(self, "hf_login_tab"):
             self.hf_login_tab.refresh_state()
         if hasattr(self, "download_tab"):
@@ -2821,15 +2986,16 @@ class MainWindow(QMainWindow):
         else:
             print(f"[{level}] {msg}", file=sys.stderr)
 
-    def _show_config_dialog(self):
+    def _show_config_dialog(self, default_page: str = "General"):
         if self.config_dialog is None:
             dlg = QDialog(self)
-            dlg.setWindowTitle("App Configuration")
-            dlg.resize(880, 720)
+            dlg.setWindowTitle("Settings")
             layout = QVBoxLayout(dlg)
             layout.setContentsMargins(0, 0, 0, 0)
-            layout.addWidget(self.config_tab)
+            layout.addWidget(self.settings_panel)
             self.config_dialog = dlg
+        prepare_adaptive_window(self.config_dialog, 980, 760, min_width=680, min_height=500)
+        self._show_settings_page(default_page or "General")
         self.config_dialog.show()
         self.config_dialog.raise_()
         self.config_dialog.activateWindow()
@@ -2854,8 +3020,28 @@ class MainWindow(QMainWindow):
     def _visible_tab_count(self) -> int:
         return sum(1 for i in range(self.tabs.count()) if self.tabs.isTabVisible(i))
 
+    def _developer_mode_enabled(self) -> bool:
+        return bool(APP_CONFIG.get("developer_mode", False))
+
+    def _apply_developer_mode_visibility(self):
+        if not hasattr(self, "tabs") or not hasattr(self, "dev_tab"):
+            return
+        idx = self.tabs.indexOf(self.dev_tab)
+        if idx < 0:
+            return
+        tab_cfg = dict(APP_CONFIG.get("tab_visibility", {}))
+        visible = self._developer_mode_enabled() and bool(tab_cfg.get("Dev", True))
+        self.tabs.setTabVisible(idx, visible)
+        if not visible and self.tabs.currentIndex() == idx:
+            for i in range(self.tabs.count()):
+                if self.tabs.isTabVisible(i):
+                    self.tabs.setCurrentIndex(i)
+                    break
+
     def _set_tab_visible(self, idx: int, visible: bool):
         if idx < 0 or idx >= self.tabs.count():
+            return
+        if self._tab_key(idx) == "Dev" and visible and not self._developer_mode_enabled():
             return
         if not visible and self._visible_tab_count() <= 1 and self.tabs.isTabVisible(idx):
             return
@@ -2874,6 +3060,8 @@ class MainWindow(QMainWindow):
         menu = QMenu(self)
         for i in range(self.tabs.count()):
             label = self._tab_key(i)
+            if label == "Dev" and not self._developer_mode_enabled():
+                continue
             act = QAction(label, self)
             act.setCheckable(True)
             act.setChecked(self.tabs.isTabVisible(i))
@@ -2893,6 +3081,7 @@ class MainWindow(QMainWindow):
         for i in range(self.tabs.count()):
             visible = bool(tab_cfg.get(self._tab_key(i), True))
             self.tabs.setTabVisible(i, visible)
+        self._apply_developer_mode_visibility()
         if self._visible_tab_count() == 0 and self.tabs.count() > 0:
             self.tabs.setTabVisible(0, True)
         if not self.tabs.isTabVisible(self.tabs.currentIndex()):
@@ -2961,6 +3150,21 @@ class MainWindow(QMainWindow):
                 self.tabs.setTabIcon(i, icon(name))
         if hasattr(self, "accounts_tab"):
             self.accounts_tab.refresh_icons()
+        if hasattr(self, "settings_nav"):
+            settings_icons = {
+                "General": "config",
+                "Docs": "docs",
+                "Hugging Face": "huggingface",
+                "Ollama": "ollama",
+                "Server": "server",
+                "Appearance": "appearance",
+                "Accounts": "key",
+            }
+            for i in range(self.settings_nav.count()):
+                item = self.settings_nav.item(i)
+                if item:
+                    item.setIcon(icon(settings_icons.get(item.text(), "config")))
+            self._refresh_settings_nav_colors()
         if hasattr(self, "dev_nav"):
             dev_icons = {
                 "Labs": "labs",
@@ -2993,6 +3197,7 @@ class MainWindow(QMainWindow):
             C = dict(C_DARK)
         QSS = build_qss(C)
         self.setStyleSheet(QSS)
+        apply_theme_palette(self, C)
         self._refresh_svg_icons()
         if self.active:
             self._switch_session(self.active.id)
@@ -3003,7 +3208,8 @@ class MainWindow(QMainWindow):
         from nativelab.UI.UI_const import set_theme, C
 
         set_theme(CURRENT_THEME)           
-        self.setStyleSheet(build_qss(C)) 
+        apply_theme_palette(self, C)
+        self.setStyleSheet(build_qss(C))
         APP_CONFIG["theme"] = CURRENT_THEME
         save_app_config(APP_CONFIG)
         self._update_theme_action_label()
@@ -3016,27 +3222,8 @@ class MainWindow(QMainWindow):
         self.models_tab = self._build_models_tab()
         self.tabs.insertTab(mt_idx, self.models_tab, icon("models"), "Models")
 
-        # Rebuild Config panel (opened from top-right settings button)
-        old_config = self.config_tab
-        self.config_tab = ConfigTab()
-        self.config_tab.config_changed.connect(self._on_config_changed)
-        self.config_tab.btn_resume_job.clicked.connect(self._resume_paused_job)
-        if self.config_dialog is not None:
-            layout = self.config_dialog.layout()
-            if layout is not None:
-                layout.removeWidget(old_config)
-                layout.addWidget(self.config_tab)
-        old_config.setParent(None)
-        old_config.deleteLater()
-
-        # Rebuild Server tab
-        srv_idx = self.tabs.indexOf(self.server_tab)
-        self.server_tab.setParent(None)
-        self.server_tab.deleteLater()
-        self.server_tab = ServerTab()
-        self.server_tab.config_changed.connect(
-            lambda: self._log("INFO", "Server config updated."))
-        self.tabs.insertTab(srv_idx, self.server_tab, icon("server"), "Server")
+        # Rebuild Settings panel pages with baked theme colors.
+        self._rebuild_settings_panel()
 
         # Rebuild Download tab
         dl_idx = self.tabs.indexOf(self.download_tab)
@@ -3078,6 +3265,7 @@ class MainWindow(QMainWindow):
         self._on_model_loaded(self.engine.is_loaded, self.engine.status_text)
         if self.active:
             self._switch_session(self.active.id)
+        apply_theme_palette(self, C)
         self._refresh_svg_icons()
 
     def _goto_logs(self):

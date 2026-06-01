@@ -23,6 +23,7 @@ from nativelab.imports.import_global import (
     QFont, Qt, QSplitter, QSizePolicy, QDialog, QColor,
 )
 from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
+from nativelab.UI.buildUI import prepare_adaptive_window
 
 from .endpoints import LabEndpoints
 
@@ -877,7 +878,7 @@ class CodeEditPanel(QWidget):
         turn = self._history[idx]
         dlg = QDialog(self)
         dlg.setWindowTitle(f"Edit {idx + 1} Diff")
-        dlg.resize(920, 680)
+        prepare_adaptive_window(dlg, 920, 680, min_width=620, min_height=420)
         layout = QVBoxLayout(dlg)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)

@@ -3,6 +3,7 @@ from nativelab.Model.model_global import get_model_registry, detect_model_family
 from nativelab.GlobalConfig.config_global import ROLE_ICONS
 from .pipblck import PipelineBlock
 from nativelab.UI.UI_const import C
+from nativelab.UI.buildUI import prepare_adaptive_window
 from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
 class LlmLogicEditorDialog(QDialog):
     """
@@ -90,8 +91,7 @@ class LlmLogicEditorDialog(QDialog):
         self._block = block
         info = self._TYPE_INFO.get(block.btype, {})
         self.setWindowTitle(f"{info.get('icon','LLM Logic')} - {block.label}")
-        self.setMinimumSize(640, 480)
-        self.resize(700, 530)
+        prepare_adaptive_window(self, 700, 530, min_width=540, min_height=380)
         self._build(info)
 
     def _build(self, info: dict):
@@ -343,8 +343,7 @@ log(f"Word count: {word_count}")
         super().__init__(parent)
         self._block = block
         self.setWindowTitle(f"⌥ Code Editor - {block.label}")
-        self.setMinimumSize(760, 560)
-        self.resize(820, 620)
+        prepare_adaptive_window(self, 820, 620, min_width=620, min_height=440)
         self._build()
 
     def _build(self):

@@ -11,15 +11,9 @@ GUI tour, theming, persistence, shortcuts, and live RAM management.
 | **💬 Chat** | The main conversation window. Sidebar of sessions, message bubbles, input bar with model selector. |
 | **📚 Models** | Library of GGUF models. Set roles, edit per-model parameters, browse for new files. |
 | **🌐 API Models** | Configure OpenAI / Anthropic / self-hosted endpoints. |
-| **Accounts** | Account integrations. The **Hugging Face** sub-tab provides one-click browser login for private or gated repos and stores credentials locally in `localllm/cred/huggingface.json`. |
-| **Top-right Settings** | App Configuration, including backend defaults, HF Transformers load settings, Ollama host settings, and paused-job manager. |
-| **🖥️ Server** | llama.cpp binary paths, host/port range, GPU offload, extra args. |
-| **🔗 Pipeline** | Visual pipeline builder ([details](workflows.md#visual-pipeline-builder)). |
-| **🔌 MCP** | Model Context Protocol server manager ([details](workflows.md#mcp)). |
 | **⬇️ Download** | HuggingFace GGUF downloads, HF Transformers snapshots, Ollama pulls, and llama.cpp release installer. |
-| **⌬ Labs** | Experimentation tab ([details](labs.md)). |
-| **🎨 Appearance** | Color palette editor (light + dark, saved separately). |
-| **📋 Logs** | Color-coded log console (INFO / WARN / ERROR). |
+| **Top-right Settings** | Sidebar settings window with General, Docs, Hugging Face, Ollama, Server, Appearance, and Accounts pages. |
+| **Dev** | Hidden until **Settings > General > Developer Mode** is enabled. Contains Labs, Logs, Integrations, Pipeline, MCP, and Skills. |
 
 ---
 
@@ -60,7 +54,7 @@ When the theme switches, all tabs are rebuilt from scratch in a single synchrono
 
 ### Custom palettes
 
-The Appearance tab exposes every color token. Click any swatch → system color dialog → applied live. Light and dark palettes are stored independently as `custom_light_palette` / `custom_dark_palette` in `app_config.json`, so customising one doesn't affect the other.
+The **Settings > Appearance** page exposes every color token. Click any swatch → system color dialog → applied live. Light and dark palettes are stored independently as `custom_light_palette` / `custom_dark_palette` in `app_config.json`, so customising one doesn't affect the other.
 
 ---
 

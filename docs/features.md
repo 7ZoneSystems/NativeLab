@@ -23,7 +23,7 @@ The same `LabEndpoints` that powers Labs panels also powers the CLI's chat REPL.
 
 - **Local llama.cpp** - `LlamaEngine` starts `llama-server` for true HTTP streaming with the model resident in RAM, falling back to per-prompt `llama-cli` if the server binary is unavailable.
 - **API models** - `ApiEngine` is a drop-in replacement that talks to OpenAI-compatible (`/chat/completions`, Bearer auth) and Anthropic (`/v1/messages`, `x-api-key`) endpoints. Works with hosted services and self-hosted servers like LM Studio, Ollama, and vLLM. See [models.md#local-and-api-backend-support](models.md#local-and-api-backend-support).
-- **GPU offload** - Server tab toggles `ngl`, `main_gpu`, and `tensor_split` for multi-GPU rigs.
+- **GPU offload** - Settings > Server toggles `ngl`, `main_gpu`, and `tensor_split` for multi-GPU rigs.
 - **Parallel engines** - Load reasoning, summarization, coding, and secondary engines simultaneously, each on its own llama-server port. RAM warnings before activation.
 - **Pipeline mode** - Coding prompts trigger structural-insight passes through non-coding engines first, then feed those insights into the coding model. Higher-quality output than asking a coding model directly.
 
@@ -63,7 +63,7 @@ Manage **Model Context Protocol** servers from a dedicated tab. Configure stdio 
 ### UX polish
 
 - Light + dark themes, toggleable from the View menu.
-- Custom palettes - every color token is editable via the Appearance tab; saved separately for light/dark.
+- Custom palettes - every color token is editable via Settings > Appearance; saved separately for light/dark.
 - Markdown rendering with per-language syntax highlighting and one-click "Copy" buttons on every code block.
 - Session sidebar grouped by date, with rename / export Markdown / delete.
 - Live RAM and context-usage indicators in the status bar.

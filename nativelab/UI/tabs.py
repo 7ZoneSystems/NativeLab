@@ -27,14 +27,51 @@ from nativelab.Server.ollama_helpers import normalize_ollama_host
 from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES, make_hf_model_ref, make_ollama_model_ref, popular_model_presets
 from nativelab.labs import LabsTab, LabEndpoints
 from nativelab.UI.icons import add_menu_action, icon, icon_size, role_icon, set_button_icon, set_label_icon, set_status_label, status_icon
+CONFIG_SECTIONS = [
+    ("Memory & RAM", ["ram_watchdog_mb", "max_ram_chunks", "auto_spill_on_start"]),
+    ("Reference Engine", ["chunk_index_size", "ref_top_k", "ref_max_context_chars"]),
+    ("Summarization", [
+        "summary_chunk_chars", "summary_ctx_carry",
+        "summary_n_pred_sect", "summary_n_pred_final",
+        "pause_after_chunks",
+    ]),
+    ("Multi-PDF", ["multipdf_n_pred_sect", "multipdf_n_pred_final"]),
+    ("Model Defaults", ["default_threads", "default_ctx", "default_n_predict"]),
+    ("HF Transformers", [
+        "hf_transformers_dir", "hf_token", "hf_revision",
+        "hf_trust_remote_code", "hf_local_files_only", "hf_use_safetensors",
+        "hf_torch_dtype", "hf_device_map", "hf_low_cpu_mem_usage",
+        "hf_attn_implementation", "hf_max_memory", "hf_quantization",
+    ]),
+    ("Ollama", ["ollama_host", "ollama_keep_alive"]),
+]
+
+
 class ConfigTab(QWidget):
-    """Full configuration tab - all thresholds with descriptions."""
+    """Settings page for one or more app-config sections."""
 
     config_changed = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(
+        self,
+        parent=None,
+        *,
+        title: str = "App Configuration",
+        subtitle: str = "",
+        sections: Optional[list] = None,
+        include_paused_jobs: bool = True,
+        icon_name: str = "config",
+    ):
         super().__init__(parent)
         self._fields: Dict[str, QWidget] = {}
+        self._title = title
+        self._icon_name = icon_name
+        self._subtitle = subtitle or (
+            "All thresholds and defaults are persisted to app_config.json. "
+            "Hover over any field for a full description. Changes take effect immediately."
+        )
+        self._sections = list(sections) if sections is not None else list(CONFIG_SECTIONS)
+        self._include_paused_jobs = include_paused_jobs
         self._build()
 
     def _build(self):
@@ -54,37 +91,17 @@ class ConfigTab(QWidget):
         inner.setLayout(root); scroll.setWidget(inner); outer.addWidget(scroll)
 
         # Header
-        hdr = QLabel("App Configuration")
-        set_label_icon(hdr, "config", "App Configuration", 18)
+        hdr = QLabel(self._title)
+        set_label_icon(hdr, self._icon_name, self._title, 18)
         hdr.setStyleSheet("font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
-        sub = QLabel(
-            "All thresholds and defaults are persisted to app_config.json. "
-            "Hover over any field for a full description. Changes take effect immediately.")
+        sub = QLabel(self._subtitle)
         sub.setWordWrap(True)
         sub.setObjectName("txt2_small")
         sub.setStyleSheet("margin-bottom:16px;")
         root.addWidget(sub)
 
-        # Group fields by category
-        categories = [
-            ("Memory & RAM",   ["ram_watchdog_mb", "max_ram_chunks", "auto_spill_on_start"]),
-            ("Reference Engine", ["chunk_index_size", "ref_top_k", "ref_max_context_chars"]),
-            ("Summarization",   ["summary_chunk_chars", "summary_ctx_carry",
-                                     "summary_n_pred_sect", "summary_n_pred_final",
-                                     "pause_after_chunks"]),
-            ("Multi-PDF",       ["multipdf_n_pred_sect", "multipdf_n_pred_final"]),
-            ("Model Defaults",  ["default_threads", "default_ctx", "default_n_predict"]),
-            ("HF Transformers", [
-                "hf_transformers_dir", "hf_token", "hf_revision",
-                "hf_trust_remote_code", "hf_local_files_only", "hf_use_safetensors",
-                "hf_torch_dtype", "hf_device_map", "hf_low_cpu_mem_usage",
-                "hf_attn_implementation", "hf_max_memory", "hf_quantization",
-            ]),
-            ("Ollama", ["ollama_host", "ollama_keep_alive"]),
-        ]
-
-        for cat_title, keys in categories:
+        for cat_title, keys in self._sections:
             root.addSpacing(10)
             cat_lbl = QLabel(cat_title)
             cat_lbl.setStyleSheet(
@@ -106,7 +123,32 @@ class ConfigTab(QWidget):
 
             root.addWidget(card)
 
-        # Paused jobs section
+        if self._include_paused_jobs:
+            self._build_paused_jobs_section(root)
+
+        # Save / Reset buttons
+        root.addSpacing(14)
+        btn_row = QHBoxLayout(); btn_row.setSpacing(10)
+        save_btn = QPushButton("Save All Settings")
+        set_button_icon(save_btn, "save", "Save All Settings")
+        save_btn.setObjectName("btn_send")
+        save_btn.setFixedHeight(34)
+        save_btn.clicked.connect(self._save_all)
+        reset_btn = QPushButton("Reset to Defaults")
+        set_button_icon(reset_btn, "refresh-cw", "Reset to Defaults")
+        reset_btn.setFixedHeight(34)
+        reset_btn.clicked.connect(self._reset_defaults)
+        btn_row.addWidget(save_btn); btn_row.addWidget(reset_btn); btn_row.addStretch()
+        root.addLayout(btn_row)
+
+        root.addStretch()
+        if self._include_paused_jobs:
+            self.refresh_paused_jobs()
+        dev_widget = self._fields.get("developer_mode")
+        if isinstance(dev_widget, QCheckBox):
+            dev_widget.toggled.connect(self._save_developer_mode)
+
+    def _build_paused_jobs_section(self, root: QVBoxLayout):
         root.addSpacing(14)
         pj_lbl = QLabel("Paused Summarization Jobs")
         set_label_icon(pj_lbl, "circle-pause", "Paused Summarization Jobs", 16)
@@ -146,24 +188,6 @@ class ConfigTab(QWidget):
         self.btn_delete_job.clicked.connect(self.delete_paused_job)
         pj_l.addLayout(pj_btn_row)
         root.addWidget(pj_card)
-
-        # Save / Reset buttons
-        root.addSpacing(14)
-        btn_row = QHBoxLayout(); btn_row.setSpacing(10)
-        save_btn = QPushButton("Save All Settings")
-        set_button_icon(save_btn, "save", "Save All Settings")
-        save_btn.setObjectName("btn_send")
-        save_btn.setFixedHeight(34)
-        save_btn.clicked.connect(self._save_all)
-        reset_btn = QPushButton("Reset to Defaults")
-        set_button_icon(reset_btn, "refresh-cw", "Reset to Defaults")
-        reset_btn.setFixedHeight(34)
-        reset_btn.clicked.connect(self._reset_defaults)
-        btn_row.addWidget(save_btn); btn_row.addWidget(reset_btn); btn_row.addStretch()
-        root.addLayout(btn_row)
-
-        root.addStretch()
-        self.refresh_paused_jobs()
 
     def _make_field(self, key: str, meta: dict, current_val) -> QFrame:
         frame = QFrame()
@@ -253,13 +277,24 @@ class ConfigTab(QWidget):
         self.config_changed.emit()
         QMessageBox.information(self, "Saved", "Configuration saved successfully.")
 
+    def _save_developer_mode(self, enabled: bool):
+        APP_CONFIG["developer_mode"] = bool(enabled)
+        if enabled:
+            tab_cfg = dict(APP_CONFIG.get("tab_visibility", {}))
+            tab_cfg["Dev"] = True
+            APP_CONFIG["tab_visibility"] = tab_cfg
+        save_app_config(APP_CONFIG)
+        self.config_changed.emit()
+
     def _reset_defaults(self):
         if QMessageBox.question(
             self, "Reset Defaults", "Reset all settings to defaults?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         ) != QMessageBox.StandardButton.Yes:
             return
-        APP_CONFIG.update(APP_CONFIG_DEFAULTS)
+        for key in self._fields:
+            if key in APP_CONFIG_DEFAULTS:
+                APP_CONFIG[key] = APP_CONFIG_DEFAULTS[key]
         save_app_config(APP_CONFIG)
         for key, widget in self._fields.items():
             val = APP_CONFIG_DEFAULTS.get(key, 0)
@@ -273,6 +308,8 @@ class ConfigTab(QWidget):
         self.config_changed.emit()
 
     def refresh_paused_jobs(self):
+        if not hasattr(self, "paused_jobs_list"):
+            return
         self.paused_jobs_list.clear()
         for job in list_paused_jobs():
             if job.get("job_id", "").endswith("_autosave"):
@@ -290,6 +327,8 @@ class ConfigTab(QWidget):
             self.paused_jobs_list.addItem(item)
 
     def delete_paused_job(self):
+        if not hasattr(self, "paused_jobs_list"):
+            return
         item = self.paused_jobs_list.currentItem()
         if not item: return
         jid = item.data(Qt.ItemDataRole.UserRole)
@@ -297,6 +336,8 @@ class ConfigTab(QWidget):
         self.refresh_paused_jobs()
 
     def get_selected_job_id(self) -> str:
+        if not hasattr(self, "paused_jobs_list"):
+            return ""
         item = self.paused_jobs_list.currentItem()
         return item.data(Qt.ItemDataRole.UserRole) if item else ""
 
@@ -331,7 +372,7 @@ class HuggingFaceLoginTab(QWidget):
         scroll.setWidget(inner); outer.addWidget(scroll)
 
         hdr = QLabel("Hugging Face Login")
-        set_label_icon(hdr, "key", "Hugging Face Login", 18)
+        set_label_icon(hdr, "huggingface", "Hugging Face Login", 18)
         hdr.setStyleSheet("font-size:16px;font-weight:bold;margin-bottom:4px;")
         root.addWidget(hdr)
         sub = QLabel(
@@ -400,7 +441,7 @@ class HuggingFaceLoginTab(QWidget):
 
         btn_row = QHBoxLayout(); btn_row.setSpacing(8)
         self.btn_hf_login = QPushButton("Login with Hugging Face")
-        set_button_icon(self.btn_hf_login, "log-in", "Login with Hugging Face")
+        set_button_icon(self.btn_hf_login, "huggingface", "Login with Hugging Face")
         self.btn_hf_validate = QPushButton("Validate")
         set_button_icon(self.btn_hf_validate, "done", "Validate")
         self.btn_hf_logout = QPushButton("Logout")
@@ -577,7 +618,7 @@ class AccountsTab(QWidget):
         self.tabs.setObjectName("accounts_subtabs")
         self.hf_login_tab = HuggingFaceLoginTab()
         self.hf_login_tab.auth_changed.connect(self.auth_changed.emit)
-        self.tabs.addTab(self.hf_login_tab, icon("key"), "Hugging Face")
+        self.tabs.addTab(self.hf_login_tab, icon("huggingface"), "Hugging Face")
         root.addWidget(self.tabs)
 
     def show_hugging_face(self):
@@ -587,7 +628,7 @@ class AccountsTab(QWidget):
         self.hf_login_tab.refresh_state()
 
     def refresh_icons(self):
-        self.tabs.setTabIcon(0, icon("key"))
+        self.tabs.setTabIcon(0, icon("huggingface"))
 
 
 class ParallelLoadingDialog(QWidget):
@@ -1617,7 +1658,7 @@ class ModelDownloadTab(QWidget):
         self.hf_auth_download_label.setObjectName("txt2_small")
         self.hf_auth_download_label.setWordWrap(True)
         self.btn_hf_login_shortcut = QPushButton("Accounts")
-        set_button_icon(self.btn_hf_login_shortcut, "key", "Accounts")
+        set_button_icon(self.btn_hf_login_shortcut, "huggingface", "Accounts")
         self.btn_hf_login_shortcut.setFixedHeight(30)
         self.btn_hf_login_shortcut.clicked.connect(lambda _=False: self.hf_login_requested.emit())
         auth_l.addWidget(self.hf_auth_download_label, 1)
@@ -1799,6 +1840,7 @@ class ModelDownloadTab(QWidget):
         self.hf_revision_edit.setFixedHeight(30)
         self.hf_revision_edit.setPlaceholderText("main")
         self.btn_hf_snapshot_search = QPushButton("Inspect")
+        set_button_icon(self.btn_hf_snapshot_search, "huggingface", "Inspect")
         self.btn_hf_snapshot_search.setObjectName("btn_send")
         self.btn_hf_snapshot_search.setFixedHeight(30)
         self.btn_hf_snapshot_search.setFixedWidth(92)
@@ -1845,6 +1887,7 @@ class ModelDownloadTab(QWidget):
 
         hf_btn_row = QHBoxLayout(); hf_btn_row.setSpacing(8)
         self.btn_hf_snapshot_download = QPushButton("Download Snapshot")
+        set_button_icon(self.btn_hf_snapshot_download, "huggingface", "Download Snapshot")
         self.btn_hf_snapshot_download.setObjectName("btn_send")
         self.btn_hf_snapshot_download.setFixedHeight(32)
         self.btn_hf_snapshot_download.setEnabled(False)
@@ -1906,6 +1949,7 @@ class ModelDownloadTab(QWidget):
         self.ollama_host_edit = QLineEdit(str(APP_CONFIG.get("ollama_host", "http://127.0.0.1:11434")))
         self.ollama_host_edit.setFixedHeight(30)
         self.btn_ollama_refresh = QPushButton("Refresh")
+        set_button_icon(self.btn_ollama_refresh, "ollama", "Refresh")
         self.btn_ollama_refresh.setFixedHeight(30)
         self.btn_ollama_refresh.setFixedWidth(92)
         self.btn_ollama_refresh.clicked.connect(self._ollama_refresh)
@@ -1921,6 +1965,7 @@ class ModelDownloadTab(QWidget):
         self.ollama_model_edit.setPlaceholderText("e.g. llama3.2:3b or qwen2.5:7b")
         self.ollama_model_edit.setFixedHeight(30)
         self.btn_ollama_pull = QPushButton("Pull")
+        set_button_icon(self.btn_ollama_pull, "ollama", "Pull")
         self.btn_ollama_pull.setObjectName("btn_send")
         self.btn_ollama_pull.setFixedHeight(30)
         self.btn_ollama_pull.setFixedWidth(92)

@@ -31,6 +31,8 @@ ICON_ALIASES = {
     "eject": "power-off",
     "export": "upload",
     "general": "message-square",
+    "hf": "huggingface",
+    "huggingface": "huggingface",
     "integrations": "plug",
     "labs": "flask-conical",
     "load": "folder-open",
@@ -38,6 +40,7 @@ ICON_ALIASES = {
     "input": "log-in",
     "mcp": "plug",
     "models": "folder",
+    "ollama": "ollama",
     "pdf": "file-text",
     "pipeline": "workflow",
     "output": "log-out",
@@ -53,6 +56,8 @@ ICON_ALIASES = {
     "warn": "triangle-alert",
     "whatsapp": "whatsapp",
 }
+
+BRAND_ICON_NAMES = {"huggingface", "ollama"}
 
 ROLE_ICON_NAMES = {
     "general": "message-square",
@@ -119,7 +124,8 @@ def themed_icon_path(name: str) -> Path:
             return target
         target.parent.mkdir(parents=True, exist_ok=True)
         raw = source.read_text(encoding="utf-8")
-        target.write_text(_colorize_svg(raw, icon_color()), encoding="utf-8")
+        rendered = raw if resolved in BRAND_ICON_NAMES else _colorize_svg(raw, icon_color())
+        target.write_text(rendered, encoding="utf-8")
         return target
     except Exception:
         return source

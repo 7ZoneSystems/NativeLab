@@ -128,11 +128,11 @@ The Download tab now has three model/runtime paths:
 
 The built-in **Popular** selectors are defined in `POPULAR_MODEL_PRESETS` in `nativelab/Model/templates.py`, grouped as `gguf`, `hf_transformers`, and `ollama`. They fill the relevant repo/model field but do not block custom IDs.
 
-For private or gated repos, sign in from **Accounts > Hugging Face** with **Login with Hugging Face**. NativeLab uses its built-in public OAuth client ID, stores credentials locally at `localllm/cred/huggingface.json`, masks tokens in the UI/logs, and uses that token for GGUF search/download, HF snapshot downloads, and `hf:` model loading. Manual `hf_...` token paste remains available as an advanced fallback, and the older App Configuration `hf_token` field remains as a lower-priority fallback when no saved login exists. Some gated repos, including Meta Llama repos, also require accepting terms or waiting for approval on the Hugging Face repo page; a signed-in token will still receive HTTP 403 until that repo access is granted.
+For private or gated repos, sign in from **Settings > Accounts > Hugging Face** with **Login with Hugging Face**. NativeLab uses its built-in public OAuth client ID, stores credentials locally at `localllm/cred/huggingface.json`, masks tokens in the UI/logs, and uses that token for GGUF search/download, HF snapshot downloads, and `hf:` model loading. Manual `hf_...` token paste remains available as an advanced fallback, and the older App Configuration `hf_token` field remains as a lower-priority fallback when no saved login exists. Some gated repos, including Meta Llama repos, also require accepting terms or waiting for approval on the Hugging Face repo page; a signed-in token will still receive HTTP 403 until that repo access is granted.
 
 ### HF and Ollama settings
 
-Open the top-right Settings button, then **App Configuration**, to edit backend load behavior:
+Open the top-right Settings button, then **Hugging Face** or **Ollama**, to edit backend load behavior:
 
 | Setting group | Fields |
 | --- | --- |

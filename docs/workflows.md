@@ -243,7 +243,7 @@ The Download tab provides model and runtime downloaders without leaving NativeLa
 
 Each downloader includes a **Popular** selector populated from `nativelab/Model/templates.py`. Pick a preset to fill the repo/model field, then inspect/search/pull normally. The list covers current common GGUF repos, HF Transformers snapshots, and Ollama library names while still allowing custom entries.
 
-For gated or private Hugging Face repos, open **Accounts > Hugging Face** first and click **Login with Hugging Face**. NativeLab uses its built-in public OAuth client ID, saves credentials locally in `localllm/cred/huggingface.json`, and reuses the saved token for GGUF search/download, HF snapshot downloads, and `hf:` model loading. Manual access-token paste remains available as an advanced fallback. The Download tab shows the current auth state and links back to Accounts. If Hugging Face still returns HTTP 403 while signed in, open the repo page in your browser and accept/request gated access for that specific model before retrying.
+For gated or private Hugging Face repos, open **Settings > Accounts > Hugging Face** first and click **Login with Hugging Face**. NativeLab uses its built-in public OAuth client ID, saves credentials locally in `localllm/cred/huggingface.json`, and reuses the saved token for GGUF search/download, HF snapshot downloads, and `hf:` model loading. Manual access-token paste remains available as an advanced fallback. The Download tab shows the current auth state and links back to Accounts. If Hugging Face still returns HTTP 403 while signed in, open the repo page in your browser and accept/request gated access for that specific model before retrying.
 
 ### GGUF HuggingFace search
 
@@ -264,13 +264,13 @@ Use this when you want `hf:<local-folder>` models to work offline with Transform
 
 Downloads resume through `.part` files and can be paused, cancelled, or cancelled with partial files deleted. Completed snapshots are automatically registered as `hf:<downloaded-folder>`.
 
-Default revision, local-files-only mode, dtype, device map, safetensors policy, attention implementation, max-memory map, and quantization mode live in the top-right Settings button under **App Configuration > HF Transformers**. The legacy `hf_token` setting remains as a fallback when no Accounts token is saved.
+Default revision, local-files-only mode, dtype, device map, safetensors policy, attention implementation, max-memory map, and quantization mode live in the top-right Settings button under **Hugging Face**. The legacy `hf_token` setting remains as a fallback when no Accounts token is saved.
 
 ### Ollama model pull
 
 NativeLab does not install or start Ollama. If an Ollama daemon is already running:
 
-1. Confirm the host in **App Configuration > Ollama** or edit it directly in the Download tab.
+1. Confirm the host in **Settings > Ollama** or edit it directly in the Download tab.
 2. Click **Refresh** to list installed models from `/api/tags`.
 3. Type a remote model name, such as `llama3.2:3b`, and click **Pull**.
 
@@ -278,4 +278,4 @@ Pull progress streams from `/api/pull`. When the pull completes, NativeLab regis
 
 ### llama.cpp runtime
 
-The llama.cpp section downloads prebuilt `llama-server` and `llama-cli` release assets into `./llama/bin/`, where the Server tab and CLI can find them automatically.
+The llama.cpp section downloads prebuilt `llama-server` and `llama-cli` release assets into `./llama/bin/`, where Settings > Server and the CLI can find them automatically.

@@ -7,6 +7,7 @@ from nativelab.core.engine_global import LlamaEngine
 from .executionWorker import PipelineExecutionWorker
 from .flowpreview import FlowPreviewController
 from nativelab.UI.UI_const import C
+from nativelab.UI.buildUI import prepare_adaptive_window
 from nativelab.UI.icons import icon, set_button_icon, set_label_icon, set_status_label
 from .canvas import PipelineCanvas
 from .outrender import PipelineOutputRenderer
@@ -386,8 +387,7 @@ class PipelineBuilderTab(QWidget):
         """Show the pipeline builder manual in a scrollable dialog."""
         dlg = QDialog(self)
         dlg.setWindowTitle("Pipeline Builder Manual")
-        dlg.setMinimumSize(680, 580)
-        dlg.resize(740, 640)
+        prepare_adaptive_window(dlg, 740, 640, min_width=560, min_height=420)
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(0, 0, 0, 0)
 
@@ -412,8 +412,7 @@ class PipelineBuilderTab(QWidget):
     def _show_manual(self):
         dlg = QDialog(self)
         dlg.setWindowTitle("Pipeline Builder Manual")
-        dlg.setMinimumSize(680, 580)
-        dlg.resize(740, 640)
+        prepare_adaptive_window(dlg, 740, 640, min_width=560, min_height=420)
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(0, 0, 0, 0)
         te = QTextEdit()

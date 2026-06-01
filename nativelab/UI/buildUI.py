@@ -1,4 +1,206 @@
+from PyQt6.QtCore import QSize
+from PyQt6.QtGui import QColor, QPalette
+from PyQt6.QtWidgets import QApplication, QComboBox
+from typing import Optional, Tuple
+
 from nativelab.UI.UI_const import C
+
+
+def build_qpalette(c: dict) -> QPalette:
+    """Build a Qt palette so native popups inherit the active app theme."""
+    pal = QPalette()
+    roles = QPalette.ColorRole
+    pal.setColor(roles.Window, QColor(c["bg0"]))
+    pal.setColor(roles.WindowText, QColor(c["txt"]))
+    pal.setColor(roles.Base, QColor(c["surface"]))
+    pal.setColor(roles.AlternateBase, QColor(c["bg2"]))
+    pal.setColor(roles.ToolTipBase, QColor(c["surface"]))
+    pal.setColor(roles.ToolTipText, QColor(c["txt"]))
+    pal.setColor(roles.Text, QColor(c["txt"]))
+    pal.setColor(roles.Button, QColor(c["surface"]))
+    pal.setColor(roles.ButtonText, QColor(c["txt"]))
+    pal.setColor(roles.BrightText, QColor(c["err"]))
+    pal.setColor(roles.Highlight, QColor(c["acc"]))
+    pal.setColor(roles.HighlightedText, QColor("#ffffff"))
+    pal.setColor(roles.Link, QColor(c["acc"]))
+
+    disabled = QPalette.ColorGroup.Disabled
+    pal.setColor(disabled, roles.WindowText, QColor(c["txt3"]))
+    pal.setColor(disabled, roles.Text, QColor(c["txt3"]))
+    pal.setColor(disabled, roles.ButtonText, QColor(c["txt3"]))
+    pal.setColor(disabled, roles.Base, QColor(c["bg3"]))
+    pal.setColor(disabled, roles.Button, QColor(c["bg3"]))
+    return pal
+
+
+def _combo_popup_qss(c: dict) -> str:
+    return f"""
+QAbstractItemView {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr2']};
+    border-radius:8px;
+    padding:4px;
+    outline:none;
+    selection-background-color:{c['acc_dim']};
+    selection-color:{c['txt']};
+}}
+QAbstractItemView::item {{
+    min-height:24px;
+    padding:6px 10px;
+    border-radius:6px;
+    color:{c['txt']};
+    background:transparent;
+}}
+QAbstractItemView::item:selected,
+QAbstractItemView::item:hover {{
+    background:{c['acc_dim']};
+    color:{c['txt']};
+}}
+"""
+
+
+def apply_combo_palette(combo: QComboBox, c: dict) -> QComboBox:
+    pal = build_qpalette(c)
+    combo.setPalette(pal)
+    try:
+        view = combo.view()
+        view.setPalette(pal)
+        view.setStyleSheet(_combo_popup_qss(c))
+        view.setAutoFillBackground(True)
+        view.viewport().setPalette(pal)
+        view.viewport().setAutoFillBackground(True)
+        view.window().setPalette(pal)
+    except Exception:
+        pass
+    return combo
+
+
+def apply_theme_palette(root, c: dict) -> None:
+    """Apply the app palette and force existing combo popups off default colors."""
+    pal = build_qpalette(c)
+    app = QApplication.instance()
+    if app is not None:
+        app.setPalette(pal)
+    if root is None:
+        return
+    try:
+        root.setPalette(pal)
+    except Exception:
+        pass
+    combos = []
+    if isinstance(root, QComboBox):
+        combos.append(root)
+    try:
+        combos.extend(root.findChildren(QComboBox))
+    except Exception:
+        pass
+    for combo in combos:
+        apply_combo_palette(combo, c)
+
+
+def _available_geometry(widget=None):
+    screen = None
+    if widget is not None:
+        for candidate in (widget, getattr(widget, "parentWidget", lambda: None)()):
+            if candidate is None:
+                continue
+            try:
+                handle = candidate.window().windowHandle()
+                if handle is not None:
+                    screen = handle.screen()
+            except Exception:
+                screen = None
+            if screen is not None:
+                break
+            try:
+                screen = candidate.screen()
+            except Exception:
+                screen = None
+            if screen is not None:
+                break
+    if screen is None:
+        app = QApplication.instance()
+        if app is not None:
+            screen = app.primaryScreen()
+    return screen.availableGeometry() if screen is not None else None
+
+
+def adaptive_window_size(
+    widget,
+    width: int,
+    height: int,
+    *,
+    min_width: Optional[int] = None,
+    min_height: Optional[int] = None,
+    margin: int = 32,
+    max_width_ratio: float = 0.94,
+    max_height_ratio: float = 0.92,
+) -> Tuple[QSize, QSize]:
+    """Return a dialog size/minimum that fits the active screen."""
+    width = max(1, int(width))
+    height = max(1, int(height))
+    min_width = int(min_width if min_width is not None else width)
+    min_height = int(min_height if min_height is not None else height)
+
+    geom = _available_geometry(widget)
+    if geom is None:
+        return QSize(width, height), QSize(min_width, min_height)
+
+    usable_w = max(320, geom.width() - (margin * 2))
+    usable_h = max(240, geom.height() - (margin * 2))
+    limit_w = max(320, min(usable_w, int(geom.width() * max_width_ratio)))
+    limit_h = max(240, min(usable_h, int(geom.height() * max_height_ratio)))
+
+    actual_w = max(320, min(width, limit_w))
+    actual_h = max(240, min(height, limit_h))
+    actual_min_w = max(280, min(min_width, actual_w))
+    actual_min_h = max(220, min(min_height, actual_h))
+    return QSize(actual_w, actual_h), QSize(actual_min_w, actual_min_h)
+
+
+def center_on_active_screen(window, *, margin: int = 16):
+    geom = _available_geometry(window)
+    if geom is None:
+        return window
+    size = window.size()
+    x = geom.x() + (geom.width() - size.width()) // 2
+    y = geom.y() + (geom.height() - size.height()) // 2
+    x = max(geom.x() + margin, min(x, geom.right() - size.width() - margin + 1))
+    y = max(geom.y() + margin, min(y, geom.bottom() - size.height() - margin + 1))
+    window.move(x, y)
+    return window
+
+
+def prepare_adaptive_window(
+    window,
+    width: int,
+    height: int,
+    *,
+    min_width: Optional[int] = None,
+    min_height: Optional[int] = None,
+    margin: int = 32,
+    max_width_ratio: float = 0.94,
+    max_height_ratio: float = 0.92,
+    center: bool = True,
+):
+    size, minimum = adaptive_window_size(
+        window,
+        width,
+        height,
+        min_width=min_width,
+        min_height=min_height,
+        margin=margin,
+        max_width_ratio=max_width_ratio,
+        max_height_ratio=max_height_ratio,
+    )
+    window.setMinimumSize(minimum)
+    window.resize(size)
+    if center:
+        center_on_active_screen(window)
+    return window
+
+
 def build_qss(c: dict) -> str:
     """Generate a complete Qt stylesheet from a colour palette dict."""
     _FUI = "'Inter','Segoe UI','SF Pro Display',system-ui,-apple-system,sans-serif"
@@ -250,7 +452,7 @@ QComboBox {{
 }}
 QComboBox:hover  {{ border-color:{c['bdr2']}; background:{c['surface2']}; }}
 QComboBox:focus  {{ border-color:{rgba(0.55)}; }}
-QComboBox QAbstractItemView {{
+QComboBox QAbstractItemView, QComboBox QListView {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {c['bdr2']};
@@ -258,12 +460,25 @@ QComboBox QAbstractItemView {{
     padding:4px;
     margin:1px;
     selection-background-color:{rgba(0.20)};
+    selection-color:{c['txt']};
     outline:none;
     font-size:13px;
 }}
 QComboBox::drop-down {{ border:none; width:22px; }}
-QComboBox QAbstractItemView::item {{ border-radius:6px; padding:6px 10px; }}
-QAbstractItemView {{ background:{c['surface']}; border:1px solid {c['bdr2']}; border-radius:8px; }}
+QComboBox QAbstractItemView::item {{ border-radius:6px; padding:6px 10px; color:{c['txt']}; }}
+QComboBox QAbstractItemView::item:selected,
+QComboBox QAbstractItemView::item:hover {{
+    background:{c['acc_dim']};
+    color:{c['txt']};
+}}
+QAbstractItemView {{
+    background:{c['surface']};
+    color:{c['txt']};
+    border:1px solid {c['bdr2']};
+    border-radius:8px;
+    selection-background-color:{c['acc_dim']};
+    selection-color:{c['txt']};
+}}
 
 /* ── Sliders ─────────────────────────────────────── */
 QSlider::groove:horizontal {{
@@ -930,6 +1145,7 @@ QComboBox#combo QAbstractItemView {{
     background:{c['bg2']};
     color:{c['txt']};
     selection-background-color:{c['acc_dim']};
+    selection-color:{c['txt']};
     border:1px solid {c['bdr2']};
     border-radius:6px;
     padding:3px;

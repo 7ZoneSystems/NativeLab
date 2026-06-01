@@ -52,6 +52,7 @@ APP_CONFIG_DEFAULTS = {
     "hf_quantization":        "none",
     "ollama_host":            "http://127.0.0.1:11434",
     "ollama_keep_alive":      "5m",
+    "developer_mode":         False,
 }
 # ─── Config descriptions ──────────────────────────────────────────────────────
 CONFIG_FIELD_META = {
@@ -298,5 +299,13 @@ CONFIG_FIELD_META = {
         "label": "Ollama Keep Alive",
         "desc": "keep_alive value sent to Ollama chat requests, for example 5m or 1h.",
         "type": "str",
+    },
+    "developer_mode": {
+        "label": "Developer Mode",
+        "desc": (
+            "Show the Dev workspace with Labs, Logs, Integrations, Pipeline, MCP, "
+            "and Skills. Turn this off for a cleaner main workspace."
+        ),
+        "type": "bool",
     },
 }

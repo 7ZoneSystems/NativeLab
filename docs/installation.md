@@ -115,7 +115,7 @@ The wizard offers three pre-vetted starter models or lets you enter any HF repo 
 
 Drop any `.gguf` file into `./localllm/`, or use the **Browse GGUF…** button in the GUI's Models tab.
 
-> **Sizing rough guide** - 7B Q4 ≈ 4.5 GB RAM · 13B Q5 ≈ 9.5 GB · 70B Q4 ≈ 38 GB. GPU offload (Server tab) reduces RAM by moving layers to VRAM.
+> **Sizing rough guide** - 7B Q4 ≈ 4.5 GB RAM · 13B Q5 ≈ 9.5 GB · 70B Q4 ≈ 38 GB. GPU offload (Settings > Server) reduces RAM by moving layers to VRAM.
 
 ---
 

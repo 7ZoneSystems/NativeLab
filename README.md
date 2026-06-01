@@ -171,7 +171,7 @@ pip install nativelab
 nativelab
 ```
 
-The first launch opens the desktop app. Use the **Download** tab to install llama.cpp binaries, grab a GGUF model, pull an Ollama model from an already-running Ollama daemon, or download a full HF Transformers snapshot. For gated/private Hugging Face repos, sign in from **Accounts > Hugging Face > Login with Hugging Face** first, then accept or request access on the repo page if Hugging Face still returns 403.
+The first launch opens the desktop app. Use the **Download** tab to install llama.cpp binaries, grab a GGUF model, pull an Ollama model from an already-running Ollama daemon, or download a full HF Transformers snapshot. For gated/private Hugging Face repos, sign in from **Settings > Accounts > Hugging Face > Login with Hugging Face** first, then accept or request access on the repo page if Hugging Face still returns 403.
 
 ### CLI
 

@@ -40,6 +40,7 @@ v0.3.1
 38) Improved gated Hugging Face repo failures so signed-in 403 responses explain that model-specific access may still need acceptance or approval instead of incorrectly asking the user to sign in again.
 39) Added py-to-doc auto-mode RAM-triggered local model reloads between files and endpoint-only model reload/wait routing for Labs.
 40) Improved Ollama connection handling across downloads, model loading, and chat so connection-refused errors explain that the Ollama daemon must be started or the host setting updated.
+41) Reworked Settings into a sidebar with General, Docs, Hugging Face, Ollama, Server, Appearance, and Accounts pages, and hid Dev behind a Developer Mode toggle.
 
 v0.3.0
 1) Added que management for py to doc [labs feature]
