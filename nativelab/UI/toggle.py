@@ -74,6 +74,9 @@ class ToggleSwitch(QCheckBox):
         except Exception:
             return {}
 
+    def hitButton(self, pos) -> bool:
+        return self.rect().contains(pos)
+
     def paintEvent(self, _event) -> None:
         pal = self.palette()
         enabled = self.isEnabled()
@@ -82,11 +85,11 @@ class ToggleSwitch(QCheckBox):
         base = QColor(c.get("surface", pal.base().color().name()))
         border = QColor(c.get("bdr2", pal.mid().color().name()))
         accent = QColor(c.get("acc", pal.highlight().color().name()))
-        knob = QColor(c.get("bg0", pal.window().color().name()))
+        knob = QColor(c.get("txt", pal.windowText().color().name()))
         if not enabled:
             base = QColor(c.get("bg3", pal.button().color().name()))
             accent = QColor(c.get("bdr2", pal.mid().color().name()))
-            knob = QColor(c.get("surface", pal.base().color().name()))
+            knob = QColor(c.get("txt3", pal.mid().color().name()))
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
