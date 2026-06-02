@@ -278,7 +278,7 @@ class ReferencePanelV2(QWidget):
     def _add_doc(self, ftype: str):
         if ftype == "pdf" and not self._has_pdf:
             QMessageBox.warning(
-                self, "Missing Dep", "Install PyPDF2: pip install PyPDF2")
+                self, "Missing Dep", "Install pypdf: pip install pypdf")
             return
         filters = {
             "pdf":    "PDF Files (*.pdf)",
@@ -294,7 +294,7 @@ class ReferencePanelV2(QWidget):
         if ftype == "pdf":
             if not self._PdfReader:
                 QMessageBox.warning(
-                    self, "Missing Dep", "Install PyPDF2: pip install PyPDF2")
+                    self, "Missing Dep", "Install pypdf: pip install pypdf")
                 return
             reader = self._PdfReader(path)
             raw = "\n".join(
@@ -357,7 +357,7 @@ class ReferencePanelV2(QWidget):
     def _multi_pdf_requested(self):
         if not self._has_pdf:
             QMessageBox.warning(
-                self, "Missing Dep", "Install PyPDF2: pip install PyPDF2")
+                self, "Missing Dep", "Install pypdf: pip install pypdf")
             return        
         paths, _ = QFileDialog.getOpenFileNames(
             self, "Select Multiple PDFs",
@@ -552,7 +552,7 @@ class ReferencePanel(QWidget):
 
     def _add_file(self, ftype: str):
         if not HAS_PDF and ftype == "pdf":
-            QMessageBox.warning(self, "Missing Dep", "Install PyPDF2: pip install PyPDF2")
+            QMessageBox.warning(self, "Missing Dep", "Install pypdf: pip install pypdf")
             return
         filters = {"pdf": "PDF Files (*.pdf)", "python": "Python Files (*.py)",
                    "text": "Text/Markdown (*.txt *.md *.rst)"}
@@ -587,7 +587,7 @@ class ReferencePanel(QWidget):
     def _multi_pdf_requested(self):
         """Open multi-file picker and emit signal with paths."""
         if not HAS_PDF:
-            QMessageBox.warning(self, "Missing Dep", "Install PyPDF2: pip install PyPDF2")
+            QMessageBox.warning(self, "Missing Dep", "Install pypdf: pip install pypdf")
             return
         # Use a custom dialog to pick multiple PDFs        
         paths, _ = QFileDialog.getOpenFileNames(

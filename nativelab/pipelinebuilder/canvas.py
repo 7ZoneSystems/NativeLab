@@ -813,7 +813,7 @@ class PipelineCanvas(QWidget):
             if not HAS_PDF:
                 QMessageBox.warning(
                     self, "Missing Dependency",
-                    "PyPDF2 is required.\n\n  pip install PyPDF2")
+                    "pypdf is required.\n\n  pip install pypdf")
                 return
             path, _ = QFileDialog.getOpenFileName(
                 self, "Select PDF", str(Path.home()), "PDF (*.pdf)")

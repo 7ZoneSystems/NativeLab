@@ -10,9 +10,9 @@ NativeLab runs on **Linux, macOS, and Windows**. Same install, same commands.
 pip install nativelab
 ```
 
-This pulls in `PyQt6` for the GUI and `psutil` / `PyPDF2` for live RAM monitoring and PDF support. The CLI works out of the box on top of the same install.
+This pulls in `PyQt6` for the GUI and `psutil` / `pypdf` for live RAM monitoring and PDF support. The CLI works from the same install.
 
-> **Python version**: 3.10+ recommended. The minimum supported is 3.9, but PyQt6 wheels ship for 3.10 and up.
+> **Python version**: 3.10+ is required.
 
 Verify:
 

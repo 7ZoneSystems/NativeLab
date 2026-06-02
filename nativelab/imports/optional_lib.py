@@ -4,8 +4,9 @@ except ImportError:
     HAS_PSUTIL = False
 
 try:
-    from PyPDF2 import PdfReader; HAS_PDF = True
+    from pypdf import PdfReader; HAS_PDF = True
 except ImportError:
+    PdfReader = None
     HAS_PDF = False
 
 try:

@@ -8,7 +8,7 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/nativelab.svg?logo=pypi&logoColor=white&color=3775A9)](https://pypi.org/project/nativelab/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/nativelab.svg?logo=pypi&logoColor=white&color=3775A9)](https://pypi.org/project/nativelab/)
-![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL_v3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey)](#)
 [![Powered by llama.cpp](https://img.shields.io/badge/powered%20by-llama.cpp-orange)](https://github.com/ggerganov/llama.cpp)
@@ -229,7 +229,7 @@ Add a lab feature by dropping `nativelab/labs/<feature>.py` with a `QWidget` pan
 - **Python 3.10+**
 - **PyQt6** (installed automatically as a dependency)
 - **llama.cpp binaries** - `llama-server` / `llama-cli`. The GUI's Download tab installs these for you, or you can drop them in `./llama/bin/`.
-- Optional: `psutil` (RAM monitor), `PyPDF2` (PDF summarization), `pyflakes` / `flake8` / `pylint` (CLI lint).
+- Optional: `psutil` (RAM monitor), `pypdf` (PDF summarization), `pyflakes` / `flake8` / `pylint` (CLI lint).
 - Optional HF backend: `pip install -e ".[hf]"` for Transformers, Torch, safetensors, Accelerate, SentencePiece, and Pillow.
 
 Detailed instructions in [docs/installation.md](docs/installation.md).

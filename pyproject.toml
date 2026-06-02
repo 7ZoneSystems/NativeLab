@@ -7,11 +7,11 @@ name = "nativelab"
 version = "0.3.3"
 description = "NativeLab AI framework"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 dependencies = [
     "psutil==7.2.2",
-    "PyPDF2==3.0.1",
+    "pypdf>=6.1.3",
     "PyQt6==6.10.2",
     "aiohttp>=3.9.0",
     "discord.py>=2.3.2"
@@ -29,12 +29,15 @@ whatsapp = [
     "aiohttp>=3.9.0"
 ]
 hf = [
-    "transformers>=4.46.0",
+    "transformers>=5.0.0",
     "torch>=2.2.0",
     "safetensors>=0.4.0",
     "accelerate>=0.30.0",
     "sentencepiece>=0.2.0",
-    "pillow>=10.0.0"
+    "pillow>=12.2.0",
+    "requests>=2.33.0",
+    "urllib3>=2.7.0",
+    "filelock>=3.20.3"
 ]
 
 [project.scripts]

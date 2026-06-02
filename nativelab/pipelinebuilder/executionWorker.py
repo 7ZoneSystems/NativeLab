@@ -881,10 +881,10 @@ class PipelineExecutionWorker(QThread):
             self.err.emit(f"PDF block '{b.label}': file not found → {pdf_path}")
             return None
         if not HAS_PDF:
-            self.err.emit("PyPDF2 not installed. Run: pip install PyPDF2")
+            self.err.emit("pypdf not installed. Run: pip install pypdf")
             return None
         try:
-            from PyPDF2 import PdfReader
+            from pypdf import PdfReader
             reader   = PdfReader(pdf_path)
             pdf_text = "\n".join(pg.extract_text() or "" for pg in reader.pages)
         except Exception as e:

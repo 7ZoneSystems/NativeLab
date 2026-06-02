@@ -108,7 +108,7 @@ def make_manual_html() -> str:
     c_coding         = code("coding")
     c_pipelines_path = code("./localllm/pipelines/")
     c_pip_json       = code("./localllm/pipelines/name.json")
-    c_pypdf2         = code("pip install PyPDF2")
+    c_pypdf          = code("pip install pypdf")
     c_safe_builtins  = code("len str int float bool list dict tuple range enumerate zip map filter sorted min max sum abs round isinstance hasattr getattr repr type print")
     c_text_ro        = code("text")
 
@@ -233,7 +233,7 @@ def make_manual_html() -> str:
             '&nbsp;&nbsp;2. Set the <b>role</b> of the PDF:<br>'
             '&nbsp;&nbsp;&nbsp;&nbsp;&bull; <b>reference</b> &#8212; prior context is MAIN, PDF is supporting reference.<br>'
             '&nbsp;&nbsp;&nbsp;&nbsp;&bull; <b>main</b> &#8212; PDF is the MAIN content, prior context is supporting reference.')
-        + note('PyPDF2 must be installed: ' + c_pypdf2 + '. If it is missing the block will show a warning when you try to configure it.')
+        + note('pypdf must be installed: ' + c_pypdf + '. If it is missing the block will show a warning when you try to configure it.')
 
         + h2("&#9410;  Logic Blocks  ( Python conditions )")
         + p('Logic blocks evaluate Python expressions or perform text operations at runtime. '

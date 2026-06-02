@@ -2538,7 +2538,7 @@ class MainWindow(QMainWindow):
     def _load_pdf(self):
         if not HAS_PDF:
             QMessageBox.warning(self, "Missing Dependency",
-                                "Install PyPDF2:  pip install PyPDF2"); return
+                                "Install pypdf:  pip install pypdf"); return
         if not self.engine.is_loaded:
             QMessageBox.warning(self, "Model Not Ready",
                                 "Wait for the model to finish loading."); return
@@ -2725,7 +2725,7 @@ class MainWindow(QMainWindow):
     def _start_multi_pdf(self, paths: List[str]):
         """Start multi-PDF summarization with adaptive RAM watchdog."""
         if not HAS_PDF:
-            QMessageBox.warning(self, "Missing Dep", "Install PyPDF2"); return
+            QMessageBox.warning(self, "Missing Dep", "Install pypdf: pip install pypdf"); return
         if not self.engine.is_loaded:
             QMessageBox.warning(self, "Not Ready", "Wait for model to load."); return
 
