@@ -1,0 +1,234 @@
+name: Release Desktop Apps
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, for example v0.3.3"
+        required: true
+        default: "v0.3.3"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  PYTHON_VERSION: "3.12"
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  build-linux:
+    name: Linux x86_64
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install system libraries for PyQt6
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 \
+            libgl1 \
+            libxkbcommon-x11-0 \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-randr0 \
+            libxcb-render-util0 \
+            libxcb-xfixes0 \
+            libxcb-xinerama0 \
+            libxcb-xinput0
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install . pyinstaller pyinstaller-hooks-contrib
+
+      - name: Build app
+        run: python -m PyInstaller NativeLab.spec --noconfirm --clean
+
+      - name: Verify llama.cpp runtime is not bundled
+        run: |
+          if find dist/NativeLab -type f \( -name "llama-*" -o -name "libllama*" -o -name "libggml*" \) | grep .; then
+            echo "Unexpected llama.cpp runtime binary found in artifact"
+            exit 1
+          fi
+
+      - name: Package artifact
+        run: |
+          mkdir -p artifacts
+          tar -C dist -czf "artifacts/NativeLab-${RELEASE_TAG}-linux-x86_64.tar.gz" NativeLab
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NativeLab-${{ env.RELEASE_TAG }}-linux-x86_64
+          path: artifacts/NativeLab-${{ env.RELEASE_TAG }}-linux-x86_64.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  build-windows:
+    name: Windows x86_64
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install . pyinstaller pyinstaller-hooks-contrib
+
+      - name: Build app
+        shell: pwsh
+        run: python -m PyInstaller NativeLab.spec --noconfirm --clean
+
+      - name: Verify llama.cpp runtime is not bundled
+        shell: pwsh
+        run: |
+          $matches = Get-ChildItem -Path dist\NativeLab -Recurse -File |
+            Where-Object {
+              $_.Name -like "llama-*" -or
+              $_.Name -like "libllama*" -or
+              $_.Name -like "libggml*"
+            }
+          if ($matches) {
+            $matches | Select-Object -ExpandProperty FullName
+            throw "Unexpected llama.cpp runtime binary found in artifact"
+          }
+
+      - name: Package artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path artifacts -Force | Out-Null
+          Compress-Archive `
+            -Path dist\NativeLab `
+            -DestinationPath "artifacts\NativeLab-${env:RELEASE_TAG}-windows-x86_64.zip" `
+            -Force
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NativeLab-${{ env.RELEASE_TAG }}-windows-x86_64
+          path: artifacts/NativeLab-${{ env.RELEASE_TAG }}-windows-x86_64.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  build-macos:
+    name: macOS ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x86_64
+          - runner: macos-14
+            arch: arm64
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install . pyinstaller pyinstaller-hooks-contrib
+
+      - name: Generate macOS icon
+        run: |
+          mkdir -p nativelab/icon.iconset
+          sips -z 16 16 nativelab/icon.png --out nativelab/icon.iconset/icon_16x16.png
+          sips -z 32 32 nativelab/icon.png --out nativelab/icon.iconset/icon_16x16@2x.png
+          sips -z 32 32 nativelab/icon.png --out nativelab/icon.iconset/icon_32x32.png
+          sips -z 64 64 nativelab/icon.png --out nativelab/icon.iconset/icon_32x32@2x.png
+          sips -z 128 128 nativelab/icon.png --out nativelab/icon.iconset/icon_128x128.png
+          sips -z 256 256 nativelab/icon.png --out nativelab/icon.iconset/icon_128x128@2x.png
+          sips -z 256 256 nativelab/icon.png --out nativelab/icon.iconset/icon_256x256.png
+          sips -z 512 512 nativelab/icon.png --out nativelab/icon.iconset/icon_256x256@2x.png
+          sips -z 512 512 nativelab/icon.png --out nativelab/icon.iconset/icon_512x512.png
+          sips -z 1024 1024 nativelab/icon.png --out nativelab/icon.iconset/icon_512x512@2x.png
+          iconutil -c icns nativelab/icon.iconset -o nativelab/icon.icns
+
+      - name: Build app bundle
+        run: python -m PyInstaller NativeLab.spec --noconfirm --clean
+
+      - name: Verify llama.cpp runtime is not bundled
+        run: |
+          if find dist/NativeLab.app -type f \( -name "llama-*" -o -name "libllama*" -o -name "libggml*" \) | grep .; then
+            echo "Unexpected llama.cpp runtime binary found in artifact"
+            exit 1
+          fi
+
+      - name: Ad-hoc sign app bundle
+        run: codesign --force --deep --sign - dist/NativeLab.app
+
+      - name: Package artifact
+        run: |
+          mkdir -p artifacts
+          ditto -c -k --keepParent dist/NativeLab.app "artifacts/NativeLab-${RELEASE_TAG}-macOS-${{ matrix.arch }}.zip"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NativeLab-${{ env.RELEASE_TAG }}-macOS-${{ matrix.arch }}
+          path: artifacts/NativeLab-${{ env.RELEASE_TAG }}-macOS-${{ matrix.arch }}.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-release:
+    name: Publish GitHub Release
+    runs-on: ubuntu-22.04
+    needs:
+      - build-linux
+      - build-windows
+      - build-macos
+
+    steps:
+      - name: Download platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: NativeLab-${{ env.RELEASE_TAG }}-*
+          merge-multiple: true
+
+      - name: List release assets
+        run: find release-assets -maxdepth 1 -type f -print | sort
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: NativeLab ${{ env.RELEASE_TAG }}
+          files: release-assets/*
+          fail_on_unmatched_files: true
+          generate_release_notes: true
+          make_latest: true
