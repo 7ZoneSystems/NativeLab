@@ -1,5 +1,9 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, json, time
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
+
+ANTHROPIC_UNCAPPED_FALLBACK_TOKENS = 8192
+
+
 class ApiStreamWorker(QThread):
     """Streams tokens from any OpenAI-compatible or Anthropic API endpoint."""
     token = pyqtSignal(str)
@@ -9,7 +13,7 @@ class ApiStreamWorker(QThread):
 
     def __init__(self, messages: list, api_key: str, base_url: str,
                  model_id: str, api_format: str = "openai",
-                 max_tokens: int = 1024, temperature: float = 0.7):
+                 max_tokens=None, temperature: float = 0.7):
         super().__init__()
         self.messages    = messages
         self.api_key     = api_key
@@ -24,6 +28,13 @@ class ApiStreamWorker(QThread):
         self.user_prefix:       str  = ""
         self.user_suffix:       str  = ""
         self.assistant_prefix:  str  = ""
+
+    def _max_tokens_value(self):
+        try:
+            value = int(self.max_tokens)
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
         
     def run(self):
         import urllib.request, urllib.error
@@ -76,11 +87,12 @@ class ApiStreamWorker(QThread):
                 sys_msg = next((m["content"] for m in self.messages
                                 if m["role"] == "system"), "")
                 msgs    = [m for m in self.messages if m["role"] != "system"]
+                max_tokens = self._max_tokens_value() or ANTHROPIC_UNCAPPED_FALLBACK_TOKENS
                 body    = json.dumps({
                     "model":      self.model_id,
                     "messages":   msgs,
                     "stream":     True,
-                    "max_tokens": self.max_tokens,
+                    "max_tokens": max_tokens,
                     **({"system": sys_msg} if sys_msg else {}),
                 }).encode("utf-8")
                 req = urllib.request.Request(
@@ -102,13 +114,16 @@ class ApiStreamWorker(QThread):
                             pass
             else:
                 # ── OpenAI-compatible streaming ───────────────────────────────
-                body = json.dumps({
+                payload = {
                     "model":       self.model_id,
                     "messages":    self.messages,
                     "stream":      True,
-                    "max_tokens":  self.max_tokens,
                     "temperature": self.temperature,
-                }).encode("utf-8")
+                }
+                max_tokens = self._max_tokens_value()
+                if max_tokens is not None:
+                    payload["max_tokens"] = max_tokens
+                body = json.dumps(payload).encode("utf-8")
                 req = urllib.request.Request(
                     f"{self.base_url}/chat/completions", data=body,
                     headers={"Content-Type": "application/json",

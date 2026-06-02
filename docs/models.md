@@ -161,7 +161,7 @@ model_id         # e.g. "gpt-4o-mini", "claude-3-5-sonnet-20241022"
 api_key          # bearer or x-api-key
 base_url         # e.g. "https://api.openai.com/v1"
 api_format       # "openai" | "anthropic"
-max_tokens       # cap for the API
+max_tokens       # context hint; normal API chat does not use this as an output cap
 temperature      # 0.0–2.0
 use_custom_prompt, system_prompt, user_prefix, user_suffix, assistant_prefix
 ```

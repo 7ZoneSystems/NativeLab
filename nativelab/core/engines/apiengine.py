@@ -20,7 +20,7 @@ class ApiEngine:
         self._config  = config
         self._log     = log_cb or (lambda m: None)
         self.model_path = api_model_ref(config.name)
-        self.ctx_value  = config.max_tokens * 6
+        self.ctx_value  = max(int(config.max_tokens or 0), 8192) * 6
         try:
             import urllib.request, urllib.error
             msgs = [{"role": "user", "content": "hi"}]
@@ -61,13 +61,17 @@ class ApiEngine:
             self._pending_messages = []
         else:
             msgs = [{"role": "user", "content": prompt}]
+        try:
+            output_tokens = int(n_predict)
+        except (TypeError, ValueError):
+            output_tokens = 0
         w = ApiStreamWorker(
             messages    = msgs,
             api_key     = cfg.api_key,
             base_url    = cfg.base_url,
             model_id    = cfg.model_id,
             api_format  = cfg.api_format,
-            max_tokens  = min(n_predict, cfg.max_tokens),
+            max_tokens  = output_tokens if output_tokens > 0 else None,
             temperature = cfg.temperature,
         )
         w.log.connect(self._log)

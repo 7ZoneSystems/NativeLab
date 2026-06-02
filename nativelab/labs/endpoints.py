@@ -444,10 +444,11 @@ class LabEndpoints(QObject):
         cfg = api._config
         if cfg is None:
             raise RuntimeError("API config not loaded")
-        max_tokens = min(n_predict, cfg.max_tokens)
+        max_tokens = int(n_predict or 0)
         self._log("INFO",
                   f"API call → {cfg.api_format.upper()}  "
-                  f"model={cfg.model_id}  max_tokens={max_tokens}")
+                  f"model={cfg.model_id}"
+                  + (f"  max_tokens={max_tokens}" if max_tokens > 0 else "  max_tokens=provider default"))
 
         if cfg.api_format == "anthropic":
             sys_text = ""
@@ -460,7 +461,7 @@ class LabEndpoints(QObject):
             payload = {
                 "model":       cfg.model_id,
                 "messages":    chat or [{"role": "user", "content": ""}],
-                "max_tokens":  max_tokens,
+                "max_tokens":  max_tokens if max_tokens > 0 else 8192,
                 "temperature": temperature,
                 "stream":      False,
             }
@@ -492,10 +493,11 @@ class LabEndpoints(QObject):
         payload = {
             "model":       cfg.model_id,
             "messages":    messages,
-            "max_tokens":  max_tokens,
             "temperature": temperature,
             "stream":      False,
         }
+        if max_tokens > 0:
+            payload["max_tokens"] = max_tokens
         req = urllib.request.Request(
             f"{cfg.base_url.rstrip('/')}/chat/completions",
             data=json.dumps(payload).encode(),

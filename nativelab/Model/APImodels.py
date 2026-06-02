@@ -11,7 +11,7 @@ class ApiConfig:
     api_key:     str   = ""
     base_url:    str   = ""
     api_format:  str   = "openai"
-    max_tokens:  int   = 2048
+    max_tokens:  int   = 8192
     temperature: float = 0.7
     # ── custom prompt format ─────────────────────────────────────────────────
     use_custom_prompt:   bool = False

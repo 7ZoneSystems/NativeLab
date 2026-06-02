@@ -707,7 +707,7 @@ class PipelineExecutionWorker(QThread):
         return self._api_query_sync(
             system,
             context,
-            max_tokens=min(int(getattr(cfg, "max_tokens", 2048)), 2048),
+            max_tokens=0,
             temperature=float(getattr(cfg, "temperature", 0.7)),
             token_cb=lambda tok: self.step_token.emit(b.bid, tok),
         )
@@ -794,7 +794,7 @@ class PipelineExecutionWorker(QThread):
                 payload = {
                     "model": cfg.model_id,
                     "messages": [{"role": "user", "content": user_prompt}],
-                    "max_tokens": min(max_tokens, cfg.max_tokens),
+                    "max_tokens": int(max_tokens) if int(max_tokens or 0) > 0 else 8192,
                     "temperature": temperature,
                     "stream": False,
                 }
@@ -821,10 +821,12 @@ class PipelineExecutionWorker(QThread):
                 payload = {
                     "model": cfg.model_id,
                     "messages": messages,
-                    "max_tokens": min(max_tokens, cfg.max_tokens),
                     "temperature": temperature,
                     "stream": False,
                 }
+                max_tokens = int(max_tokens or 0)
+                if max_tokens > 0:
+                    payload["max_tokens"] = max_tokens
                 req = urllib.request.Request(
                     f"{cfg.base_url.rstrip('/')}/chat/completions",
                     data=json.dumps(payload).encode(),
