@@ -1,3 +1,17 @@
+v0.3.3
+
+1) Added compact IDE-style UI spacing across tabs, panels, controls, chat widgets, and labs screens.
+2) Reduced the bottom bar height and tightened broad tab/sidebar spacing for a denser workspace layout.
+3) Fixed remaining brown/previous-theme borders and button colors after switching between light and dark modes.
+4) Added adaptive PyQt window sizing so sub-windows scale better across different screen resolutions.
+5) Replaced remaining checkbox-style boolean controls with moving toggle controls and fixed dark/light toggle handle colors and responsiveness.
+6) Added original Hugging Face and Ollama SVG assets and kept brand icons from being recolored by theme updates.
+7) Fixed Labs, Structured Edit, and Py-to-Doc SVG icon colors so they remain readable without forced white recoloring.
+8) Updated dropdown/menu styling in Hugging Face, Ollama, and related settings areas to use the active system/theme palette.
+9) Removed the hard response-output word cap for API models so provider generations no longer stop abruptly because of the app cap.
+10) Added offline KaTeX-based TeX/LaTeX rendering in shared output renderers, with local scripts, CSS, fonts, and license packaged in the app.
+11) Added mixed Markdown + LaTeX rendering support, including inline math, display math, common math environments, fenced-code protection, and Markdown table rendering with formulas inside cells.
+
 v0.3.2
 
 1) Fixed error surface in labs endpoints to show real endpoint errors instead of only HTTP 400 text.
