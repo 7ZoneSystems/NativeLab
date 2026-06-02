@@ -1,3 +1,11 @@
+v0.3.4
+
+1) Fixed dependency vulnerability alerts by regenerating `uv.lock` with secure package versions.
+2) Replaced deprecated `PyPDF2` usage with maintained `pypdf` for PDF reading and summarization paths.
+3) Updated locked packages for security: `urllib3`, `Pillow`, `filelock`, `requests`, `transformers`, and `pypdf`.
+4) Raised the supported Python baseline to 3.10+ so vulnerable Python 3.9 resolver branches are no longer included in the lockfile.
+5) Updated PDF dependency install messages and documentation from `PyPDF2` to `pypdf`.
+
 v0.3.3
 
 1) Added compact IDE-style UI spacing across tabs, panels, controls, chat widgets, and labs screens.
