@@ -30,6 +30,15 @@ nativelab/llama/
 llama/bin/
 .codex/
 .agents/
+.claude/
 .env
+.env.*
+!.env.example
+!.env.sample
+.npm/
+.npmrc
+.yarn/
+.yarnrc
+.yarnrc.yml
 SETUP_BADGES.md
-!nativelab/assets/icons 
+!nativelab/assets/icons
