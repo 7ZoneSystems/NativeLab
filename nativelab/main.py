@@ -25,6 +25,7 @@ from nativelab.core.engine_global import *
 from nativelab.codeparser.codeparser_global import *
 from nativelab.pipelinebuilder.pipe_global import *
 from nativelab.UI.icons import add_menu_action, icon, icon_size, refresh_widget_icons, role_icon, set_button_icon, set_label_icon, status_icon, set_status_label
+from nativelab.UI.buildUI import palette_rgba
 from nativelab.labs import LabEndpoints, LabsTab
 from nativelab.integrations import IntegrationEndpoints, IntegrationsTab
 from nativelab.skill import active_skill_context, ensure_builtin_edit_skill
@@ -270,18 +271,23 @@ class MainWindow(QMainWindow):
         else:
             self.ctx_warn.setToolTip("")
         self._ctx_reload_timer.start(2000)
+        self._apply_ctx_slider_style(color)
+        self.ctx_warn.setText(warn_text)
+
+    def _apply_ctx_slider_style(self, color: str):
+        if not hasattr(self, "ctx_slider"):
+            return
         self.ctx_slider.setStyleSheet(f"""
             QSlider::groove:horizontal {{
-                height:6px; background:{C['bg2']}; border-radius:3px;
+                height:5px; background:{C['bg2']}; border-radius:3px;
             }}
             QSlider::handle:horizontal {{
-                background:{color}; width:14px; margin:-4px 0; border-radius:7px;
+                background:{color}; width:13px; margin:-4px 0; border-radius:7px;
             }}
             QSlider::sub-page:horizontal {{
                 background:{color}; border-radius:3px;
             }}
         """)
-        self.ctx_warn.setText(warn_text)
 
     def _on_ctx_input_changed(self):
         try:
@@ -459,7 +465,7 @@ class MainWindow(QMainWindow):
 
         sidebar = QWidget()
         sidebar.setObjectName("labs_sidebar")
-        sidebar.setFixedWidth(190)
+        sidebar.setFixedWidth(168)
         side_l = QVBoxLayout(sidebar)
         side_l.setContentsMargins(10, 12, 10, 12)
         side_l.setSpacing(8)
@@ -797,7 +803,8 @@ class MainWindow(QMainWindow):
         self.cfg_param_warn.setWordWrap(True)
         self.cfg_param_warn.setStyleSheet(
             f"color:{C['warn']};font-size:11px;padding:4px 8px;"
-            f"background:#2a2000;border-radius:5px;border:1px solid #5a4500;"
+            f"background:{palette_rgba(C, 'warn', 0.10)};"
+            f"border-radius:5px;border:1px solid {palette_rgba(C, 'warn', 0.28)};"
         )
         self.cfg_param_warn.setVisible(False)
         cfg_card_l.addWidget(self.cfg_param_warn)
@@ -1313,13 +1320,8 @@ class MainWindow(QMainWindow):
         for b in (self.btn_toggle_sidebar, self.btn_toggle_topbar, self.btn_tab_menu, self.btn_settings):
             b.setFixedSize(28, 24)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
-            b.setStyleSheet(
-                f"QPushButton{{background:transparent;color:{C['txt3']};"
-                f"border:1px solid {C['bdr']};border-radius:6px;font-size:14px;"
-                f"font-weight:700;padding:0;}}"
-                f"QPushButton:hover{{color:{C['acc2']};border-color:{C['acc']};"
-                f"background:rgba(105,92,235,0.14);}}")
             row.addWidget(b)
+        self._apply_topbar_button_styles()
         self.btn_toggle_sidebar.clicked.connect(self._toggle_sidebar)
         self.btn_toggle_topbar.clicked.connect(self._toggle_topbar)
         self.btn_tab_menu.clicked.connect(lambda: self._show_tab_visibility_menu())
@@ -1329,6 +1331,8 @@ class MainWindow(QMainWindow):
 
     def _build_status_bar(self):
         sb = self.statusBar()
+        sb.setSizeGripEnabled(False)
+        sb.setFixedHeight(24)
         self.lbl_engine = QLabel("")
         self.lbl_engine.setStyleSheet(f"color:{C['txt2']};padding:0 8px;")
         self._set_engine_status("Loading...", "loading")
@@ -1353,6 +1357,7 @@ class MainWindow(QMainWindow):
 
         self.ctx_input = QLineEdit(str(DEFAULT_CTX())) 
         self.ctx_input.setFixedWidth(60)
+        self.ctx_input.setFixedHeight(20)
         self.ctx_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ctx_input.editingFinished.connect(self._on_ctx_input_changed)
         sb.addWidget(self.ctx_input)
@@ -1367,7 +1372,7 @@ class MainWindow(QMainWindow):
         self.ctx_bar.setRange(0, DEFAULT_CTX())
         self.ctx_bar.setValue(0)
         self.ctx_bar.setFixedWidth(100)
-        self.ctx_bar.setFixedHeight(8)
+        self.ctx_bar.setFixedHeight(6)
         self.ctx_bar.setTextVisible(False)
         sb.addWidget(self.ctx_bar)
 
@@ -1393,6 +1398,40 @@ class MainWindow(QMainWindow):
     def _vline() -> QFrame:
         f = QFrame(); f.setFrameShape(QFrame.Shape.VLine)
         f.setStyleSheet(f"color:{C['bdr']};"); return f
+
+    def _topbar_button_style(self) -> str:
+        return (
+            f"QPushButton{{background:transparent;color:{C['txt3']};"
+            f"border:1px solid {C['bdr']};border-radius:6px;font-size:13px;"
+            f"font-weight:700;padding:0;}}"
+            f"QPushButton:hover{{color:{C['acc2']};border-color:{C['acc']};"
+            f"background:{palette_rgba(C, 'acc', 0.14)};}}"
+        )
+
+    def _apply_topbar_button_styles(self):
+        for name in ("btn_toggle_sidebar", "btn_toggle_topbar", "btn_tab_menu", "btn_settings"):
+            button = getattr(self, name, None)
+            if button is not None:
+                button.setStyleSheet(self._topbar_button_style())
+
+    def refresh_theme(self):
+        self._apply_topbar_button_styles()
+        if hasattr(self, "ctx_slider"):
+            value = self.ctx_slider.value()
+            color = C["ok"] if value <= 16384 else C["warn"] if value <= 24576 else C["err"]
+            self._apply_ctx_slider_style(color)
+        for label_name in ("ctx_lbl", "tps_lbl", "ram_lbl"):
+            label = getattr(self, label_name, None)
+            if label is not None:
+                label.setStyleSheet(f"color:{C['txt2']};padding:0 6px;")
+        if hasattr(self, "ctx_warn"):
+            self.ctx_warn.setStyleSheet(f"color:{C['warn']};font-weight:bold;")
+        if hasattr(self, "lbl_family"):
+            self.lbl_family.setStyleSheet(f"color:{C['acc2']};padding:0 6px;font-size:10px;")
+        if hasattr(self, "settings_nav"):
+            self._refresh_settings_nav_colors()
+        if hasattr(self, "dev_nav"):
+            self._refresh_dev_nav_colors()
 
     # ── session management ────────────────────────────────────────────────────
 
@@ -1657,7 +1696,7 @@ class MainWindow(QMainWindow):
         name = f"{cfg.provider}  ·  {cfg.model_id}" if cfg else api_engine.status_text
         self._set_engine_status(name, "api")
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
-        self.lbl_family.setText(f"API  ·  max {cfg.max_tokens if cfg else '?'} tokens")
+        self.lbl_family.setText("API  ·  provider output limit")
         self._log("INFO", f"API model loaded: {api_engine.status_text}")
         # Update pipeline tab to use api engine for pipeline blocks
         if hasattr(self, "pipeline_tab"):
@@ -1679,7 +1718,7 @@ class MainWindow(QMainWindow):
             self.engine.shutdown()
         self._set_engine_status("Connecting API model...", "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
-        self.lbl_family.setText(f"API  ·  {cfg.provider}  ·  max {cfg.max_tokens} tokens")
+        self.lbl_family.setText(f"API  ·  {cfg.provider}  ·  provider output limit")
         self._api_loader = ApiLoaderThread(cfg)
         self._api_loader.finished.connect(self._on_api_combo_load_done)
         self._api_loader.start()
@@ -2098,8 +2137,8 @@ class MainWindow(QMainWindow):
                     "the reference context as metadata only.\n\n" + prompt
                 )
 
-        cfg_pred = DEFAULT_N_PRED
-        if active_eng.model_path:
+        cfg_pred = 0 if isinstance(active_eng, ApiEngine) else DEFAULT_N_PRED
+        if active_eng.model_path and not isinstance(active_eng, ApiEngine):
             cfg_pred = get_model_registry().get_config(active_eng.model_path).n_predict
 
         self._stream_w = self.chat_area.add_message(
@@ -3150,6 +3189,8 @@ class MainWindow(QMainWindow):
                 self.tabs.setTabIcon(i, icon(name))
         if hasattr(self, "accounts_tab"):
             self.accounts_tab.refresh_icons()
+        if hasattr(self, "labs_tab"):
+            self.labs_tab.refresh_icons()
         if hasattr(self, "settings_nav"):
             settings_icons = {
                 "General": "config",
@@ -3190,11 +3231,9 @@ class MainWindow(QMainWindow):
     def _on_appearance_changed(self, new_palette: dict):
         global C_LIGHT, C_DARK, C, QSS
         if CURRENT_THEME == "light":
-            C_LIGHT = dict(new_palette)
-            C = dict(C_LIGHT)
+            set_theme(CURRENT_THEME, light_custom=dict(new_palette))
         else:
-            C_DARK = dict(new_palette)
-            C = dict(C_DARK)
+            set_theme(CURRENT_THEME, dark_custom=dict(new_palette))
         QSS = build_qss(C)
         self.setStyleSheet(QSS)
         apply_theme_palette(self, C)

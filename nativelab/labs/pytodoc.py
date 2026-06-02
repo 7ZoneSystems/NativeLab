@@ -24,7 +24,7 @@ from nativelab.imports.import_global import (
     QListWidget, QListWidgetItem,
     QFont, Qt, QSlider, QSpinBox,
 )
-from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
+from nativelab.UI.icons import refresh_widget_icons, set_button_icon, set_label_icon, set_status_label
 from nativelab.UI.toggle import ToggleSwitch
 from nativelab.GlobalConfig.const import LONG_TIMEOUT_MS, MAX_CONTEXT_TOKENS
 
@@ -1093,6 +1093,12 @@ class PyToDocPanel(QWidget):
         self._on_status_changed(endpoints.status_text)
         if not getattr(self, "_budget_user_touched", False):
             self._set_auto_budget_value(getattr(endpoints, "ctx_value", AUTO_CONTEXT_DEFAULT), mark_touched=False)
+
+    def refresh_icons(self):
+        refresh_widget_icons(self)
+
+    def refresh_theme(self):
+        self.refresh_icons()
 
     def _on_status_changed(self, status: str):
         if hasattr(self, "lbl_engine"):

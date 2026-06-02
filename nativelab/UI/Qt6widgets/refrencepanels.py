@@ -2,6 +2,7 @@ from nativelab.imports.import_global import HAS_PDF, PdfReader, QWidget, QVBoxLa
 from nativelab.codeparser.codeparser_global import ImageReference, ScriptSmartReference, SessionReferenceStore
 from nativelab.GlobalConfig.config_global import SCRIPT_EXTENSIONS_FILTER, RAM_WATCHDOG_MB, get_ref_store, ram_free_mb
 from nativelab.UI.buildUI import C
+from nativelab.UI.buildUI import palette_rgba
 from nativelab.UI.icons import add_menu_action, icon, set_button_icon, set_label_icon
 
 class ReferencePanelV2(QWidget):
@@ -30,12 +31,12 @@ class ReferencePanelV2(QWidget):
         self._PdfReader       = pdf_reader_cls
         self._building        = False
 
-        self.setMaximumWidth(300)
-        self.setMinimumWidth(240)
+        self.setMaximumWidth(280)
+        self.setMinimumWidth(224)
         self.setObjectName("ref_panel_v2")
         root = QVBoxLayout()
-        root.setContentsMargins(18, 12, 18, 14)
-        root.setSpacing(9)
+        root.setContentsMargins(12, 8, 12, 10)
+        root.setSpacing(7)
 
         # ── Header ───────────────────────────────────────────────────────────
         hdr_row = QHBoxLayout(); hdr_row.setSpacing(6)
@@ -160,6 +161,7 @@ class ReferencePanelV2(QWidget):
         self._ram_timer = QTimer(self)
         self._ram_timer.timeout.connect(self._update_ram_badge)
         self._ram_timer.start(3000)
+        self.refresh_theme()
         self._refresh()
 
     # ── Style helpers ─────────────────────────────────────────────────────────
@@ -174,6 +176,14 @@ class ReferencePanelV2(QWidget):
             f"font-size:10px;padding:0 6px;}}"
             f"QPushButton:hover{{background:rgba({r},{g},{b},0.28);}}")
 
+    def refresh_theme(self):
+        if hasattr(self, "add_pdf_btn"):
+            for b in (self.add_pdf_btn, self.add_py_btn, self.add_txt_btn, self.add_img_btn):
+                b.setStyleSheet(self._mini_btn_style(C["acc"]))
+            self.multi_pdf_btn.setStyleSheet(self._mini_btn_style(C["ok"]))
+            self.add_script_btn.setStyleSheet(self._mini_btn_style(C["pipeline"]))
+            self._refresh()
+
     @staticmethod
     def _list_style() -> str:        
         return (
@@ -181,9 +191,9 @@ class ReferencePanelV2(QWidget):
             f"font-size:10px;outline:none;}}"
             f"QListWidget::item{{padding:5px 8px;border-radius:5px;"
             f"margin:2px 0;min-height:18px;}}"
-            f"QListWidget::item:hover{{background:rgba(167,139,250,0.08);}}"
-            f"QListWidget::item:selected{{background:rgba(124,58,237,0.22);"
-            f"color:{C['acc2']};border:1px solid rgba(167,139,250,0.2);}}")
+            f"QListWidget::item:hover{{background:{palette_rgba(C, 'acc', 0.08)};}}"
+            f"QListWidget::item:selected{{background:{C['acc_dim']};"
+            f"color:{C['acc2']};border:1px solid {palette_rgba(C, 'acc', 0.20)};}}")
 
     # ── Store access ──────────────────────────────────────────────────────────
     @property
@@ -408,8 +418,8 @@ class ReferencePanel(QWidget):
         self.session_id = session_id
         self._store     = get_ref_store(session_id)
         self._building  = False
-        self.setMaximumWidth(280)
-        self.setMinimumWidth(220)
+        self.setMaximumWidth(260)
+        self.setMinimumWidth(208)
         self.setObjectName("ref_panel_v1")
         root = QVBoxLayout()
         root.setContentsMargins(10, 10, 10, 10)
@@ -441,12 +451,7 @@ class ReferencePanel(QWidget):
         set_button_icon(self.add_txt_btn, "text", "Text")
         for b in (self.add_pdf_btn, self.add_py_btn, self.add_txt_btn):
             b.setFixedHeight(26)
-            b.setStyleSheet(
-                f"QPushButton{{background:rgba(124,58,237,0.15);color:{C['acc']};"
-                f"border:1px solid rgba(167,139,250,0.25);border-radius:6px;"
-                f"font-size:10px;padding:0 6px;}}"
-                f"QPushButton:hover{{background:rgba(124,58,237,0.3);color:{C['acc2']};}}"
-            )
+            b.setStyleSheet(self._mini_btn_style(C["acc"]))
         self.add_pdf_btn.clicked.connect(lambda: self._add_file("pdf"))
         self.add_py_btn.clicked.connect(lambda: self._add_file("python"))
         self.add_txt_btn.clicked.connect(lambda: self._add_file("text"))
@@ -459,25 +464,20 @@ class ReferencePanel(QWidget):
         self.multi_pdf_btn = QPushButton("Summarize Multiple PDFs")
         set_button_icon(self.multi_pdf_btn, "files", "Summarize Multiple PDFs")
         self.multi_pdf_btn.setFixedHeight(28)
-        self.multi_pdf_btn.setStyleSheet(
-            f"QPushButton{{background:rgba(52,211,153,0.1);color:{C['ok']};"
-            f"border:1px solid rgba(52,211,153,0.25);border-radius:6px;"
-            f"font-size:10px;padding:0 8px;}}"
-            f"QPushButton:hover{{background:rgba(52,211,153,0.22);}}"
-        )
+        self.multi_pdf_btn.setStyleSheet(self._mini_btn_style(C["ok"]))
         self.multi_pdf_btn.clicked.connect(self._multi_pdf_requested)
         root.addWidget(self.multi_pdf_btn)
 
-        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"border:none;border-top:1px solid {C['bdr']};")
-        root.addWidget(sep)
+        self.sep = QFrame(); self.sep.setFrameShape(QFrame.Shape.HLine)
+        self.sep.setStyleSheet(f"border:none;border-top:1px solid {C['bdr']};")
+        root.addWidget(self.sep)
 
         # Reference list
         self.ref_list = QListWidget()
         self.ref_list.setStyleSheet(
             f"QListWidget{{background:transparent;border:none;font-size:10px;outline:none;}}"
             f"QListWidget::item{{padding:4px 6px;border-radius:4px;margin:1px 0;}}"
-            f"QListWidget::item:selected{{background:rgba(124,58,237,0.25);color:{C['acc2']};}}"
+            f"QListWidget::item:selected{{background:{C['acc_dim']};color:{C['acc2']};}}"
         )
         self.ref_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.ref_list.customContextMenuRequested.connect(self._ref_ctx_menu)
@@ -493,7 +493,31 @@ class ReferencePanel(QWidget):
         self._ram_timer = QTimer(self)
         self._ram_timer.timeout.connect(self._update_ram_badge)
         self._ram_timer.start(3000)
+        self.refresh_theme()
         self._refresh()
+
+    def _apply_button_styles(self):
+        for b in (self.add_pdf_btn, self.add_py_btn, self.add_txt_btn):
+            b.setStyleSheet(self._mini_btn_style(C["acc"]))
+        self.multi_pdf_btn.setStyleSheet(self._mini_btn_style(C["ok"]))
+
+    def refresh_theme(self):
+        if hasattr(self, "add_pdf_btn"):
+            self._apply_button_styles()
+        if hasattr(self, "ram_badge"):
+            self.ram_badge.setStyleSheet(
+                f"color:{C['warn']};font-size:9px;padding:1px 5px;"
+                f"background:{palette_rgba(C, 'warn', 0.10)};border-radius:3px;"
+            )
+        if hasattr(self, "sep"):
+            self.sep.setStyleSheet(f"border:none;border-top:1px solid {C['bdr']};")
+        if hasattr(self, "ref_list"):
+            self.ref_list.setStyleSheet(
+                f"QListWidget{{background:transparent;border:none;font-size:10px;outline:none;}}"
+                f"QListWidget::item{{padding:4px 6px;border-radius:4px;margin:1px 0;}}"
+                f"QListWidget::item:selected{{background:{C['acc_dim']};color:{C['acc2']};}}"
+            )
+            self._refresh()
 
     def update_session(self, session_id: str):
         self.session_id = session_id

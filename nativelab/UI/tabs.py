@@ -1034,12 +1034,14 @@ class AppearanceTab(QWidget):
 
     # ── Toolbar actions ───────────────────────────────────────────────────────
     def _reset(self):
-        self._palette = dict(C_LIGHT)
+        from nativelab.UI import UI_const
+        self._palette = dict(UI_const.C_LIGHT if UI_const.CURRENT_THEME == "light" else UI_const.C_DARK)
         self._rebuild_rows()
         self.theme_changed.emit(dict(self._palette))
 
     def _save(self):
-        key = "custom_light_palette" if CURRENT_THEME == "light" else "custom_dark_palette"
+        from nativelab.UI import UI_const
+        key = "custom_light_palette" if UI_const.CURRENT_THEME == "light" else "custom_dark_palette"
         APP_CONFIG[key] = dict(self._palette)
         save_app_config(APP_CONFIG)
 
@@ -2997,7 +2999,7 @@ class ApiModelsTab(QWidget):
         kl.addWidget(self.inp_key)
         cl.addLayout(kl)
 
-        # Base URL + Max Tokens row
+        # Base URL + context hint row
         r3 = QHBoxLayout(); r3.setSpacing(12)
         ul = QVBoxLayout(); ul.setSpacing(4)
         ul.addWidget(QLabel("Base URL"))
@@ -3005,8 +3007,8 @@ class ApiModelsTab(QWidget):
         ul.addWidget(self.inp_url)
         r3.addLayout(ul, 3)
         tl = QVBoxLayout(); tl.setSpacing(4)
-        tl.addWidget(QLabel("Max Tokens"))
-        self.inp_tokens = self._inp("2048")
+        tl.addWidget(QLabel("Context Hint"))
+        self.inp_tokens = self._inp("8192")
         self.inp_tokens.setFixedWidth(96)
         tl.addWidget(self.inp_tokens)
         r3.addLayout(tl)
@@ -3157,7 +3159,7 @@ class ApiModelsTab(QWidget):
         base_url   = self.inp_url.text().strip()
         api_format = API_PROVIDERS.get(provider, {}).get("format", "openai")
         try:    max_tok = int(self.inp_tokens.text())
-        except: max_tok = 2048
+        except: max_tok = 8192
         custom_prov = self.inp_custom_provider.text().strip()
         name = self.inp_name.text().strip() or f"{custom_prov or provider} {model_id}"
 

@@ -1,5 +1,6 @@
 from nativelab.imports.import_global import Optional, Qt, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QPushButton, QSizePolicy, QTextCursor, QTimer, QApplication
 from nativelab.UI.icons import set_button_icon
+from nativelab.UI.buildUI import palette_rgba
 class MessageWidget(QWidget):
     _COLLAPSE_PX = 260
 
@@ -48,29 +49,23 @@ class MessageWidget(QWidget):
                       (C["txt2"] if role == "system_note" else
                        (C["warn"] if role == "pipeline_intermediate" else
                         (C["pipeline"] if tag == "Reasoning" else C["ok"]))))
-        name_lbl   = QLabel(name_text)
-        name_lbl.setStyleSheet(
+        self._name_lbl = QLabel(name_text)
+        self._name_lbl.setStyleSheet(
             f"color:{name_color};font-weight:700;font-size:11px;letter-spacing:0.3px;")
-        ts_lbl = QLabel(timestamp)
-        ts_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        self._ts_lbl = QLabel(timestamp)
+        self._ts_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
 
         self._copy_btn = QPushButton("")
         set_button_icon(self._copy_btn, "copy", "", 15)
         self._copy_btn.setFixedSize(26, 26)
         self._copy_btn.setToolTip("Copy message")
         self._copy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._copy_btn.setStyleSheet(
-            f"QPushButton{{background:transparent;color:{C['txt3']};"
-            f"border:1px solid transparent;border-radius:6px;"
-            f"font-size:13px;padding:0;font-weight:400;}}"
-            f"QPushButton:hover{{background:rgba(105,92,235,0.16);"
-            f"color:{C['acc2']};border-color:rgba(105,92,235,0.28);}}"
-            f"QPushButton:pressed{{background:rgba(105,92,235,0.28);}}")
+        self._apply_copy_button_style()
         self._copy_btn.clicked.connect(self._copy_all)
 
-        hdr.addWidget(name_lbl)
+        hdr.addWidget(self._name_lbl)
         hdr.addStretch()
-        hdr.addWidget(ts_lbl)
+        hdr.addWidget(self._ts_lbl)
         hdr.addWidget(self._copy_btn)
 
         # ── body (RichTextEdit) ───────────────────────────────────────────────
@@ -122,6 +117,55 @@ class MessageWidget(QWidget):
             self._fit()
 
     # ── rendering ─────────────────────────────────────────────────────────────
+    def _role_name_color(self):
+        from nativelab.UI.buildUI import C
+        return (C["acc"] if self.role == "user" else
+                (C["txt2"] if self.role == "system_note" else
+                 (C["warn"] if self.role == "pipeline_intermediate" else
+                  (C["pipeline"] if self._tag == "Reasoning" else C["ok"]))))
+
+    def _apply_copy_button_style(self):
+        from nativelab.UI.buildUI import C
+        self._copy_btn.setStyleSheet(
+            f"QPushButton{{background:transparent;color:{C['txt3']};"
+            f"border:1px solid transparent;border-radius:6px;"
+            f"font-size:13px;padding:0;font-weight:400;}}"
+            f"QPushButton:hover{{background:{palette_rgba(C, 'acc', 0.16)};"
+            f"color:{C['acc2']};border-color:{palette_rgba(C, 'acc', 0.28)};}}"
+            f"QPushButton:pressed{{background:{palette_rgba(C, 'acc', 0.28)};}}")
+
+    def _apply_expand_button_style(self):
+        if self._expand_btn is None:
+            return
+        from nativelab.UI.buildUI import C
+        self._expand_btn.setStyleSheet(
+            f"QPushButton{{background:{palette_rgba(C, 'acc', 0.12)};color:{C['acc']};"
+            f"border:1px solid {palette_rgba(C, 'acc', 0.20)};border-radius:6px;"
+            f"padding:3px 12px;font-size:11px;}}"
+            f"QPushButton:hover{{background:{palette_rgba(C, 'acc', 0.25)};color:{C['acc2']};}}")
+
+    def refresh_theme(self):
+        from nativelab.UI.buildUI import C
+        if hasattr(self, "_name_lbl"):
+            self._name_lbl.setStyleSheet(
+                f"color:{self._role_name_color()};font-weight:700;font-size:11px;letter-spacing:0.3px;")
+        if hasattr(self, "_ts_lbl"):
+            self._ts_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        if hasattr(self, "_copy_btn"):
+            self._apply_copy_button_style()
+        self._apply_expand_button_style()
+        if hasattr(self, "te"):
+            from PyQt6.QtGui import QPalette, QColor as _QC
+            _bg_key = ("usr" if self.role == "user"
+                       else "rsn" if (self.role == "pipeline_intermediate" or self._tag == "Reasoning")
+                       else "cod" if "Coding" in (self._tag or "")
+                       else "ast")
+            pal = self.te.palette()
+            pal.setColor(QPalette.ColorRole.Base, _QC(C[_bg_key]))
+            pal.setColor(QPalette.ColorRole.Window, _QC(C[_bg_key]))
+            pal.setColor(QPalette.ColorRole.Text, _QC(C["txt"]))
+            self.te.setPalette(pal)
+
     def _render_html(self, text: str):
         from nativelab.UI.md_to_html import md_to_html
         from nativelab.UI.buildUI import C
@@ -145,16 +189,12 @@ class MessageWidget(QWidget):
             self._collapsed   = True
             self.te.setFixedHeight(self._COLLAPSE_PX)
             btn = QPushButton("▼  Show more")
-            btn.setStyleSheet(
-                f"QPushButton{{background:rgba(124,58,237,0.12);color:{C['acc']};"
-                f"border:1px solid rgba(167,139,250,0.2);border-radius:6px;"
-                f"padding:3px 12px;font-size:11px;}}"
-                f"QPushButton:hover{{background:rgba(124,58,237,0.25);color:{C['acc2']};}}")
             btn.clicked.connect(self._toggle_expand)
             layout = self.bubble.layout()
             if layout is not None:
                 layout.addWidget(btn)
             self._expand_btn = btn
+            self._apply_expand_button_style()
 
     def _toggle_expand(self):
         if self._collapsed:

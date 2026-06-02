@@ -29,22 +29,22 @@ class InputBar(QWidget):
         super().__init__()
         self.setObjectName("input_bar")
         root = QVBoxLayout()
-        root.setContentsMargins(18, 12, 18, 14)
-        root.setSpacing(9)
+        root.setContentsMargins(10, 5, 10, 7)
+        root.setSpacing(5)
 
-        toolbar = QHBoxLayout(); toolbar.setSpacing(8)
+        toolbar = QHBoxLayout(); toolbar.setSpacing(6)
 
         self.model_card = QFrame()
         self.model_card.setObjectName("chat_model_card")
         model_card_l = QHBoxLayout(self.model_card)
-        model_card_l.setContentsMargins(8, 4, 8, 4)
-        model_card_l.setSpacing(8)
+        model_card_l.setContentsMargins(6, 2, 6, 2)
+        model_card_l.setSpacing(5)
         model_lbl = QLabel("Model:")
         model_lbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
         model_card_l.addWidget(model_lbl)
         self.model_combo = QComboBox()
-        self.model_combo.setMinimumWidth(240)
-        self.model_combo.setFixedHeight(28)
+        self.model_combo.setMinimumWidth(220)
+        self.model_combo.setFixedHeight(24)
         self._populate_models()
         model_card_l.addWidget(self.model_combo, 1)
 
@@ -57,14 +57,14 @@ class InputBar(QWidget):
 
         self.load_model_btn = QPushButton("")
         set_button_icon(self.load_model_btn, "play", "", 18)
-        self.load_model_btn.setFixedSize(38, 38)
+        self.load_model_btn.setFixedSize(28, 28)
         self.load_model_btn.setToolTip("Load the selected model")
         self.load_model_btn.clicked.connect(self.load_model_requested)
         toolbar.addWidget(self.load_model_btn)
 
         self.unload_model_btn = QPushButton("")
         set_button_icon(self.unload_model_btn, "power-off", "", 18)
-        self.unload_model_btn.setFixedSize(38, 38)
+        self.unload_model_btn.setFixedSize(28, 28)
         self.unload_model_btn.setToolTip("Unload the active chat model")
         self.unload_model_btn.clicked.connect(self.unload_model_requested)
         toolbar.addWidget(self.unload_model_btn)
@@ -78,7 +78,7 @@ class InputBar(QWidget):
         set_button_icon(self.pdf_btn, "pdf", "PDF")
         set_button_icon(self.clear_btn, "clear", "Clear")
         for b in (self.pdf_btn, self.clear_btn):
-            b.setFixedWidth(86); b.setFixedHeight(30)
+            b.setFixedWidth(72); b.setFixedHeight(26)
         self.pdf_btn.clicked.connect(self.pdf_requested)
         self.clear_btn.clicked.connect(self.clear_requested)
         toolbar.addWidget(self.pdf_btn)
@@ -86,14 +86,14 @@ class InputBar(QWidget):
 
         self.skills_btn = QPushButton("Skills")
         set_button_icon(self.skills_btn, "lightbulb", "Skills")
-        self.skills_btn.setFixedSize(86, 30)
+        self.skills_btn.setFixedSize(72, 26)
         self.skills_btn.setCheckable(True)
         self.skills_btn.setToolTip("Enable active NativeLab skills for model calls")
         toolbar.addWidget(self.skills_btn)
 
         self.code_btn = QPushButton("Code")
         set_button_icon(self.code_btn, "code", "Code")
-        self.code_btn.setFixedSize(80, 30)
+        self.code_btn.setFixedSize(68, 26)
         self.code_btn.setCheckable(True)
         self.code_btn.setObjectName("code_btn")
         self.code_btn.setToolTip(
@@ -102,8 +102,8 @@ class InputBar(QWidget):
         toolbar.addWidget(self.code_btn)
         # Summary mode selector
         self.summary_mode_combo = QComboBox()
-        self.summary_mode_combo.setFixedHeight(30)
-        self.summary_mode_combo.setFixedWidth(110)
+        self.summary_mode_combo.setFixedHeight(26)
+        self.summary_mode_combo.setFixedWidth(96)
         self.summary_mode_combo.setObjectName("summary_combo")
         self.summary_mode_combo.addItem("Summary", "summary")
         self.summary_mode_combo.addItem("Logical", "logical")
@@ -121,43 +121,39 @@ class InputBar(QWidget):
 
         root.addLayout(toolbar)
 
-        row = QHBoxLayout(); row.setSpacing(10)
+        row = QHBoxLayout(); row.setSpacing(6)
         self.input = QTextEdit()
         self.input.setPlaceholderText("Ask anything…   ↵ send   ⇧↵ newline")
-        self.input.setMaximumHeight(120)
-        self.input.setMinimumHeight(58)
+        self.input.setMaximumHeight(94)
+        self.input.setMinimumHeight(42)
         self.input.installEventFilter(self)
 
         self.send_btn = QPushButton("Send")
         set_button_icon(self.send_btn, "send", "Send", 18)
         self.send_btn.setObjectName("btn_send")
-        self.send_btn.setFixedSize(90, 52)
+        self.send_btn.setFixedSize(76, 40)
         self.send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.send_btn.clicked.connect(self._emit_send)
 
         self.btn_pipeline_run = QPushButton("Pipeline")
         set_button_icon(self.btn_pipeline_run, "pipeline", "Pipeline")
         self.btn_pipeline_run.setObjectName("btn_pipeline")
-        self.btn_pipeline_run.setFixedSize(100, 52)
+        self.btn_pipeline_run.setFixedSize(86, 40)
         self.btn_pipeline_run.setToolTip("Run a saved pipeline on your current input")
         self.btn_pipeline_run.clicked.connect(self.pipeline_run_requested)
-        self.btn_pipeline_run.setStyleSheet(
-            f"QPushButton{{background:transparent;"
-            f"color:{C['pipeline']};border:1px solid {C['pipeline']};"
-            f"border-radius:6px;font-size:11px;font-weight:600;padding:0;}}"
-            f"QPushButton:hover{{background:{C['pipeline']};color:#fff;}}")
+        self._apply_pipeline_button_style()
 
         self.stop_btn = QPushButton("Stop")
         set_button_icon(self.stop_btn, "stop-circle", "Stop", 18)
         self.stop_btn.setObjectName("btn_stop")
-        self.stop_btn.setFixedSize(90, 52)
+        self.stop_btn.setFixedSize(76, 40)
         self.stop_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.stop_btn.setVisible(False)
         self.stop_btn.clicked.connect(self.stop_requested)
 
         action_row = QHBoxLayout()
         action_row.setContentsMargins(0, 0, 0, 0)
-        action_row.setSpacing(10)
+        action_row.setSpacing(6)
         action_row.setAlignment(Qt.AlignmentFlag.AlignTop)
         action_row.addWidget(self.send_btn)
         action_row.addWidget(self.btn_pipeline_run)
@@ -168,6 +164,21 @@ class InputBar(QWidget):
         root.addLayout(row)
         self.setLayout(root)
         self._update_family_badge()
+
+    def _apply_pipeline_button_style(self):
+        self.btn_pipeline_run.setStyleSheet(
+            f"QPushButton{{background:transparent;"
+            f"color:{C['pipeline']};border:1px solid {C['pipeline']};"
+            f"border-radius:6px;font-size:11px;font-weight:600;padding:0;}}"
+            f"QPushButton:hover{{background:{C['pipeline']};color:#fff;}}")
+
+    def refresh_theme(self):
+        if hasattr(self, "btn_pipeline_run"):
+            self._apply_pipeline_button_style()
+        if hasattr(self, "model_combo"):
+            from nativelab.UI.buildUI import apply_combo_palette
+            apply_combo_palette(self.model_combo, C)
+            apply_combo_palette(self.summary_mode_combo, C)
 
     def _populate_models(self):
         self.model_combo.clear()
@@ -183,7 +194,7 @@ class InputBar(QWidget):
         if is_api_model_ref(path):
             cfg = getapi_registry().get_by_ref(path)
             if cfg:
-                self.family_badge.setText(f"API  ·  {cfg.provider}  ·  max {cfg.max_tokens}")
+                self.family_badge.setText(f"API  ·  {cfg.provider}  ·  provider output")
             else:
                 self.family_badge.setText("API")
             return

@@ -73,6 +73,7 @@ class LabsTab(QWidget):
         self.nav_list.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.nav_list.setSpacing(2)
+        self._nav_icon_names: dict[str, str] = {}
 
         self.stack = QStackedWidget()
         self.stack.setObjectName("labs_stack")
@@ -84,6 +85,7 @@ class LabsTab(QWidget):
             item.setIcon(app_icon(icon_name))
             item.setData(Qt.ItemDataRole.UserRole, name)
             self.nav_list.addItem(item)
+            self._nav_icon_names[name] = icon_name
 
             panel = PanelClass()
             self._panels[name] = panel
@@ -101,3 +103,19 @@ class LabsTab(QWidget):
     def _on_nav_changed(self, row: int):
         if 0 <= row < self.stack.count():
             self.stack.setCurrentIndex(row)
+
+    def refresh_icons(self):
+        for i in range(self.nav_list.count()):
+            item = self.nav_list.item(i)
+            if item is None:
+                continue
+            name = item.data(Qt.ItemDataRole.UserRole)
+            icon_name = self._nav_icon_names.get(str(name), "flask-conical")
+            item.setIcon(app_icon(icon_name))
+        for panel in self._panels.values():
+            refresh = getattr(panel, "refresh_icons", None)
+            if callable(refresh):
+                refresh()
+
+    def refresh_theme(self):
+        self.refresh_icons()

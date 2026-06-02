@@ -107,8 +107,8 @@ def _colorize_svg(svg: str, color: str) -> str:
     svg = svg.replace("currentColor", color)
     svg = re.sub(r'stroke="(?!none|transparent)[^"]*"', f'stroke="{color}"', svg)
     svg = re.sub(r"stroke='(?!none|transparent)[^']*'", f"stroke='{color}'", svg)
-    svg = re.sub(r'fill="currentColor"', f'fill="{color}"', svg)
-    svg = re.sub(r"fill='currentColor'", f"fill='{color}'", svg)
+    svg = re.sub(r'fill="(?!none|transparent|url\()[^"]*"', f'fill="{color}"', svg)
+    svg = re.sub(r"fill='(?!none|transparent|url\()[^']*'", f"fill='{color}'", svg)
     return svg
 
 
@@ -118,7 +118,8 @@ def themed_icon_path(name: str) -> Path:
         return source
     theme = _current_theme()
     resolved = _resolved_icon_name(name)
-    target = ICON_CACHE_DIR / theme / f"{resolved}.svg"
+    color_key = "brand" if resolved in BRAND_ICON_NAMES else icon_color().lstrip("#")
+    target = ICON_CACHE_DIR / theme / color_key / f"{resolved}.svg"
     try:
         if target.exists() and target.stat().st_mtime >= source.stat().st_mtime:
             return target

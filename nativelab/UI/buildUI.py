@@ -1,9 +1,30 @@
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QApplication, QComboBox
+from PyQt6.QtWidgets import QApplication, QComboBox, QWidget
 from typing import Optional, Tuple
 
 from nativelab.UI.UI_const import C
+
+
+def palette_rgba(c: dict, key: str, alpha: float, fallback: str = "#695ceb") -> str:
+    """Return rgba(...) from a theme hex color."""
+    value = str(c.get(key, fallback) or fallback).strip()
+    if value.startswith("rgba"):
+        try:
+            parts = value[value.index("(") + 1:value.rindex(")")].split(",")
+            return f"rgba({int(parts[0])},{int(parts[1])},{int(parts[2])},{alpha})"
+        except Exception:
+            value = fallback
+    if not value.startswith("#"):
+        value = fallback
+    value = value.lstrip("#")
+    if len(value) == 3:
+        value = "".join(ch * 2 for ch in value)
+    try:
+        r, g, b = int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+    except Exception:
+        r, g, b = 105, 92, 235
+    return f"rgba({r},{g},{b},{alpha})"
 
 
 def build_qpalette(c: dict) -> QPalette:
@@ -76,6 +97,65 @@ def apply_combo_palette(combo: QComboBox, c: dict) -> QComboBox:
     return combo
 
 
+def apply_ide_density(root) -> None:
+    """Make layouts closer to compact IDE density without repeatedly shrinking."""
+    if root is None:
+        return
+
+    def _compact(v: int, cap: int) -> int:
+        if v <= 2:
+            return v
+        return max(2, min(cap, int(round(v * 0.72))))
+
+    widgets = []
+    if isinstance(root, QWidget):
+        widgets.append(root)
+    try:
+        widgets.extend(root.findChildren(QWidget))
+    except Exception:
+        pass
+
+    for widget in widgets:
+        try:
+            layout = widget.layout()
+        except Exception:
+            layout = None
+        if layout is None or bool(layout.property("_nativelab_compact_density")):
+            continue
+        try:
+            margins = layout.contentsMargins()
+            layout.setContentsMargins(
+                _compact(margins.left(), 16),
+                _compact(margins.top(), 14),
+                _compact(margins.right(), 16),
+                _compact(margins.bottom(), 14),
+            )
+            spacing = layout.spacing()
+            if spacing > 0:
+                layout.setSpacing(_compact(spacing, 10))
+            layout.setProperty("_nativelab_compact_density", True)
+        except Exception:
+            pass
+
+
+def refresh_themed_widgets(root) -> None:
+    """Call refresh_theme on custom widgets after the shared palette changes."""
+    widgets = []
+    if root is not None:
+        widgets.append(root)
+    try:
+        widgets.extend(root.findChildren(QWidget))
+    except Exception:
+        pass
+    for widget in widgets:
+        refresh = getattr(widget, "refresh_theme", None)
+        if callable(refresh):
+            try:
+                refresh()
+            except Exception:
+                pass
+
+
 def apply_theme_palette(root, c: dict) -> None:
     """Apply the app palette and force existing combo popups off default colors."""
     pal = build_qpalette(c)
@@ -88,6 +168,7 @@ def apply_theme_palette(root, c: dict) -> None:
         root.setPalette(pal)
     except Exception:
         pass
+    apply_ide_density(root)
     combos = []
     if isinstance(root, QComboBox):
         combos.append(root)
@@ -97,6 +178,7 @@ def apply_theme_palette(root, c: dict) -> None:
         pass
     for combo in combos:
         apply_combo_palette(combo, c)
+    refresh_themed_widgets(root)
 
 
 def _available_geometry(widget=None):
@@ -205,9 +287,13 @@ def build_qss(c: dict) -> str:
     """Generate a complete Qt stylesheet from a colour palette dict."""
     _FUI = "'Inter','Segoe UI','SF Pro Display',system-ui,-apple-system,sans-serif"
     _is_light = c["bg0"].startswith("#f") or c["bg0"].startswith("#e")
-    _acc_r, _acc_g, _acc_b = (
-        (74, 118, 82) if _is_light else (105, 92, 235)
-    )
+    accent = str(c.get("acc", "#695ceb")).lstrip("#")
+    if len(accent) == 3:
+        accent = "".join(ch * 2 for ch in accent)
+    try:
+        _acc_r, _acc_g, _acc_b = int(accent[0:2], 16), int(accent[2:4], 16), int(accent[4:6], 16)
+    except Exception:
+        _acc_r, _acc_g, _acc_b = (105, 92, 235)
     def rgba(a): return f"rgba({_acc_r},{_acc_g},{_acc_b},{a})"
 
     return f"""
@@ -221,7 +307,7 @@ QMainWindow, QDialog {{
 }}
 * {{
     font-family:{_FUI};
-    font-size:13px;
+    font-size:12px;
     color:{c['txt']};
 }}
 QWidget {{
@@ -261,15 +347,15 @@ QTextEdit#thinking_te {{
     background:transparent;
     color:{c['txt2']};
     border:none;
-    padding:10px;
+    padding:8px;
     font-size:11px;
 }}
 QPushButton#thinking_toggle {{
     background:{c['bg2']};
     color:{c['txt2']};
     border:1px solid {c['bdr']};
-    border-radius:8px;
-    padding:8px 16px;
+    border-radius:7px;
+    padding:6px 12px;
     text-align:left;
     font-size:12px;
     font-weight:500;
@@ -309,10 +395,10 @@ QTextEdit, QPlainTextEdit {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {c['bdr']};
-    border-radius:9px;
-    padding:9px 13px;
-    font-size:13px;
-    line-height:1.6;
+    border-radius:7px;
+    padding:7px 10px;
+    font-size:12px;
+    line-height:1.45;
     selection-background-color:{rgba(0.28)};
 }}
 QTextEdit:focus, QPlainTextEdit:focus {{
@@ -323,9 +409,9 @@ QLineEdit {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {c['bdr']};
-    border-radius:7px;
-    padding:6px 12px;
-    font-size:13px;
+    border-radius:6px;
+    padding:4px 9px;
+    font-size:12px;
     selection-background-color:{rgba(0.28)};
 }}
 QLineEdit:focus {{
@@ -338,10 +424,10 @@ QPushButton {{
     background:{c['surface']};
     color:{c['txt2']};
     border:1px solid {c['bdr']};
-    border-radius:7px;
-    padding:6px 16px;
-    min-height:30px;
-    font-size:13px;
+    border-radius:6px;
+    padding:4px 12px;
+    min-height:26px;
+    font-size:12px;
     font-weight:500;
     letter-spacing:0.1px;
 }}
@@ -367,8 +453,8 @@ QPushButton#btn_send {{
     color:#ffffff;
     border:none;
     font-weight:600;
-    border-radius:8px;
-    font-size:13px;
+    border-radius:7px;
+    font-size:12px;
     letter-spacing:0.2px;
 }}
 QPushButton#btn_send:hover  {{ background:{c['acc2']}; color:#ffffff; }}
@@ -379,7 +465,7 @@ QPushButton#btn_stop {{
     color:#ffffff;
     border:none;
     font-weight:600;
-    border-radius:8px;
+    border-radius:7px;
 }}
 QPushButton#btn_stop:hover {{ background:#d9413a; }}
 
@@ -388,8 +474,8 @@ QPushButton#btn_new {{
     color:#ffffff;
     border:none;
     font-weight:700;
-    border-radius:8px;
-    font-size:13px;
+    border-radius:7px;
+    font-size:12px;
 }}
 QPushButton#btn_new:hover {{ background:{c['acc']}; color:#ffffff; }}
 
@@ -401,11 +487,11 @@ QListWidget {{
     font-size:13px;
 }}
 QListWidget::item {{
-    padding:8px 12px;
-    border-radius:7px;
+    padding:6px 10px;
+    border-radius:6px;
     margin:1px 4px;
     color:{c['txt2']};
-    font-size:13px;
+    font-size:12px;
 }}
 QListWidget::item:selected {{
     background:{rgba(0.16)};
@@ -423,10 +509,10 @@ QTabBar {{ background:transparent; }}
 QTabBar::tab {{
     background:transparent;
     color:{c['txt']};
-    padding:10px 22px;
+    padding:6px 14px;
     border:none;
     border-bottom:2px solid transparent;
-    font-size:13px;
+    font-size:12px;
     font-weight:500;
     margin-right:1px;
 }}
@@ -445,10 +531,10 @@ QComboBox {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {c['bdr']};
-    border-radius:7px;
-    padding:6px 12px;
-    min-height:30px;
-    font-size:13px;
+    border-radius:6px;
+    padding:4px 9px;
+    min-height:26px;
+    font-size:12px;
 }}
 QComboBox:hover  {{ border-color:{c['bdr2']}; background:{c['surface2']}; }}
 QComboBox:focus  {{ border-color:{rgba(0.55)}; }}
@@ -456,16 +542,16 @@ QComboBox QAbstractItemView, QComboBox QListView {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {c['bdr2']};
-    border-radius:8px;
-    padding:4px;
+    border-radius:6px;
+    padding:3px;
     margin:1px;
     selection-background-color:{rgba(0.20)};
     selection-color:{c['txt']};
     outline:none;
-    font-size:13px;
+    font-size:12px;
 }}
-QComboBox::drop-down {{ border:none; width:22px; }}
-QComboBox QAbstractItemView::item {{ border-radius:6px; padding:6px 10px; color:{c['txt']}; }}
+QComboBox::drop-down {{ border:none; width:20px; }}
+QComboBox QAbstractItemView::item {{ border-radius:5px; padding:5px 8px; color:{c['txt']}; }}
 QComboBox QAbstractItemView::item:selected,
 QComboBox QAbstractItemView::item:hover {{
     background:{c['acc_dim']};
@@ -495,7 +581,7 @@ QSlider::sub-page:horizontal {{
 }}
 
 /* ── Checkboxes ──────────────────────────────────── */
-QCheckBox {{ color:{c['txt']}; spacing:8px; font-size:13px; }}
+QCheckBox {{ color:{c['txt']}; spacing:7px; font-size:12px; }}
 QCheckBox::indicator {{
     width:16px; height:16px;
     background:{c['surface']};
@@ -510,8 +596,8 @@ QCheckBox::indicator:hover {{ border-color:{rgba(0.60)}; }}
 /* ── Group boxes ─────────────────────────────────── */
 QGroupBox {{
     border:1px solid {c['bdr']};
-    border-radius:9px;
-    margin-top:12px; padding-top:12px;
+    border-radius:7px;
+    margin-top:10px; padding-top:10px;
     color:{c['txt2']};
     font-size:11px; font-weight:600; letter-spacing:0.5px;
 }}
@@ -533,7 +619,7 @@ QStatusBar {{
     background:{c['bg0']};
     color:{c['txt3']};
     border-top:1px solid {c['bdr']};
-    font-size:11px; padding:0 10px;
+    font-size:10px; padding:0 6px;
 }}
 
 /* ── Menu bar ────────────────────────────────────── */
@@ -574,7 +660,7 @@ QToolTip {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {rgba(0.30)};
-    padding:6px 12px; border-radius:7px; font-size:12px;
+    padding:5px 10px; border-radius:6px; font-size:11px;
 }}
 
 /* ── Frames / separators ─────────────────────────── */
@@ -585,8 +671,8 @@ QSpinBox, QDoubleSpinBox {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {c['bdr']};
-    border-radius:7px;
-    padding:5px 10px; font-size:13px;
+    border-radius:6px;
+    padding:4px 8px; font-size:12px;
 }}
 QSpinBox:focus, QDoubleSpinBox:focus {{ border-color:{rgba(0.55)}; }}
 QSpinBox::up-button,   QSpinBox::down-button,
@@ -602,7 +688,7 @@ QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {{
 QFrame#tab_card {{
     background:{c['surface']};
     border:1px solid {c['bdr']};
-    border-radius:12px;
+    border-radius:8px;
 }}
 QFrame#tab_card QLabel {{
     background:transparent;
@@ -614,8 +700,8 @@ QPushButton#code_btn {{
     background:{c['bg2']};
     color:{c['txt2']};
     border:1px solid {c['bdr']};
-    border-radius:8px;
-    padding:4px 8px;
+    border-radius:6px;
+    padding:3px 7px;
     font-size:12px;
 }}
 QPushButton#code_btn:checked {{
@@ -633,8 +719,8 @@ QComboBox#summary_combo {{
     background:{c['bg2']};
     color:{c['acc']};
     border:1px solid {c['bdr']};
-    border-radius:8px;
-    padding:3px 8px;
+    border-radius:6px;
+    padding:2px 7px;
     font-size:10px;
 }}
 QLabel#pipeline_badge {{
@@ -997,21 +1083,21 @@ QLabel#labs_sidebar_hdr {{
     font-size:9px;
     font-weight:700;
     letter-spacing:1.2px;
-    padding:14px 16px 6px 16px;
+    padding:9px 10px 4px 10px;
     background:transparent;
 }}
 QListWidget#labs_nav {{
     background:transparent;
     border:none;
     outline:none;
-    padding:0 6px;
+    padding:0 4px;
 }}
 QListWidget#labs_nav::item {{
-    padding:9px 10px;
-    border-radius:7px;
+    padding:6px 8px;
+    border-radius:6px;
     margin:1px 0;
     color:{c['txt2']};
-    font-size:13px;
+    font-size:12px;
     font-weight:500;
 }}
 QListWidget#labs_nav::item:selected {{
@@ -1038,11 +1124,11 @@ QPushButton#labs_generate_btn {{
     color:#ffffff;
     border:none;
     font-weight:600;
-    border-radius:8px;
-    font-size:13px;
+    border-radius:7px;
+    font-size:12px;
     letter-spacing:0.15px;
-    min-height:38px;
-    padding:0 24px;
+    min-height:32px;
+    padding:0 18px;
 }}
 QPushButton#labs_generate_btn:hover  {{ background:{c['acc2']}; color:#ffffff; }}
 QPushButton#labs_generate_btn:pressed {{ background:{c['glow']}; }}
@@ -1055,8 +1141,8 @@ QTextEdit#labs_preview_te {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {c['bdr']};
-    border-radius:9px;
-    padding:10px 14px;
+    border-radius:7px;
+    padding:7px 10px;
     font-size:12px;
     selection-background-color:{c['acc_dim']};
 }}
@@ -1095,7 +1181,7 @@ QLineEdit#input {{
     border:1px solid {c['bdr']};
     border-radius:6px;
     color:{c['txt']};
-    padding:0 10px;
+    padding:0 8px;
     font-size:12px;
 }}
 QLineEdit#input:focus {{
@@ -1114,7 +1200,7 @@ QWidget#card_inner QTextEdit {{
     border:1px solid {c['bdr']};
     border-radius:6px;
     color:{c['txt']};
-    padding:6px 10px;
+    padding:5px 8px;
     font-size:11px;
 }}
 QWidget#card_inner QTextEdit:focus {{
@@ -1127,7 +1213,7 @@ QComboBox#combo {{
     border:1px solid {c['bdr']};
     border-radius:6px;
     color:{c['txt']};
-    padding:0 10px;
+    padding:0 8px;
     font-size:12px;
 }}
 QComboBox#combo:hover {{
@@ -1139,7 +1225,7 @@ QComboBox#combo:focus {{
 }}
 QComboBox#combo::drop-down {{
     border:none;
-    width:22px;
+    width:20px;
 }}
 QComboBox#combo QAbstractItemView {{
     background:{c['bg2']};
@@ -1158,11 +1244,11 @@ QComboBox#combo QAbstractItemView {{
 QPushButton#outline_btn {{
     background:transparent;
     border:1px solid {c['bdr2']};
-    border-radius:7px;
+    border-radius:6px;
     color:{c['txt2']};
     font-size:11px;
     font-weight:600;
-    padding:0 16px;
+    padding:0 12px;
 }}
 QPushButton#outline_btn:hover {{
     background:{c['bdr2']};
@@ -1213,7 +1299,7 @@ QFrame#card QLabel {{
 QScrollArea#card_scroll {{
     background:{c['bg2']};
     border:1px solid {c['bdr']};
-    border-radius:10px;
+    border-radius:8px;
 }}
 QScrollArea#card_scroll > QWidget > QWidget {{
     background:{c['bg2']};
@@ -1262,7 +1348,7 @@ QLabel#labs_sidebar_hdr {{
     font-size:9px;
     font-weight:700;
     letter-spacing:1.2px;
-    padding:14px 16px 6px 16px;
+    padding:9px 10px 4px 10px;
     background:transparent;
 }}
  
@@ -1271,14 +1357,14 @@ QListWidget#labs_nav {{
     background:transparent;
     border:none;
     outline:none;
-    padding:0 6px;
+    padding:0 4px;
 }}
 QListWidget#labs_nav::item {{
-    padding:9px 10px;
-    border-radius:7px;
+    padding:6px 8px;
+    border-radius:6px;
     margin:1px 0;
     color:{c['txt2']};
-    font-size:13px;
+    font-size:12px;
     font-weight:500;
 }}
 QListWidget#labs_nav::item:selected {{
@@ -1312,11 +1398,11 @@ QPushButton#labs_generate_btn {{
     color:#ffffff;
     border:none;
     font-weight:600;
-    border-radius:8px;
-    font-size:13px;
+    border-radius:7px;
+    font-size:12px;
     letter-spacing:0.15px;
-    min-height:38px;
-    padding:0 24px;
+    min-height:32px;
+    padding:0 18px;
 }}
 QPushButton#labs_generate_btn:hover {{
     background:{c['acc2']};
@@ -1336,10 +1422,10 @@ QTextEdit#labs_preview_te {{
     background:{c['surface']};
     color:{c['txt']};
     border:1px solid {c['bdr']};
-    border-radius:9px;
-    padding:10px 14px;
+    border-radius:7px;
+    padding:7px 10px;
     font-size:12px;
-    line-height:1.6;
+    line-height:1.45;
     selection-background-color:{c['acc_dim']};
 }}
 QTextEdit#labs_preview_te:focus {{

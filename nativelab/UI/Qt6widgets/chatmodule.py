@@ -5,6 +5,7 @@ def _ui():
 from nativelab.UI.Qt6widgets.refrencepanels import ReferencePanelV2
 from nativelab.GlobalConfig.config_global import RamWatchdog
 from nativelab.UI.icons import set_button_icon
+from nativelab.UI.buildUI import palette_rgba
 from .chatarea import ChatArea
 from .inputbar import InputBar
 class ChatModule(QWidget):
@@ -30,21 +31,14 @@ class ChatModule(QWidget):
 
         # Top bar with ref toggle
         topbar = QHBoxLayout()
-        topbar.setContentsMargins(8, 4, 8, 0)
+        topbar.setContentsMargins(6, 3, 6, 0)
         topbar.setSpacing(6)
         topbar.addStretch()
         self.ref_toggle_btn = QPushButton("References  (0)")
         set_button_icon(self.ref_toggle_btn, "reference", "References  (0)")
-        self.ref_toggle_btn.setFixedHeight(28)
+        self.ref_toggle_btn.setFixedHeight(26)
         self.ref_toggle_btn.setCheckable(True)
-        self.ref_toggle_btn.setStyleSheet(
-            f"QPushButton{{background:transparent;color:{_ui().C['txt3']};"
-            f"border:1px solid {_ui().C['bdr']};border-radius:6px;"
-            f"font-size:11px;padding:0 13px;font-weight:500;letter-spacing:0.1px;}}"
-            f"QPushButton:checked{{background:rgba(105,92,235,0.14);color:{_ui().C['acc2']};"
-            f"border-color:rgba(105,92,235,0.36);font-weight:600;}}"
-            f"QPushButton:hover{{color:{_ui().C['txt']};border-color:{_ui().C['bdr2']};}}"
-        ) 
+        self._apply_ref_toggle_style()
         self.ref_toggle_btn.clicked.connect(self._toggle_refs)
         topbar.addWidget(self.ref_toggle_btn)
         root.addLayout(topbar)
@@ -81,6 +75,25 @@ class ChatModule(QWidget):
 
         self.setLayout(root)
 
+    def _apply_ref_toggle_style(self):
+        c = _ui().C
+        self.ref_toggle_btn.setStyleSheet(
+            f"QPushButton{{background:transparent;color:{c['txt3']};"
+            f"border:1px solid {c['bdr']};border-radius:6px;"
+            f"font-size:11px;padding:0 10px;font-weight:500;letter-spacing:0.1px;}}"
+            f"QPushButton:checked{{background:{palette_rgba(c, 'acc', 0.14)};color:{c['acc2']};"
+            f"border-color:{palette_rgba(c, 'acc', 0.36)};font-weight:600;}}"
+            f"QPushButton:hover{{color:{c['txt']};border-color:{c['bdr2']};}}"
+        )
+
+    def refresh_theme(self):
+        if hasattr(self, "ref_toggle_btn"):
+            self._apply_ref_toggle_style()
+        for child in (getattr(self, "input_bar", None), getattr(self, "ref_panel", None)):
+            refresh = getattr(child, "refresh_theme", None)
+            if callable(refresh):
+                refresh()
+
     def set_session(self, session_id: str):
         self._session_id = session_id
         self.ref_panel.update_session(session_id)
@@ -88,7 +101,7 @@ class ChatModule(QWidget):
 
     def _toggle_refs(self, checked: bool):
         self._refs_visible = checked
-        TARGET_W = 260
+        TARGET_W = 248
         if checked:
             self.ref_panel.setVisible(True)
             self.ref_panel.setMaximumWidth(0)

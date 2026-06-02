@@ -22,7 +22,7 @@ from nativelab.imports.import_global import (
     QTextEdit, QFrame, QScrollArea, QFileDialog, QMessageBox,
     QFont, Qt, QSplitter, QSizePolicy, QDialog, QColor,
 )
-from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
+from nativelab.UI.icons import refresh_widget_icons, set_button_icon, set_label_icon, set_status_label
 from nativelab.UI.buildUI import prepare_adaptive_window
 from nativelab.UI.toggle import ToggleSwitch
 
@@ -353,6 +353,12 @@ class CodeEditPanel(QWidget):
         self._endpoints = endpoints
         endpoints.status_changed.connect(self._on_status_changed)
         self._on_status_changed(endpoints.status_text)
+
+    def refresh_icons(self):
+        refresh_widget_icons(self)
+
+    def refresh_theme(self):
+        self.refresh_icons()
 
     def _build(self):
         root = QVBoxLayout(self)
