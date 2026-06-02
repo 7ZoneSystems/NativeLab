@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nativelab"
-version = "0.3.2"
+version = "0.3.3"
 description = "NativeLab AI framework"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -45,4 +45,13 @@ where = ["."]
 include = ["nativelab*"]
 
 [tool.setuptools.package-data]
-nativelab = ["*.png", "*.ico", "assets/icons/*.svg", "integrations/examples/*"]
+nativelab = [
+    "*.png",
+    "*.ico",
+    "assets/icons/*.svg",
+    "assets/katex/LICENSE",
+    "assets/katex/*.css",
+    "assets/katex/*.js",
+    "assets/katex/fonts/*",
+    "integrations/examples/*",
+]
