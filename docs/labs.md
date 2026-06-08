@@ -52,10 +52,10 @@ or functions, or auto budget reset. Auto budget reset uses approximate tokens
 for py-to-doc's carried history. For local GGUF models, selecting an auto
 budget reloads the local model/server to the same context window before
 generation begins. Auto mode can also reload the active local model after the
-current file when available RAM drops below the configured GB/MB threshold,
-clearing backend caches before the next file starts. If a class/function/file
-generation crosses the budget, that generation finishes and the next section
-starts with fresh carried context.
+current section finishes when available RAM drops below the configured GB/MB
+threshold, clearing backend caches before the next LLM section starts. If a
+class/function/file generation crosses the budget, that generation finishes
+and the next section starts with fresh carried context.
 
 ### structured-edit lab
 

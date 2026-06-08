@@ -160,8 +160,9 @@ finishes and the next class/function/file starts with fresh py-to-doc context.
 For local GGUF models, auto mode reloads the local model/server with the
 selected budget so py-to-doc and llama.cpp use the same context window.
 Add `--auto-model-reload --reload-free-ram-gb N --reload-free-ram-mb N` to
-restart the active local model between files when available RAM falls below
-that threshold.
+restart the active local model after the current section finishes when
+available RAM falls below that threshold. The reload runs before the next LLM
+section starts.
 
 ## Pipelines
 

@@ -51,6 +51,30 @@ class LabsTab(QWidget):
             if hasattr(panel, "set_endpoints"):
                 panel.set_endpoints(endpoints)
 
+    def busy_panel_names(self) -> list[str]:
+        """Return lab names whose background workers are still running."""
+        busy: list[str] = []
+        for name, panel in self._panels.items():
+            is_busy = getattr(panel, "is_busy", None)
+            if callable(is_busy):
+                try:
+                    if is_busy():
+                        busy.append(name)
+                    continue
+                except Exception:
+                    pass
+            worker = getattr(panel, "_worker", None)
+            if worker is not None and hasattr(worker, "isRunning"):
+                try:
+                    if worker.isRunning():
+                        busy.append(name)
+                except Exception:
+                    pass
+        return busy
+
+    def is_busy(self) -> bool:
+        return bool(self.busy_panel_names())
+
     # ── build ────────────────────────────────────────────────────────────────
     def _build(self):
         root = QHBoxLayout(self)

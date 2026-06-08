@@ -13,6 +13,7 @@ import fnmatch
 import hashlib
 import json
 import os
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, List, Optional, Union
@@ -66,6 +67,11 @@ AUTO_CONTEXT_MAX = MAX_CONTEXT_TOKENS
 AUTO_CONTEXT_DEFAULT = 4096
 AUTO_RELOAD_RAM_GB_DEFAULT = 1
 AUTO_RELOAD_RAM_MB_DEFAULT = 0
+AUTO_RELOAD_REARM_MARGIN_MB = 512
+AUTO_RELOAD_DROP_MARGIN_MB = 768
+AUTO_RELOAD_MIN_STEPS_BETWEEN = 2
+AUTO_RELOAD_MIN_SECONDS_BETWEEN = 45
+AUTO_RELOAD_MAX_FAILURES = 2
 
 DEFAULT_PROJECT_IGNORE_DIRS = {
     ".git",
@@ -326,6 +332,15 @@ class PyToDocWorker(QThread):
         self._context_overflow_pending = False
         self._budget_warned = False
         self._ram_watch_warned = False
+        self._ram_reload_pending = False
+        self._ram_reload_pending_free_mb: Optional[int] = None
+        self._ram_reload_pending_after = ""
+        self._ram_reload_armed = True
+        self._ram_reload_steps_since_reload = AUTO_RELOAD_MIN_STEPS_BETWEEN
+        self._ram_reload_last_at = 0.0
+        self._ram_reload_post_free_mb: Optional[int] = None
+        self._ram_reload_failures = 0
+        self._ram_reload_last_skip_reason = ""
 
     def abort(self):
         self._abort = True
@@ -418,7 +433,7 @@ class PyToDocWorker(QThread):
             if self.auto_model_reload and self.auto_reload_free_ram_mb > 0:
                 self._log(
                     "Auto model reload: enabled when free RAM drops below "
-                    f"{self.auto_reload_free_ram_mb:,} MB after a file"
+                    f"{self.auto_reload_free_ram_mb:,} MB after a completed section"
                 )
             try:
                 loaded_ctx = int(getattr(self.endpoints, "ctx_value", AUTO_CONTEXT_DEFAULT))
@@ -479,6 +494,142 @@ class PyToDocWorker(QThread):
                 seen.add(key)
         return out
 
+    @staticmethod
+    def _write_state_file(path: Path, state: dict[str, Any]):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        raw = json.dumps(state, indent=2, ensure_ascii=False)
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text(raw, encoding="utf-8")
+        tmp.replace(path)
+
+    @staticmethod
+    def _text_file_end(path: Path) -> int:
+        with path.open("r", encoding="utf-8", errors="replace") as fh:
+            fh.seek(0, 2)
+            return int(fh.tell())
+
+    @classmethod
+    def _repair_resume_state_outputs(
+        cls,
+        state: dict[str, Any],
+        *,
+        log_cb=None,
+    ) -> bool:
+        files = state.get("files")
+        if not isinstance(files, dict):
+            return False
+        changed = False
+        completed = set(state.get("completed_files", []) or [])
+        file_list = [str(Path(p).resolve()) for p in (state.get("file_list", []) or [])]
+
+        for raw_key, info in list(files.items()):
+            if not isinstance(info, dict):
+                continue
+            key = str(Path(raw_key).resolve())
+            if key != raw_key:
+                files[key] = files.pop(raw_key)
+                changed = True
+            source_sig = cls._source_signature(key)
+            if info.get("source") and source_sig != info.get("source"):
+                info["steps"] = []
+                info["offset"] = 0
+                info["completed"] = False
+                info["source"] = source_sig
+                completed.discard(key)
+                changed = True
+                if log_cb:
+                    log_cb(f"Recovered checkpoint: source changed, regenerating {Path(key).name}")
+                continue
+
+            out_file = Path(str(info.get("out_file", "")))
+            if not out_file.exists():
+                if info.get("steps") or info.get("offset") or info.get("completed"):
+                    info["steps"] = []
+                    info["offset"] = 0
+                    info["completed"] = False
+                    completed.discard(key)
+                    changed = True
+                    if log_cb:
+                        log_cb(f"Recovered checkpoint: missing output will regenerate {Path(key).name}")
+                continue
+
+            try:
+                end = cls._text_file_end(out_file)
+            except Exception:
+                end = 0
+            try:
+                offset = int(info.get("offset", 0) or 0)
+            except Exception:
+                offset = 0
+            if offset < 0 or offset > end:
+                info["offset"] = max(0, min(offset, end))
+                info["completed"] = False
+                completed.discard(key)
+                changed = True
+                if log_cb:
+                    log_cb(f"Recovered checkpoint: repaired invalid offset for {Path(key).name}")
+            if end <= 0 and (info.get("steps") or info.get("completed")):
+                info["steps"] = []
+                info["offset"] = 0
+                info["completed"] = False
+                completed.discard(key)
+                changed = True
+            elif info.get("completed"):
+                completed.add(key)
+
+        completed = {p for p in completed if p in files}
+        if sorted(completed) != sorted(state.get("completed_files", []) or []):
+            state["completed_files"] = sorted(completed)
+            changed = True
+        current = str(state.get("current_file", "") or "")
+        if current and current not in files:
+            state["current_file"] = ""
+            changed = True
+        if not state.get("current_file"):
+            for path in file_list:
+                info = files.get(path, {})
+                if not info.get("completed"):
+                    state["current_file"] = path
+                    changed = True
+                    break
+        return changed
+
+    @classmethod
+    def recover_state_file_for_resume(
+        cls,
+        path: Path,
+        state: dict[str, Any],
+        *,
+        recover_running: bool = True,
+        log_cb=None,
+    ) -> tuple[dict[str, Any], bool]:
+        changed = cls._repair_resume_state_outputs(state, log_cb=log_cb)
+        status = str(state.get("status", "") or "")
+        if recover_running and status == "running":
+            state["status"] = "paused"
+            state["recovered_from_status"] = "running"
+            state["recovered_at"] = datetime.now().isoformat(timespec="seconds")
+            state["recovery_reason"] = (
+                "Previous py-to-doc run ended without writing a paused, "
+                "complete, aborted, or failed status."
+            )
+            changed = True
+            if log_cb:
+                log_cb(f"Recovered stale running checkpoint -> {path}")
+        if state.get("status") == "complete":
+            file_list = state.get("file_list", []) or []
+            completed = set(state.get("completed_files", []) or [])
+            if len(completed) < len(file_list):
+                state["status"] = "paused"
+                state["recovered_from_status"] = "complete"
+                state["recovered_at"] = datetime.now().isoformat(timespec="seconds")
+                state["recovery_reason"] = "Complete checkpoint was missing completed files."
+                changed = True
+        if changed:
+            state["updated_at"] = datetime.now().isoformat(timespec="seconds")
+            cls._write_state_file(path, state)
+        return state, changed
+
     def _load_project_state(self) -> Optional[dict[str, Any]]:
         if not self._project_enabled():
             return None
@@ -496,6 +647,12 @@ class PyToDocWorker(QThread):
                 continue
             if state.get("project_key") == self._project_key():
                 self._state_path = path
+                state, _ = self.recover_state_file_for_resume(
+                    path,
+                    state,
+                    recover_running=True,
+                    log_cb=self._log,
+                )
                 return state
             if (
                 self.resume_required
@@ -506,6 +663,12 @@ class PyToDocWorker(QThread):
             ):
                 self._log("Selected checkpoint loaded; settings metadata did not match current controls")
                 self._state_path = path
+                state, _ = self.recover_state_file_for_resume(
+                    path,
+                    state,
+                    recover_running=True,
+                    log_cb=self._log,
+                )
                 return state
         if found_any:
             self._log("Recovery checkpoint ignored: project, output folder, or settings changed")
@@ -539,7 +702,6 @@ class PyToDocWorker(QThread):
         self._state["history"] = list(self._history)
         self._state["context_overflow_pending"] = bool(self._context_overflow_pending)
         self._state["file_list"] = [str(Path(p).resolve()) for p in self.file_list]
-        raw = json.dumps(self._state, indent=2, ensure_ascii=False)
         targets = [self._state_path, PYTODOC_TEMP_STATE, self._job_state_path()]
         seen: set[str] = set()
         for target in targets:
@@ -547,10 +709,7 @@ class PyToDocWorker(QThread):
             if key in seen:
                 continue
             seen.add(key)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            tmp = target.with_name(target.name + ".tmp")
-            tmp.write_text(raw, encoding="utf-8")
-            tmp.replace(target)
+            self._write_state_file(target, self._state)
 
     def _prepare_project_state(self):
         if not self._project_enabled():
@@ -720,6 +879,14 @@ class PyToDocWorker(QThread):
             return False
         return True
 
+    def _save_failed_state_for_resume(self, exc: Exception):
+        if not self._project_enabled() or self._state is None:
+            return
+        self._state["last_error"] = str(exc)
+        self._state["failed_at"] = datetime.now().isoformat(timespec="seconds")
+        self._state["recovery_reason"] = "Worker error was converted into a resumable pause."
+        self._save_project_state("paused")
+
     def _run_step(self, fh, file_path: str, step_id: str, build_text) -> bool:
         if self._step_done(file_path, step_id):
             return True
@@ -733,6 +900,7 @@ class PyToDocWorker(QThread):
             return False
         self._write(fh, text)
         self._mark_step(file_path, step_id, fh)
+        self._maybe_schedule_auto_reload_after_step(file_path, step_id)
         return self._should_continue()
 
     def _wait_for_engine_ready(self) -> bool:
@@ -748,6 +916,8 @@ class PyToDocWorker(QThread):
             return False
 
     def _call_llm(self, system_prompt: str, code: str) -> str:
+        if not self._reload_active_model_before_next_llm():
+            raise RuntimeError("py-to-doc stopped before the next LLM section")
         if not self._wait_for_engine_ready():
             raise RuntimeError(
                 "No LLM engine is loaded. Load a model first, then rerun py-to-doc."
@@ -777,17 +947,121 @@ class PyToDocWorker(QThread):
         except Exception:
             return None
 
-    def _maybe_auto_reload_after_file(self, file_path: str, *, has_more_files: bool):
+    def _auto_model_reload_enabled(self) -> bool:
+        return (
+            self.context_policy == CONTEXT_POLICY_AUTO
+            and self.auto_model_reload
+            and self.auto_reload_free_ram_mb > 0
+        )
+
+    def _clear_pending_auto_reload(self):
+        self._ram_reload_pending = False
+        self._ram_reload_pending_free_mb = None
+        self._ram_reload_pending_after = ""
+
+    def _auto_reload_rearm_margin_mb(self) -> int:
+        return max(
+            AUTO_RELOAD_REARM_MARGIN_MB,
+            min(2048, int(self.auto_reload_free_ram_mb * 0.10)),
+        )
+
+    def _auto_reload_drop_margin_mb(self, baseline_mb: Optional[int] = None) -> int:
+        margin = max(
+            AUTO_RELOAD_DROP_MARGIN_MB,
+            min(2048, int(self.auto_reload_free_ram_mb * 0.08)),
+        )
+        if baseline_mb is not None and baseline_mb > 0:
+            margin = min(margin, max(256, baseline_mb // 2))
+        return margin
+
+    def _auto_reload_cooldown_ready(self) -> bool:
+        if self._ram_reload_steps_since_reload < AUTO_RELOAD_MIN_STEPS_BETWEEN:
+            return False
+        if self._ram_reload_last_at <= 0:
+            return True
+        return (time.monotonic() - self._ram_reload_last_at) >= AUTO_RELOAD_MIN_SECONDS_BETWEEN
+
+    def _log_auto_reload_skip_once(self, reason: str):
+        if reason and reason != self._ram_reload_last_skip_reason:
+            self._log(reason)
+            self._ram_reload_last_skip_reason = reason
+
+    def _reset_auto_reload_skip_reason(self):
+        self._ram_reload_last_skip_reason = ""
+
+    def _update_auto_reload_arming(self, free_mb: int):
+        if self._ram_reload_armed:
+            return
+        rearm_mb = self.auto_reload_free_ram_mb + self._auto_reload_rearm_margin_mb()
+        if free_mb >= rearm_mb:
+            self._ram_reload_armed = True
+            self._ram_reload_post_free_mb = None
+            self._reset_auto_reload_skip_reason()
+            self._log(
+                "Auto model reload re-armed after RAM recovered "
+                f"to {free_mb:,} MB"
+            )
+            return
+        baseline = self._ram_reload_post_free_mb
+        if baseline is None:
+            return
+        drop_margin = self._auto_reload_drop_margin_mb(baseline)
+        if free_mb <= max(0, baseline - drop_margin):
+            self._ram_reload_armed = True
+            self._reset_auto_reload_skip_reason()
+            self._log(
+                "Auto model reload re-armed because free RAM dropped "
+                f"from post-reload baseline {baseline:,} MB to {free_mb:,} MB"
+            )
+
+    @staticmethod
+    def _step_label(file_path: str, step_id: str) -> str:
+        file_name = Path(file_path).name
+        parts = step_id.split(":")
+        if step_id == "overview":
+            return f"overview in {file_name}"
+        if step_id == "header":
+            return f"header in {file_name}"
+        if step_id == "global-functions-header":
+            return f"global functions header in {file_name}"
+        if parts[0] == "class" and len(parts) >= 2:
+            return f"class {parts[1]} in {file_name}"
+        if parts[0] == "method" and len(parts) >= 2:
+            return f"function {parts[1]} in {file_name}"
+        if parts[0] == "global" and len(parts) >= 2:
+            return f"function {parts[1]} in {file_name}"
+        if parts[0] == "class-end" and len(parts) >= 2:
+            return f"class {parts[1]} footer in {file_name}"
+        if step_id == "file-complete":
+            return f"file {file_name}"
+        return f"{step_id} in {file_name}"
+
+    def _can_auto_reload_active_model(self) -> bool:
+        if self.endpoints is None:
+            return False
+        try:
+            if getattr(self.endpoints, "is_loading", False):
+                self._log_auto_reload_skip_once(
+                    "Auto model reload skipped: model load is already in progress"
+                )
+                return False
+        except Exception:
+            pass
+        if getattr(self.endpoints, "can_reload_active_model", False):
+            return True
+        if not self._ram_watch_warned:
+            self._log("Auto model reload skipped: active backend cannot be reloaded by Labs")
+            self._ram_watch_warned = True
+        return False
+
+    def _maybe_schedule_auto_reload_after_step(self, file_path: str, step_id: str):
         if (
-            not has_more_files
-            or self.context_policy != CONTEXT_POLICY_AUTO
-            or not self.auto_model_reload
-            or self.auto_reload_free_ram_mb <= 0
+            self._ram_reload_pending
+            or not self._auto_model_reload_enabled()
         ):
             return
-        if self.endpoints is None:
-            return
-        if not getattr(self.endpoints, "can_reload_active_model", False):
+        self._ram_reload_steps_since_reload += 1
+        if not self._can_auto_reload_active_model():
             return
         free_mb = self._available_ram_mb()
         if free_mb is None:
@@ -796,23 +1070,134 @@ class PyToDocWorker(QThread):
                 self._ram_watch_warned = True
             return
         if free_mb >= self.auto_reload_free_ram_mb:
+            self._update_auto_reload_arming(free_mb)
+            self._reset_auto_reload_skip_reason()
+            return
+        self._update_auto_reload_arming(free_mb)
+        if not self._ram_reload_armed:
+            baseline = self._ram_reload_post_free_mb
+            if baseline is None:
+                self._log_auto_reload_skip_once(
+                    "Auto model reload held: waiting for RAM recovery before reloading again"
+                )
+            else:
+                drop_margin = self._auto_reload_drop_margin_mb(baseline)
+                self._log_auto_reload_skip_once(
+                    "Auto model reload held: RAM is still below threshold after "
+                    f"the last reload; next reload needs recovery or a drop below "
+                    f"{max(0, baseline - drop_margin):,} MB"
+                )
+            return
+        if not self._auto_reload_cooldown_ready():
+            self._log_auto_reload_skip_once(
+                "Auto model reload held: waiting for cooldown after the last reload"
+            )
             return
 
+        self._ram_reload_pending = True
+        self._ram_reload_pending_free_mb = free_mb
+        self._ram_reload_pending_after = self._step_label(file_path, step_id)
+        self._reset_auto_reload_skip_reason()
         self._log(
             f"Free RAM {free_mb:,} MB is below threshold "
-            f"{self.auto_reload_free_ram_mb:,} MB after {Path(file_path).name}; "
-            "reloading active local model"
+            f"{self.auto_reload_free_ram_mb:,} MB after "
+            f"{self._ram_reload_pending_after}; active task finished, "
+            "model will fully unload/reload before the next LLM section"
+        )
+
+    def _reload_active_model_before_next_llm(self) -> bool:
+        if not self._ram_reload_pending:
+            return True
+        if not self._should_continue():
+            return False
+        if not self._auto_model_reload_enabled():
+            self._clear_pending_auto_reload()
+            return True
+        if not self._can_auto_reload_active_model():
+            self._clear_pending_auto_reload()
+            return True
+
+        free_mb = self._available_ram_mb()
+        if free_mb is not None:
+            if free_mb >= self.auto_reload_free_ram_mb:
+                self._log(
+                    "Auto model reload cancelled: free RAM recovered to "
+                    f"{free_mb:,} MB before the next section"
+                )
+                self._clear_pending_auto_reload()
+                self._update_auto_reload_arming(free_mb)
+                return True
+            self._update_auto_reload_arming(free_mb)
+            if not self._ram_reload_armed:
+                self._clear_pending_auto_reload()
+                return True
+        if not self._auto_reload_cooldown_ready():
+            self._clear_pending_auto_reload()
+            return True
+        if free_mb is not None:
+            free_label = f"{free_mb:,} MB"
+        elif self._ram_reload_pending_free_mb is not None:
+            free_label = f"{self._ram_reload_pending_free_mb:,} MB"
+        else:
+            free_label = "unknown"
+        self._log(
+            "Auto model reload starting before next py-to-doc section "
+            f"(free RAM {free_label}; threshold "
+            f"{self.auto_reload_free_ram_mb:,} MB)"
         )
         self._reset_context()
         self._save_project_state("running")
         try:
             ok = bool(self.endpoints.request_active_model_reload())
         except Exception as exc:
+            self._ram_reload_failures += 1
+            self._clear_pending_auto_reload()
+            if self.endpoints is not None and getattr(self.endpoints, "is_loaded", False):
+                self._log(f"Auto model reload failed but current model is still ready: {exc}")
+                if self._ram_reload_failures >= AUTO_RELOAD_MAX_FAILURES:
+                    self.auto_model_reload = False
+                    self._log("Auto model reload disabled after repeated failures")
+                return True
             raise RuntimeError(f"Auto model reload failed: {exc}") from exc
         if not ok or not self._wait_for_engine_ready():
+            self._ram_reload_failures += 1
+            self._clear_pending_auto_reload()
+            if self.endpoints is not None and getattr(self.endpoints, "is_loaded", False):
+                self._log("Auto model reload failed; continuing with current model")
+                if self._ram_reload_failures >= AUTO_RELOAD_MAX_FAILURES:
+                    self.auto_model_reload = False
+                    self._log("Auto model reload disabled after repeated failures")
+                return True
             raise RuntimeError("Auto model reload failed; active model is not ready")
+        self._clear_pending_auto_reload()
+        self._ram_reload_failures = 0
+        self._ram_reload_steps_since_reload = 0
+        self._ram_reload_last_at = time.monotonic()
+        post_free_mb = self._available_ram_mb()
+        if post_free_mb is not None and post_free_mb < self.auto_reload_free_ram_mb:
+            self._ram_reload_armed = False
+            self._ram_reload_post_free_mb = post_free_mb
+            self._log(
+                "Auto model reload complete; free RAM is still below threshold "
+                f"({post_free_mb:,}/{self.auto_reload_free_ram_mb:,} MB), "
+                "so further reloads are paused until RAM recovers or drops again"
+            )
+        else:
+            self._ram_reload_armed = True
+            self._ram_reload_post_free_mb = post_free_mb
         self._save_project_state("running")
-        self._log("Auto model reload complete")
+        self._log("Auto model reload complete; continuing py-to-doc")
+        return True
+
+    def _maybe_auto_reload_after_file(self, file_path: str, *, has_more_files: bool):
+        if (
+            not has_more_files
+            or not self._auto_model_reload_enabled()
+        ):
+            return
+        if not self._ram_reload_pending:
+            self._maybe_schedule_auto_reload_after_step(file_path, "file-complete")
+        self._reload_active_model_before_next_llm()
 
     def _selected_context_value(self) -> int:
         if self.context_policy == CONTEXT_POLICY_AUTO:
@@ -871,6 +1256,7 @@ class PyToDocWorker(QThread):
         try:
             self._pipeline()
         except Exception as exc:
+            self._save_failed_state_for_resume(exc)
             self.error.emit(str(exc))
 
     def _pipeline(self):
@@ -1510,14 +1896,56 @@ class PyToDocPanel(QWidget):
         return te
 
     # ── saved project task helpers ───────────────────────────────────────────
-    @staticmethod
-    def _read_resume_state(path: Path) -> Optional[dict[str, Any]]:
+    def _active_resume_state_paths(self) -> set[str]:
+        worker = getattr(self, "_worker", None)
+        if worker is None:
+            return set()
+        try:
+            if not worker.isRunning():
+                return set()
+        except Exception:
+            return set()
+        paths = []
+        for attr in ("_state_path",):
+            value = getattr(worker, attr, None)
+            if value:
+                paths.append(Path(value))
+        try:
+            if worker._project_enabled():
+                paths.append(worker._job_state_path())
+        except Exception:
+            pass
+        paths.append(PYTODOC_TEMP_STATE)
+        out: set[str] = set()
+        for path in paths:
+            try:
+                out.add(str(path.resolve()))
+            except Exception:
+                pass
+        return out
+
+    def _read_resume_state(
+        self,
+        path: Path,
+        *,
+        recover_running: bool = True,
+    ) -> Optional[dict[str, Any]]:
         try:
             state = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             return None
         if state.get("feature") != "py_to_doc":
             return None
+        if recover_running:
+            try:
+                active_paths = self._active_resume_state_paths()
+                state, _ = PyToDocWorker.recover_state_file_for_resume(
+                    path,
+                    state,
+                    recover_running=str(path.resolve()) not in active_paths,
+                )
+            except Exception as exc:
+                self._log(f"Resume recovery skipped for {path.name}: {exc}")
         state["_state_path"] = str(path)
         return state
 
@@ -1546,6 +1974,10 @@ class PyToDocPanel(QWidget):
         root = Path(state.get("project_root", "")).name or "project"
         out = Path(state.get("out_path", "")).name or "output"
         status = state.get("status", "unknown")
+        if status == "paused" and state.get("recovered_at"):
+            status = "paused/recovered"
+        elif status == "paused" and state.get("last_error"):
+            status = "paused/error"
         files = state.get("file_list", []) or []
         complete = len(state.get("completed_files", []) or [])
         updated = state.get("updated_at", "")
@@ -1603,7 +2035,7 @@ class PyToDocPanel(QWidget):
         state_path = item.data(Qt.ItemDataRole.UserRole) or ""
         if not state_path:
             return
-        state = self._read_resume_state(Path(state_path))
+        state = self._read_resume_state(Path(state_path), recover_running=True)
         if not state:
             QMessageBox.warning(self, "Resume Failed", "Could not read the selected py-to-doc task.")
             self._refresh_resume_jobs()

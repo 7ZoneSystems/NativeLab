@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NativeLab - Open-source local LLM workbench</title>
-  <meta name="description" content="An open-source desktop GUI and terminal client for running local LLMs. Visual pipeline builder, MCP, OpenAI &amp; Anthropic endpoints, Labs experimentation layer. pip install nativelab." />
+  <meta name="description" content="An open-source desktop GUI and terminal client for running local LLMs. Visual pipelines, Labs, Py-to-Doc recovery, Ollama/HF backends, MCP, and API endpoints. pip install nativelab." />
   <link rel="icon" type="image/png" href="nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -62,6 +62,46 @@
       font-weight: 300;
     }
     .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .hero-link-strip {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+      max-width: 620px;
+      margin-top: 1.1rem;
+    }
+    .hero-link-btn {
+      min-height: 74px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.18rem;
+      background: rgba(250,249,246,0.74);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      text-decoration: none;
+      color: var(--ink);
+      transition: all 0.18s;
+    }
+    .hero-link-btn:hover {
+      border-color: var(--sage-lt);
+      background: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 10px 22px rgba(15,14,23,0.05);
+    }
+    .hero-link-btn span {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.66rem;
+      color: var(--sage);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .hero-link-btn strong {
+      font-size: 0.88rem;
+      line-height: 1.35;
+      font-weight: 500;
+    }
+    @media (max-width: 560px) { .hero-link-strip { grid-template-columns: 1fr; } }
 
     .hero-fig {
       flex: 0 0 auto;
@@ -279,7 +319,7 @@
       <div class="hero-icon-wrap">
         <img src="nativelab/icon.png" alt="NativeLab" class="hero-icon" />
       </div>
-      <div class="hero-badge">Open Source · AGPL v3 · v0.3.4</div>
+      <div class="hero-badge">Open Source · AGPL v3 · v0.3.5-dev</div>
       <h1>A local LLM<br><em>workbench</em>,<br>not a product.</h1>
       <p class="hero-sub">
         NativeLab is an open-source desktop GUI and terminal client for running
@@ -289,6 +329,24 @@
       <div class="hero-actions">
         <a href="#install" class="btn-primary">↓ &nbsp;Install with pip</a>
         <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-secondary">View source on GitHub →</a>
+      </div>
+      <div class="hero-link-strip" aria-label="NativeLab site shortcuts">
+        <a href="web_page/compare.html" class="hero-link-btn">
+          <span>Compare</span>
+          <strong>NativeLab vs. LM Studio, Jan, GPT4All</strong>
+        </a>
+        <a href="web_page/features.html" class="hero-link-btn">
+          <span>Features</span>
+          <strong>Current GUI, CLI, Labs, and backend catalogue</strong>
+        </a>
+        <a href="web_page/pipeline.html" class="hero-link-btn">
+          <span>Pipelines</span>
+          <strong>Visual builder and LLM-logic blocks</strong>
+        </a>
+        <a href="web_page/setup.html" class="hero-link-btn">
+          <span>Setup</span>
+          <strong>Install, models, APIs, and first launch</strong>
+        </a>
       </div>
       <div style="margin-top: 1.4rem; font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--dim);">
         $ <span style="color: var(--sage);">pip install nativelab</span> &nbsp;·&nbsp; Linux · macOS · Windows
@@ -325,7 +383,7 @@
         </div>
         <div class="terminal-body">
           <div><span class="t-dim">$ </span><span class="t-white">pip install nativelab</span></div>
-          <div><span class="t-green">✓ </span><span class="t-dim">installed nativelab 0.2.8</span></div>
+          <div><span class="t-green">✓ </span><span class="t-dim">installed nativelab 0.3.4</span></div>
           <br>
           <div><span class="t-dim">$ </span><span class="t-white">nativelab --cli</span></div>
           <div><span class="t-cyan">▸ </span><span class="t-dim">llama-server detected on :8612</span></div>
@@ -349,16 +407,16 @@
 <div id="whats-new">
   <div class="new-banner-inner">
     <div class="new-banner-text">
-      <div class="new-label">✦ What's new in v0.3.4</div>
-      <h3>Labs, terminal CLI<br><em>&amp; shared endpoints</em></h3>
+      <div class="new-label">✦ What's new in v0.3.5-dev</div>
+      <h3>Py-to-Doc recovery,<br><em>safe reloads &amp; backend breadth</em></h3>
     </div>
     <div class="new-pills">
-      <span class="new-pill">🧪 &nbsp;Labs experimentation layer</span>
-      <span class="new-pill">⌨️ &nbsp;<code>nativelab --cli</code></span>
-      <span class="new-pill">🔗 &nbsp;Shared LabEndpoints API</span>
-      <span class="new-pill">📎 &nbsp;<code>@file</code> embedding in CLI</span>
-      <span class="new-pill">🔍 &nbsp;Built-in linting</span>
-      <span class="new-pill">🤗 &nbsp;HuggingFace downloader</span>
+      <span class="new-pill">🛟 &nbsp;Abrupt Py-to-Doc task recovery</span>
+      <span class="new-pill">♻️ &nbsp;Smart RAM-triggered model reloads</span>
+      <span class="new-pill">🔒 &nbsp;Busy-safe unload / reload guards</span>
+      <span class="new-pill">🦙 &nbsp;Ollama backend refs</span>
+      <span class="new-pill">🤗 &nbsp;HF Transformers + safetensors refs</span>
+      <span class="new-pill">∑ &nbsp;Offline Markdown + LaTeX rendering</span>
     </div>
   </div>
 </div>
@@ -396,8 +454,8 @@
     </div>
     <div class="why-card fade-up">
       <span class="why-card-icon">⏯️</span>
-      <h4>Pause/resume long jobs</h4>
-      <p>Summarising a 200-page PDF? Full state is serialised every few chunks. Restart the app, hit resume, keep going.</p>
+      <h4>Crash-aware long jobs</h4>
+      <p>Py-to-Doc writes checkpoints, detects abruptly interrupted running tasks, converts them back to resumable paused jobs, and can reload local models between sections when RAM gets tight.</p>
       <span class="vs">Exclusive to NativeLab</span>
     </div>
     <div class="why-card fade-up">

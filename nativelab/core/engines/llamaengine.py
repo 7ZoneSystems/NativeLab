@@ -161,8 +161,12 @@ class LlamaEngine:
     def shutdown(self):
         if self.server_proc:
             self._kill_proc(self.server_proc)
+        elif self.mode == "server" and self.server_port:
+            self._kill_server_on_port(self.server_port)
         self.server_proc = None
+        self.server_port = 0
         self._unload_hf()
+        self.model_path = ""
         self.mode = "unloaded"
 
     # ------------------------------------------------------------------ #
@@ -777,6 +781,40 @@ class LlamaEngine:
             else:
                 proc.terminate()
             proc.wait(timeout=LONG_TIMEOUT_SECONDS)
+        except Exception:
+            pass
+
+    def _kill_server_on_port(self, port: int) -> None:
+        """Kill a llama-server process that this engine reused but does not own."""
+        if not (HAS_PSUTIL and port):
+            return
+        try:
+            for conn in psutil.net_connections(kind="inet"):
+                try:
+                    laddr = getattr(conn, "laddr", None)
+                    if not laddr or int(getattr(laddr, "port", 0)) != int(port):
+                        continue
+                    pid = getattr(conn, "pid", None)
+                    if not pid:
+                        continue
+                    proc = psutil.Process(pid)
+                    name = proc.name() or ""
+                    cmd = " ".join(proc.cmdline() or [])
+                    if "llama-server" not in name and "llama-server" not in cmd:
+                        continue
+                    for child in proc.children(recursive=True):
+                        try:
+                            child.kill()
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+                    proc.kill()
+                    try:
+                        proc.wait(timeout=LONG_TIMEOUT_SECONDS)
+                    except Exception:
+                        pass
+                    return
+                except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, ValueError):
+                    continue
         except Exception:
             pass
 

@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NativeLab - Features</title>
-  <meta name="description" content="The full NativeLab feature catalogue: desktop GUI, terminal CLI, Labs experimentation layer, API model support, document workflows, and supported model families." />
+  <meta name="description" content="The full NativeLab feature catalogue: desktop GUI, terminal CLI, Labs, Py-to-Doc recovery, API/local backends, document workflows, Ollama, HF Transformers, and supported model families." />
   <link rel="icon" type="image/png" href="../nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -38,6 +38,42 @@
       background: var(--mist); color: var(--sage);
       font-size: 0.75rem; font-weight: 500;
       padding: 0.2rem 0.7rem; border-radius: 100px;
+    }
+
+    /* ── LATEST ── */
+    #latest { background: var(--paper); }
+    .latest-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      margin-top: 2.5rem;
+    }
+    .latest-card {
+      background: var(--warm);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.45rem;
+    }
+    .latest-kicker {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--sage);
+      margin-bottom: 0.55rem;
+    }
+    .latest-card h4 {
+      font-family: 'Instrument Serif', serif;
+      font-size: 1.24rem;
+      color: var(--ink);
+      margin-bottom: 0.45rem;
+      line-height: 1.25;
+    }
+    .latest-card p {
+      font-size: 0.86rem;
+      color: var(--dim);
+      line-height: 1.7;
+      font-weight: 300;
     }
 
     /* ── CAPABILITIES ── */
@@ -174,13 +210,43 @@
 <!-- ── PAGE HERO ── -->
 <section class="page-hero">
   <div class="page-hero-inner">
-    <p class="section-label">Features · v0.3.4</p>
+    <p class="section-label">Features · v0.3.5-dev</p>
     <h1>The full <em>feature catalogue</em></h1>
-    <p class="section-intro">Everything NativeLab does today - desktop GUI, terminal CLI, Labs experimentation layer, document workflows, API integrations, and the model families it auto-detects out of the box.</p>
+    <p class="section-intro">Everything NativeLab does today - desktop GUI, terminal CLI, Labs experimentation layer, Py-to-Doc recovery, document workflows, API/local backends, and the model families it auto-detects out of the box.</p>
     <div class="page-hero-meta">
       <a href="https://github.com/7ZoneSystems/NativeLab/blob/main/docs/features.md" target="_blank">Read the full features doc →</a>
       <a href="pipeline.html">Pipeline-builder deep dive →</a>
       <a href="compare.html">vs. LM Studio / Jan / GPT4All →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── LATEST ── -->
+<section id="latest">
+  <p class="section-label">Latest additions</p>
+  <h2>Long jobs now survive<br><em>rougher real-world runs.</em></h2>
+  <p class="section-intro">Recent work tightened the places users actually stress local models: project documentation runs, model reloads, backend selection, and UI rendering.</p>
+
+  <div class="latest-grid">
+    <div class="latest-card fade-up">
+      <div class="latest-kicker">Py-to-Doc</div>
+      <h4>Recovered project tasks</h4>
+      <p>Running jobs that ended without a clean pause are detected on load, marked paused, and repaired for resume so a crash does not leave the task stuck forever.</p>
+    </div>
+    <div class="latest-card fade-up">
+      <div class="latest-kicker">Memory</div>
+      <h4>Smarter auto reloads</h4>
+      <p>Auto-mode reloads can wait until a section boundary, apply cooldowns, re-arm after RAM recovery, and keep a post-reload baseline before trying again.</p>
+    </div>
+    <div class="latest-card fade-up">
+      <div class="latest-kicker">Engine</div>
+      <h4>Safe unload / reload</h4>
+      <p>Lab reload requests are routed through the main UI thread, busy workers block risky model switches, and hard unloads reset the app back to a blank server state.</p>
+    </div>
+    <div class="latest-card fade-up">
+      <div class="latest-kicker">Backends</div>
+      <h4>Ollama + HF refs</h4>
+      <p>Registered <code>ollama:</code> and <code>hf:</code> models can run through chat, Labs, pipelines, integrations, CLI status, and role-based model loading.</p>
     </div>
   </div>
 </section>
@@ -288,6 +354,20 @@
           <div class="cap-text-sub">Search any GGUF repo and pull files without leaving the app</div>
         </div>
       </div>
+      <div class="cap-item" onclick="selectCap(7, this)">
+        <span class="cap-num">08</span>
+        <div>
+          <div class="cap-text-head">Py-to-Doc recovery</div>
+          <div class="cap-text-sub">Crash-aware project checkpoints and RAM-triggered reloads</div>
+        </div>
+      </div>
+      <div class="cap-item" onclick="selectCap(8, this)">
+        <span class="cap-num">09</span>
+        <div>
+          <div class="cap-text-head">Ollama &amp; HF backends</div>
+          <div class="cap-text-sub">Use <code>ollama:</code> and <code>hf:</code> models across the app</div>
+        </div>
+      </div>
     </div>
 
     <div class="caps-detail">
@@ -358,11 +438,34 @@
       <div class="detail-card" id="detail-6">
         <h3>HuggingFace downloader</h3>
         <p>Search any GGUF repo, browse files with sizes, and download into your models folder - without leaving the app. Network drops? Resume where you left off.</p>
-        <p>The CLI's setup wizard uses the same downloader, so first-time terminal users can grab a model interactively without touching a browser.</p>
+        <p>The Download tab also handles HF Transformers snapshots with revision/token support and Ollama pulls through a running daemon. Completed models auto-register as <code>hf:</code>, <code>ollama:</code>, or local GGUF targets.</p>
         <div class="detail-badge">
           <span class="badge">Search any repo</span>
           <span class="badge clay">Resume on drop</span>
-          <span class="badge gold">Used by GUI &amp; CLI</span>
+          <span class="badge gold">HF snapshots</span>
+          <span class="badge blue">Ollama pulls</span>
+        </div>
+      </div>
+      <div class="detail-card" id="detail-7">
+        <h3>Py-to-Doc recovery</h3>
+        <p>Project mode writes checkpoint state after file, class, and function sections. On startup or task selection, NativeLab repairs interrupted project state: running jobs become paused/recovered jobs, incomplete completed checkpoints are reopened, and output offsets are checked before resume.</p>
+        <p>Auto model reloads are now boundary-aware. When free RAM drops below your configured threshold, the current section finishes first; then NativeLab can unload/reload the active local model before the next LLM section, with cooldowns and re-arm rules to avoid reload loops.</p>
+        <div class="detail-badge">
+          <span class="badge clay">Abrupt failure recovery</span>
+          <span class="badge">Paused resume state</span>
+          <span class="badge gold">RAM-aware reloads</span>
+          <span class="badge blue">GUI &amp; CLI</span>
+        </div>
+      </div>
+      <div class="detail-card" id="detail-8">
+        <h3>Ollama and HF backends</h3>
+        <p>NativeLab can register <code>ollama:&lt;model&gt;</code> and <code>hf:&lt;repo-or-dir&gt;</code> references next to GGUF files. The same engine surface exposes them to chat, Labs, pipelines, integrations, CLI tools, status widgets, and model-role loading.</p>
+        <p>HF Transformers settings include local/offline mode, safetensors, dtype, device map, attention implementation, max memory, quantization, trust remote code, revision, cache/download paths, and Hugging Face token reuse.</p>
+        <div class="detail-badge">
+          <span class="badge blue"><code>ollama:</code> refs</span>
+          <span class="badge"><code>hf:</code> refs</span>
+          <span class="badge clay">safetensors</span>
+          <span class="badge gold">shared runtime</span>
         </div>
       </div>
     </div>

@@ -74,6 +74,9 @@ class ApiLoaderThread(QThread):
 # ═════════════════════════════ MAIN WINDOW ══════════════════════════════════
 
 class MainWindow(QMainWindow):
+    _lab_context_request = pyqtSignal(int, object)
+    _lab_reload_request = pyqtSignal(object)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Native Lab Pro")
@@ -91,6 +94,8 @@ class MainWindow(QMainWindow):
         self.engine   = LlamaEngine()
         self._lab_endpoints = LabEndpoints(self)
         self._integration_endpoints = IntegrationEndpoints(self._lab_endpoints)
+        self._lab_context_request.connect(self._handle_labs_context_request)
+        self._lab_reload_request.connect(self._handle_labs_reload_request)
         self.sessions: Dict[str, Session] = {}
         self.active:   Optional[Session]  = None
 
@@ -209,7 +214,7 @@ class MainWindow(QMainWindow):
 
     # ── context management ────────────────────────────────────────────────────
 
-    def _apply_new_context(self):
+    def _apply_new_context(self, *, allow_busy: bool = False):
         if not self.engine.is_loaded:
             return
         new_ctx = self.ctx_slider.value()
@@ -235,6 +240,14 @@ class MainWindow(QMainWindow):
                 self.ctx_input.setText(str(loaded_ctx))
                 self.current_ctx = loaded_ctx
                 return
+        if not allow_busy and not self._can_restart_primary_engine("changing context"):
+            loaded_ctx = getattr(self.engine, "ctx_value", DEFAULT_CTX())
+            self.ctx_slider.blockSignals(True)
+            self.ctx_slider.setValue(loaded_ctx)
+            self.ctx_slider.blockSignals(False)
+            self.ctx_input.setText(str(loaded_ctx))
+            self.current_ctx = loaded_ctx
+            return
         self._log("INFO", f"Reloading model with context {new_ctx}")
         if self._worker:
             if hasattr(self._worker, "abort"):
@@ -1029,6 +1042,8 @@ class MainWindow(QMainWindow):
                 )
 
         if role == "general":
+            if not self._can_restart_primary_engine("loading the selected model"):
+                return
             idx = self.input_bar.model_combo.findData(path)
             if idx == -1:
                 self.input_bar.model_combo.addItem(model_ref_display_name(path), path)
@@ -1118,6 +1133,8 @@ class MainWindow(QMainWindow):
             self.engine_status_list.addItem(item)
 
     def _unload_all_engines(self):
+        if not self._can_restart_primary_engine("unloading all engines"):
+            return
         if QMessageBox.question(
             self, "Unload All Engines",
             "Unload all model engines?",
@@ -1129,7 +1146,11 @@ class MainWindow(QMainWindow):
             if eng:
                 eng.shutdown()
                 setattr(self, f"{role}_engine", None)
+        if self._api_engine and self._api_engine.is_loaded:
+            self._api_engine.shutdown()
+            self._api_engine = None
         self.engine.shutdown()
+        self.engine = LlamaEngine()
         self._refresh_engine_status()
         self._on_parallel_settings_changed()
         self._log("INFO", "All engines unloaded.")
@@ -1260,6 +1281,8 @@ class MainWindow(QMainWindow):
         path = item.data(Qt.ItemDataRole.UserRole)
         if not path or not is_model_ref_valid(path):
             QMessageBox.warning(self, "File Not Found", f"Cannot find:\n{path}"); return
+        if not self._can_restart_primary_engine("loading the selected primary model"):
+            return
         idx = self.input_bar.model_combo.findData(path)
         if idx == -1:
             self.input_bar.model_combo.addItem(model_ref_display_name(path), path)
@@ -1546,15 +1569,81 @@ class MainWindow(QMainWindow):
             return
         self._set_engine_status("Selected model not loaded", "idle")
 
+    def _loader_is_running(self, attr: str = "_loader") -> bool:
+        loader = getattr(self, attr, None)
+        try:
+            return bool(loader and loader.isRunning())
+        except Exception:
+            return False
+
+    def _busy_primary_engine_tasks(self) -> list[str]:
+        tasks: list[str] = []
+        for attr, label in (
+            ("_worker", "chat generation"),
+            ("_summary_worker", "document summary"),
+            ("_multi_pdf_worker", "multi-PDF summary"),
+            ("_pipeline_worker", "pipeline generation"),
+            ("_chat_pipeline_worker", "chat pipeline"),
+        ):
+            worker = getattr(self, attr, None)
+            if worker is not None and hasattr(worker, "isRunning"):
+                try:
+                    if worker.isRunning():
+                        tasks.append(label)
+                except Exception:
+                    pass
+        if hasattr(self, "pipeline_tab"):
+            worker = getattr(self.pipeline_tab, "_exec_worker", None)
+            if worker is not None and hasattr(worker, "isRunning"):
+                try:
+                    if worker.isRunning():
+                        tasks.append("pipeline builder execution")
+                except Exception:
+                    pass
+        if hasattr(self, "labs_tab"):
+            busy_panels = getattr(self.labs_tab, "busy_panel_names", None)
+            if callable(busy_panels):
+                try:
+                    tasks.extend(f"lab: {name}" for name in busy_panels())
+                except Exception:
+                    pass
+        return tasks
+
+    def _can_restart_primary_engine(self, action: str) -> bool:
+        if self._loader_is_running("_loader") or self._loader_is_running("_api_loader"):
+            QMessageBox.warning(
+                self,
+                "Model Load Active",
+                f"Wait for the current model load to finish before {action}."
+            )
+            return False
+        busy = self._busy_primary_engine_tasks()
+        if busy:
+            QMessageBox.warning(
+                self,
+                "Engine Busy",
+                f"Stop the active task before {action}:\n" + "\n".join(f"- {name}" for name in busy)
+            )
+            return False
+        return True
+
     def _start_model_load(self):
         model = self.input_bar.selected_model
         if is_api_model_ref(model):
             self._start_api_model_load(model)
             return
+        if self._loader_is_running("_loader") or self._loader_is_running("_api_loader"):
+            self._log("WARN", "Model load already in progress; ignoring duplicate load request.")
+            return
         if not model or not is_model_ref_valid(model):
             model = str(MODELS_DIR / DEFAULT_MODEL)
         if self.engine.is_loaded and getattr(self.engine, "model_path", "") == model:
             self._set_engine_status(self.engine.status_text, "ok")
+            return
+        if (
+            (self.engine and self.engine.is_loaded)
+            or (self._api_engine and self._api_engine.is_loaded)
+        ) and not self._can_restart_primary_engine("loading another model"):
             return
         if self._api_engine and self._api_engine.is_loaded:
             self._api_engine.shutdown()
@@ -1588,13 +1677,14 @@ class MainWindow(QMainWindow):
         self._flush_deferred_send(ok)
 
     def _unload_chat_model(self):
-        if self._worker and self._worker.isRunning():
-            QMessageBox.warning(self, "Generation Active", "Stop the current generation before unloading the model.")
+        if not self._can_restart_primary_engine("unloading the model"):
             return
-        if self._api_engine and self._api_engine.is_loaded:
+        if self._api_engine:
             self._api_engine.shutdown()
-        if self.engine and self.engine.is_loaded:
+            self._api_engine = None
+        if self.engine:
             self.engine.shutdown()
+        self.engine = LlamaEngine()
         self._deferred_send = None
         self.lbl_family.setText("")
         self._set_engine_status("Model not loaded", "idle")
@@ -1612,6 +1702,8 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(0, lambda: self._on_send_with_refs(text, ref_ctx, ref_images))
 
     def _reload_model(self):
+        if not self._can_restart_primary_engine("reloading the model"):
+            return
         self.engine.shutdown()
         QTimer.singleShot(500, self._start_model_load)
 
@@ -1680,6 +1772,12 @@ class MainWindow(QMainWindow):
     def _on_api_model_loaded(self, api_engine: ApiEngine):
         """Called when ApiModelsTab successfully verifies an API model."""
         if self.engine and self.engine.is_loaded:
+            if not self._can_restart_primary_engine("switching to the API model"):
+                try:
+                    api_engine.shutdown()
+                except Exception:
+                    pass
+                return
             self.engine.shutdown()
         self._api_engine = api_engine
         cfg = api_engine._config
@@ -1705,6 +1803,9 @@ class MainWindow(QMainWindow):
         self._flush_deferred_send(True)
 
     def _start_api_model_load(self, api_ref: str):
+        if self._loader_is_running("_loader") or self._loader_is_running("_api_loader"):
+            self._log("WARN", "Model load already in progress; ignoring duplicate API load request.")
+            return
         cfg = getapi_registry().get_by_ref(api_ref)
         if cfg is None:
             self._set_engine_status("API config missing", "err")
@@ -1715,6 +1816,8 @@ class MainWindow(QMainWindow):
             self._flush_deferred_send(True)
             return
         if self.engine and self.engine.is_loaded:
+            if not self._can_restart_primary_engine("switching to the API model"):
+                return
             self.engine.shutdown()
         self._set_engine_status("Connecting API model...", "loading")
         self.lbl_engine.setStyleSheet(f"color:{C['warn']};padding:0 8px;")
@@ -1778,6 +1881,25 @@ class MainWindow(QMainWindow):
             self._lab_endpoints.notify_engine_changed()
 
     def _labs_request_context(self, new_ctx: int) -> bool:
+        if QThread.currentThread() != self.thread():
+            payload = {"event": threading.Event(), "ok": False, "error": None}
+            self._lab_context_request.emit(int(new_ctx), payload)
+            if not payload["event"].wait(LONG_TIMEOUT_MS / 1000.0):
+                return False
+            if payload["error"] is not None:
+                raise payload["error"]
+            return bool(payload["ok"])
+        return self._labs_request_context_impl(new_ctx)
+
+    def _handle_labs_context_request(self, new_ctx: int, payload: dict):
+        try:
+            payload["ok"] = bool(self._labs_request_context_impl(new_ctx))
+        except Exception as exc:
+            payload["error"] = exc
+        finally:
+            payload["event"].set()
+
+    def _labs_request_context_impl(self, new_ctx: int) -> bool:
         """Reverse route: a lab feature asks the host to change ctx."""
         if not hasattr(self, "ctx_slider"):
             return False
@@ -1789,7 +1911,7 @@ class MainWindow(QMainWindow):
             return False
         self._suppress_ctx_confirm_once = True
         self._force_ctx_reload_once = force_same_ctx
-        self._apply_new_context()
+        self._apply_new_context(allow_busy=True)
         loader = getattr(self, "_loader", None)
         if loader and loader.isRunning():
             try:
@@ -1856,6 +1978,25 @@ class MainWindow(QMainWindow):
         return any(loader and loader.isRunning() for loader in loaders)
 
     def _labs_request_reload_active_model(self) -> bool:
+        if QThread.currentThread() != self.thread():
+            payload = {"event": threading.Event(), "ok": False, "error": None}
+            self._lab_reload_request.emit(payload)
+            if not payload["event"].wait(LONG_TIMEOUT_MS / 1000.0):
+                return False
+            if payload["error"] is not None:
+                raise payload["error"]
+            return bool(payload["ok"])
+        return self._labs_request_reload_active_model_impl()
+
+    def _handle_labs_reload_request(self, payload: dict):
+        try:
+            payload["ok"] = bool(self._labs_request_reload_active_model_impl())
+        except Exception as exc:
+            payload["error"] = exc
+        finally:
+            payload["event"].set()
+
+    def _labs_request_reload_active_model_impl(self) -> bool:
         """Reverse route: a lab feature asks for a fresh local model instance."""
         if self._api_engine and self._api_engine.is_loaded:
             self._log("INFO", "py-to-doc model reload skipped for active API backend")
@@ -1895,6 +2036,7 @@ class MainWindow(QMainWindow):
     def _labs_request_unload(self) -> None:
         """Reverse route: a lab feature asks the host to unload the primary engine."""
         self.engine.shutdown()
+        self.engine = LlamaEngine()
         self._notify_labs()
 
     # ── pipeline-from-chat ────────────────────────────────────────────────────
