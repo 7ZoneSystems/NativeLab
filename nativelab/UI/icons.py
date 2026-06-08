@@ -5,9 +5,7 @@ import re
 import tempfile
 from pathlib import Path
 
-from PyQt6.QtCore import QSize
-from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtWidgets import QLabel, QPushButton, QTabWidget, QWidget
+from nativelab.imports.qt_compat import QAction, QIcon, QLabel, QPushButton, QSize, QTabWidget, QWidget
 
 
 ICON_DIR = Path(__file__).resolve().parents[1] / "assets" / "icons"

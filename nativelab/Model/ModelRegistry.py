@@ -121,7 +121,11 @@ class ModelConfig:
 
     temperature: float = 0.7
     top_p: float = 0.9
+    top_k: int = 40
+    min_p: float = 0.0
+    typical_p: float = 1.0
     repeat_penalty: float = 1.1
+    seed: int = -1
     family: str = "default"
 
     def to_dict(self) -> Dict:
@@ -134,7 +138,11 @@ class ModelConfig:
             "n_predict":      int(self.n_predict)       if not callable(self.n_predict)       else int(self.n_predict()),
             "temperature":    self.temperature,
             "top_p":          self.top_p,
+            "top_k":          int(self.top_k),
+            "min_p":          self.min_p,
+            "typical_p":      self.typical_p,
             "repeat_penalty": self.repeat_penalty,
+            "seed":           int(self.seed),
             "family":         self.family,
         }
 
@@ -255,6 +263,11 @@ class ModelRegistry:
                     "size_mb": round(f.stat().st_size / 1e6, 1),
                     "source": "auto", "role": cfg.role, "backend": "llama_cpp",
                     "family": fam.name, "quant": qt,
+                    "ctx": cfg.ctx, "n_predict": cfg.n_predict,
+                    "temperature": cfg.temperature, "top_p": cfg.top_p,
+                    "top_k": cfg.top_k, "min_p": cfg.min_p,
+                    "typical_p": cfg.typical_p,
+                    "repeat_penalty": cfg.repeat_penalty, "seed": cfg.seed,
                     "vision": vi.is_vision, "vision_label": vi.label,
                     "mmproj": detect_mmproj_for_model(str(f)),
                 })
@@ -270,6 +283,11 @@ class ModelRegistry:
                         "size_mb": _path_size_mb(d),
                         "source": "auto", "role": cfg.role, "backend": "hf_transformers",
                         "family": fam.name, "quant": "TRANSFORMERS",
+                        "ctx": cfg.ctx, "n_predict": cfg.n_predict,
+                        "temperature": cfg.temperature, "top_p": cfg.top_p,
+                        "top_k": cfg.top_k, "min_p": cfg.min_p,
+                        "typical_p": cfg.typical_p,
+                        "repeat_penalty": cfg.repeat_penalty, "seed": cfg.seed,
                         "vision": vi.is_vision or cfg.vision,
                         "vision_label": vi.label or ("Vision model" if cfg.vision else ""),
                         "mmproj": "",
@@ -289,6 +307,11 @@ class ModelRegistry:
                     "size_mb": _path_size_mb(fp) if fp.exists() else 0.0,
                     "source": "custom", "role": cfg.role, "backend": backend,
                     "family": fam.name, "quant": qt,
+                    "ctx": cfg.ctx, "n_predict": cfg.n_predict,
+                    "temperature": cfg.temperature, "top_p": cfg.top_p,
+                    "top_k": cfg.top_k, "min_p": cfg.min_p,
+                    "typical_p": cfg.typical_p,
+                    "repeat_penalty": cfg.repeat_penalty, "seed": cfg.seed,
                     "vision": vi.is_vision, "vision_label": vi.label,
                     "mmproj": detect_mmproj_for_model(p) if backend == "llama_cpp" else "",
                 })

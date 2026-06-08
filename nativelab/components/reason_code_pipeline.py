@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, subprocess, time, json
-from nativelab.Model.model_global import detect_model_family, model_ref_payload
+from nativelab.Model.model_global import detect_model_family, get_model_registry, model_ref_payload
 from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_SECONDS
 class PipelineWorker(QThread):
     """
@@ -169,9 +169,17 @@ class PipelineWorker(QThread):
         """Blocking inference that calls token_cb for each token."""
         if getattr(eng, "mode", "") in ("ollama", "hf_transformers") and hasattr(eng, "generate_sync"):
             try:
+                cfg = get_model_registry().get_config(getattr(eng, "model_path", ""))
                 return eng.generate_sync(
                     prompt=prompt,
                     n_predict=n_predict,
+                    temperature=getattr(cfg, "temperature", 0.7),
+                    top_p=getattr(cfg, "top_p", 0.9),
+                    repeat_penalty=getattr(cfg, "repeat_penalty", 1.1),
+                    top_k=getattr(cfg, "top_k", 40),
+                    min_p=getattr(cfg, "min_p", 0.0),
+                    typical_p=getattr(cfg, "typical_p", 1.0),
+                    seed=getattr(cfg, "seed", -1),
                     token_cb=token_cb,
                     abort_cb=lambda: self._abort,
                     raw_prompt=True,
@@ -189,6 +197,7 @@ class PipelineWorker(QThread):
         import socket
         mp = getattr(eng, "model_path", "")
         fam = detect_model_family(model_ref_payload(mp) or mp)
+        cfg = get_model_registry().get_config(mp) if mp else None
         
         # Long connect timeout; streaming read gets its own per-chunk timeout.
         connect_timeout = LONG_TIMEOUT_SECONDS
@@ -198,15 +207,26 @@ class PipelineWorker(QThread):
             conn = http.client.HTTPConnection(
                 "127.0.0.1", eng.server_port, timeout=connect_timeout
             )
-            body = json.dumps({
+            body_obj = {
                 "prompt":         prompt,
                 "n_predict":      n_predict,
                 "stream":         True,
-                "temperature":    0.7,
-                "top_p":          0.9,
-                "repeat_penalty": 1.1,
+                "temperature":    getattr(cfg, "temperature", 0.7),
+                "top_p":          getattr(cfg, "top_p", 0.9),
+                "repeat_penalty": getattr(cfg, "repeat_penalty", 1.1),
                 "stop":           fam.stop_tokens,
-            })
+            }
+            try:
+                from nativelab.core.engines.llamaengine import LlamaEngine
+                body_obj.update(LlamaEngine._sampler_payload(
+                    top_k=getattr(cfg, "top_k", 40),
+                    min_p=getattr(cfg, "min_p", 0.0),
+                    typical_p=getattr(cfg, "typical_p", 1.0),
+                    seed=getattr(cfg, "seed", -1),
+                ))
+            except Exception:
+                pass
+            body = json.dumps(body_obj)
             conn.request("POST", "/completion", body,
                         {"Content-Type": "application/json"})
             r = conn.getresponse()
@@ -259,13 +279,29 @@ class PipelineWorker(QThread):
         TOKEN_STALL_TIMEOUT = LONG_TIMEOUT_SECONDS  # seconds with no output before giving up
 
         try:
-            proc = subprocess.Popen(
-                [LLAMA_CLI, "-m", eng.model_path,
-                "-t", str(DEFAULT_THREADS),
-                "--ctx-size", str(getattr(eng, "ctx_value", DEFAULT_CTX)),
+            cfg = get_model_registry().get_config(getattr(eng, "model_path", ""))
+            cmd = [LLAMA_CLI, "-m", eng.model_path,
+                "-t", str(getattr(cfg, "threads", DEFAULT_THREADS())),
+                "--ctx-size", str(getattr(eng, "ctx_value", DEFAULT_CTX())),
                 "-n", str(n_predict),
                 "--no-display-prompt", "--no-escape",
-                "-p", prompt],
+                "--temp", str(getattr(cfg, "temperature", 0.7)),
+                "--top-p", str(getattr(cfg, "top_p", 0.9)),
+                "--repeat-penalty", str(getattr(cfg, "repeat_penalty", 1.1)),
+                "-p", prompt]
+            try:
+                from nativelab.core.engines.llamaengine import LlamaEngine
+                LlamaEngine._append_cli_sampler_args(
+                    cmd,
+                    top_k=getattr(cfg, "top_k", 40),
+                    min_p=getattr(cfg, "min_p", 0.0),
+                    typical_p=getattr(cfg, "typical_p", 1.0),
+                    seed=getattr(cfg, "seed", -1),
+                )
+            except Exception:
+                pass
+            proc = subprocess.Popen(
+                cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 stdin=subprocess.DEVNULL,

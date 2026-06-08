@@ -352,7 +352,7 @@ class CodeEditPanel(QWidget):
     def set_endpoints(self, endpoints: LabEndpoints):
         self._endpoints = endpoints
         endpoints.status_changed.connect(self._on_status_changed)
-        self._on_status_changed(endpoints.status_text)
+        self._on_status_changed()
 
     def refresh_icons(self):
         refresh_widget_icons(self)
@@ -504,8 +504,14 @@ class CodeEditPanel(QWidget):
 
         self._render_history()
 
-    def _on_status_changed(self, status: str):
-        state = "idle" if "No Engine" in status or "Not Loaded" in status else "ok"
+    def _on_status_changed(self, status: str = ""):
+        if self._endpoints is not None:
+            snapshot = self._endpoints.snapshot()
+            status = snapshot.get("status", status)
+            state = snapshot.get("state", "idle")
+        else:
+            state = "idle"
+            status = status or "No Engine"
         set_status_label(self.lbl_engine, f"Active engine: {status}", state)
 
     def _open_file(self):
@@ -703,7 +709,7 @@ class CodeEditPanel(QWidget):
         selections = []
         if line_no is not None and line_no > 0:
             try:
-                from PyQt6.QtGui import QTextCharFormat, QTextCursor, QTextFormat
+                from nativelab.imports.qt_compat import QTextCharFormat, QTextCursor, QTextFormat
                 selection = QTextEdit.ExtraSelection()
                 selection.format = QTextCharFormat()
                 selection.format.setBackground(QColor(220, 38, 38, 46))

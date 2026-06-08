@@ -417,7 +417,7 @@ def pipeline_show(name: str, *, as_json: bool = False) -> dict:
 
 
 def pipeline_run(runtime: CliRuntime, name: str, text: str) -> int:
-    from PyQt6.QtCore import QCoreApplication, QEventLoop
+    from nativelab.imports.qt_compat import QCoreApplication, QEventLoop
     from nativelab.pipelinebuilder.executionWorker import PipelineExecutionWorker
     from nativelab.pipelinebuilder.pipefunctions import load_pipeline
 
@@ -583,7 +583,7 @@ def py_to_doc(
     auto_model_reload: bool = False,
     auto_reload_free_ram_mb: int = 0,
 ) -> int:
-    from PyQt6.QtCore import QCoreApplication, QEventLoop
+    from nativelab.imports.qt_compat import QCoreApplication, QEventLoop
     from nativelab.labs.pytodoc import (
         DEFAULT_CLASS_PROMPT,
         DEFAULT_FUNC_PROMPT,

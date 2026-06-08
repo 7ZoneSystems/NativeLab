@@ -3,7 +3,7 @@ from nativelab.Model.model_global import api_model_ref, getapi_registry, is_api_
 from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
 from .pipefunctions import list_saved_pipelines, load_pipeline, save_pipeline
 from .blck_typ import PipelineBlockType 
-from nativelab.core.engine_global import LlamaEngine
+from nativelab.core.engine_global import LlamaEngine, engine_status
 from .executionWorker import PipelineExecutionWorker
 from .flowpreview import FlowPreviewController
 from nativelab.UI.UI_const import C
@@ -526,22 +526,10 @@ class PipelineBuilderTab(QWidget):
             self._log(f"Pipeline '{choice}' deleted.")
 
     def _update_server_badge(self):
-        # ── CHANGED: replaced three setStyleSheet(f"color:{C[...]}...") calls
-        #    with setProperty("state", ...) + unpolish/polish so QSS drives all
-        #    color. States exposed to QSS: "idle" | "ok" | "warn".
-        eng = self._engine
-        if not eng or not eng.is_loaded:
-            set_status_label(self.server_badge, "No model loaded", "idle")
-            self.server_badge.setProperty("state", "idle")
-        elif eng.mode == "server":
-            set_status_label(self.server_badge, f"Server · port {eng.server_port}", "ok")
-            self.server_badge.setProperty("state", "ok")
-        elif eng.mode in ("ollama", "hf_transformers"):
-            set_status_label(self.server_badge, eng.status_text, "ok")
-            self.server_badge.setProperty("state", "ok")
-        else:
-            set_status_label(self.server_badge, "CLI mode - will switch on run", "warn")
-            self.server_badge.setProperty("state", "warn")
+        status = engine_status(self._engine, none_text="No model loaded")
+        text = f"Server · port {status.server_port}" if status.mode == "server" and status.server_port else status.status_text
+        set_status_label(self.server_badge, text, status.state)
+        self.server_badge.setProperty("state", status.state)
         self.server_badge.style().unpolish(self.server_badge)
         self.server_badge.style().polish(self.server_badge)
 

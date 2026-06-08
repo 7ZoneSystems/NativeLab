@@ -1,8 +1,19 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QEasingCurve, QRect, QRectF, QSize, Qt, QPropertyAnimation, pyqtProperty
-from PyQt6.QtGui import QColor, QIcon, QPainter, QPen
-from PyQt6.QtWidgets import QCheckBox
+from nativelab.imports.qt_compat import (
+    QCheckBox,
+    QColor,
+    QEasingCurve,
+    QIcon,
+    QPainter,
+    QPen,
+    QPropertyAnimation,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    pyqtProperty,
+)
 
 
 class ToggleSwitch(QCheckBox):

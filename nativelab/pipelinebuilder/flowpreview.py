@@ -11,7 +11,7 @@ Color legend (matches canvas port routing):
   purple (#cba6f7) - SPLIT fan-out
   grey   (#555555) - FILTER drop-path
 """
-from PyQt6.QtCore import QObject, QTimer, pyqtSignal
+from nativelab.imports.qt_compat import QObject, QTimer, pyqtSignal
 from nativelab.UI.UI_const import C
 from nativelab.pipelinebuilder.blck_typ import PipelineBlockType, PipelineConnection
 from nativelab.pipelinebuilder.pipblck import PipelineBlock

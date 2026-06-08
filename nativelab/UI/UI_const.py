@@ -73,7 +73,7 @@ def set_theme(theme: str, light_custom=None, dark_custom=None):
 
     # FORCE UI REFRESH (THIS FIXES CANVAS)
     try:
-        from PyQt6.QtWidgets import QApplication
+        from nativelab.imports.qt_compat import QApplication
         for w in QApplication.allWidgets():
             if hasattr(w, "refresh_theme"):
                 w.refresh_theme()

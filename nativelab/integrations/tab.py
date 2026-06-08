@@ -1296,8 +1296,11 @@ class IntegrationsTab(QWidget):
         if cb is not None:
             cb.setText(text)
 
-    def closeEvent(self, event):
+    def shutdown(self):
         self._stop_discord_bot()
         self._stop_whatsapp_bot()
         self._stop_http_endpoint()
+
+    def closeEvent(self, event):
+        self.shutdown()
         super().closeEvent(event)

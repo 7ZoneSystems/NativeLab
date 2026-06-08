@@ -14,13 +14,6 @@ Adding a new lab feature
 Doing so means new labs never touch `MainWindow` or engine internals.
 """
 from .endpoints import LabEndpoints
-from .labs_tab  import LabsTab, LAB_FEATURES
-from .codeedit import CodeEditPanel, CodeEditWorker
-from .pytodoc   import (
-    PyToDocPanel, PyToDocWorker,
-    DEFAULT_OVERVIEW_PROMPT, DEFAULT_CLASS_PROMPT, DEFAULT_FUNC_PROMPT,
-    parse_python_file,
-)
 
 __all__ = [
     "LabEndpoints",
@@ -30,3 +23,37 @@ __all__ = [
     "DEFAULT_OVERVIEW_PROMPT", "DEFAULT_CLASS_PROMPT", "DEFAULT_FUNC_PROMPT",
     "parse_python_file",
 ]
+
+
+def __getattr__(name: str):
+    if name in {"LabsTab", "LAB_FEATURES"}:
+        from .labs_tab import LAB_FEATURES, LabsTab
+        return {"LabsTab": LabsTab, "LAB_FEATURES": LAB_FEATURES}[name]
+    if name in {"CodeEditPanel", "CodeEditWorker"}:
+        from .codeedit import CodeEditPanel, CodeEditWorker
+        return {"CodeEditPanel": CodeEditPanel, "CodeEditWorker": CodeEditWorker}[name]
+    if name in {
+        "PyToDocPanel",
+        "PyToDocWorker",
+        "DEFAULT_OVERVIEW_PROMPT",
+        "DEFAULT_CLASS_PROMPT",
+        "DEFAULT_FUNC_PROMPT",
+        "parse_python_file",
+    }:
+        from .pytodoc import (
+            DEFAULT_CLASS_PROMPT,
+            DEFAULT_FUNC_PROMPT,
+            DEFAULT_OVERVIEW_PROMPT,
+            PyToDocPanel,
+            PyToDocWorker,
+            parse_python_file,
+        )
+        return {
+            "PyToDocPanel": PyToDocPanel,
+            "PyToDocWorker": PyToDocWorker,
+            "DEFAULT_OVERVIEW_PROMPT": DEFAULT_OVERVIEW_PROMPT,
+            "DEFAULT_CLASS_PROMPT": DEFAULT_CLASS_PROMPT,
+            "DEFAULT_FUNC_PROMPT": DEFAULT_FUNC_PROMPT,
+            "parse_python_file": parse_python_file,
+        }[name]
+    raise AttributeError(name)

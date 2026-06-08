@@ -45,6 +45,7 @@ from nativelab.core.engine_global import LlamaEngine, ApiEngine
 from nativelab.labs.endpoints import LabEndpoints
 from nativelab.Model.model_global import (
     api_model_ref,
+    get_model_registry,
     getapi_registry,
     is_api_model_ref,
     is_model_ref_valid,
@@ -89,8 +90,10 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
     elif model_path and load_api(model_path):
         pass
     elif model_path and is_model_ref_valid(model_path):
-        ui.info(f"Loading model: {model_ref_display_name(model_path)}")
-        ok = eng.load(model_path, ctx=ctx, log_cb=lambda m: ui.info(m))
+        cfg = get_model_registry().get_config(model_path)
+        ctx = int(cfg.ctx)
+        ui.info(f"Loading model profile: {model_ref_display_name(model_path)}  ctx={cfg.ctx} threads={cfg.threads}")
+        ok = eng.load(model_path, threads=cfg.threads, ctx=cfg.ctx, log_cb=lambda m: ui.info(m))
         if not ok:
             ui.warn("Engine reported load failure - chat will run in degraded mode.")
 
@@ -116,13 +119,14 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
         )
         if not model_path or not is_model_ref_valid(model_path):
             return False
-        ok = eng.load(model_path, ctx=int(new_ctx),
+        cfg = get_model_registry().get_config(model_path)
+        ok = eng.load(model_path, threads=cfg.threads, ctx=int(new_ctx),
                       log_cb=lambda m: ui.info(m))
         endpoints.notify_engine_changed()
         return bool(ok)
 
     def on_model(new_path: str) -> bool:
-        nonlocal eng, api, model_path
+        nonlocal eng, api, model_path, ctx
         if is_api_model_ref(new_path) or getapi_registry().get(new_path):
             try:
                 eng.shutdown()
@@ -147,7 +151,9 @@ def _build_endpoints(model_path: str, ctx: int) -> LabEndpoints:
             llama_provider=lambda: eng,
             api_provider  =lambda: api,
         )
-        ok = eng.load(new_path, ctx=ctx, log_cb=lambda m: ui.info(m))
+        cfg = get_model_registry().get_config(new_path)
+        ctx = int(cfg.ctx)
+        ok = eng.load(new_path, threads=cfg.threads, ctx=cfg.ctx, log_cb=lambda m: ui.info(m))
         if ok:
             model_path = new_path
         endpoints.notify_engine_changed()

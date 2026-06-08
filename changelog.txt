@@ -1,5 +1,41 @@
 v0.3.5
-[todays changes]
+1) Diagnosed the py-to-doc crash path around manual model reloads and local llama.cpp server lifecycle during documentation generation.
+2) Added smarter py-to-doc auto-reload routing through LabEndpoints so model/context reload requests go through the host app instead of each lab touching engines directly.
+3) Added py-to-doc auto model reload controls for low-RAM recovery, reload thresholds, re-arm margins, minimum step/time spacing, and failure limits.
+4) Added py-to-doc abrupt-failure detection for saved project jobs so stale non-paused tasks can be marked paused/recoverable after crashes.
+5) Improved py-to-doc resume handling so interrupted jobs can recover from saved task JSON/checkpoints instead of being treated as dead runs.
+6) Restored proper local model unload behavior so unloading a model tears down/restarts the underlying server state instead of only updating GUI status.
+7) Centralized engine status in `nativelab/core/engine_status.py` so chat, Labs, pipeline, model loading, CLI, and API surfaces share one status detector.
+8) Rewired LabEndpoints, LlamaEngine, API engine status, Code Edit, py-to-doc, pipeline status badges, and main-window status updates to use the centralized engine status snapshot.
+9) Updated the comparison/main site with current NativeLab features and made comparison actions visible as first-class buttons instead of hidden top-only options.
+10) Added editable model profile parameters for downloaded/local models, Ollama models, and HF Transformers models from the Models tab.
+11) Added an Advanced model-profile dropdown with parameter descriptions beside each setting for context, threads, sampling, seed, and backend-specific options.
+12) Centralized saved model profiles so loading the same model from Chat, Models, CLI, Labs, integrations, or API-server paths reuses the profile saved in Models.
+13) Wired saved sampler/profile settings through local llama.cpp server calls, llama-cli calls, Ollama calls, and HF Transformers generation.
+14) Added Settings > Accounts data export for full NativeLab app data from `localllm` as one portable file selected through a save dialog.
+15) Added export category selection with all categories checked by default, including pipelines, chat history, API model data, local model profiles, Discord bot data, WhatsApp bot data, py-to-doc jobs, and other app data.
+16) Added data import wizard support that reads an export file, shows importable categories/files with checkboxes checked by default, and restores selected JSON/data back into normal `localllm` storage.
+17) Added centralized data portability logic in `nativelab/core/data_portability.py` and wired import refresh into the main app after restoring data.
+18) Added Dev > API Server tab for locally hosting downloaded models or active NativeLab engine models over HTTP endpoints.
+19) Added separate local and LAN/global API-server endpoint modes with separately bound API keys.
+20) Added OpenAI-compatible `/v1` routes for models and chat completions.
+21) Added Anthropic-compatible routes for model/message access.
+22) Added API-server model catalog/capability reporting so available models expose backend type, text/image capability, and model source.
+23) Split API-server implementation into boundary modules for config, catalog, protocol translation, server runtime, and GUI tab.
+24) Verified the local API server against the configured `127.0.0.1:8787/v1` endpoint and generated local API key.
+25) Added API-server config persistence in `localllm/api_server_config.json`.
+26) Added app shutdown cleanup for active API servers, integration HTTP endpoints, Discord/WhatsApp bot runners, MCP subprocesses, and local engine workers.
+27) Added hide/show toggle for generated API keys in the API Server window so users can reveal keys when needed.
+28) Added safer API-server shutdown handling from the main window close event.
+29) Separated CLI and GUI startup paths so `nativelab --cli` no longer initializes PyQt or GUI-only modules.
+30) Changed the console script entrypoint to route through `nativelab.__main__` instead of importing `nativelab.main` directly.
+31) Added `NATIVELAB_CLI`/`NATIVELAB_NO_GUI` routing flags before CLI imports so shared modules know they are running headless.
+32) Added `nativelab/imports/qt_compat.py`, a headless Qt compatibility layer for shared CLI-safe workers/signals without importing PyQt.
+33) Updated shared imports, LabEndpoints, HF auth, UI helpers, pipeline flow preview, and CLI lab event loops to use the Qt compatibility boundary.
+34) Made the Labs package lazy so importing LabEndpoints in CLI runtime does not import GUI lab panels.
+35) Added a defensive early CLI route in `nativelab/main.py` so stale generated wrappers that still import `nativelab.main` route to CLI before GUI imports.
+36) Removed noisy import-time llamaengine debug printing while preserving model load logging.
+37) Verified `nativelab --cli status`, CLI model listing, CLI Labs metadata, and py-to-doc/code-edit helper imports run with no `PyQt6` modules loaded.
 
 v0.3.4
 

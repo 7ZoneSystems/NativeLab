@@ -1,5 +1,4 @@
 import sys
-print("LLAMAENGINE LOADED FROM:", __file__, file=sys.stderr, flush=True)
 from nativelab.imports.import_global import Optional, subprocess, time, json, Path, QThread, HAS_PSUTIL, psutil
 from nativelab.Model.model_global import (
     detect_mmproj_for_model,
@@ -11,6 +10,7 @@ from nativelab.Model.model_global import (
     model_ref_display_name,
     model_ref_payload,
 )
+from nativelab.core.engine_status import engine_status
 from nativelab.core.streamer_global import ServerStreamWorker, CliStreamWorker, BackendStreamWorker
 from nativelab.GlobalConfig.config_global import (
     DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, APP_CONFIG,
@@ -96,6 +96,10 @@ class LlamaEngine:
                 temperature=cfg.temperature,
                 top_p=cfg.top_p,
                 repeat_penalty=cfg.repeat_penalty,
+                top_k=cfg.top_k,
+                min_p=cfg.min_p,
+                typical_p=cfg.typical_p,
+                seed=cfg.seed,
                 image_data=image_data,
                 raw_prompt=True,
             )
@@ -109,6 +113,10 @@ class LlamaEngine:
                 temperature=cfg.temperature,
                 top_p=cfg.top_p,
                 repeat_penalty=cfg.repeat_penalty,
+                top_k=cfg.top_k,
+                min_p=cfg.min_p,
+                typical_p=cfg.typical_p,
+                seed=cfg.seed,
                 image_data=image_data,
             )
 
@@ -116,10 +124,19 @@ class LlamaEngine:
         _cli_bin = SERVER_CONFIG.cli_path or _binres.LLAMA_CLI
         cmd = [
             _cli_bin, "-m", self.model_path,
-            "-t", str(DEFAULT_THREADS()), "--ctx-size", str(self.ctx_value),
+            "-t", str(cfg.threads), "--ctx-size", str(self.ctx_value),
             "-n", str(n_predict), "--no-display-prompt", "--no-escape",
+            "--temp", str(cfg.temperature), "--top-p", str(cfg.top_p),
+            "--repeat-penalty", str(cfg.repeat_penalty),
             "-p", prompt,
         ] + _extra_cli
+        self._append_cli_sampler_args(
+            cmd,
+            top_k=cfg.top_k,
+            min_p=cfg.min_p,
+            typical_p=cfg.typical_p,
+            seed=cfg.seed,
+        )
         return CliStreamWorker(cmd)
 
     def set_images(self, image_data: list):
@@ -138,8 +155,9 @@ class LlamaEngine:
         if log_cb:
             self._log = log_cb
 
+        cfg = get_model_registry().get_config(self.model_path)
         self._log(f"[INFO] ensure_server: starting server for {Path(self.model_path).name}")
-        ok = self._start_server(self.model_path, DEFAULT_THREADS(), self.ctx_value)
+        ok = self._start_server(self.model_path, cfg.threads, self.ctx_value)
         level = "INFO" if ok else "WARN"
         msg   = f"started on port {self.server_port}" if ok else "start failed"
         self._log(f"[{level}] ensure_server: {msg}")
@@ -179,11 +197,7 @@ class LlamaEngine:
 
     @property
     def status_text(self) -> str:
-        if self.mode == "server": return f"Server  :{self.server_port}"
-        if self.mode == "cli":    return "CLI Mode"
-        if self.mode == "ollama": return f"Ollama  ·  {model_ref_display_name(self.model_path)}"
-        if self.mode == "hf_transformers": return f"Transformers  ·  {model_ref_display_name(self.model_path)}"
-        return "Not Loaded"
+        return engine_status(self).status_text
 
     def generate_sync(
         self,
@@ -197,6 +211,10 @@ class LlamaEngine:
         abort_cb=None,
         image_data=None,
         raw_prompt: bool = False,
+        top_k: int = 40,
+        min_p: float = 0.0,
+        typical_p: float = 1.0,
+        seed: int = -1,
     ) -> str:
         """Synchronous generation shared by Labs, pipelines, and backend stream workers."""
         messages = list(messages or [])
@@ -205,13 +223,13 @@ class LlamaEngine:
         if not messages:
             raise RuntimeError("generate_sync: no prompt/messages provided")
         if self.mode == "server":
-            return self._generate_server(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, image_data, raw_prompt)
+            return self._generate_server(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, image_data, raw_prompt, top_k, min_p, typical_p, seed)
         if self.mode == "cli":
-            return self._generate_cli(messages, n_predict, temperature, repeat_penalty, token_cb, abort_cb, raw_prompt)
+            return self._generate_cli(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, raw_prompt, top_k, min_p, typical_p, seed)
         if self.mode == "ollama":
-            return self._generate_ollama(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, image_data)
+            return self._generate_ollama(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, image_data, top_k, min_p, seed)
         if self.mode == "hf_transformers":
-            return self._generate_hf(messages, n_predict, temperature, top_p, token_cb, abort_cb, image_data, raw_prompt)
+            return self._generate_hf(messages, n_predict, temperature, top_p, token_cb, abort_cb, image_data, raw_prompt, top_k, min_p, typical_p, seed)
         raise RuntimeError("No local engine loaded")
 
     # ------------------------------------------------------------------ #
@@ -496,7 +514,58 @@ class LlamaEngine:
                 return content
         return self._build_text_prompt(messages)
 
-    def _generate_server(self, messages, n_predict, temperature, top_p, repeat_penalty, token_cb=None, abort_cb=None, image_data=None, raw_prompt: bool = False) -> str:
+    @staticmethod
+    def _sampler_payload(top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> dict:
+        out = {}
+        try:
+            out["top_k"] = max(0, int(top_k))
+        except (TypeError, ValueError):
+            pass
+        try:
+            value = float(min_p)
+            if value > 0:
+                out["min_p"] = value
+        except (TypeError, ValueError):
+            pass
+        try:
+            value = float(typical_p)
+            if 0 < value < 1:
+                out["typical_p"] = value
+        except (TypeError, ValueError):
+            pass
+        try:
+            value = int(seed)
+            if value >= 0:
+                out["seed"] = value
+        except (TypeError, ValueError):
+            pass
+        return out
+
+    @classmethod
+    def _ollama_sampler_options(cls, top_k: int = 40, min_p: float = 0.0, seed: int = -1) -> dict:
+        payload = cls._sampler_payload(top_k=top_k, min_p=min_p, typical_p=1.0, seed=seed)
+        payload.pop("typical_p", None)
+        return payload
+
+    @classmethod
+    def _hf_sampler_kwargs(cls, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0) -> dict:
+        payload = cls._sampler_payload(top_k=top_k, min_p=min_p, typical_p=typical_p, seed=-1)
+        payload.pop("seed", None)
+        return payload
+
+    @classmethod
+    def _append_cli_sampler_args(cls, cmd: list, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> None:
+        payload = cls._sampler_payload(top_k=top_k, min_p=min_p, typical_p=typical_p, seed=seed)
+        if "top_k" in payload:
+            cmd.extend(["--top-k", str(payload["top_k"])])
+        if "min_p" in payload:
+            cmd.extend(["--min-p", str(payload["min_p"])])
+        if "typical_p" in payload:
+            cmd.extend(["--typical", str(payload["typical_p"])])
+        if "seed" in payload:
+            cmd.extend(["--seed", str(payload["seed"])])
+
+    def _generate_server(self, messages, n_predict, temperature, top_p, repeat_penalty, token_cb=None, abort_cb=None, image_data=None, raw_prompt: bool = False, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> str:
         import http.client
 
         prompt_text = self._raw_prompt_text(messages) if raw_prompt else self._build_text_prompt(messages)
@@ -510,6 +579,7 @@ class LlamaEngine:
             "repeat_penalty": float(repeat_penalty),
             "stop": getattr(fam, "stop_tokens", []),
         }
+        body_obj.update(self._sampler_payload(top_k=top_k, min_p=min_p, typical_p=typical_p, seed=seed))
         images = list(image_data or [])
         if images:
             body_obj["image_data"] = images
@@ -548,18 +618,21 @@ class LlamaEngine:
         data = json.loads(resp.read().decode("utf-8", errors="replace"))
         return (data.get("content") or "").strip()
 
-    def _generate_cli(self, messages, n_predict, temperature, repeat_penalty, token_cb=None, abort_cb=None, raw_prompt: bool = False) -> str:
+    def _generate_cli(self, messages, n_predict, temperature, top_p, repeat_penalty, token_cb=None, abort_cb=None, raw_prompt: bool = False, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> str:
         from nativelab.Server.server_global import SERVER_CONFIG
 
         prompt_text = self._raw_prompt_text(messages) if raw_prompt else self._build_text_prompt(messages)
         cli_bin = SERVER_CONFIG.cli_path or _binres.LLAMA_CLI
+        cfg = get_model_registry().get_config(self.model_path)
         cmd = [
             cli_bin, "-m", self.model_path,
-            "-t", str(DEFAULT_THREADS()), "--ctx-size", str(self.ctx_value),
+            "-t", str(cfg.threads), "--ctx-size", str(self.ctx_value),
             "-n", str(int(n_predict)), "--no-display-prompt", "--no-escape",
-            "--temp", str(temperature), "--repeat-penalty", str(repeat_penalty),
+            "--temp", str(temperature), "--top-p", str(top_p),
+            "--repeat-penalty", str(repeat_penalty),
             "-p", prompt_text,
         ]
+        self._append_cli_sampler_args(cmd, top_k=top_k, min_p=min_p, typical_p=typical_p, seed=seed)
         if token_cb:
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
@@ -590,7 +663,7 @@ class LlamaEngine:
         )
         return result.stdout.decode("utf-8", errors="replace").strip()
 
-    def _generate_ollama(self, messages, n_predict, temperature, top_p, repeat_penalty, token_cb=None, abort_cb=None, image_data=None) -> str:
+    def _generate_ollama(self, messages, n_predict, temperature, top_p, repeat_penalty, token_cb=None, abort_cb=None, image_data=None, top_k: int = 40, min_p: float = 0.0, seed: int = -1) -> str:
         import urllib.request
         import urllib.error
 
@@ -626,6 +699,7 @@ class LlamaEngine:
                 "repeat_penalty": float(repeat_penalty),
             },
         }
+        payload["options"].update(self._ollama_sampler_options(top_k=top_k, min_p=min_p, seed=seed))
         req = urllib.request.Request(
             f"{self.ollama_host.rstrip('/')}/api/chat",
             data=json.dumps(payload).encode("utf-8"),
@@ -679,7 +753,7 @@ class LlamaEngine:
         except Exception:
             return inputs
 
-    def _generate_hf(self, messages, n_predict, temperature, top_p, token_cb=None, abort_cb=None, image_data=None, raw_prompt: bool = False) -> str:
+    def _generate_hf(self, messages, n_predict, temperature, top_p, token_cb=None, abort_cb=None, image_data=None, raw_prompt: bool = False, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> str:
         if self._hf_model is None:
             raise RuntimeError("HF Transformers model is not loaded")
         try:
@@ -730,6 +804,23 @@ class LlamaEngine:
             "top_p": float(top_p),
             "do_sample": float(temperature) > 0.0,
         }
+        hf_sampler = self._hf_sampler_kwargs(top_k=top_k, min_p=min_p, typical_p=typical_p)
+        gen_config = getattr(self._hf_model, "generation_config", None)
+        if "min_p" in hf_sampler and gen_config is not None and not hasattr(gen_config, "min_p"):
+            hf_sampler.pop("min_p", None)
+        if "typical_p" in hf_sampler and gen_config is not None and not hasattr(gen_config, "typical_p"):
+            hf_sampler.pop("typical_p", None)
+        gen_kwargs.update(hf_sampler)
+        try:
+            seed_value = int(seed)
+        except (TypeError, ValueError):
+            seed_value = -1
+        if seed_value >= 0:
+            try:
+                import torch
+                torch.manual_seed(seed_value)
+            except Exception:
+                pass
 
         if token_cb and tokenizer is not None:
             streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)

@@ -12,6 +12,15 @@ v2 New Features:
   · Python/code snippet copy buttons inside chat bubbles
   · All existing v1 features preserved
 """
+import os as _entry_os
+import sys as _entry_sys
+
+if "--cli" in _entry_sys.argv[1:]:
+    _entry_os.environ["NATIVELAB_CLI"] = "1"
+    _entry_os.environ["NATIVELAB_NO_GUI"] = "1"
+    from nativelab.cli import run_cli as _entry_run_cli
+    _entry_sys.exit(_entry_run_cli(_entry_sys.argv[1:]))
+
 #import 
 from nativelab.imports.import_global import *
 from nativelab.GlobalConfig.config_global import *
@@ -31,19 +40,22 @@ from nativelab.integrations import IntegrationEndpoints, IntegrationsTab
 from nativelab.skill import active_skill_context, ensure_builtin_edit_skill
 from nativelab.skill.tab import SkillsTab
 from nativelab.Server.ollama_helpers import normalize_ollama_exception, normalize_ollama_host
+from nativelab.api_server import ApiServerTab
 class ModelLoaderThread(QThread):
     finished = pyqtSignal(bool, str)
     log      = pyqtSignal(str, str)
 
-    def __init__(self, engine: "LlamaEngine", model_path: str, ctx: int):
+    def __init__(self, engine: "LlamaEngine", model_path: str, ctx: int, threads: int):
         super().__init__()
         self.engine     = engine
         self.model_path = model_path
         self.ctx        = ctx
+        self.threads    = threads
 
     def run(self):
         ok = self.engine.load(
             self.model_path,
+            threads=self.threads,
             ctx=self.ctx,
             log_cb=lambda m: self.log.emit("INFO", str(m)),
         )
@@ -75,6 +87,7 @@ class ApiLoaderThread(QThread):
 
 class MainWindow(QMainWindow):
     _lab_context_request = pyqtSignal(int, object)
+    _lab_model_request = pyqtSignal(str, object)
     _lab_reload_request = pyqtSignal(object)
 
     def __init__(self):
@@ -95,6 +108,7 @@ class MainWindow(QMainWindow):
         self._lab_endpoints = LabEndpoints(self)
         self._integration_endpoints = IntegrationEndpoints(self._lab_endpoints)
         self._lab_context_request.connect(self._handle_labs_context_request)
+        self._lab_model_request.connect(self._handle_labs_model_request)
         self._lab_reload_request.connect(self._handle_labs_reload_request)
         self.sessions: Dict[str, Session] = {}
         self.active:   Optional[Session]  = None
@@ -200,7 +214,7 @@ class MainWindow(QMainWindow):
         setattr(self, attr, new_eng)
 
         cfg    = get_model_registry().get_config(path)
-        loader = ModelLoaderThread(new_eng, path, cfg.ctx)
+        loader = ModelLoaderThread(new_eng, path, cfg.ctx, cfg.threads)
         loader.log.connect(self._log)
         loader.finished.connect(
             lambda ok, st, r=role, n=model_ref_display_name(path):
@@ -364,6 +378,7 @@ class MainWindow(QMainWindow):
         # ── Dev surfaces ──
         self.pipeline_tab = PipelineBuilderTab(self.engine)
         self.integrations_tab = IntegrationsTab(self._integration_endpoints)
+        self.api_server_tab = ApiServerTab(self._lab_endpoints)
         self.log_console = LogConsole()
         self.labs_tab = LabsTab()
         self.mcp_tab = McpTab()
@@ -465,10 +480,58 @@ class MainWindow(QMainWindow):
         self.accounts_tab = AccountsTab()
         self.hf_login_tab = self.accounts_tab.hf_login_tab
         self.accounts_tab.auth_changed.connect(self._on_hf_auth_changed)
+        self.accounts_tab.data_imported.connect(self._on_data_imported)
 
         self.appearance_tab = AppearanceTab()
         self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
         self.settings_panel = self._build_settings_panel()
+
+    def _on_data_imported(self):
+        try:
+            saved = json.loads(APP_CONFIG_FILE.read_text(encoding="utf-8")) if APP_CONFIG_FILE.exists() else {}
+            APP_CONFIG.clear()
+            APP_CONFIG.update(APP_CONFIG_DEFAULTS)
+            APP_CONFIG.update({k: v for k, v in saved.items() if k in APP_CONFIG})
+        except Exception as exc:
+            self._log("WARN", f"Imported app config could not be reloaded: {exc}")
+        try:
+            get_model_registry()._load()
+            getapi_registry()._load()
+        except Exception as exc:
+            self._log("WARN", f"Imported model registries could not be reloaded: {exc}")
+        active_id = self.active.id if self.active else ""
+        self._load_sessions()
+        if self.sessions:
+            self._switch_session(active_id if active_id in self.sessions else max(self.sessions.values(), key=lambda s: s.id).id)
+        else:
+            self._new_session()
+        if hasattr(self, "model_list"):
+            self._refresh_model_list()
+        if hasattr(self, "input_bar"):
+            self._sync_input_bar_combo()
+        for tab_name in ("config_tab", "docs_config_tab", "hf_config_tab", "ollama_config_tab"):
+            tab = getattr(self, tab_name, None)
+            if hasattr(tab, "refresh_values"):
+                tab.refresh_values()
+        if hasattr(self, "config_tab"):
+            self.config_tab.refresh_paused_jobs()
+        if hasattr(self, "server_tab") and hasattr(self.server_tab, "refresh_values"):
+            self.server_tab.refresh_values()
+        if hasattr(self, "api_tab") and hasattr(self.api_tab, "_refresh_saved"):
+            self.api_tab._refresh_saved()
+        if hasattr(self, "integrations_tab"):
+            self.integrations_tab.refresh()
+            if hasattr(self.integrations_tab, "_reload_discord_profiles"):
+                self.integrations_tab._reload_discord_profiles()
+            if hasattr(self.integrations_tab, "_reload_whatsapp_profiles"):
+                self.integrations_tab._reload_whatsapp_profiles()
+        if hasattr(self, "skills_tab") and hasattr(self.skills_tab, "_reload"):
+            self.skills_tab._reload()
+        if hasattr(self, "download_tab"):
+            self.download_tab.refresh_hf_auth_state()
+        if hasattr(self, "accounts_tab"):
+            self.accounts_tab.refresh_state()
+        self._log("INFO", "Imported NativeLab data and refreshed visible registries.")
 
     def _build_settings_panel(self) -> QWidget:
         panel = QWidget()
@@ -587,6 +650,7 @@ class MainWindow(QMainWindow):
             ("Labs", "labs", self.labs_tab),
             ("Logs", "logs", self.log_console),
             ("Integrations", "integrations", self.integrations_tab),
+            ("API Server", "server", self.api_server_tab),
             ("Pipeline", "pipeline", self.pipeline_tab),
             ("MCP", "mcp", self.mcp_tab),
             ("Skills", "lightbulb", self.skills_tab),
@@ -751,6 +815,14 @@ class MainWindow(QMainWindow):
             if stretch: row.addStretch()
             return row
 
+        def _desc_row(label_text: str, widget, desc: str) -> QHBoxLayout:
+            row = _field_row(label_text, widget, stretch=False)
+            desc_lbl = QLabel(desc)
+            desc_lbl.setWordWrap(True)
+            desc_lbl.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+            row.addWidget(desc_lbl, 1)
+            return row
+
         # Detected family banner (read-only, auto-set)
         self.cfg_family_lbl = QLabel("-")
         self.cfg_family_lbl.setStyleSheet(
@@ -812,6 +884,45 @@ class MainWindow(QMainWindow):
         self.cfg_npred.setAlignment(Qt.AlignmentFlag.AlignCenter)
         cfg_card_l.addLayout(_field_row("Max Tokens:", self.cfg_npred))
 
+        self.btn_advanced_params = QPushButton("Advanced")
+        self.btn_advanced_params.setCheckable(True)
+        self.btn_advanced_params.setFixedHeight(28)
+        set_button_icon(self.btn_advanced_params, "square-chevron-right", "Advanced")
+        self.btn_advanced_params.clicked.connect(self._toggle_advanced_params)
+        cfg_card_l.addWidget(self.btn_advanced_params)
+
+        self.advanced_params_body = QWidget()
+        advanced_l = QVBoxLayout(self.advanced_params_body)
+        advanced_l.setContentsMargins(10, 8, 10, 8)
+        advanced_l.setSpacing(8)
+
+        self.cfg_topk = QLineEdit("40")
+        self.cfg_topk.setFixedWidth(64); self.cfg_topk.setFixedHeight(28)
+        self.cfg_topk.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cfg_topk.setToolTip("Top-K sampler cutoff. 0 disables top-k where the backend supports it.")
+        advanced_l.addLayout(_desc_row("Top-K:", self.cfg_topk, "Limits token choices to the top ranked K tokens; 0 disables it when supported."))
+
+        self.cfg_minp = QLineEdit("0.0")
+        self.cfg_minp.setFixedWidth(64); self.cfg_minp.setFixedHeight(28)
+        self.cfg_minp.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cfg_minp.setToolTip("Min-P sampler cutoff. 0 keeps the backend default.")
+        advanced_l.addLayout(_desc_row("Min-P:", self.cfg_minp, "Drops tokens below a relative probability floor; 0 keeps backend default."))
+
+        self.cfg_typicalp = QLineEdit("1.0")
+        self.cfg_typicalp.setFixedWidth(64); self.cfg_typicalp.setFixedHeight(28)
+        self.cfg_typicalp.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cfg_typicalp.setToolTip("Typical-P sampler cutoff. 1 keeps the backend default.")
+        advanced_l.addLayout(_desc_row("Typical-P:", self.cfg_typicalp, "Prefers tokens with typical information content; 1 keeps backend default."))
+
+        self.cfg_seed = QLineEdit("-1")
+        self.cfg_seed.setFixedWidth(80); self.cfg_seed.setFixedHeight(28)
+        self.cfg_seed.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cfg_seed.setToolTip("Seed for deterministic sampling. -1 keeps random/default backend behavior.")
+        advanced_l.addLayout(_desc_row("Seed:", self.cfg_seed, "Use a fixed non-negative seed for repeatable output; -1 keeps random behavior."))
+
+        self.advanced_params_body.setVisible(False)
+        cfg_card_l.addWidget(self.advanced_params_body)
+
         self.cfg_param_warn = QLabel("")
         self.cfg_param_warn.setWordWrap(True)
         self.cfg_param_warn.setStyleSheet(
@@ -834,7 +945,11 @@ class MainWindow(QMainWindow):
         save_row.addWidget(self.btn_save_cfg)
         save_row.addStretch()
         cfg_card_l.addLayout(save_row)
-        for wf in (self.cfg_ctx, self.cfg_threads, self.cfg_temp):
+        for wf in (
+            self.cfg_ctx, self.cfg_threads, self.cfg_temp, self.cfg_topp,
+            self.cfg_topk, self.cfg_minp, self.cfg_typicalp, self.cfg_rep,
+            self.cfg_seed, self.cfg_npred,
+        ):
             wf.textChanged.connect(self._check_param_warnings)
         root.addWidget(_card(cfg_card_l))
         root.addSpacing(14)
@@ -901,6 +1016,15 @@ class MainWindow(QMainWindow):
 
     # ── model config helpers ──────────────────────────────────────────────────
 
+    def _toggle_advanced_params(self):
+        expanded = bool(self.btn_advanced_params.isChecked())
+        self.advanced_params_body.setVisible(expanded)
+        set_button_icon(
+            self.btn_advanced_params,
+            "square-chevron-down" if expanded else "square-chevron-right",
+            "Advanced",
+        )
+
     def _check_param_warnings(self):
         warnings = []
         try:
@@ -925,6 +1049,38 @@ class MainWindow(QMainWindow):
                 warnings.append("Temperature > 1.5")
             elif temp < 0.05:
                 warnings.append("Temperature near 0")
+        except ValueError:
+            pass
+        try:
+            top_p = float(self.cfg_topp.text())
+            if not (0.0 < top_p <= 1.0):
+                warnings.append("Top-P should be > 0 and <= 1")
+        except ValueError:
+            pass
+        try:
+            top_k = int(self.cfg_topk.text())
+            if top_k < 0:
+                warnings.append("Top-K cannot be negative")
+            elif top_k > 200:
+                warnings.append(f"Top-K {top_k} is unusually high")
+        except ValueError:
+            pass
+        try:
+            min_p = float(self.cfg_minp.text())
+            if not (0.0 <= min_p <= 1.0):
+                warnings.append("Min-P should be between 0 and 1")
+        except ValueError:
+            pass
+        try:
+            typical_p = float(self.cfg_typicalp.text())
+            if not (0.0 < typical_p <= 1.0):
+                warnings.append("Typical-P should be > 0 and <= 1")
+        except ValueError:
+            pass
+        try:
+            npred = int(self.cfg_npred.text())
+            if npred < 0:
+                warnings.append("Max tokens cannot be negative")
         except ValueError:
             pass
         if warnings:
@@ -966,7 +1122,11 @@ class MainWindow(QMainWindow):
             self.cfg_ctx.setText(str(cfg.ctx))
         self.cfg_temp.setText(str(cfg.temperature))
         self.cfg_topp.setText(str(cfg.top_p))
+        self.cfg_topk.setText(str(getattr(cfg, "top_k", 40)))
+        self.cfg_minp.setText(str(getattr(cfg, "min_p", 0.0)))
+        self.cfg_typicalp.setText(str(getattr(cfg, "typical_p", 1.0)))
         self.cfg_rep.setText(str(cfg.repeat_penalty))
+        self.cfg_seed.setText(str(getattr(cfg, "seed", -1)))
         self.cfg_npred.setText(str(cfg.n_predict))
         self._check_param_warnings()
 
@@ -979,14 +1139,27 @@ class MainWindow(QMainWindow):
         try:
             ctx = int(self.cfg_ctx.text()); threads = int(self.cfg_threads.text())
             temp = float(self.cfg_temp.text()); topp = float(self.cfg_topp.text())
-            rep = float(self.cfg_rep.text()); npred = int(self.cfg_npred.text())
+            topk = int(self.cfg_topk.text()); minp = float(self.cfg_minp.text())
+            typicalp = float(self.cfg_typicalp.text())
+            rep = float(self.cfg_rep.text()); seed = int(self.cfg_seed.text())
+            npred = int(self.cfg_npred.text())
         except ValueError:
             QMessageBox.warning(self, "Invalid Parameter", "One or more fields are invalid."); return
+        if not (0.0 < topp <= 1.0 and topk >= 0 and 0.0 <= minp <= 1.0 and 0.0 < typicalp <= 1.0 and rep > 0 and npred >= 0):
+            QMessageBox.warning(
+                self,
+                "Invalid Parameter",
+                "Check sampler ranges: Top-P and Typical-P must be > 0 and <= 1; "
+                "Min-P must be 0..1; Top-K and Max Tokens cannot be negative; "
+                "Repeat Penalty must be positive.",
+            )
+            return
 
         dangers = []
         if ctx > 24576:  dangers.append(f"Context = {ctx:,} tokens (very high)")
         if threads > 32: dangers.append(f"Threads = {threads}")
         if temp > 2.0:   dangers.append(f"Temperature = {temp}")
+        if topk > 200:   dangers.append(f"Top-K = {topk}")
         if dangers:
             msg = "High-compute parameters:\n\n" + "\n".join(f"  • {d}" for d in dangers) + "\n\nSave?"
             if QMessageBox.warning(self, "Confirm", msg,
@@ -1001,7 +1174,9 @@ class MainWindow(QMainWindow):
             path=path, role=self.cfg_role.currentData() or "general",
             backend=model_ref_backend(path), vision=vi.is_vision,
             threads=threads, ctx=ctx, temperature=temp, top_p=topp,
-            repeat_penalty=rep, n_predict=npred, family=fam.family,
+            top_k=topk, min_p=minp, typical_p=typicalp,
+            repeat_penalty=rep, seed=seed, n_predict=npred,
+            family=fam.family,
         )
         get_model_registry().set_config(path, cfg)
         self._refresh_model_list()
@@ -1083,7 +1258,7 @@ class MainWindow(QMainWindow):
                 self.btn_load_role_engine.setEnabled(True)
                 set_button_icon(self.btn_load_role_engine, "zap", "Load Engine for Role")
 
-            loader = ModelLoaderThread(new_eng, path, cfg.ctx)
+            loader = ModelLoaderThread(new_eng, path, cfg.ctx, cfg.threads)
             loader.log.connect(self._log)
             loader.finished.connect(_on_loaded_reenable)
             loader.start()
@@ -1117,19 +1292,10 @@ class MainWindow(QMainWindow):
             if eng:
                 engines[role.capitalize()] = eng
         for role_name, eng in engines.items():
-            model_name = model_ref_display_name(eng.model_path) if eng.model_path else "not loaded"
-            fam_tag    = ""
-            if eng.model_path:
-                cfg = get_model_registry().get_config(eng.model_path)
-                fam = detect_model_family(model_ref_payload(eng.model_path) or eng.model_path)
-                qt  = cfg.quant_type
-                fam_tag = f"  [{fam.name} · {qt}]"
-            mode_tag = f"  [{eng.mode}]" if eng.is_loaded else ""
-            item = QListWidgetItem(
-                f"  {role_name:<22}  {model_name}{mode_tag}{fam_tag}")
-            state = "warn" if eng.is_loaded and getattr(eng, "mode", "") == "cli" else ("ok" if eng.is_loaded else "idle")
-            item.setIcon(status_icon(state))
-            item.setForeground(QColor(C["ok"] if eng.is_loaded else C["txt2"]))
+            status = engine_status(eng, role=role_name)
+            item = QListWidgetItem(status.manager_label)
+            item.setIcon(status_icon(status.state))
+            item.setForeground(QColor(C["ok"] if status.is_loaded else C["txt2"]))
             self.engine_status_list.addItem(item)
 
     def _unload_all_engines(self):
@@ -1559,13 +1725,13 @@ class MainWindow(QMainWindow):
             return
         if is_external_model_ref(selected):
             if selected and selected == getattr(self.engine, "model_path", "") and self.engine.is_loaded:
-                self._set_engine_status(self.engine.status_text, "ok")
+                self._set_engine_status_from_engine(self.engine)
                 return
             self._set_engine_status(f"Selected {model_ref_backend(selected)} model not loaded", "idle")
             return
         loaded_path = getattr(self.engine, "model_path", "")
         if selected and selected == loaded_path and self.engine.is_loaded:
-            self._set_engine_status(self.engine.status_text, "ok")
+            self._set_engine_status_from_engine(self.engine)
             return
         self._set_engine_status("Selected model not loaded", "idle")
 
@@ -1638,7 +1804,7 @@ class MainWindow(QMainWindow):
         if not model or not is_model_ref_valid(model):
             model = str(MODELS_DIR / DEFAULT_MODEL)
         if self.engine.is_loaded and getattr(self.engine, "model_path", "") == model:
-            self._set_engine_status(self.engine.status_text, "ok")
+            self._set_engine_status_from_engine(self.engine)
             return
         if (
             (self.engine and self.engine.is_loaded)
@@ -1649,6 +1815,13 @@ class MainWindow(QMainWindow):
             self._api_engine.shutdown()
         self._set_engine_status("Loading model...", "loading")
         cfg = get_model_registry().get_config(model)
+        profile_ctx = max(512, min(MAX_CONTEXT_TOKENS, int(cfg.ctx)))
+        self.ctx_slider.blockSignals(True)
+        self.ctx_slider.setValue(profile_ctx)
+        self.ctx_slider.blockSignals(False)
+        self.ctx_input.setText(str(profile_ctx))
+        self.current_ctx = profile_ctx
+        self.ctx_bar.setRange(0, profile_ctx)
         payload = model_ref_payload(model) or model
         fam   = detect_model_family(payload)
         quant = cfg.quant_type
@@ -1656,16 +1829,22 @@ class MainWindow(QMainWindow):
         ql, _ = quant_info(quant)
         vision = f"  ·  VLM: {vi.label}" if vi.is_vision else ""
         self.lbl_family.setText(f"{fam.name}  ·  {quant}  ·  {ql}{vision}")
-        self._log("INFO", f"Loading model: {model_ref_display_name(model)}  [{fam.name} / {quant}{vision}]")
-        self._loader = ModelLoaderThread(self.engine, model, self.ctx_slider.value())
+        self._log(
+            "INFO",
+            f"Loading model profile: {model_ref_display_name(model)}  "
+            f"[{fam.name} / {quant}{vision}] ctx={profile_ctx:,} threads={cfg.threads}",
+        )
+        self._loader = ModelLoaderThread(self.engine, model, profile_ctx, cfg.threads)
         self._loader.log.connect(self._log)
         self._loader.finished.connect(self._on_model_loaded)
         self._loader.start()
 
     def _on_model_loaded(self, ok: bool, status: str):
         self.ctx_slider.setEnabled(True)
-        self._set_engine_status(status, "ok" if ok else "err")
-        color = C["ok"] if ok else C["err"]
+        current = engine_status(self.engine) if ok else None
+        state = current.state if current is not None else "err"
+        self._set_engine_status(current.status_text if current is not None else status, state)
+        color = C["warn"] if state == "warn" else (C["ok"] if ok else C["err"])
         self.lbl_engine.setStyleSheet(f"color:{color};padding:0 8px;")
         self._log("INFO" if ok else "ERROR", f"Model load: {status}")
         if hasattr(self, "model_list"):
@@ -1791,8 +1970,8 @@ class MainWindow(QMainWindow):
             self.input_bar.model_combo.setCurrentIndex(idx)
             self.input_bar.model_combo.blockSignals(False)
             self.input_bar._update_family_badge()
-        name = f"{cfg.provider}  ·  {cfg.model_id}" if cfg else api_engine.status_text
-        self._set_engine_status(name, "api")
+        status = engine_status(api_engine)
+        self._set_engine_status(status.status_text, status.state)
         self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
         self.lbl_family.setText("API  ·  provider output limit")
         self._log("INFO", f"API model loaded: {api_engine.status_text}")
@@ -1863,6 +2042,8 @@ class MainWindow(QMainWindow):
                 ep.engine_changed.connect(self.integrations_tab.refresh)
             except Exception:
                 pass
+        if hasattr(self, "api_server_tab"):
+            self.api_server_tab.set_endpoints(ep)
 
     def _skills_enabled(self) -> bool:
         return bool(
@@ -1928,6 +2109,26 @@ class MainWindow(QMainWindow):
 
     def _labs_request_load_model(self, model_path: str) -> bool:
         """Reverse route: a lab feature asks the host to load a model."""
+        if QThread.currentThread() != self.thread():
+            payload = {"event": threading.Event(), "ok": False, "error": None}
+            self._lab_model_request.emit(str(model_path), payload)
+            if not payload["event"].wait(LONG_TIMEOUT_MS / 1000.0):
+                return False
+            if payload["error"] is not None:
+                raise payload["error"]
+            return bool(payload["ok"])
+        return self._labs_request_load_model_impl(model_path)
+
+    def _handle_labs_model_request(self, model_path: str, payload: dict):
+        try:
+            payload["ok"] = bool(self._labs_request_load_model_impl(model_path))
+        except Exception as exc:
+            payload["error"] = exc
+        finally:
+            payload["event"].set()
+
+    def _labs_request_load_model_impl(self, model_path: str) -> bool:
+        """Main-thread implementation for loading a model requested by endpoints."""
         if is_api_model_ref(model_path):
             idx = self.input_bar.model_combo.findData(model_path)
             if idx == -1:
@@ -2027,7 +2228,8 @@ class MainWindow(QMainWindow):
         self.current_ctx = self.ctx_slider.value()
         self._set_engine_status("Reloading model...", "loading")
         self._notify_labs()
-        self._loader = ModelLoaderThread(self.engine, model, self.current_ctx)
+        cfg = get_model_registry().get_config(model)
+        self._loader = ModelLoaderThread(self.engine, model, self.current_ctx, cfg.threads)
         self._loader.log.connect(self._log)
         self._loader.finished.connect(self._on_model_loaded)
         self._loader.start()
@@ -2234,7 +2436,7 @@ class MainWindow(QMainWindow):
 
         # ── Normal / single-engine mode ───────────────────────────────────────
         is_coding  = active_eng is self.coding_engine
-        eng_label  = "Coding engine" if is_coding else active_eng.status_text
+        eng_label  = "Coding engine" if is_coding else engine_status(active_eng).status_text
 
         ctx_chars = getattr(active_eng, "ctx_value", DEFAULT_CTX()) * 4
         prompt    = self.active.build_prompt(
@@ -2486,8 +2688,7 @@ class MainWindow(QMainWindow):
 
     def _on_pipeline_done(self, tps: float):
         self.tps_lbl.setText(f"{tps:.1f} tok/s")
-        self._set_engine_status(self.engine.status_text, "ok")
-        self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
+        self._set_engine_status_from_engine(self.engine)
         self.input_bar.set_generating(False)
 
         # Collect all insight texts for session save
@@ -2558,8 +2759,7 @@ class MainWindow(QMainWindow):
 
     def _on_done(self, tps: float):
         self.tps_lbl.setText(f"{tps:.1f} tok/s")
-        self._set_engine_status(self._active_engine_for("").status_text, "ok")
-        self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
+        self._set_engine_status_from_engine(self._active_engine_for(""))
         self.input_bar.set_generating(False)
         if self._stream_w:
             try: self._stream_w.finalize()
@@ -2638,8 +2838,7 @@ class MainWindow(QMainWindow):
             except RuntimeError: pass
 
         self.input_bar.set_generating(False)
-        self._set_engine_status(self.engine.status_text, "ok")
-        self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
+        self._set_engine_status_from_engine(self.engine)
         self._log("INFO", "Generation stopped by user.")
         self._save_streamed(suffix=" [stopped]")
         self._busy_session_id  = ""
@@ -2849,8 +3048,7 @@ class MainWindow(QMainWindow):
             self._summary_session_id = ""
             self._busy_session_id   = ""
             self.input_bar.set_generating(False)
-            self._set_engine_status(self.engine.status_text, "ok")
-            self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
+            self._set_engine_status_from_engine(self.engine)
             self._update_ctx_bar()
             self._refresh_sidebar()
         QTimer.singleShot(120, _persist)
@@ -2952,8 +3150,7 @@ class MainWindow(QMainWindow):
 
         self._multi_pdf_worker = None
         self.input_bar.set_generating(False)
-        self._set_engine_status(self.engine.status_text, "ok")
-        self.lbl_engine.setStyleSheet(f"color:{C['ok']};padding:0 8px;")
+        self._set_engine_status_from_engine(self.engine)
         self._update_ctx_bar()
 
     def _on_config_changed(self):
@@ -3139,6 +3336,20 @@ class MainWindow(QMainWindow):
         if not hasattr(self, "lbl_engine"):
             return
         set_status_label(self.lbl_engine, text, state, 14)
+        color_key = {
+            "ok": "ok",
+            "api": "ok",
+            "loading": "acc",
+            "warn": "warn",
+            "err": "err",
+            "error": "err",
+            "pipeline": "pipeline",
+        }.get(str(state), "txt2")
+        self.lbl_engine.setStyleSheet(f"color:{C.get(color_key, C['txt2'])};padding:0 8px;")
+
+    def _set_engine_status_from_engine(self, engine=None):
+        status = engine_status(engine if engine is not None else self._active_engine_for(""))
+        self._set_engine_status(status.status_text, status.state)
 
     def _update_ctx_bar(self):
         if not self.active: return
@@ -3353,6 +3564,7 @@ class MainWindow(QMainWindow):
                 "Labs": "labs",
                 "Logs": "logs",
                 "Integrations": "integrations",
+                "API Server": "server",
                 "Pipeline": "pipeline",
                 "MCP": "mcp",
                 "Skills": "lightbulb",
@@ -3443,7 +3655,7 @@ class MainWindow(QMainWindow):
         self._apply_saved_view_state()
 
         # Rebuild chat bubbles + status bar colours
-        self._on_model_loaded(self.engine.is_loaded, self.engine.status_text)
+        self._set_engine_status_from_engine(self._active_engine_for(""))
         if self.active:
             self._switch_session(self.active.id)
         apply_theme_palette(self, C)
@@ -3475,6 +3687,21 @@ class MainWindow(QMainWindow):
                 self.pipeline_tab._exec_worker.wait(LONG_TIMEOUT_MS)
             except Exception:
                 pass
+        if hasattr(self, "api_server_tab"):
+            try:
+                self.api_server_tab.shutdown()
+            except Exception:
+                pass
+        if hasattr(self, "integrations_tab") and hasattr(self.integrations_tab, "shutdown"):
+            try:
+                self.integrations_tab.shutdown()
+            except Exception:
+                pass
+        if hasattr(self, "mcp_tab") and hasattr(self.mcp_tab, "shutdown"):
+            try:
+                self.mcp_tab.shutdown()
+            except Exception:
+                pass
 
         # Cancel any pending role loaders gracefully before shutting down engines
         for role in ("reasoning", "summarization", "coding", "secondary"):
@@ -3499,6 +3726,12 @@ class MainWindow(QMainWindow):
 # ═════════════════════════════ ENTRY POINT ══════════════════════════════════
 
 def main():
+    if "--cli" in sys.argv[1:]:
+        os.environ["NATIVELAB_CLI"] = "1"
+        os.environ["NATIVELAB_NO_GUI"] = "1"
+        from nativelab.cli import run_cli
+        sys.exit(run_cli(sys.argv[1:]))
+
     app = QApplication(sys.argv)
     app.setApplicationName("NativeLab")
     base_dir = os.path.dirname(__file__)

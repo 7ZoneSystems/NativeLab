@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nativelab"
-version = "0.3.4"
+version = "0.3.5"
 description = "NativeLab AI framework"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -41,7 +41,7 @@ hf = [
 ]
 
 [project.scripts]
-nativelab = "nativelab.main:main"
+nativelab = "nativelab.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

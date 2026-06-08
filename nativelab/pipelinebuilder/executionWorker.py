@@ -685,6 +685,10 @@ class PipelineExecutionWorker(QThread):
                 temperature=cfg.temperature,
                 top_p=cfg.top_p,
                 repeat_penalty=cfg.repeat_penalty,
+                top_k=getattr(cfg, "top_k", 40),
+                min_p=getattr(cfg, "min_p", 0.0),
+                typical_p=getattr(cfg, "typical_p", 1.0),
+                seed=getattr(cfg, "seed", -1),
                 token_cb=lambda tok: self.step_token.emit(b.bid, tok),
                 abort_cb=lambda: self._abort,
             ).strip()
@@ -731,6 +735,7 @@ class PipelineExecutionWorker(QThread):
         if not self._ensure_server(eng, model_path):
             return None
         try:
+            cfg = get_model_registry().get_config(model_path)
             return eng.generate_sync(
                 messages=[
                     {"role": "system", "content": system_prompt},
@@ -738,6 +743,12 @@ class PipelineExecutionWorker(QThread):
                 ],
                 n_predict=max_tokens,
                 temperature=temperature,
+                top_p=getattr(cfg, "top_p", 0.9),
+                repeat_penalty=getattr(cfg, "repeat_penalty", 1.1),
+                top_k=getattr(cfg, "top_k", 40),
+                min_p=getattr(cfg, "min_p", 0.0),
+                typical_p=getattr(cfg, "typical_p", 1.0),
+                seed=getattr(cfg, "seed", -1),
             ).strip()
         except Exception as _e:
             self.log_msg.emit(f"LLM query error: {_e}")

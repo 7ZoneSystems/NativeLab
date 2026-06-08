@@ -10,22 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_SECONDS
-
-try:
-    from PyQt6.QtCore import QThread, pyqtSignal
-except Exception:
-    class QThread:  # type: ignore[no-redef]
-        def __init__(self, *args, **kwargs):
-            pass
-
-    class _MissingSignal:
-        def connect(self, *args, **kwargs):
-            pass
-        def emit(self, *args, **kwargs):
-            pass
-
-    def pyqtSignal(*args, **kwargs):  # type: ignore[no-redef]
-        return _MissingSignal()
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 
 
 HF_CRED_FILE = Path("./localllm/cred/huggingface.json")

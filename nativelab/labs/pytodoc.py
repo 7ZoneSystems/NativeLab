@@ -1476,7 +1476,7 @@ class PyToDocPanel(QWidget):
     def set_endpoints(self, endpoints: LabEndpoints):
         self._endpoints = endpoints
         endpoints.status_changed.connect(self._on_status_changed)
-        self._on_status_changed(endpoints.status_text)
+        self._on_status_changed()
         if not getattr(self, "_budget_user_touched", False):
             self._set_auto_budget_value(getattr(endpoints, "ctx_value", AUTO_CONTEXT_DEFAULT), mark_touched=False)
 
@@ -1486,9 +1486,15 @@ class PyToDocPanel(QWidget):
     def refresh_theme(self):
         self.refresh_icons()
 
-    def _on_status_changed(self, status: str):
+    def _on_status_changed(self, status: str = ""):
         if hasattr(self, "lbl_engine"):
-            state = "idle" if "No Engine" in status or "Not Loaded" in status else "ok"
+            if self._endpoints is not None:
+                snapshot = self._endpoints.snapshot()
+                status = snapshot.get("status", status)
+                state = snapshot.get("state", "idle")
+            else:
+                state = "idle"
+                status = status or "No Engine"
             set_status_label(self.lbl_engine, f"Active engine: {status}", state)
         if (
             self._endpoints is not None

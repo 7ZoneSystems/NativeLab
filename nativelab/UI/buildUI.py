@@ -1,6 +1,4 @@
-from PyQt6.QtCore import QSize
-from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QApplication, QComboBox, QWidget
+from nativelab.imports.qt_compat import QApplication, QColor, QComboBox, QPalette, QSize, QWidget
 from typing import Optional, Tuple
 
 from nativelab.UI.UI_const import C

@@ -1,7 +1,14 @@
-from nativelab.imports.import_global import QStackedWidget,QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame, QTabWidget
+from nativelab.imports.import_global import QStackedWidget,QThread,HAS_PSUTIL,json,QProgressBar,Path,QSpinBox,QComboBox,QFileDialog, QSlider, QColorDialog, psutil, Optional, subprocess, Dict, QHBoxLayout, datetime, Qt, pyqtSignal, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QListWidget, QListWidgetItem, QMenu, QInputDialog, QColor, QTextEdit, QFont, QCheckBox, QMessageBox, QScrollArea , QFrame, QTabWidget, QDialog
 from .UI_const import C_DARK, C_LIGHT, CURRENT_THEME, C,set_theme
 from .effects import fade_in
 from nativelab.core.engine_global import ApiConfig, ApiEngine
+from nativelab.core.data_portability import (
+    category_options,
+    export_bundle,
+    import_bundle,
+    load_bundle,
+    summarize_bundle,
+)
 from nativelab.Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
 from nativelab.GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths, LONG_TIMEOUT_SECONDS
 from nativelab.components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
@@ -308,6 +315,21 @@ class ConfigTab(QWidget):
                 widget.setText(str(val))
         self.config_changed.emit()
 
+    def refresh_values(self):
+        for key, widget in self._fields.items():
+            val = APP_CONFIG.get(key, APP_CONFIG_DEFAULTS.get(key, ""))
+            was_blocked = widget.blockSignals(True)
+            try:
+                if isinstance(widget, QCheckBox):
+                    widget.setChecked(bool(val))
+                elif isinstance(widget, QComboBox):
+                    idx = widget.findData(str(val))
+                    widget.setCurrentIndex(idx if idx >= 0 else 0)
+                else:
+                    widget.setText(str(val))
+            finally:
+                widget.blockSignals(was_blocked)
+
     def refresh_paused_jobs(self):
         if not hasattr(self, "paused_jobs_list"):
             return
@@ -605,10 +627,253 @@ class HuggingFaceLoginTab(QWidget):
             self.hf_login_message.setText(f"Open this URL manually: {url}\n{exc}")
 
 
+class DataPortabilityDialog(QDialog):
+    """Category picker used by NativeLab data export/import."""
+
+    def __init__(self, mode: str, bundle: Optional[dict] = None, parent=None):
+        super().__init__(parent)
+        self.mode = mode
+        self.bundle = bundle or {}
+        self.category_checks: Dict[str, QCheckBox] = {}
+        self.api_checks: Dict[str, QCheckBox] = {}
+        self.model_checks: Dict[str, QCheckBox] = {}
+        self.setWindowTitle("Export NativeLab Data" if mode == "export" else "Import NativeLab Data")
+        self.resize(720, 620)
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(10)
+
+        hdr = QLabel("Export includes" if self.mode == "export" else "Import includes")
+        set_label_icon(hdr, "import" if self.mode == "import" else "download", hdr.text(), 18)
+        hdr.setStyleSheet(f"color:{C['txt']};font-size:15px;font-weight:bold;")
+        root.addWidget(hdr)
+
+        desc = QLabel(
+            "Choose which app data categories to write into one portable JSON file."
+            if self.mode == "export"
+            else "Choose which categories and individual profiles to restore into this NativeLab profile."
+        )
+        desc.setWordWrap(True)
+        desc.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        root.addWidget(desc)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setObjectName("chat_scroll")
+        body = QWidget()
+        body_l = QVBoxLayout(body)
+        body_l.setContentsMargins(0, 0, 0, 0)
+        body_l.setSpacing(8)
+        scroll.setWidget(body)
+        root.addWidget(scroll, 1)
+
+        rows = category_options() if self.mode == "export" else summarize_bundle(self.bundle).get("categories", [])
+        for row in rows:
+            cat_id = str(row.get("id", ""))
+            if not cat_id:
+                continue
+            box = QFrame()
+            box.setObjectName("tab_card")
+            box_l = QVBoxLayout(box)
+            box_l.setContentsMargins(12, 10, 12, 10)
+            box_l.setSpacing(6)
+
+            top = QHBoxLayout()
+            chk = QCheckBox(str(row.get("label", cat_id)))
+            chk.setChecked(True)
+            chk.setStyleSheet(f"color:{C['txt']};font-size:12px;font-weight:600;")
+            self.category_checks[cat_id] = chk
+            top.addWidget(chk)
+            top.addStretch()
+            count = row.get("count", row.get("file_count", 0))
+            count_lbl = QLabel(f"{count} file(s)")
+            count_lbl.setStyleSheet(f"color:{C['txt3']};font-size:10px;")
+            top.addWidget(count_lbl)
+            box_l.addLayout(top)
+
+            text = QLabel(str(row.get("description", "")))
+            text.setWordWrap(True)
+            text.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+            box_l.addWidget(text)
+
+            if self.mode == "import":
+                self._add_import_items(cat_id, row.get("items") or {}, box_l)
+
+            body_l.addWidget(box)
+        body_l.addStretch()
+
+        btns = QHBoxLayout()
+        self.btn_all = QPushButton("Select All")
+        self.btn_none = QPushButton("Select None")
+        self.btn_cancel = QPushButton("Cancel")
+        self.btn_accept = QPushButton("Export" if self.mode == "export" else "Import")
+        self.btn_accept.setObjectName("btn_send")
+        set_button_icon(self.btn_all, "circle-check", "Select All")
+        set_button_icon(self.btn_none, "circle", "Select None")
+        set_button_icon(self.btn_cancel, "x", "Cancel")
+        set_button_icon(self.btn_accept, "download" if self.mode == "export" else "import", self.btn_accept.text())
+        self.btn_all.clicked.connect(lambda: self._set_all(True))
+        self.btn_none.clicked.connect(lambda: self._set_all(False))
+        self.btn_cancel.clicked.connect(self.reject)
+        self.btn_accept.clicked.connect(self.accept)
+        btns.addWidget(self.btn_all)
+        btns.addWidget(self.btn_none)
+        btns.addStretch()
+        btns.addWidget(self.btn_cancel)
+        btns.addWidget(self.btn_accept)
+        root.addLayout(btns)
+
+    def _add_import_items(self, cat_id: str, items: dict, layout: QVBoxLayout):
+        if cat_id == "api_models":
+            names = [str(x) for x in items.get("api_models", []) if str(x)]
+            self._add_item_checks(layout, names, self.api_checks, "API profiles")
+        elif cat_id == "local_model_profiles":
+            paths = [str(x) for x in items.get("model_profiles", []) if str(x)]
+            self._add_item_checks(layout, paths, self.model_checks, "Model profiles")
+
+    def _add_item_checks(self, layout: QVBoxLayout, values: list[str], target: Dict[str, QCheckBox], label: str):
+        if not values:
+            return
+        title = QLabel(label)
+        title.setStyleSheet(f"color:{C['txt2']};font-size:10px;font-weight:600;margin-top:4px;")
+        layout.addWidget(title)
+        for value in values:
+            chk = QCheckBox(value)
+            chk.setChecked(True)
+            chk.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+            target[value] = chk
+            layout.addWidget(chk)
+
+    def _set_all(self, checked: bool):
+        for group in (self.category_checks, self.api_checks, self.model_checks):
+            for chk in group.values():
+                chk.setChecked(checked)
+
+    def selected_categories(self) -> list[str]:
+        return [cat_id for cat_id, chk in self.category_checks.items() if chk.isChecked()]
+
+    def selected_api_models(self) -> list[str]:
+        return [name for name, chk in self.api_checks.items() if chk.isChecked()]
+
+    def selected_model_profiles(self) -> list[str]:
+        return [path for path, chk in self.model_checks.items() if chk.isChecked()]
+
+
+class DataPortabilityTab(QWidget):
+    data_imported = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(16, 14, 16, 14)
+        root.setSpacing(12)
+
+        hdr = QLabel("Data Export / Import")
+        set_label_icon(hdr, "import", "Data Export / Import", 18)
+        hdr.setStyleSheet(f"color:{C['txt']};font-size:15px;font-weight:bold;")
+        root.addWidget(hdr)
+
+        body = QLabel(
+            "Export NativeLab data into one portable JSON file, then import selected categories "
+            "into another profile or machine. Imported files are restored into the normal "
+            "localllm, sessions, reference, paused job, and pipeline locations."
+        )
+        body.setWordWrap(True)
+        body.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        root.addWidget(body)
+
+        card = QFrame()
+        card.setObjectName("tab_card")
+        card_l = QVBoxLayout(card)
+        card_l.setContentsMargins(14, 12, 14, 12)
+        card_l.setSpacing(10)
+
+        row = QHBoxLayout()
+        self.btn_export_data = QPushButton("Export Data")
+        self.btn_import_data = QPushButton("Import Data")
+        set_button_icon(self.btn_export_data, "download", "Export Data")
+        set_button_icon(self.btn_import_data, "import", "Import Data")
+        self.btn_export_data.clicked.connect(self._export_data)
+        self.btn_import_data.clicked.connect(self._import_data)
+        row.addWidget(self.btn_export_data)
+        row.addWidget(self.btn_import_data)
+        row.addStretch()
+        card_l.addLayout(row)
+
+        self.data_status = QLabel("")
+        self.data_status.setWordWrap(True)
+        self.data_status.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        card_l.addWidget(self.data_status)
+        root.addWidget(card)
+        root.addStretch()
+
+    def _export_data(self):
+        dlg = DataPortabilityDialog("export", parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        categories = dlg.selected_categories()
+        if not categories:
+            QMessageBox.warning(self, "No Data Selected", "Select at least one data category to export.")
+            return
+        default = f"nativelab_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        path, _ = QFileDialog.getSaveFileName(self, "Save NativeLab Export", default, "NativeLab Export (*.json);;All Files (*)")
+        if not path:
+            return
+        try:
+            summary = export_bundle(path, categories)
+        except Exception as exc:
+            QMessageBox.critical(self, "Export Failed", str(exc))
+            return
+        count = sum(int(row.get("file_count", 0)) for row in summary.get("categories", []))
+        self.data_status.setText(f"Exported {count} file(s) to {path}")
+
+    def _import_data(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Open NativeLab Export", str(Path.home()), "NativeLab Export (*.json);;All Files (*)")
+        if not path:
+            return
+        try:
+            bundle = load_bundle(path)
+        except Exception as exc:
+            QMessageBox.critical(self, "Import Failed", str(exc))
+            return
+        dlg = DataPortabilityDialog("import", bundle=bundle, parent=self)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+        categories = dlg.selected_categories()
+        if not categories:
+            QMessageBox.warning(self, "No Data Selected", "Select at least one data category to import.")
+            return
+        try:
+            result = import_bundle(
+                bundle,
+                categories,
+                selected_api_models=dlg.selected_api_models() if dlg.api_checks else None,
+                selected_model_profiles=dlg.selected_model_profiles() if dlg.model_checks else None,
+            )
+        except Exception as exc:
+            QMessageBox.critical(self, "Import Failed", str(exc))
+            return
+        imported = result.get("imported", {})
+        total = sum(int(v or 0) for v in imported.values())
+        self.data_status.setText(f"Imported {total} item(s) from {Path(path).name}. Visible app data was refreshed.")
+        self.data_imported.emit()
+
+    def refresh_icons(self):
+        set_button_icon(self.btn_export_data, "download", "Export Data")
+        set_button_icon(self.btn_import_data, "import", "Import Data")
+
+
 class AccountsTab(QWidget):
     """Account integrations grouped by provider."""
 
     auth_changed = pyqtSignal()
+    data_imported = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -619,7 +884,10 @@ class AccountsTab(QWidget):
         self.tabs.setObjectName("accounts_subtabs")
         self.hf_login_tab = HuggingFaceLoginTab()
         self.hf_login_tab.auth_changed.connect(self.auth_changed.emit)
+        self.data_tab = DataPortabilityTab()
+        self.data_tab.data_imported.connect(self.data_imported.emit)
         self.tabs.addTab(self.hf_login_tab, icon("huggingface"), "Hugging Face")
+        self.tabs.addTab(self.data_tab, icon("import"), "Data")
         root.addWidget(self.tabs)
 
     def show_hugging_face(self):
@@ -630,6 +898,8 @@ class AccountsTab(QWidget):
 
     def refresh_icons(self):
         self.tabs.setTabIcon(0, icon("huggingface"))
+        self.tabs.setTabIcon(1, icon("import"))
+        self.data_tab.refresh_icons()
 
 
 class ParallelLoadingDialog(QWidget):
@@ -1602,6 +1872,35 @@ class ServerTab(QWidget):
         self.combo_main_gpu.setCurrentIndex(0)
         self.ts_edit.setText("")
         self._cfg.save()
+        refresh_binary_paths()
+        self._refresh_resolved()
+        self._update_cli_status()
+        self._update_srv_status()
+
+    def refresh_values(self):
+        fresh = type(self._cfg).load()
+        for name in getattr(fresh, "__dataclass_fields__", {}):
+            setattr(self._cfg, name, getattr(fresh, name))
+        widgets = (
+            self.cli_edit, self.srv_edit, self.host_edit, self.port_lo_edit,
+            self.port_hi_edit, self.extra_cli_edit, self.extra_srv_edit,
+            self.chk_gpu, self.spin_ngl, self.combo_main_gpu, self.ts_edit,
+        )
+        blocked = [(widget, widget.blockSignals(True)) for widget in widgets]
+        self.cli_edit.setText(self._cfg.cli_path)
+        self.srv_edit.setText(self._cfg.server_path)
+        self.host_edit.setText(self._cfg.host)
+        self.port_lo_edit.setText(str(self._cfg.port_range_lo))
+        self.port_hi_edit.setText(str(self._cfg.port_range_hi))
+        self.extra_cli_edit.setText(self._cfg.extra_cli_args)
+        self.extra_srv_edit.setText(self._cfg.extra_server_args)
+        self.chk_gpu.setChecked(bool(self._cfg.enable_gpu))
+        self.spin_ngl.setValue(int(self._cfg.ngl))
+        idx = self.combo_main_gpu.findData(self._cfg.main_gpu)
+        self.combo_main_gpu.setCurrentIndex(idx if idx >= 0 else 0)
+        self.ts_edit.setText(self._cfg.tensor_split)
+        for widget, was_blocked in blocked:
+            widget.blockSignals(was_blocked)
         refresh_binary_paths()
         self._refresh_resolved()
         self._update_cli_status()
@@ -2894,6 +3193,16 @@ class McpTab(QWidget):
                 except Exception: pass
             del self._procs[name]
             self._mcp_log_msg(f"Stopped '{name}'")
+
+    def shutdown(self):
+        for name in list(self._procs.keys()):
+            self._stop_by_name(name)
+
+    def closeEvent(self, event):
+        self.shutdown()
+        super().closeEvent(event)
+
+
 API_REGISTRY = ApiRegistry()
 
 class ApiModelsTab(QWidget):

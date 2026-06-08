@@ -25,13 +25,13 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from PyQt6.QtCore import QObject, pyqtSignal
-
+from nativelab.imports.qt_compat import QObject, pyqtSignal
 from nativelab.GlobalConfig.config_global import (
     DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, LONG_TIMEOUT_SECONDS,
 )
 from nativelab.components.components_global import detect_model_family
 from nativelab.Model.model_global import FAMILY_TEMPLATES, model_ref_display_name, model_ref_payload
+from nativelab.core.engine_status import active_engine, active_engine_status, engine_snapshot
 from nativelab.core.engine_global import LlamaEngine, ApiEngine
 
 
@@ -124,10 +124,15 @@ class LabEndpoints(QObject):
         return self._api_provider()
 
     def active_engine(self):
-        api = self.api_engine
-        if api is not None and api.is_loaded:
-            return api
-        return self.llama_engine
+        return active_engine(self.llama_engine, self.api_engine)
+
+    @property
+    def engine_status(self):
+        return active_engine_status(
+            self.llama_engine,
+            self.api_engine,
+            is_loading=self.is_loading,
+        )
 
     @property
     def is_loaded(self) -> bool:
@@ -161,8 +166,7 @@ class LabEndpoints(QObject):
 
     @property
     def status_text(self) -> str:
-        eng = self.active_engine()
-        return eng.status_text if eng else "No Engine"
+        return self.engine_status.status_text
 
     @property
     def model_path(self) -> str:
@@ -194,19 +198,13 @@ class LabEndpoints(QObject):
                else FAMILY_TEMPLATES.get("mistral")
 
     def snapshot(self) -> Dict[str, Any]:
-        return {
-            "status":      self.status_text,
-            "is_loaded":   self.is_loaded,
-            "mode":        self.mode,
-            "model_path":  self.model_path,
-            "model_name":  self.model_name,
-            "ctx_value":   self.ctx_value,
-            "server_port": self.server_port,
-            "backend":     "api" if (self.api_engine and self.api_engine.is_loaded)
-                           else self.mode,
-            "can_reload_active_model": self.can_reload_active_model,
-            "is_loading": self.is_loading,
-        }
+        snap = engine_snapshot(
+            self.llama_engine,
+            self.api_engine,
+            is_loading=self.is_loading,
+        )
+        snap["can_reload_active_model"] = self.can_reload_active_model
+        return snap
 
     # ── reverse routing ──────────────────────────────────────────────────────
     def request_context(self, new_ctx: int) -> bool:
@@ -269,6 +267,11 @@ class LabEndpoints(QObject):
         temperature:    float = 0.3,
         top_p:          float = 0.9,
         repeat_penalty: float = 1.15,
+        top_k:          int   = 40,
+        min_p:          float = 0.0,
+        typical_p:      float = 1.0,
+        seed:           int   = -1,
+        image_data:      Optional[List[Dict[str, Any]]] = None,
     ) -> str:
         msgs: List[Dict[str, str]] = list(messages or [])
         if system_prompt:
@@ -293,10 +296,15 @@ class LabEndpoints(QObject):
                 try:
                     return llama.generate_sync(
                         messages=msgs,
+                        image_data=image_data,
                         n_predict=n_predict,
                         temperature=temperature,
                         top_p=top_p,
                         repeat_penalty=repeat_penalty,
+                        top_k=top_k,
+                        min_p=min_p,
+                        typical_p=typical_p,
+                        seed=seed,
                     )
                 except Exception as exc:
                     raw = str(exc)
@@ -309,11 +317,13 @@ class LabEndpoints(QObject):
             if llama.mode == "server":
                 self._log("INFO", f"Routing → llama-server  port={llama.server_port}")
                 return self._call_server(
-                    llama, msgs, n_predict, temperature, top_p, repeat_penalty
+                    llama, msgs, n_predict, temperature, top_p, repeat_penalty,
+                    top_k, min_p, typical_p, seed,
                 )
             self._log("INFO", f"Routing → llama-cli  {Path(llama.model_path).name}")
             return self._call_cli(
-                llama, msgs, n_predict, temperature, repeat_penalty
+                llama, msgs, n_predict, temperature, top_p, repeat_penalty,
+                top_k, min_p, typical_p, seed,
             )
 
         self._log("ERROR", "call_llm: no engine loaded")
@@ -343,11 +353,12 @@ class LabEndpoints(QObject):
         return getattr(fam, "bos", "") + "".join(out)
 
     def _call_server(self, eng, messages, n_predict,
-                     temperature, top_p, repeat_penalty) -> str:
+                     temperature, top_p, repeat_penalty,
+                     top_k=40, min_p=0.0, typical_p=1.0, seed=-1) -> str:
         import http.client
         prompt_text = self._build_text_prompt(messages, eng.model_path)
         fam = detect_model_family(eng.model_path)
-        body = json.dumps({
+        body_obj = {
             "prompt":         prompt_text,
             "n_predict":      n_predict,
             "stream":         False,
@@ -355,7 +366,9 @@ class LabEndpoints(QObject):
             "top_p":          top_p,
             "repeat_penalty": repeat_penalty,
             "stop":           getattr(fam, "stop_tokens", []),
-        })
+        }
+        body_obj.update(LlamaEngine._sampler_payload(top_k=top_k, min_p=min_p, typical_p=typical_p, seed=seed))
+        body = json.dumps(body_obj)
         conn = http.client.HTTPConnection(
             "127.0.0.1", eng.server_port, timeout=LONG_TIMEOUT_SECONDS
         )
@@ -414,7 +427,8 @@ class LabEndpoints(QObject):
         )
 
     def _call_cli(self, eng, messages, n_predict,
-                  temperature, repeat_penalty) -> str:
+                  temperature, top_p, repeat_penalty,
+                  top_k=40, min_p=0.0, typical_p=1.0, seed=-1) -> str:
         import nativelab.GlobalConfig.binaryResolve as _binres
         from nativelab.Server.server_global import SERVER_CONFIG
 
@@ -427,9 +441,11 @@ class LabEndpoints(QObject):
             "-n", str(n_predict),
             "--no-display-prompt", "--no-escape",
             "--temp", str(temperature),
+            "--top-p", str(top_p),
             "--repeat-penalty", str(repeat_penalty),
             "-p", prompt_text,
         ]
+        LlamaEngine._append_cli_sampler_args(cmd, top_k=top_k, min_p=min_p, typical_p=typical_p, seed=seed)
         result = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,

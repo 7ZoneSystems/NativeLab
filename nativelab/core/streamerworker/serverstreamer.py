@@ -9,6 +9,8 @@ class ServerStreamWorker(QThread):
     def __init__(self, port: int, prompt: str, n_predict: int = DEFAULT_N_PRED,
                  stop_tokens: Optional[List[str]] = None, temperature: float = 0.7,
                  top_p: float = 0.9, repeat_penalty: float = 1.1,
+                 top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0,
+                 seed: int = -1,
                  image_data: Optional[List[dict]] = None):
         super().__init__()
         self.port           = port
@@ -18,6 +20,10 @@ class ServerStreamWorker(QThread):
         self.temperature    = temperature
         self.top_p          = top_p
         self.repeat_penalty = repeat_penalty
+        self.top_k          = top_k
+        self.min_p          = min_p
+        self.typical_p      = typical_p
+        self.seed           = seed
         self.image_data     = image_data or []
         self._abort         = False
 
@@ -45,6 +51,28 @@ class ServerStreamWorker(QThread):
                 "repeat_penalty": self.repeat_penalty,
                 "stop":           self.stop_tokens,
             }
+            try:
+                body_obj["top_k"] = int(self.top_k)
+            except (TypeError, ValueError):
+                pass
+            try:
+                min_p = float(self.min_p)
+                if min_p > 0:
+                    body_obj["min_p"] = min_p
+            except (TypeError, ValueError):
+                pass
+            try:
+                typical_p = float(self.typical_p)
+                if 0 < typical_p < 1:
+                    body_obj["typical_p"] = typical_p
+            except (TypeError, ValueError):
+                pass
+            try:
+                seed = int(self.seed)
+                if seed >= 0:
+                    body_obj["seed"] = seed
+            except (TypeError, ValueError):
+                pass
             if self.image_data:
                 body_obj["image_data"] = self.image_data
                 markers = "\n".join(f"[img-{img.get('id', i + 1)}]" for i, img in enumerate(self.image_data))

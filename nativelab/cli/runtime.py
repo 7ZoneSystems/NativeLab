@@ -9,6 +9,7 @@ from nativelab.integrations import IntegrationEndpoints
 from nativelab.labs.endpoints import LabEndpoints
 from nativelab.Model.model_global import (
     api_model_ref,
+    get_model_registry,
     getapi_registry,
     is_external_model_ref,
     is_api_model_ref,
@@ -89,8 +90,15 @@ class CliRuntime:
             pass
         self.llama = LlamaEngine()
         self._bind()
-        ui.info(f"Loading model: {display}")
-        ok = self.llama.load(load_target, ctx=self.ctx, log_cb=lambda m: ui.info(m))
+        cfg = get_model_registry().get_config(load_target)
+        self.ctx = int(cfg.ctx)
+        ui.info(f"Loading model profile: {display}  ctx={cfg.ctx} threads={cfg.threads}")
+        ok = self.llama.load(
+            load_target,
+            threads=cfg.threads,
+            ctx=cfg.ctx,
+            log_cb=lambda m: ui.info(m),
+        )
         if ok:
             self.model_path = load_target
             if save:
@@ -138,7 +146,13 @@ class CliRuntime:
             pass
         self.llama = LlamaEngine()
         self._bind()
-        ok = self.llama.load(current, ctx=self.ctx, log_cb=lambda m: ui.info(m))
+        cfg = get_model_registry().get_config(current)
+        ok = self.llama.load(
+            current,
+            threads=cfg.threads,
+            ctx=self.ctx,
+            log_cb=lambda m: ui.info(m),
+        )
         if ok and save:
             self._save_model_prefs()
         self.endpoints.notify_engine_changed()

@@ -1,5 +1,6 @@
 from nativelab.imports.import_global import Optional, List, Dict, json, QThread
 from nativelab.core.streamer_global import ApiStreamWorker
+from nativelab.core.engine_status import engine_status
 from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED, LONG_TIMEOUT_SECONDS
 from nativelab.Model.model_global import ApiConfig, api_model_ref
 class ApiEngine:
@@ -100,6 +101,4 @@ class ApiEngine:
 
     @property
     def status_text(self) -> str:
-        if self._config:
-            return f"{self._config.provider}  ·  {self._config.model_id}"
-        return "API Not Connected"
+        return engine_status(self).status_text
