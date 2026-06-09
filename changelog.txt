@@ -40,6 +40,17 @@ v0.3.6
 39) Replaced several ad-hoc `abort(); wait()` paths with centralized worker shutdown calls in context reload, Stop, document summary, Labs model reload, and role-loader cleanup flows.
 40) Added tests for Qt worker lifecycle helpers, including abort/wait/disconnect behavior and stuck-worker reference preservation.
 41) Verified the refactor and hardening with headless compile checks, unit tests, MainWindow import checks, real PyQt offscreen construction, theme toggle, close handling, and tab-level shutdown smoke tests.
+42) Added optional native C backend helpers under `nativelab/native/_core.c` for deterministic hot-path backend work while keeping Python as the public wrapper surface.
+43) Added C-side prompt construction for text chat prompts so llama.cpp prompt assembly can run through native code when `_native_core` is available.
+44) Added C-side sampler normalization for Top-K, Min-P, Typical-P, and Seed so llama.cpp server, llama-cli, Ollama, and HF Transformers settings share one validated payload shape.
+45) Added C-side CLI sampler argument appending so llama-cli command construction can reuse the same normalized sampler rules as server/API-style backends.
+46) Added C-side context-window error detection for common llama.cpp/Ollama/HF context overflow messages, with Python fallback behavior preserved.
+47) Added C-side reference chunk splitting for repeated reference/context preparation work while keeping the existing Python fallback path for unsupported builds.
+48) Added `nativelab/native/engine_helpers.py` as the Python wrapper layer for native prompt building, sampler payloads, CLI sampler args, Ollama/HF sampler mapping, image-base64 extraction, context-error checks, and reference chunking.
+49) Added optional Rust model-detection helpers through `nativelab/native/rust_model.rs` and `rust_model.py` for GGUF model family detection and quantization detection.
+50) Wired Rust-backed family and quant detection into `Model/model_family.py`, falling back to the existing Python pattern matcher when the Rust shared library is unavailable.
+51) Added native availability checks (`native_core_available()` and `rust_model_available()`) so the app can safely use C/Rust acceleration opportunistically without making native builds mandatory.
+52) Preserved plugin, UI, and backend orchestration in Python while moving only deterministic backend helper paths into C/Rust acceleration layers.
 
 v0.3.5
 1) Diagnosed the py-to-doc crash path around manual model reloads and local llama.cpp server lifecycle during documentation generation.
