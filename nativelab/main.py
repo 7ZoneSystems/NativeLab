@@ -31,6 +31,7 @@ from nativelab.Server.server_global import *
 from nativelab.core.streamer_global import *
 from nativelab.components.components_global import *
 from nativelab.core.engine_global import *
+from nativelab.core.context_meter import context_meter
 from nativelab.codeparser.codeparser_global import *
 from nativelab.pipelinebuilder.pipe_global import *
 from nativelab.UI.icons import add_menu_action, icon, icon_size, refresh_widget_icons, role_icon, set_button_icon, set_label_icon, status_icon, set_status_label
@@ -141,6 +142,7 @@ class MainWindow(QMainWindow):
         self._multi_pdf_worker:  Optional[QThread] = None
         self._pause_banner: Optional[QWidget] = None
         self._summarizing_active: bool = False
+        self._last_context_snapshot: dict = {}
         self.current_ctx = DEFAULT_CTX()
         self._ctx_reload_timer = QTimer(self)
         self._ctx_reload_timer.setSingleShot(True)
@@ -151,6 +153,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu()
         self._build_status_bar()
+        context_meter.updated.connect(self._on_context_meter_update)
         # Load saved custom palettes before applying stylesheet
         global C_LIGHT, C_DARK, C, QSS
         set_theme(
@@ -300,6 +303,7 @@ class MainWindow(QMainWindow):
         self._ctx_reload_timer.start(2000)
         self._apply_ctx_slider_style(color)
         self.ctx_warn.setText(warn_text)
+        self._update_ctx_bar(limit_override=value)
 
     def _apply_ctx_slider_style(self, color: str):
         if not hasattr(self, "ctx_slider"):
@@ -1557,15 +1561,23 @@ class MainWindow(QMainWindow):
         self.ctx_warn.setStyleSheet(f"color:{C['warn']};font-weight:bold;")
         sb.addWidget(self.ctx_warn)
 
+        self.ctx_scope_lbl = QLabel("Session")
+        self.ctx_scope_lbl.setFixedWidth(64)
+        self.ctx_scope_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.ctx_scope_lbl.setStyleSheet(f"color:{C['txt2']};padding:0 4px;font-size:10px;")
+        sb.addWidget(self.ctx_scope_lbl)
+
         self.ctx_bar = QProgressBar()
         self.ctx_bar.setRange(0, DEFAULT_CTX())
         self.ctx_bar.setValue(0)
-        self.ctx_bar.setFixedWidth(100)
+        self.ctx_bar.setFixedWidth(120)
         self.ctx_bar.setFixedHeight(6)
         self.ctx_bar.setTextVisible(False)
         sb.addWidget(self.ctx_bar)
 
         self.ctx_lbl = QLabel(f"0 / {DEFAULT_CTX()}")
+        self.ctx_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.ctx_lbl.setMinimumWidth(112)
         self.ctx_lbl.setStyleSheet(f"color:{C['txt2']};padding:0 8px;")
         sb.addWidget(self.ctx_lbl)
 
@@ -1609,7 +1621,7 @@ class MainWindow(QMainWindow):
             value = self.ctx_slider.value()
             color = C["ok"] if value <= 16384 else C["warn"] if value <= 24576 else C["err"]
             self._apply_ctx_slider_style(color)
-        for label_name in ("ctx_lbl", "tps_lbl", "ram_lbl"):
+        for label_name in ("ctx_lbl", "ctx_scope_lbl", "tps_lbl", "ram_lbl"):
             label = getattr(self, label_name, None)
             if label is not None:
                 label.setStyleSheet(f"color:{C['txt2']};padding:0 6px;")
@@ -1668,6 +1680,7 @@ class MainWindow(QMainWindow):
             self.chat_area.add_message(m.role, m.content, m.timestamp)
         self._refresh_sidebar()
         self.sidebar.set_active(sid)
+        self._last_context_snapshot = {}
         self._update_ctx_bar()
         # Sync ChatModule reference panel to this session
         if hasattr(self, "chat_module"):
@@ -1709,6 +1722,7 @@ class MainWindow(QMainWindow):
         self.active.messages.clear()
         self.active.save()
         self.chat_area.clear_messages()
+        self._last_context_snapshot = {}
         self._update_ctx_bar()
 
     # ── model loading ─────────────────────────────────────────────────────────
@@ -1853,6 +1867,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, "pipeline_tab"):
             self.pipeline_tab.update_engine(self.engine)
         self._notify_labs()
+        self._last_context_snapshot = {}
+        self._update_ctx_bar()
         self._flush_deferred_send(ok)
 
     def _unload_chat_model(self):
@@ -1867,6 +1883,8 @@ class MainWindow(QMainWindow):
         self._deferred_send = None
         self.lbl_family.setText("")
         self._set_engine_status("Model not loaded", "idle")
+        self._last_context_snapshot = {}
+        self._update_ctx_bar()
         self._refresh_model_list()
         if hasattr(self, "pipeline_tab"):
             self.pipeline_tab.update_engine(self.engine)
@@ -1979,6 +1997,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, "pipeline_tab"):
             self.pipeline_tab.update_engine(api_engine)
         self._notify_labs()
+        self._last_context_snapshot = {}
+        self._update_ctx_bar()
         self._flush_deferred_send(True)
 
     def _start_api_model_load(self, api_ref: str):
@@ -2521,6 +2541,19 @@ class MainWindow(QMainWindow):
                     else:
                         api_msgs[last_user_idx]["content"] = user_text
             active_eng.set_messages(api_msgs)
+            context_meter.report_messages(
+                source="Chat",
+                engine=active_eng,
+                messages=api_msgs,
+                n_predict=cfg_pred,
+            )
+        else:
+            context_meter.report_prompt(
+                source="Coding" if is_coding else "Chat",
+                engine=active_eng,
+                prompt=prompt,
+                n_predict=cfg_pred,
+            )
         self._pending_ref_images = []
 
         self._worker = active_eng.create_worker(
@@ -2595,6 +2628,12 @@ class MainWindow(QMainWindow):
             prompt     = self.active.build_prompt(model_path=active_eng.model_path, max_chars=ctx_chars)
             cfg_pred   = get_model_registry().get_config(active_eng.model_path).n_predict
             self._stream_w = self.chat_area.add_message("assistant", "", ts, tag="Coding")
+            context_meter.report_prompt(
+                source="Pipeline",
+                engine=active_eng,
+                prompt=prompt,
+                n_predict=cfg_pred,
+            )
             self._worker = active_eng.create_worker(prompt, n_predict=cfg_pred, model_path=active_eng.model_path)
             self._worker.token.connect(self._on_token)
             self._worker.done.connect(self._on_done)
@@ -2647,6 +2686,7 @@ class MainWindow(QMainWindow):
         self.lbl_engine.setStyleSheet(f"color:{C['pipeline']};padding:0 8px;")
 
     def _on_pipeline_insight_token(self, idx: int, token: str):
+        context_meter.append_output(token)
         widgets = getattr(self, "_pipeline_insight_widgets", [])
         if idx < len(widgets) and widgets[idx]:
             try:
@@ -2679,6 +2719,7 @@ class MainWindow(QMainWindow):
             self.lbl_engine.setStyleSheet(f"color:{C['pipeline']};padding:0 8px;")
 
     def _on_pipeline_code_token(self, text: str):
+        context_meter.append_output(text)
         if self._pipeline_code_w:
             try:
                 self._pipeline_code_w.append_text(text)
@@ -2748,6 +2789,7 @@ class MainWindow(QMainWindow):
     # ── normal streaming handlers ──────────────────────────────────────────────
 
     def _on_token(self, text: str):
+        context_meter.append_output(text)
         self._stream_buffer += text          # shadow-buffer; always kept
         if not self._stream_w: return
         try:
@@ -3351,20 +3393,64 @@ class MainWindow(QMainWindow):
         status = engine_status(engine if engine is not None else self._active_engine_for(""))
         self._set_engine_status(status.status_text, status.state)
 
-    def _update_ctx_bar(self):
-        if not self.active: return
-        est     = self.active.approx_tokens
-        max_ctx = getattr(self.engine, "ctx_value", self.ctx_slider.value())
-        self.ctx_bar.setRange(0, max_ctx)
-        self.ctx_bar.setValue(min(est, max_ctx))
-        self.ctx_lbl.setText(f"{est:,} / {max_ctx:,}")
-        pct   = est / max_ctx if max_ctx > 0 else 0
+    def _on_context_meter_update(self, snapshot: dict):
+        self._last_context_snapshot = dict(snapshot or {})
+        self._render_context_snapshot(self._last_context_snapshot)
+
+    def _update_ctx_bar(self, limit_override: int = 0):
+        if not hasattr(self, "ctx_bar"):
+            return
+        snap = getattr(self, "_last_context_snapshot", None)
+        if snap:
+            snap = dict(snap)
+            if limit_override:
+                snap["limit_tokens"] = int(limit_override)
+            self._render_context_snapshot(snap)
+            return
+        if not self.active:
+            return
+        max_ctx = int(limit_override or getattr(self.engine, "ctx_value", self.ctx_slider.value()) or self.ctx_slider.value())
+        context_meter.report_session(
+            source="Session",
+            used_tokens=self.active.approx_tokens,
+            limit_tokens=max_ctx,
+            engine=self._active_engine_for("") if hasattr(self, "engine") else None,
+        )
+
+    def _render_context_snapshot(self, snap: dict):
+        if not hasattr(self, "ctx_bar"):
+            return
+        used = max(0, int(snap.get("used_tokens", 0) or 0))
+        limit = max(1, int(snap.get("limit_tokens", 0) or getattr(self.engine, "ctx_value", self.ctx_slider.value()) or DEFAULT_CTX()))
+        projected = max(used, int(snap.get("projected_tokens", used) or used))
+        self.ctx_bar.setRange(0, limit)
+        self.ctx_bar.setValue(min(used, limit))
+        self.ctx_lbl.setText(f"{used:,} / {limit:,}")
+        source = str(snap.get("source") or "LLM")
+        if hasattr(self, "ctx_scope_lbl"):
+            self.ctx_scope_lbl.setText(source[:10])
+        pct = projected / limit if limit > 0 else 0
         color = C["ok"] if pct < 0.6 else C["warn"] if pct < 0.85 else C["err"]
         self.ctx_bar.setStyleSheet(
             f"QProgressBar{{background:{C['bg2']};border:1px solid {C['bdr']};"
             f"border-radius:3px;height:8px;}}"
             f"QProgressBar::chunk{{background:{color};border-radius:3px;}}"
         )
+        input_tokens = int(snap.get("input_tokens", used) or 0)
+        output_tokens = int(snap.get("output_tokens", 0) or 0)
+        reserved = int(snap.get("reserved_tokens", 0) or 0)
+        model = str(snap.get("model") or "")
+        mode = str(snap.get("mode") or "")
+        self.ctx_bar.setToolTip(
+            f"{source} context\n"
+            f"Input: {input_tokens:,} tokens approx\n"
+            f"Generated: {output_tokens:,} tokens approx\n"
+            f"Reserved output budget: {reserved:,}\n"
+            f"Projected request: {projected:,} / {limit:,}\n"
+            + (f"Model: {model}\n" if model else "")
+            + (f"Mode: {mode}" if mode else "")
+        )
+        self.ctx_lbl.setToolTip(self.ctx_bar.toolTip())
 
     def _update_ram(self):
         mem  = psutil.virtual_memory()

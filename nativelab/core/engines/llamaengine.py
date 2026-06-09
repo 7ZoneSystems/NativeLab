@@ -11,6 +11,7 @@ from nativelab.Model.model_global import (
     model_ref_payload,
 )
 from nativelab.core.engine_status import engine_status
+from nativelab.core.context_meter import context_meter
 from nativelab.core.streamer_global import ServerStreamWorker, CliStreamWorker, BackendStreamWorker
 from nativelab.GlobalConfig.config_global import (
     DEFAULT_CTX, DEFAULT_THREADS, DEFAULT_N_PRED, APP_CONFIG,
@@ -18,6 +19,15 @@ from nativelab.GlobalConfig.config_global import (
 )
 from nativelab.Server.hfauth import get_hf_access_token, normalize_hf_exception
 from nativelab.Server.ollama_helpers import normalize_ollama_exception, normalize_ollama_host
+from nativelab.native.engine_helpers import (
+    append_cli_sampler_args as native_append_cli_sampler_args,
+    build_text_prompt as native_build_text_prompt,
+    hf_sampler_kwargs as native_hf_sampler_kwargs,
+    image_b64_list as native_image_b64_list,
+    ollama_sampler_options as native_ollama_sampler_options,
+    raw_prompt_text as native_raw_prompt_text,
+    sampler_payload as native_sampler_payload,
+)
 import nativelab.GlobalConfig.binaryResolve as _binres
 from nativelab.Server.server_global import free_port, SERVER_CONFIG, PORT_RANGE_START, PORT_RANGE_END
 
@@ -215,6 +225,7 @@ class LlamaEngine:
         min_p: float = 0.0,
         typical_p: float = 1.0,
         seed: int = -1,
+        context_source: str = "Local LLM",
     ) -> str:
         """Synchronous generation shared by Labs, pipelines, and backend stream workers."""
         messages = list(messages or [])
@@ -222,15 +233,29 @@ class LlamaEngine:
             messages = [{"role": "user", "content": prompt}]
         if not messages:
             raise RuntimeError("generate_sync: no prompt/messages provided")
+        try:
+            prompt_text = self._raw_prompt_text(messages) if raw_prompt else self._build_text_prompt(messages)
+            context_meter.report_prompt(
+                source=context_source,
+                engine=self,
+                prompt=prompt_text,
+                n_predict=n_predict,
+            )
+        except Exception:
+            pass
         if self.mode == "server":
-            return self._generate_server(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, image_data, raw_prompt, top_k, min_p, typical_p, seed)
-        if self.mode == "cli":
-            return self._generate_cli(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, raw_prompt, top_k, min_p, typical_p, seed)
-        if self.mode == "ollama":
-            return self._generate_ollama(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, image_data, top_k, min_p, seed)
-        if self.mode == "hf_transformers":
-            return self._generate_hf(messages, n_predict, temperature, top_p, token_cb, abort_cb, image_data, raw_prompt, top_k, min_p, typical_p, seed)
-        raise RuntimeError("No local engine loaded")
+            result = self._generate_server(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, image_data, raw_prompt, top_k, min_p, typical_p, seed)
+        elif self.mode == "cli":
+            result = self._generate_cli(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, raw_prompt, top_k, min_p, typical_p, seed)
+        elif self.mode == "ollama":
+            result = self._generate_ollama(messages, n_predict, temperature, top_p, repeat_penalty, token_cb, abort_cb, image_data, top_k, min_p, seed)
+        elif self.mode == "hf_transformers":
+            result = self._generate_hf(messages, n_predict, temperature, top_p, token_cb, abort_cb, image_data, raw_prompt, top_k, min_p, typical_p, seed)
+        else:
+            raise RuntimeError("No local engine loaded")
+        if not token_cb:
+            context_meter.append_output(result)
+        return result
 
     # ------------------------------------------------------------------ #
     #  Internal helpers                                                    #
@@ -480,90 +505,29 @@ class LlamaEngine:
 
     def _build_text_prompt(self, messages) -> str:
         fam = detect_model_family(model_ref_payload(self.model_path) or self.model_path)
-        out = []
-        sys_buf = ""
-        for m in messages:
-            role = m.get("role", "user")
-            content = m.get("content", "")
-            if isinstance(content, list):
-                content = "\n".join(str(part.get("text", "")) if isinstance(part, dict) else str(part) for part in content)
-            if role == "system":
-                sys_buf += str(content) + "\n"
-            elif role == "user":
-                u = (sys_buf + str(content)) if sys_buf else str(content)
-                sys_buf = ""
-                out.append(getattr(fam, "user_prefix", "") + u + getattr(fam, "user_suffix", ""))
-            elif role == "assistant":
-                out.append(getattr(fam, "assistant_prefix", "") + str(content) + getattr(fam, "assistant_suffix", ""))
-        out.append(getattr(fam, "assistant_prefix", ""))
-        return getattr(fam, "bos", "") + "".join(out)
+        return native_build_text_prompt(messages, fam)
 
     def _image_b64_list(self, image_data=None) -> list:
-        out = []
-        for item in image_data or []:
-            if isinstance(item, dict):
-                data = item.get("data") or ""
-                if isinstance(data, str) and data:
-                    out.append(data.split(";base64,", 1)[-1])
-        return out
+        return native_image_b64_list(image_data)
 
     def _raw_prompt_text(self, messages) -> str:
-        if len(messages) == 1:
-            content = messages[0].get("content", "")
-            if isinstance(content, str):
-                return content
-        return self._build_text_prompt(messages)
+        return native_raw_prompt_text(messages, self._build_text_prompt)
 
     @staticmethod
     def _sampler_payload(top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> dict:
-        out = {}
-        try:
-            out["top_k"] = max(0, int(top_k))
-        except (TypeError, ValueError):
-            pass
-        try:
-            value = float(min_p)
-            if value > 0:
-                out["min_p"] = value
-        except (TypeError, ValueError):
-            pass
-        try:
-            value = float(typical_p)
-            if 0 < value < 1:
-                out["typical_p"] = value
-        except (TypeError, ValueError):
-            pass
-        try:
-            value = int(seed)
-            if value >= 0:
-                out["seed"] = value
-        except (TypeError, ValueError):
-            pass
-        return out
+        return native_sampler_payload(top_k=top_k, min_p=min_p, typical_p=typical_p, seed=seed)
 
     @classmethod
     def _ollama_sampler_options(cls, top_k: int = 40, min_p: float = 0.0, seed: int = -1) -> dict:
-        payload = cls._sampler_payload(top_k=top_k, min_p=min_p, typical_p=1.0, seed=seed)
-        payload.pop("typical_p", None)
-        return payload
+        return native_ollama_sampler_options(top_k=top_k, min_p=min_p, seed=seed)
 
     @classmethod
     def _hf_sampler_kwargs(cls, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0) -> dict:
-        payload = cls._sampler_payload(top_k=top_k, min_p=min_p, typical_p=typical_p, seed=-1)
-        payload.pop("seed", None)
-        return payload
+        return native_hf_sampler_kwargs(top_k=top_k, min_p=min_p, typical_p=typical_p)
 
     @classmethod
     def _append_cli_sampler_args(cls, cmd: list, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> None:
-        payload = cls._sampler_payload(top_k=top_k, min_p=min_p, typical_p=typical_p, seed=seed)
-        if "top_k" in payload:
-            cmd.extend(["--top-k", str(payload["top_k"])])
-        if "min_p" in payload:
-            cmd.extend(["--min-p", str(payload["min_p"])])
-        if "typical_p" in payload:
-            cmd.extend(["--typical", str(payload["typical_p"])])
-        if "seed" in payload:
-            cmd.extend(["--seed", str(payload["seed"])])
+        native_append_cli_sampler_args(cmd, top_k=top_k, min_p=min_p, typical_p=typical_p, seed=seed)
 
     def _generate_server(self, messages, n_predict, temperature, top_p, repeat_penalty, token_cb=None, abort_cb=None, image_data=None, raw_prompt: bool = False, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> str:
         import http.client

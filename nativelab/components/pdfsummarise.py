@@ -1,5 +1,6 @@
 from nativelab.imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime, json
 from nativelab.components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
+from nativelab.core.context_meter import context_meter
 from nativelab.Model.model_global import MODE_SECTION_INSTRUCTIONS, MODE_FINAL_INSTRUCTIONS, model_ref_payload
 from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_CTX, DEFAULT_THREADS, APP_CONFIG, simple_hash, LONG_TIMEOUT_SECONDS
 
@@ -216,15 +217,31 @@ class ChunkedSummaryWorker(QThread):
 
 
     def _infer_with(self, eng, prompt: str, n_predict: int) -> Optional[str]:
+        context_meter.report_prompt(
+            source="Summary",
+            engine=eng,
+            prompt=prompt,
+            n_predict=n_predict,
+        )
         if getattr(eng, "mode", "") in ("ollama", "hf_transformers") and hasattr(eng, "generate_sync"):
             try:
-                return eng.generate_sync(prompt=prompt, n_predict=n_predict, temperature=0.3, raw_prompt=True)
+                return eng.generate_sync(
+                    prompt=prompt,
+                    n_predict=n_predict,
+                    temperature=0.3,
+                    raw_prompt=True,
+                    context_source="Summary",
+                )
             except Exception as e:
                 self.err.emit(f"{getattr(eng, 'mode', 'engine')} inference error: {e}")
                 return None
         if eng.mode == "server":
             # Fix: pass eng through so _infer_server uses the right model
-            return self._infer_server(prompt, n_predict, eng.server_port, eng=eng)
-        return self.infer_cli(prompt, n_predict,
-                            getattr(eng, "model_path", ""),
-                            getattr(eng, "ctx_value", DEFAULT_CTX))
+            result = self._infer_server(prompt, n_predict, eng.server_port, eng=eng)
+        else:
+            result = self.infer_cli(prompt, n_predict,
+                                getattr(eng, "model_path", ""),
+                                getattr(eng, "ctx_value", DEFAULT_CTX))
+        if result:
+            context_meter.append_output(result)
+        return result

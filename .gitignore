@@ -4,6 +4,12 @@ __pycache__/
 *.pyo
 *.pyd
 *.egg-info/
+build/
+nativelab/native/_native_core*.so
+nativelab/native/_native_core*.pyd
+nativelab/native/libnativelab_rust.so
+nativelab/native/libnativelab_rust.dylib
+nativelab/native/nativelab_rust.dll
 
 # Virtual env
 env/

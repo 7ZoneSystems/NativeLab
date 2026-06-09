@@ -1,5 +1,6 @@
 from nativelab.imports.import_global import List, Tuple, Dict, Optional, Path, QThread, pyqtSignal, subprocess, time, datetime, json
 from nativelab.GlobalConfig.config_global import simple_hash, APP_CONFIG, REF_CACHE_DIR, LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_NONE
+from nativelab.core.context_meter import context_meter
 from nativelab.GlobalConfig.hardwareUtil import RamWatchdog, get_ref_store
 from nativelab.Model.model_global import detect_model_family, model_ref_payload
 from .jobhandler import save_paused_job, load_paused_job, delete_paused_job
@@ -228,15 +229,31 @@ class MultiPdfSummaryWorker(QThread):
         return self._infer_with(self.engine, prompt, n_predict)
 
     def _infer_with(self, eng, prompt: str, n_predict: int) -> Optional[str]:
+        context_meter.report_prompt(
+            source="Multi-PDF",
+            engine=eng,
+            prompt=prompt,
+            n_predict=n_predict,
+        )
         if getattr(eng, "mode", "") in ("ollama", "hf_transformers") and hasattr(eng, "generate_sync"):
             try:
-                return eng.generate_sync(prompt=prompt, n_predict=n_predict, temperature=0.3, raw_prompt=True)
+                return eng.generate_sync(
+                    prompt=prompt,
+                    n_predict=n_predict,
+                    temperature=0.3,
+                    raw_prompt=True,
+                    context_source="Multi-PDF",
+                )
             except Exception as e:
                 self.err.emit(f"{getattr(eng, 'mode', 'engine')} inference error: {e}")
                 return None
         if eng.mode == "server":
-            return self._infer_server(eng, prompt, n_predict)
-        return self.infer_cli(eng, prompt, n_predict)
+            result = self._infer_server(eng, prompt, n_predict)
+        else:
+            result = self.infer_cli(eng, prompt, n_predict)
+        if result:
+            context_meter.append_output(result)
+        return result
 
     def _infer_server(self, eng, prompt: str, n_predict: int) -> Optional[str]:
         import http.client

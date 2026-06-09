@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import List, field, dataclass, Dict, Path, Tuple, re
-from nativelab.GlobalConfig.config import QUANT_REGEX, GGUF_QUANT_PATTERNS 
+from nativelab.native import detect_family_key_native, detect_quant_type_native
 @dataclass
 class ModelFamily:
     """Detected model family with prompt template configuration."""
@@ -77,6 +77,10 @@ def detect_model_family(filename: str) -> ModelFamily:
     """
     from .templates import FAMILY_TEMPLATES   # lazy import
 
+    native_key = detect_family_key_native(filename)
+    if native_key and native_key != "default" and native_key in FAMILY_TEMPLATES:
+        return FAMILY_TEMPLATES[native_key]
+
     name = Path(filename).stem.lower()
     # Order matters - more specific patterns first
     patterns: List[Tuple[List[str], str]] = [
@@ -131,6 +135,12 @@ def detect_model_family(filename: str) -> ModelFamily:
 
 def detect_quant_type(filename: str) -> str:
     """Extract the quantization type from a GGUF filename."""
+    native_quant = detect_quant_type_native(filename)
+    if native_quant and native_quant != "UNKNOWN":
+        return native_quant
+
+    from nativelab.GlobalConfig.config import GGUF_QUANT_PATTERNS, QUANT_REGEX
+
     m = QUANT_REGEX.search(filename)
     if m:
         return m.group(1).upper()

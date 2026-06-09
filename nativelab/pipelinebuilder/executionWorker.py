@@ -1,4 +1,5 @@
 from nativelab.core.engines.llamaengine import LlamaEngine
+from nativelab.core.context_meter import context_meter
 from nativelab.imports.import_global import QThread,Path, pyqtSignal, List, Dict, time, Optional, json, HAS_PDF
 from nativelab.Model.model_global import detect_model_family, get_model_registry, is_api_model_ref, is_model_ref_valid, model_ref_display_name, model_ref_payload
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
@@ -691,6 +692,7 @@ class PipelineExecutionWorker(QThread):
                 seed=getattr(cfg, "seed", -1),
                 token_cb=lambda tok: self.step_token.emit(b.bid, tok),
                 abort_cb=lambda: self._abort,
+                context_source="Pipeline",
             ).strip()
         except Exception as e:
             self.err.emit(f"Model block error: {e}"); return None
@@ -749,6 +751,7 @@ class PipelineExecutionWorker(QThread):
                 min_p=getattr(cfg, "min_p", 0.0),
                 typical_p=getattr(cfg, "typical_p", 1.0),
                 seed=getattr(cfg, "seed", -1),
+                context_source="Pipeline",
             ).strip()
         except Exception as _e:
             self.log_msg.emit(f"LLM query error: {_e}")
@@ -802,6 +805,15 @@ class PipelineExecutionWorker(QThread):
         import urllib.request
         try:
             if cfg.api_format == "anthropic":
+                context_meter.report_messages(
+                    source="Pipeline",
+                    engine=eng,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    n_predict=max_tokens,
+                )
                 payload = {
                     "model": cfg.model_id,
                     "messages": [{"role": "user", "content": user_prompt}],
@@ -829,6 +841,12 @@ class PipelineExecutionWorker(QThread):
                 if system_prompt:
                     messages.append({"role": "system", "content": system_prompt})
                 messages.append({"role": "user", "content": user_prompt})
+                context_meter.report_messages(
+                    source="Pipeline",
+                    engine=eng,
+                    messages=messages,
+                    n_predict=max_tokens,
+                )
                 payload = {
                     "model": cfg.model_id,
                     "messages": messages,
@@ -852,6 +870,8 @@ class PipelineExecutionWorker(QThread):
                 text = choices[0].get("message", {}).get("content", "") if choices else ""
             if token_cb and text:
                 token_cb(text)
+            if text:
+                context_meter.append_output(text)
             return text.strip()
         except Exception as e:
             self.log_msg.emit(f"API query error: {e}")
@@ -979,7 +999,12 @@ class PipelineExecutionWorker(QThread):
             )
             if eng and eng.is_loaded and hasattr(eng, "generate_sync"):
                 try:
-                    result = eng.generate_sync(prompt=plain_prompt, n_predict=400, temperature=0.3)
+                    result = eng.generate_sync(
+                        prompt=plain_prompt,
+                        n_predict=400,
+                        temperature=0.3,
+                        context_source="Pipeline",
+                    )
                     summaries.append(f"[§{i+1}] {result.strip()}")
                     continue
                 except Exception:

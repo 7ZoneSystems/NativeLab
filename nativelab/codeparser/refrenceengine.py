@@ -3,6 +3,7 @@ import base64
 import mimetypes
 from nativelab.GlobalConfig.config_global import ram_free_mb, simple_hash
 from nativelab.GlobalConfig.const import REF_CACHE_DIR
+from nativelab.native.engine_helpers import build_reference_chunks
 from .parser.parsefinal import ParsedScript
 from .scriptparser import ScriptParser
 from nativelab.Model.templates import SCRIPT_LANGUAGES
@@ -36,11 +37,10 @@ class SmartReference:
         step   = cfg.CHUNK_INDEX_SIZE() if callable(cfg.CHUNK_INDEX_SIZE) else cfg.CHUNK_INDEX_SIZE
         ram_mb = cfg.RAM_WATCHDOG_MB()  if callable(cfg.RAM_WATCHDOG_MB)  else cfg.RAM_WATCHDOG_MB
         max_rc = cfg.MAX_RAM_CHUNKS()   if callable(cfg.MAX_RAM_CHUNKS)   else cfg.MAX_RAM_CHUNKS
-        chunks = []
-        i = 0
-        while i < len(text):
-            chunks.append(RefChunk(idx=len(chunks), text=text[i: i + step + 80]))
-            i += step
+        chunks = [
+            RefChunk(idx=idx, text=chunk_text)
+            for idx, chunk_text in enumerate(build_reference_chunks(text, int(step), 80))
+        ]
         self._chunks = chunks
         if ram_free_mb() > ram_mb:
             for c in chunks[:max_rc]:

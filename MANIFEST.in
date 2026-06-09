@@ -1,0 +1,2 @@
+include nativelab/native/_core.c
+include nativelab/native/rust_model.rs

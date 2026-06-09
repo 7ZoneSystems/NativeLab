@@ -31,8 +31,14 @@ from nativelab.GlobalConfig.config_global import (
 )
 from nativelab.components.components_global import detect_model_family
 from nativelab.Model.model_global import FAMILY_TEMPLATES, model_ref_display_name, model_ref_payload
+from nativelab.core.context_meter import context_meter
 from nativelab.core.engine_status import active_engine, active_engine_status, engine_snapshot
 from nativelab.core.engine_global import LlamaEngine, ApiEngine
+from nativelab.native.engine_helpers import (
+    build_text_prompt as native_build_text_prompt,
+    error_message as native_error_message,
+    is_context_error as native_is_context_error,
+)
 
 
 class LabEndpointError(RuntimeError):
@@ -272,6 +278,7 @@ class LabEndpoints(QObject):
         typical_p:      float = 1.0,
         seed:           int   = -1,
         image_data:      Optional[List[Dict[str, Any]]] = None,
+        context_source:  str = "Labs",
     ) -> str:
         msgs: List[Dict[str, str]] = list(messages or [])
         if system_prompt:
@@ -287,7 +294,15 @@ class LabEndpoints(QObject):
         api = self.api_engine
         if api and api.is_loaded:
             self._log("INFO", f"Routing → API  {api.model_path}")
-            return self._call_api(api, msgs, n_predict, temperature)
+            context_meter.report_messages(
+                source=context_source,
+                engine=api,
+                messages=msgs,
+                n_predict=n_predict,
+            )
+            result = self._call_api(api, msgs, n_predict, temperature)
+            context_meter.append_output(result)
+            return result
 
         llama = self.llama_engine
         if llama and llama.is_loaded:
@@ -305,6 +320,7 @@ class LabEndpoints(QObject):
                         min_p=min_p,
                         typical_p=typical_p,
                         seed=seed,
+                        context_source=context_source,
                     )
                 except Exception as exc:
                     raw = str(exc)
@@ -318,12 +334,12 @@ class LabEndpoints(QObject):
                 self._log("INFO", f"Routing → llama-server  port={llama.server_port}")
                 return self._call_server(
                     llama, msgs, n_predict, temperature, top_p, repeat_penalty,
-                    top_k, min_p, typical_p, seed,
+                    top_k, min_p, typical_p, seed, context_source,
                 )
             self._log("INFO", f"Routing → llama-cli  {Path(llama.model_path).name}")
             return self._call_cli(
                 llama, msgs, n_predict, temperature, top_p, repeat_penalty,
-                top_k, min_p, typical_p, seed,
+                top_k, min_p, typical_p, seed, context_source,
             )
 
         self._log("ERROR", "call_llm: no engine loaded")
@@ -334,29 +350,20 @@ class LabEndpoints(QObject):
                            model_path: str) -> str:
         fam = detect_model_family(model_ref_payload(model_path) or model_path) if model_path \
               else FAMILY_TEMPLATES.get("mistral")
-        out: List[str] = []
-        sys_buf = ""
-        for m in messages:
-            role    = m.get("role", "user")
-            content = m.get("content", "")
-            if role == "system":
-                sys_buf += content + "\n"
-            elif role == "user":
-                u = (sys_buf + content) if sys_buf else content
-                sys_buf = ""
-                out.append(getattr(fam, "user_prefix", "") + u
-                           + getattr(fam, "user_suffix", ""))
-            elif role == "assistant":
-                out.append(getattr(fam, "assistant_prefix", "") + content
-                           + getattr(fam, "assistant_suffix", ""))
-        out.append(getattr(fam, "assistant_prefix", ""))
-        return getattr(fam, "bos", "") + "".join(out)
+        return native_build_text_prompt(messages, fam)
 
     def _call_server(self, eng, messages, n_predict,
                      temperature, top_p, repeat_penalty,
-                     top_k=40, min_p=0.0, typical_p=1.0, seed=-1) -> str:
+                     top_k=40, min_p=0.0, typical_p=1.0, seed=-1,
+                     context_source: str = "Labs") -> str:
         import http.client
         prompt_text = self._build_text_prompt(messages, eng.model_path)
+        context_meter.report_prompt(
+            source=context_source,
+            engine=eng,
+            prompt=prompt_text,
+            n_predict=n_predict,
+        )
         fam = detect_model_family(eng.model_path)
         body_obj = {
             "prompt":         prompt_text,
@@ -389,29 +396,17 @@ class LabEndpoints(QObject):
                 f"Invalid JSON returned by llama-server:\n\n{raw}"
             )
 
-        return (d.get("content") or "").strip()
+        result = (d.get("content") or "").strip()
+        context_meter.append_output(result)
+        return result
 
     @staticmethod
     def _error_message(raw: str) -> str:
-        try:
-            data = json.loads(raw)
-        except Exception:
-            return raw
-        err = data.get("error", data)
-        if isinstance(err, dict):
-            return str(err.get("message") or err.get("type") or raw)
-        return str(err or raw)
+        return native_error_message(raw)
 
     @staticmethod
     def _is_context_error(raw: str) -> bool:
-        text = raw.lower()
-        return any(needle in text for needle in (
-            "context size has been exceeded",
-            "exceeds the available context size",
-            "exceed_context_size",
-            "context window",
-            "n_ctx",
-        ))
+        return native_is_context_error(raw)
 
     def _raise_backend_error(self, status: int, raw: str, backend: str):
         message = self._error_message(raw)
@@ -428,11 +423,18 @@ class LabEndpoints(QObject):
 
     def _call_cli(self, eng, messages, n_predict,
                   temperature, top_p, repeat_penalty,
-                  top_k=40, min_p=0.0, typical_p=1.0, seed=-1) -> str:
+                  top_k=40, min_p=0.0, typical_p=1.0, seed=-1,
+                  context_source: str = "Labs") -> str:
         import nativelab.GlobalConfig.binaryResolve as _binres
         from nativelab.Server.server_global import SERVER_CONFIG
 
         prompt_text = self._build_text_prompt(messages, eng.model_path)
+        context_meter.report_prompt(
+            source=context_source,
+            engine=eng,
+            prompt=prompt_text,
+            n_predict=n_predict,
+        )
         cli_bin = SERVER_CONFIG.cli_path or _binres.LLAMA_CLI
         cmd = [
             cli_bin, "-m", eng.model_path,
@@ -453,7 +455,9 @@ class LabEndpoints(QObject):
             stdin=subprocess.DEVNULL,
             timeout=LONG_TIMEOUT_SECONDS,
         )
-        return result.stdout.decode("utf-8", errors="replace").strip()
+        text = result.stdout.decode("utf-8", errors="replace").strip()
+        context_meter.append_output(text)
+        return text
 
     def _call_api(self, api: ApiEngine, messages, n_predict,
                   temperature) -> str:

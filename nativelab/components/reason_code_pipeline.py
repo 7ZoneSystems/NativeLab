@@ -1,5 +1,6 @@
 from nativelab.imports.import_global import QThread, pyqtSignal, subprocess, time, json
 from nativelab.Model.model_global import detect_model_family, get_model_registry, model_ref_payload
+from nativelab.core.context_meter import context_meter
 from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_SECONDS
 class PipelineWorker(QThread):
     """
@@ -167,6 +168,12 @@ class PipelineWorker(QThread):
     def _infer_blocking(self, eng, prompt: str,
                         n_predict: int, token_cb=None):
         """Blocking inference that calls token_cb for each token."""
+        context_meter.report_prompt(
+            source="Pipeline",
+            engine=eng,
+            prompt=prompt,
+            n_predict=n_predict,
+        )
         if getattr(eng, "mode", "") in ("ollama", "hf_transformers") and hasattr(eng, "generate_sync"):
             try:
                 cfg = get_model_registry().get_config(getattr(eng, "model_path", ""))
@@ -183,6 +190,7 @@ class PipelineWorker(QThread):
                     token_cb=token_cb,
                     abort_cb=lambda: self._abort,
                     raw_prompt=True,
+                    context_source="Pipeline",
                 )
             except Exception as exc:
                 self.err.emit(f"{getattr(eng, 'mode', 'engine')} inference error: {exc}")
