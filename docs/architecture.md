@@ -133,128 +133,451 @@ Both engines are read by `LabEndpoints.active_engine()` - API takes priority whe
 
 ```
 NativeLab/
-├── README.md                      ← landing page
-├── docs/                          ← this folder
-│   ├── README.md                  ← docs index
-│   ├── installation.md
+├── changelog.txt
+├── CODE_OF_CONDUCT.md
+├── comt.sh
+├── CONTRIBUTING.md
+├── dist
+│   ├── nativelab-0.1.0-py3-none-any.whl
+│   ├── nativelab-0.1.0.tar.gz
+│   ├── nativelab-0.1.1-py3-none-any.whl
+│   ├── nativelab-0.1.1.tar.gz
+│   ├── nativelab-0.1.2-py3-none-any.whl
+│   ├── nativelab-0.1.2.tar.gz
+│   ├── nativelab-0.1.3-py3-none-any.whl
+│   ├── nativelab-0.1.3.tar.gz
+│   ├── nativelab-0.1.4-py3-none-any.whl
+│   ├── nativelab-0.1.4.tar.gz
+│   ├── nativelab-0.1.5-py3-none-any.whl
+│   ├── nativelab-0.1.5.tar.gz
+│   ├── nativelab-0.1.6-py3-none-any.whl
+│   ├── nativelab-0.1.6.tar.gz
+│   ├── nativelab-0.1.7-py3-none-any.whl
+│   ├── nativelab-0.1.7.tar.gz
+│   ├── nativelab-0.1.8-py3-none-any.whl
+│   ├── nativelab-0.1.8.tar.gz
+│   ├── nativelab-0.2.2-py3-none-any.whl
+│   ├── nativelab-0.2.2.tar.gz
+│   ├── nativelab-0.2.3-py3-none-any.whl
+│   ├── nativelab-0.2.3.tar.gz
+│   ├── nativelab-0.2.4-py3-none-any.whl
+│   ├── nativelab-0.2.4.tar.gz
+│   ├── nativelab-0.2.5-py3-none-any.whl
+│   ├── nativelab-0.2.5.tar.gz
+│   ├── nativelab-0.2.7-py3-none-any.whl
+│   ├── nativelab-0.2.7.tar.gz
+│   ├── nativelab-0.2.8-py3-none-any.whl
+│   ├── nativelab-0.2.8.tar.gz
+│   ├── nativelab-0.2.9-py3-none-any.whl
+│   ├── nativelab-0.2.9.tar.gz
+│   ├── nativelab-0.3.0-py3-none-any.whl
+│   ├── nativelab-0.3.0.tar.gz
+│   ├── nativelab-0.3.1-py3-none-any.whl
+│   ├── nativelab-0.3.1.tar.gz
+│   ├── nativelab-0.3.2-py3-none-any.whl
+│   ├── nativelab-0.3.2.tar.gz
+│   ├── nativelab-0.3.3-py3-none-any.whl
+│   ├── nativelab-0.3.3.tar.gz
+│   ├── nativelab-0.3.4-py3-none-any.whl
+│   ├── nativelab-0.3.4.tar.gz
+│   ├── nativelab-0.3.5-py3-none-any.whl
+│   └── nativelab-0.3.5.tar.gz
+├── docs
+│   ├── architecture.md
 │   ├── cli.md
 │   ├── features.md
-│   ├── architecture.md            ← you are here
+│   ├── installation.md
+│   ├── integrations.md
 │   ├── labs.md
 │   ├── models.md
-│   ├── workflows.md
+│   ├── README.md
+│   ├── troubleshooting.md
 │   ├── ui.md
-│   └── troubleshooting.md
-├── nativelab/
-│   ├── icon.png · icon.ico        ← branding
-│   ├── main.py                    ← small GUI entrypoint
-│   ├── __main__.py                ← routes --cli to nativelab.cli, else GUI
-│   ├── manual.py
-│   ├── UI/mainwindow/             ← MainWindow mixins and window assembly
-│   ├── UI/qt_workers.py           ← centralized QThread shutdown helpers
-│   │
-│   ├── labs/                      ← experimentation layer (NEW)
-│   │   ├── __init__.py            ← re-exports LabEndpoints, LabsTab
-│   │   ├── endpoints.py           ← shared endpoint surface
-│   │   ├── labs_tab.py            ← sidebar + stacked panels
-│   │   └── pytodoc.py             ← first feature: py-to-doc
-│   │
-│   ├── cli/                       ← terminal client (NEW)
+│   └── workflows.md
+├── .github
+│   ├── ISSUE_TEMPLATE
+│   │   ├── bug_report.md
+│   │   └── feature_request.md
+│   ├── PULL_REQUEST_TEMPLATE.md
+│   └── workflows
+│       ├── build-linux.yml
+│       ├── build-mac.yml
+│       ├── build-windows.yml
+│       ├── clone-count.yml
+│       └── release-apps.yml
+├── .gitignore
+├── google81d8b06f71e45c58.html
+├── images
+│   ├── appearance.png
+│   ├── dark_mode.png
+│   ├── dev.png
+│   ├── image copy.png
+│   ├── light_mode.png
+│   ├── pipeline.png
+│   ├── server_controls.png
+│   └── skill.png
+├── index.html
+├── LICENSE
+├── MANIFEST.in
+├── nativelab
+│   ├── api_server
+│   │   ├── catalog.py
+│   │   ├── config.py
 │   │   ├── __init__.py
-│   │   ├── app.py                 ← argparse dispatcher
-│   │   ├── onboarding.py          ← setup wizard
-│   │   ├── chat.py                ← REPL with @file embedding
-│   │   ├── hf_download.py         ← sync HF list + download
-│   │   ├── lint.py                ← pyflakes/flake8/pylint
-│   │   ├── ui.py                  ← ANSI colors + icon renderer
-│   │   └── cli_guide.md           ← beginner walkthrough
-│   │
-│   ├── core/
-│   │   ├── engine_global.py       ← exports LlamaEngine + ApiEngine
-│   │   ├── engines/
-│   │   │   ├── llamaengine.py
-│   │   │   └── apiengine.py
+│   │   ├── protocol.py
+│   │   ├── server.py
+│   │   └── tab.py
+│   ├── assets
+│   │   ├── icons
+│   │   │   ├── blocks.svg
+│   │   │   ├── book-open.svg
+│   │   │   ├── brain.svg
+│   │   │   ├── bug.svg
+│   │   │   ├── calendar.svg
+│   │   │   ├── circle-alert.svg
+│   │   │   ├── circle-check.svg
+│   │   │   ├── circle-pause.svg
+│   │   │   ├── circle.svg
+│   │   │   ├── circle-x.svg
+│   │   │   ├── clipboard-list.svg
+│   │   │   ├── code-2.svg
+│   │   │   ├── code.svg
+│   │   │   ├── combine.svg
+│   │   │   ├── copy.svg
+│   │   │   ├── delete.svg
+│   │   │   ├── discord.svg
+│   │   │   ├── download.svg
+│   │   │   ├── file-code.svg
+│   │   │   ├── files.svg
+│   │   │   ├── file.svg
+│   │   │   ├── file-text.svg
+│   │   │   ├── filter.svg
+│   │   │   ├── flask-conical.svg
+│   │   │   ├── folder-open.svg
+│   │   │   ├── folder.svg
+│   │   │   ├── git-branch.svg
+│   │   │   ├── globe.svg
+│   │   │   ├── history.svg
+│   │   │   ├── huggingface.svg
+│   │   │   ├── image.svg
+│   │   │   ├── import.svg
+│   │   │   ├── key.svg
+│   │   │   ├── lightbulb.svg
+│   │   │   ├── list.svg
+│   │   │   ├── loader-circle.svg
+│   │   │   ├── log-in.svg
+│   │   │   ├── log-out.svg
+│   │   │   ├── logs.svg
+│   │   │   ├── manifest.json
+│   │   │   ├── map.svg
+│   │   │   ├── merge.svg
+│   │   │   ├── message-circle.svg
+│   │   │   ├── message-square.svg
+│   │   │   ├── more-horizontal.svg
+│   │   │   ├── ollama.svg
+│   │   │   ├── omega.svg
+│   │   │   ├── palette.svg
+│   │   │   ├── panel-left.svg
+│   │   │   ├── panel-right-close.svg
+│   │   │   ├── panel-top-close.svg
+│   │   │   ├── panel-top.svg
+│   │   │   ├── paperclip.svg
+│   │   │   ├── pencil.svg
+│   │   │   ├── pi.svg
+│   │   │   ├── play.svg
+│   │   │   ├── plug.svg
+│   │   │   ├── plus.svg
+│   │   │   ├── power-off.svg
+│   │   │   ├── projector.svg
+│   │   │   ├── radius.svg
+│   │   │   ├── refresh-cw.svg
+│   │   │   ├── regex.svg
+│   │   │   ├── replace.svg
+│   │   │   ├── route.svg
+│   │   │   ├── save.svg
+│   │   │   ├── search.svg
+│   │   │   ├── section.svg
+│   │   │   ├── send.svg
+│   │   │   ├── server.svg
+│   │   │   ├── settings.svg
+│   │   │   ├── shuffle.svg
+│   │   │   ├── sigma.svg
+│   │   │   ├── split.svg
+│   │   │   ├── square-chevron-down.svg
+│   │   │   ├── square-chevron-right.svg
+│   │   │   ├── stop-circle.svg
+│   │   │   ├── table.svg
+│   │   │   ├── tag.svg
+│   │   │   ├── test-tube.svg
+│   │   │   ├── text.svg
+│   │   │   ├── trash-2.svg
+│   │   │   ├── triangle-alert.svg
+│   │   │   ├── type.svg
+│   │   │   ├── upload.svg
+│   │   │   ├── user.svg
+│   │   │   ├── view.svg
+│   │   │   ├── whatsapp.svg
+│   │   │   ├── workflow.svg
+│   │   │   ├── wrench.svg
+│   │   │   ├── x.svg
+│   │   │   └── zap.svg
+│   │   └── katex
+│   │       ├── auto-render.min.js
+│   │       ├── fonts
+│   │       │   ├── KaTeX_AMS-Regular.ttf
+│   │       │   ├── KaTeX_AMS-Regular.woff
+│   │       │   ├── KaTeX_AMS-Regular.woff2
+│   │       │   ├── KaTeX_Caligraphic-Bold.ttf
+│   │       │   ├── KaTeX_Caligraphic-Bold.woff
+│   │       │   ├── KaTeX_Caligraphic-Bold.woff2
+│   │       │   ├── KaTeX_Caligraphic-Regular.ttf
+│   │       │   ├── KaTeX_Caligraphic-Regular.woff
+│   │       │   ├── KaTeX_Caligraphic-Regular.woff2
+│   │       │   ├── KaTeX_Fraktur-Bold.ttf
+│   │       │   ├── KaTeX_Fraktur-Bold.woff
+│   │       │   ├── KaTeX_Fraktur-Bold.woff2
+│   │       │   ├── KaTeX_Fraktur-Regular.ttf
+│   │       │   ├── KaTeX_Fraktur-Regular.woff
+│   │       │   ├── KaTeX_Fraktur-Regular.woff2
+│   │       │   ├── KaTeX_Main-BoldItalic.ttf
+│   │       │   ├── KaTeX_Main-BoldItalic.woff
+│   │       │   ├── KaTeX_Main-BoldItalic.woff2
+│   │       │   ├── KaTeX_Main-Bold.ttf
+│   │       │   ├── KaTeX_Main-Bold.woff
+│   │       │   ├── KaTeX_Main-Bold.woff2
+│   │       │   ├── KaTeX_Main-Italic.ttf
+│   │       │   ├── KaTeX_Main-Italic.woff
+│   │       │   ├── KaTeX_Main-Italic.woff2
+│   │       │   ├── KaTeX_Main-Regular.ttf
+│   │       │   ├── KaTeX_Main-Regular.woff
+│   │       │   ├── KaTeX_Main-Regular.woff2
+│   │       │   ├── KaTeX_Math-BoldItalic.ttf
+│   │       │   ├── KaTeX_Math-BoldItalic.woff
+│   │       │   ├── KaTeX_Math-BoldItalic.woff2
+│   │       │   ├── KaTeX_Math-Italic.ttf
+│   │       │   ├── KaTeX_Math-Italic.woff
+│   │       │   ├── KaTeX_Math-Italic.woff2
+│   │       │   ├── KaTeX_SansSerif-Bold.ttf
+│   │       │   ├── KaTeX_SansSerif-Bold.woff
+│   │       │   ├── KaTeX_SansSerif-Bold.woff2
+│   │       │   ├── KaTeX_SansSerif-Italic.ttf
+│   │       │   ├── KaTeX_SansSerif-Italic.woff
+│   │       │   ├── KaTeX_SansSerif-Italic.woff2
+│   │       │   ├── KaTeX_SansSerif-Regular.ttf
+│   │       │   ├── KaTeX_SansSerif-Regular.woff
+│   │       │   ├── KaTeX_SansSerif-Regular.woff2
+│   │       │   ├── KaTeX_Script-Regular.ttf
+│   │       │   ├── KaTeX_Script-Regular.woff
+│   │       │   ├── KaTeX_Script-Regular.woff2
+│   │       │   ├── KaTeX_Size1-Regular.ttf
+│   │       │   ├── KaTeX_Size1-Regular.woff
+│   │       │   ├── KaTeX_Size1-Regular.woff2
+│   │       │   ├── KaTeX_Size2-Regular.ttf
+│   │       │   ├── KaTeX_Size2-Regular.woff
+│   │       │   ├── KaTeX_Size2-Regular.woff2
+│   │       │   ├── KaTeX_Size3-Regular.ttf
+│   │       │   ├── KaTeX_Size3-Regular.woff
+│   │       │   ├── KaTeX_Size3-Regular.woff2
+│   │       │   ├── KaTeX_Size4-Regular.ttf
+│   │       │   ├── KaTeX_Size4-Regular.woff
+│   │       │   ├── KaTeX_Size4-Regular.woff2
+│   │       │   ├── KaTeX_Typewriter-Regular.ttf
+│   │       │   ├── KaTeX_Typewriter-Regular.woff
+│   │       │   └── KaTeX_Typewriter-Regular.woff2
+│   │       ├── katex.min.css
+│   │       ├── katex.min.js
+│   │       └── LICENSE
+│   ├── cli
+│   │   ├── app.py
+│   │   ├── chat.py
+│   │   ├── cli_guide.md
+│   │   ├── features.py
+│   │   ├── hf_download.py
+│   │   ├── __init__.py
+│   │   ├── lint.py
+│   │   ├── onboarding.py
+│   │   ├── runtime.py
+│   │   └── ui.py
+│   ├── codeparser
+│   │   ├── codeparser_global.py
+│   │   ├── __init__.py
+│   │   ├── parser
+│   │   │   ├── __init__.py
+│   │   │   ├── parsefinal.py
+│   │   │   └── typeparser.py
+│   │   ├── refrenceengine.py
+│   │   └── scriptparser.py
+│   ├── components
+│   │   ├── components_global.py
+│   │   ├── __init__.py
+│   │   ├── jobhandler.py
+│   │   ├── multipdf_summarise.py
+│   │   ├── pdfsummarise.py
+│   │   └── reason_code_pipeline.py
+│   ├── core
+│   │   ├── auto_setup.py
+│   │   ├── context_meter.py
+│   │   ├── data_portability.py
+│   │   ├── engine_global.py
+│   │   ├── engines
+│   │   │   ├── apiengine.py
+│   │   │   ├── __init__.py
+│   │   │   └── llamaengine.py
+│   │   ├── engine_status.py
+│   │   ├── __init__.py
+│   │   ├── model_loaders.py
 │   │   ├── streamer_global.py
-│   │   └── streamerworker/
-│   │       ├── serverstreamer.py
+│   │   └── streamerworker
+│   │       ├── apistreamer.py
+│   │       ├── backendstreamer.py
 │   │       ├── clistreamer.py
-│   │       └── apistreamer.py
-│   │
-│   ├── Server/
-│   │   ├── ServerHandling.py      ← ServerConfig, Session, free_port
-│   │   ├── hfdwld.py              ← HuggingFace + llama.cpp downloaders
-│   │   └── server_global.py
-│   │
-│   ├── Model/
-│   │   ├── ModelRegistry.py       ← per-model configs + custom paths
-│   │   ├── model_family.py
-│   │   ├── templates.py           ← FAMILY_TEMPLATES (20+ chat formats)
-│   │   ├── APImodels.py           ← ApiConfig, ApiRegistry
-│   │   └── model_global.py
-│   │
-│   ├── codeparser/
-│   │   ├── refrenceengine.py      ← SmartReference, store, RAM watchdog
-│   │   ├── scriptparser.py        ← AST + regex parsers
-│   │   └── parser/
-│   │       ├── parsefinal.py
-│   │       └── typeparser.py
-│   │
-│   ├── components/
-│   │   ├── pdfsummarise.py        ← ChunkedSummaryWorker
-│   │   ├── multipdf_summarise.py  ← MultiPdfSummaryWorker
-│   │   ├── reason_code_pipeline.py ← parallel reasoning + coding
-│   │   └── jobhandler.py          ← paused-job persistence
-│   │
-│   ├── pipelinebuilder/
-│   │   ├── pipebuilder.py         ← PipelineBuilderTab
-│   │   ├── canvas.py              ← drag-drop node canvas
-│   │   ├── pipblck.py · blck_typ.py
-│   │   ├── editordialogue.py      ← LLM logic editor
-│   │   ├── executionWorker.py
-│   │   ├── outrender.py
-│   │   ├── pipefunctions.py
-│   │   ├── flowpreview.py
-│   │   └── pipe_global.py
-│   │
-│   ├── Prefrences/
-│   │   ├── ParallelLoading.py     ← ParallelPrefs
-│   │   └── prefrence_global.py
-│   │
-│   ├── GlobalConfig/
-│   │   ├── config.py              ← DEFAULT_*, MODELS_DIR, paths
-│   │   ├── binaryResolve.py       ← LLAMA_CLI/SERVER resolution
-│   │   ├── const.py               ← APP_CONFIG_DEFAULTS
+│   │       ├── __init__.py
+│   │       └── serverstreamer.py
+│   ├── GlobalConfig
+│   │   ├── binaryResolve.py
+│   │   ├── config_global.py
+│   │   ├── config.py
+│   │   ├── const.py
 │   │   ├── hardwareUtil.py
-│   │   └── config_global.py
-│   │
-│   ├── imports/
-│   │   ├── pyqt_lib.py · standard_lib.py · optional_lib.py
-│   │   └── import_global.py
-│   │
-│   └── UI/
-│       ├── tabs.py                ← ConfigTab, ServerTab, ModelDownloadTab,
-│       │                              McpTab, ApiModelsTab, AppearanceTab, …
-│       ├── buildUI.py             ← QSS theming
-│       ├── UI_const.py · UI_global.py
+│   │   ├── __init__.py
+│   │   └── timeouts.py
+│   ├── icon.ico
+│   ├── icon.png
+│   ├── imports
+│   │   ├── import_global.py
+│   │   ├── __init__.py
+│   │   ├── optional_lib.py
+│   │   ├── pyqt_lib.py
+│   │   ├── qt_compat.py
+│   │   └── standard_lib.py
+│   ├── integrations
+│   │   ├── discord_connector.py
+│   │   ├── endpoints.py
+│   │   ├── examples
+│   │   │   ├── discord_bot.env.example
+│   │   │   ├── discord_bot.py
+│   │   │   ├── __init__.py
+│   │   │   ├── whatsapp_bot.env.example
+│   │   │   └── whatsapp_bot.py
+│   │   ├── http_endpoint.py
+│   │   ├── __init__.py
+│   │   ├── tab.py
+│   │   └── whatsapp_connector.py
+│   ├── labs
+│   │   ├── codeedit.py
+│   │   ├── endpoints.py
+│   │   ├── __init__.py
+│   │   ├── labs_tab.py
+│   │   └── pytodoc.py
+│   ├── __main__.py
+│   ├── main.py
+│   ├── manual.py
+│   ├── Model
+│   │   ├── APImodels.py
+│   │   ├── __init__.py
+│   │   ├── model_family.py
+│   │   ├── model_global.py
+│   │   ├── ModelRegistry.py
+│   │   └── templates.py
+│   ├── native
+│   │   ├── _core.c
+│   │   ├── engine_helpers.py
+│   │   ├── __init__.py
+│   │   ├── rust_model.py
+│   │   └── rust_model.rs
+│   ├── pipelinebuilder
+│   │   ├── blck_typ.py
+│   │   ├── canvas.py
+│   │   ├── editordialogue.py
+│   │   ├── executionWorker.py
+│   │   ├── flowpreview.py
+│   │   ├── __init__.py
+│   │   ├── outrender.py
+│   │   ├── pipblck.py
+│   │   ├── pipebuilder.py
+│   │   ├── pipefunctions.py
+│   │   └── pipe_global.py
+│   ├── Prefrences
+│   │   ├── __init__.py
+│   │   ├── ParallelLoading.py
+│   │   └── prefrence_global.py
+│   ├── Server
+│   │   ├── hfauth.py
+│   │   ├── hf_deps.py
+│   │   ├── hfdwld.py
+│   │   ├── __init__.py
+│   │   ├── ollama_helpers.py
+│   │   ├── server_global.py
+│   │   └── ServerHandling.py
+│   ├── skill
+│   │   ├── __init__.py
+│   │   ├── manager.py
+│   │   └── tab.py
+│   └── UI
+│       ├── buildUI.py
+│       ├── effects.py
+│       ├── icons.py
+│       ├── __init__.py
+│       ├── labs_tab.py
+│       ├── mainwindow
+│       │   ├── auto_setup.py
+│       │   ├── chat_pipeline.py
+│       │   ├── context_controls.py
+│       │   ├── documents.py
+│       │   ├── engine_runtime.py
+│       │   ├── __init__.py
+│       │   ├── labs.py
+│       │   ├── models.py
+│       │   ├── sessions.py
+│       │   ├── shared.py
+│       │   ├── status_view.py
+│       │   ├── ui_build.py
+│       │   └── window.py
+│       ├── md_to_html.py
+│       ├── Qt6widgets
+│       │   ├── chatarea.py
+│       │   ├── chatmodule.py
+│       │   ├── __init__.py
+│       │   ├── inputbar.py
+│       │   ├── messagewidget.py
+│       │   ├── refrencepanels.py
+│       │   ├── sessionsidebar.py
+│       │   └── thinkingblock.py
+│       ├── qt_workers.py
 │       ├── RichTextEditor.py
-│       ├── md_to_html.py · effects.py · widgets.py
-│       ├── labs_tab.py            ← back-compat re-export shim
-│       └── Qt6widgets/
-│           ├── chatarea.py · chatmodule.py
-│           ├── inputbar.py · messagewidget.py
-│           ├── refrencepanels.py · sessionsidebar.py
-│           └── thinkingblock.py
-│
-├── pyproject.toml                  ← PyPI metadata
+│       ├── tabs.py
+│       ├── toggle.py
+│       ├── UI_const.py
+│       ├── UI_global.py
+│       └── widgets.py
+├── NativeLab.spec
+├── .nojekyll
+├── pyproject.toml
+├── README.md
 ├── requirements.txt
-├── setup.html · index.html
-├── NativeLab.spec                  ← PyInstaller
-├── LICENSE                         ← AGPL v3
-├── CONTRIBUTING.md · CODE_OF_CONDUCT.md · SECURITY.md
-└── .github/
-    ├── ISSUE_TEMPLATE/
-    ├── PULL_REQUEST_TEMPLATE.md
-    └── workflows/build-mac.yml
+├── robots.txt
+├── scripts
+│   └── download_svg_icons.py
+├── SECURITY.md
+├── setup.py
+├── sitemap.xml
+├── tests
+│   ├── test_auto_setup.py
+│   ├── test_context_meter.py
+│   ├── test_hf_deps.py
+│   ├── test_mainwindow_split.py
+│   ├── test_native_helpers.py
+│   └── test_qt_workers.py
+├── uv.lock
+├── .vscode
+│   └── settings.json
+└── web_page
+    ├── compare.html
+    ├── features.html
+    ├── pipeline.html
+    ├── setup.html
+    ├── site.css
+    └── site.js
 ```
 
 ---
