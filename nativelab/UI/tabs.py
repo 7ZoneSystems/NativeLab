@@ -10,7 +10,7 @@ from nativelab.core.data_portability import (
     summarize_bundle,
 )
 from nativelab.Prefrences.prefrence_global import ParallelPrefs, PARALLEL_PREFS
-from nativelab.GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths, LONG_TIMEOUT_SECONDS
+from nativelab.GlobalConfig.config_global import MODELS_DIR,APP_CONFIG, APP_CONFIG_DEFAULTS, CONFIG_FIELD_META, save_app_config, MODEL_ROLES, ROLE_ICONS,LLAMA_CLI_DEFAULT, LLAMA_SERVER_DEFAULT, refresh_binary_paths, LONG_TIMEOUT_SECONDS, LONG_TIMEOUT_MS
 from nativelab.components.components_global import list_paused_jobs, delete_paused_job, load_paused_job
 from nativelab.Server.server_global import SERVER_CONFIG, detect_gpus, HfSearchWorker, HfDownloadWorker, MCP_CONFIG_FILE
 from nativelab.Server.hfdwld import (
@@ -20,6 +20,11 @@ from nativelab.Server.hfdwld import (
     LlamaCppDownloadWorker,
     OllamaListWorker,
     OllamaPullWorker,
+)
+from nativelab.Server.hf_deps import (
+    HF_TRANSFORMERS_DEP_PACKAGES,
+    HfTransformersDepsWorker,
+    hf_transformers_dependency_report,
 )
 from nativelab.Server.hfauth import (
     HF_TOKEN_SETTINGS_URL,
@@ -34,6 +39,7 @@ from nativelab.Server.ollama_helpers import normalize_ollama_host
 from nativelab.Model.model_global import ApiRegistry,getapi_registry,detect_quant_type, quant_info, detect_model_family, get_model_registry, API_PROVIDERS, ApiConfig, PROMPT_TEMPLATES, make_hf_model_ref, make_ollama_model_ref, popular_model_presets
 from nativelab.labs import LabsTab, LabEndpoints
 from nativelab.UI.icons import add_menu_action, icon, icon_size, role_icon, set_button_icon, set_label_icon, set_status_label, status_icon
+from nativelab.UI.qt_workers import stop_worker_attrs
 from nativelab.UI.toggle import ToggleSwitch
 CONFIG_SECTIONS = [
     ("Memory & RAM", ["ram_watchdog_mb", "max_ram_chunks", "auto_spill_on_start"]),
@@ -626,6 +632,15 @@ class HuggingFaceLoginTab(QWidget):
         except Exception as exc:
             self.hf_login_message.setText(f"Open this URL manually: {url}\n{exc}")
 
+    def shutdown(self) -> bool:
+        stuck = stop_worker_attrs(
+            self,
+            ("_login_worker", "_token_worker", "_validate_worker"),
+            LONG_TIMEOUT_MS,
+            delete_part=False,
+        )
+        return not stuck
+
 
 class DataPortabilityDialog(QDialog):
     """Category picker used by NativeLab data export/import."""
@@ -900,6 +915,11 @@ class AccountsTab(QWidget):
         self.tabs.setTabIcon(0, icon("huggingface"))
         self.tabs.setTabIcon(1, icon("import"))
         self.data_tab.refresh_icons()
+
+    def shutdown(self) -> bool:
+        if hasattr(self, "hf_login_tab") and hasattr(self.hf_login_tab, "shutdown"):
+            return bool(self.hf_login_tab.shutdown())
+        return True
 
 
 class ParallelLoadingDialog(QWidget):
@@ -1922,6 +1942,7 @@ class ModelDownloadTab(QWidget):
         self._hf_snapshot_search: Optional[HfSnapshotSearchWorker] = None
         self._hf_snapshot_dl: Optional[HfSnapshotDownloadWorker] = None
         self._hf_snapshot_files: list = []
+        self._hf_deps_worker: Optional[HfTransformersDepsWorker] = None
         self._ollama_list_worker: Optional[OllamaListWorker] = None
         self._ollama_pull_worker: Optional[OllamaPullWorker] = None
         self._build()
@@ -2113,10 +2134,47 @@ class ModelDownloadTab(QWidget):
         hf_note = QLabel(
             "Download a full Hugging Face Transformers runtime snapshot into "
             "localllm/hf_transformers and register it as an hf:<folder> model. "
-            "Install optional dependencies with: pip install -e \".[hf]\"")
+            "Use Install Libraries here if this Python environment does not "
+            "already include the Transformers runtime stack.")
         hf_note.setWordWrap(True)
         hf_note.setObjectName("txt2_small")
         hfl.addWidget(hf_note)
+
+        hf_deps_row = QHBoxLayout(); hf_deps_row.setSpacing(8)
+        hf_deps_lbl = QLabel("Libraries:")
+        hf_deps_lbl.setFixedWidth(60); hf_deps_lbl.setObjectName("txt2")
+        self.hf_deps_status = QLabel("")
+        self.hf_deps_status.setWordWrap(True)
+        self.hf_deps_status.setObjectName("txt2_small")
+        self.btn_hf_deps_check = QPushButton("Check")
+        self.btn_hf_deps_check.setFixedHeight(30)
+        self.btn_hf_deps_check.setFixedWidth(74)
+        self.btn_hf_deps_check.clicked.connect(self._hf_deps_refresh_status)
+        self.btn_hf_deps_install = QPushButton("Install Libraries")
+        self.btn_hf_deps_install.setObjectName("btn_send")
+        self.btn_hf_deps_install.setFixedHeight(30)
+        self.btn_hf_deps_install.setFixedWidth(136)
+        self.btn_hf_deps_install.clicked.connect(self._hf_deps_install)
+        self.btn_hf_deps_cancel = QPushButton("Cancel")
+        self.btn_hf_deps_cancel.setObjectName("btn_stop")
+        self.btn_hf_deps_cancel.setFixedHeight(30)
+        self.btn_hf_deps_cancel.setFixedWidth(80)
+        self.btn_hf_deps_cancel.setVisible(False)
+        self.btn_hf_deps_cancel.clicked.connect(self._hf_deps_cancel)
+        hf_deps_row.addWidget(hf_deps_lbl)
+        hf_deps_row.addWidget(self.hf_deps_status, 1)
+        hf_deps_row.addWidget(self.btn_hf_deps_check)
+        hf_deps_row.addWidget(self.btn_hf_deps_install)
+        hf_deps_row.addWidget(self.btn_hf_deps_cancel)
+        hfl.addLayout(hf_deps_row)
+
+        self.hf_deps_log = QTextEdit()
+        self.hf_deps_log.setReadOnly(True)
+        self.hf_deps_log.setMinimumHeight(70)
+        self.hf_deps_log.setMaximumHeight(110)
+        self.hf_deps_log.setObjectName("model_list")
+        self.hf_deps_log.setVisible(False)
+        hfl.addWidget(self.hf_deps_log)
 
         hf_preset_row = QHBoxLayout(); hf_preset_row.setSpacing(8)
         hf_preset_lbl = QLabel("Popular:")
@@ -2396,6 +2454,7 @@ class ModelDownloadTab(QWidget):
         ll.addLayout(llama_btn_row)
         root.addWidget(lc); root.addStretch()
         self.refresh_hf_auth_state()
+        self._hf_deps_refresh_status()
 
     # ── helpers ───────────────────────────────────────────────────────────────
     @staticmethod
@@ -2483,8 +2542,7 @@ class ModelDownloadTab(QWidget):
         self.results_list.clear(); self._files = []
         self.btn_download.setEnabled(False)
         if self._search_worker:
-            try: self._search_worker.quit()
-            except Exception: pass
+            stop_worker_attrs(self, ("_search_worker",), LONG_TIMEOUT_MS)
         self._search_worker = HfSearchWorker(repo)
         self._search_worker.results_ready.connect(self._on_results)
         self._search_worker.err.connect(self._on_search_err)
@@ -2622,6 +2680,70 @@ class ModelDownloadTab(QWidget):
         self._reset_dl_ui(f"[FAIL]  Error: {msg}")
 
     # ── HF Transformers snapshot downloader ─────────────────────────────────
+
+    def _hf_deps_refresh_status(self):
+        report = hf_transformers_dependency_report()
+        missing = report.get("missing") or []
+        if missing:
+            self.hf_deps_status.setText(
+                "[WARN] Missing: " + ", ".join(missing)
+                + ". Install before loading hf:<folder> models.")
+            self.btn_hf_deps_install.setText("Install Libraries")
+        else:
+            self.hf_deps_status.setText("[OK] Transformers runtime libraries are installed.")
+            self.btn_hf_deps_install.setText("Upgrade Libraries")
+        running = bool(self._hf_deps_worker and self._hf_deps_worker.isRunning())
+        self.btn_hf_deps_check.setEnabled(not running)
+        self.btn_hf_deps_install.setEnabled(not running)
+        self.btn_hf_deps_cancel.setVisible(running)
+
+    def _hf_deps_install(self):
+        if self._hf_deps_worker and self._hf_deps_worker.isRunning():
+            return
+        packages = "\n".join(f"  - {pkg}" for pkg in HF_TRANSFORMERS_DEP_PACKAGES)
+        ans = QMessageBox.question(
+            self,
+            "Install HF Transformers Libraries",
+            "NativeLab will download and install these Python packages into the "
+            "Python environment currently running the app:\n\n"
+            f"{packages}\n\nContinue?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if ans != QMessageBox.StandardButton.Yes:
+            return
+        self.hf_deps_log.clear()
+        self.hf_deps_log.setVisible(True)
+        self.hf_deps_status.setText("Installing Hugging Face Transformers libraries...")
+        self.btn_hf_deps_check.setEnabled(False)
+        self.btn_hf_deps_install.setEnabled(False)
+        self.btn_hf_deps_cancel.setVisible(True)
+        self._hf_deps_worker = HfTransformersDepsWorker()
+        self._hf_deps_worker.status.connect(self.hf_deps_status.setText)
+        self._hf_deps_worker.output.connect(self._hf_deps_on_output)
+        self._hf_deps_worker.done.connect(self._hf_deps_on_done)
+        self._hf_deps_worker.start()
+
+    def _hf_deps_cancel(self):
+        if self._hf_deps_worker and self._hf_deps_worker.isRunning():
+            self._hf_deps_worker.abort()
+            self.hf_deps_status.setText("Cancelling HF Transformers library install...")
+
+    def _hf_deps_on_output(self, text: str):
+        self.hf_deps_log.setVisible(True)
+        self.hf_deps_log.append(text)
+
+    def _hf_deps_on_done(self, ok: bool, message: str):
+        self._hf_deps_worker = None
+        self.btn_hf_deps_check.setEnabled(True)
+        self.btn_hf_deps_install.setEnabled(True)
+        self.btn_hf_deps_cancel.setVisible(False)
+        self._hf_deps_refresh_status()
+        if not ok:
+            self.hf_deps_status.setText(message)
+        if ok:
+            QMessageBox.information(self, "HF Libraries Installed", message)
+        else:
+            QMessageBox.warning(self, "HF Library Install", message)
 
     def _browse_hf_dest(self):
         p = QFileDialog.getExistingDirectory(
@@ -2847,8 +2969,7 @@ class ModelDownloadTab(QWidget):
         self.btn_install_llama.setEnabled(False)
         self._llama_releases = []
         if self._llama_fetcher:
-            try: self._llama_fetcher.quit()
-            except Exception: pass
+            stop_worker_attrs(self, ("_llama_fetcher",), LONG_TIMEOUT_MS)
         self._llama_fetcher = LlamaCppReleaseFetcher()
         self._llama_fetcher.results_ready.connect(self._on_llama_releases)
         self._llama_fetcher.err.connect(self._on_llama_fetch_err)
@@ -2938,7 +3059,27 @@ class ModelDownloadTab(QWidget):
         self.btn_install_llama.setEnabled(True)
         self.llama_dl_status.setText(f"Error: {msg}")
         self._llama_dl = None
-                
+
+    def shutdown(self) -> bool:
+        stuck = stop_worker_attrs(
+            self,
+            (
+                "_search_worker",
+                "_dl_worker",
+                "_llama_fetcher",
+                "_llama_dl",
+                "_hf_snapshot_search",
+                "_hf_snapshot_dl",
+                "_hf_deps_worker",
+                "_ollama_list_worker",
+                "_ollama_pull_worker",
+            ),
+            LONG_TIMEOUT_MS,
+            delete_part=False,
+        )
+        return not stuck
+
+
 class McpTab(QWidget):
     """
     MCP (Model Context Protocol) server management.

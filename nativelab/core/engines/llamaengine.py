@@ -318,7 +318,8 @@ class LlamaEngine:
         except Exception as exc:
             self._log(
                 "[ERROR] Hugging Face backend is not installed. "
-                "Install it with: pip install -e \".[hf]\""
+                "Open Downloads > HF Transformers Snapshot and click Install Libraries, "
+                "or run: python -m pip install -U transformers torch safetensors accelerate sentencepiece pillow"
             )
             self._log(f"[ERROR] Import failure: {exc}")
             return False
