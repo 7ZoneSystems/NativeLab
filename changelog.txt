@@ -1,3 +1,46 @@
+v0.3.6
+1) Added a first-run automatic setup pipeline that profiles the user's OS, available/used RAM, CPU threads, GPU backend, VRAM, and accelerator type before choosing a practical starter model.
+2) Added auto-setup backend choice in the app prompt so new users can pick llama.cpp GGUF easy mode or Hugging Face Transformers hard mode before setup begins.
+3) Added persistent auto-setup state under `localllm` so setup is resumable after pause, cancel, crash, or app restart instead of starting from zero.
+4) Added pause, resume, cancel, and progress handling for first-run setup, including preserved partial downloads and a resumed-state prompt.
+5) Added hardware-aware model selection catalogs for low-end CPU-only machines through higher-end CUDA/ROCm/Vulkan-capable machines, with separate model choices for llama.cpp and HF Transformers.
+6) Added llama.cpp runtime auto-selection logic that chooses a matching runtime build for CPU, CUDA, Vulkan, ROCm, or platform-specific fallback where possible.
+7) Added safer llama.cpp release/build fetching and download handling through existing runtime download subsystems instead of duplicating model/runtime storage paths.
+8) Added Hugging Face snapshot discovery and download support to auto-setup for HF Transformers models, using the existing HF snapshot downloader and registration format.
+9) Added safer path handling for downloaded HF snapshot files so repository paths cannot escape the configured destination directory.
+10) Added resumable `.part` download behavior for llama.cpp and HF snapshot/runtime downloads so interrupted downloads can continue later.
+11) Added edge-case normalization for stale or partial auto-setup state, including backend aliases, resumable stages, and incomplete saved state recovery.
+12) Added tests covering auto-setup hardware planning, backend normalization, runtime asset selection, model choice, GGUF quant selection, and safe child download paths.
+13) Centralized real context reporting for the bottom bar so chat, Labs, edit flows, and other LLM activity can report actual active context instead of only chat-local context.
+14) Added centralized context-limit display updates and real-time context meter refresh hooks across LLM-driven workflows.
+15) Added an in-app Hugging Face Transformers library installer inside the HF Transformers downloader card so users who only downloaded NativeLab can install runtime libraries without opening a terminal.
+16) Added shared HF dependency metadata in `nativelab/Server/hf_deps.py`, including explicit package requirements, import checks, dependency status reporting, and pip command generation.
+17) Added a cancellable HF dependency install worker that runs `python -m pip install -U ...`, streams output to the UI, and verifies imports after pip exits.
+18) Added Check, Install Libraries, Cancel, and live log controls to the Download tab's HF Transformers snapshot section.
+19) Updated HF backend missing-library errors so users are directed to the new in-app installer as well as the manual pip command.
+20) Added tests for HF dependency command generation, dependency registry shape, and runtime import status reporting.
+21) Split the old 4000-line `nativelab/main.py` into a small GUI entrypoint plus focused MainWindow modules under `nativelab/UI/mainwindow`.
+22) Moved MainWindow construction to `nativelab/UI/mainwindow/window.py` and divided behavior into feature mixins for auto setup, context controls, UI building, models, sessions, engine runtime, Labs, chat/pipeline, documents, and status/view/theme handling.
+23) Moved GUI loader threads into `nativelab/core/model_loaders.py` so model/API loading workers no longer live inside the entrypoint.
+24) Added `nativelab/UI/mainwindow/shared.py` to centralize imports used by the split MainWindow modules while preserving existing behavior during the refactor.
+25) Reduced `nativelab/main.py` to CLI-safe GUI startup, QApplication setup, font/icon setup, SIGINT handling, and MainWindow launch.
+26) Updated architecture documentation to describe the new GUI entrypoint, MainWindow package, model loader module, and Qt worker lifecycle helper.
+27) Fixed the MainWindow mixin method-resolution order after the split so `eventFilter` and `closeEvent` correctly resolve through `QMainWindow`.
+28) Added defensive fallbacks around `eventFilter` and `closeEvent` so headless stubs or unusual Qt bindings do not crash if a parent method is absent.
+29) Restored split-time details that were easy to lose during mechanical extraction, including `_CODING_KEYWORDS` and `_vline` as a static helper.
+30) Added regression tests for the MainWindow split, including MRO order, safe `eventFilter` fallback, class constants, and static helper behavior.
+31) Patched `nativelab/api_server/tab.py` to use NativeLab's Qt compatibility layer instead of direct PyQt imports, keeping headless imports stable.
+32) Added `nativelab/UI/qt_workers.py` to centralize QThread shutdown, signal disconnection, stuck-worker detection, and safe worker attribute cleanup.
+33) Reworked MainWindow shutdown to stop active generation, pipeline, chat-pipeline, summary, multi-PDF, auto-setup, model loader, API loader, role loader, and child-tab workers through the centralized helper.
+34) Changed shutdown behavior so NativeLab warns and ignores close if a non-cancellable worker is still running instead of deleting Qt widgets underneath live workers.
+35) Added shutdown hooks for Accounts and Hugging Face login workers so token validation/login workers are stopped before widgets are deleted.
+36) Added shutdown handling for the Download tab covering GGUF search, GGUF download, llama.cpp release fetch/download, HF snapshot search/download, HF dependency install, Ollama listing, and Ollama pull workers.
+37) Preserved partial download files during shutdown by using non-destructive worker aborts for model/runtime downloads.
+38) Hardened theme switching so Accounts and Download widgets run shutdown hooks before being deleted and rebuilt.
+39) Replaced several ad-hoc `abort(); wait()` paths with centralized worker shutdown calls in context reload, Stop, document summary, Labs model reload, and role-loader cleanup flows.
+40) Added tests for Qt worker lifecycle helpers, including abort/wait/disconnect behavior and stuck-worker reference preservation.
+41) Verified the refactor and hardening with headless compile checks, unit tests, MainWindow import checks, real PyQt offscreen construction, theme toggle, close handling, and tab-level shutdown smoke tests.
+
 v0.3.5
 1) Diagnosed the py-to-doc crash path around manual model reloads and local llama.cpp server lifecycle during documentation generation.
 2) Added smarter py-to-doc auto-reload routing through LabEndpoints so model/context reload requests go through the host app instead of each lab touching engines directly.
