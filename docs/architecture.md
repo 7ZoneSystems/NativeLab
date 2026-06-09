@@ -147,9 +147,11 @@ NativeLab/
 │   └── troubleshooting.md
 ├── nativelab/
 │   ├── icon.png · icon.ico        ← branding
-│   ├── main.py                    ← MainWindow + GUI entry
+│   ├── main.py                    ← small GUI entrypoint
 │   ├── __main__.py                ← routes --cli to nativelab.cli, else GUI
 │   ├── manual.py
+│   ├── UI/mainwindow/             ← MainWindow mixins and window assembly
+│   ├── UI/qt_workers.py           ← centralized QThread shutdown helpers
 │   │
 │   ├── labs/                      ← experimentation layer (NEW)
 │   │   ├── __init__.py            ← re-exports LabEndpoints, LabsTab

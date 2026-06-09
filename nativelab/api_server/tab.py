@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtWidgets import (
+from nativelab.imports.qt_compat import (
     QApplication,
+    QColor,
     QComboBox,
     QFrame,
     QHBoxLayout,
@@ -19,6 +19,8 @@ from PyQt6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
+    Qt,
+    QTimer,
 )
 
 from nativelab.UI.UI_const import C
@@ -406,10 +408,8 @@ class ApiServerTab(QWidget):
 
 
 def COLOR_OK():
-    from PyQt6.QtGui import QColor
     return QColor(C["ok"])
 
 
 def COLOR_TXT2():
-    from PyQt6.QtGui import QColor
     return QColor(C["txt2"])
