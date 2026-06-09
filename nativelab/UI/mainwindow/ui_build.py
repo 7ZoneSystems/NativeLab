@@ -389,6 +389,7 @@ class UiBuildMixin:
 
     def _build_menu(self):
         mb = self.menuBar()
+        self._configure_menu_bar_for_platform(mb)
         fm = mb.addMenu("File")
         fm.addAction(QAction("New Session\tCtrl+N", self, triggered=self._new_session))
         fm.addSeparator()
@@ -415,8 +416,21 @@ class UiBuildMixin:
         mm.addAction(QAction("Reload Model", self, triggered=self._reload_model))
         self._install_topbar_controls(mb)
 
+    @staticmethod
+    def _configure_menu_bar_for_platform(menu_bar):
+        try:
+            if _platform.system() == "Darwin" and hasattr(menu_bar, "setNativeMenuBar"):
+                menu_bar.setNativeMenuBar(False)
+            minimum_height = getattr(menu_bar, "minimumHeight", lambda: 0)
+            current_height = int((minimum_height() if callable(minimum_height) else 0) or 0)
+            menu_bar.setMinimumHeight(max(32, current_height))
+        except Exception:
+            pass
+
     def _install_topbar_controls(self, menu_bar):
         box = QWidget()
+        box.setObjectName("topbar_controls")
+        box.setMinimumHeight(28)
         row = QHBoxLayout(box)
         row.setContentsMargins(0, 0, 8, 0)
         row.setSpacing(6)
@@ -520,7 +534,7 @@ class UiBuildMixin:
 
     def _topbar_button_style(self) -> str:
         return (
-            f"QPushButton{{background:transparent;color:{C['txt3']};"
+            f"QPushButton{{background:transparent;color:{C['txt2']};"
             f"border:1px solid {C['bdr']};border-radius:6px;font-size:13px;"
             f"font-weight:700;padding:0;}}"
             f"QPushButton:hover{{color:{C['acc2']};border-color:{C['acc']};"

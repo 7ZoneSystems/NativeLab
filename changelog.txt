@@ -52,7 +52,7 @@ v0.3.6
 51) Added native availability checks (`native_core_available()` and `rust_model_available()`) so the app can safely use C/Rust acceleration opportunistically without making native builds mandatory.
 52) Preserved plugin, UI, and backend orchestration in Python while moving only deterministic backend helper paths into C/Rust acceleration layers.
 
-v0.3.5
+v0.3.6
 1) Diagnosed the py-to-doc crash path around manual model reloads and local llama.cpp server lifecycle during documentation generation.
 2) Added smarter py-to-doc auto-reload routing through LabEndpoints so model/context reload requests go through the host app instead of each lab touching engines directly.
 3) Added py-to-doc auto model reload controls for low-RAM recovery, reload thresholds, re-arm margins, minimum step/time spacing, and failure limits.

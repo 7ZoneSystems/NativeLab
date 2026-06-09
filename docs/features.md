@@ -4,7 +4,7 @@ NativeLab is built around four pillars: **local-first inference**, **multi-engin
 
 ---
 
-## 🆕 What's new in v0.3.5
+## 🆕 What's new in v0.3.6
 
 ### Labs - the experimentation layer
 A new `nativelab/labs/` package and a dedicated GUI tab. Every lab feature receives a single `LabEndpoints` instance and uses it for engine status, model swap, context change, and synchronous LLM calls (auto-routing API → server → CLI). Adding a feature is dropping one file and registering it. See [labs.md](labs.md).
@@ -17,7 +17,7 @@ The same `LabEndpoints` that powers Labs panels also powers the CLI's chat REPL.
 
 ---
 
-## Catalogue (everything in v0.3.5)
+## Catalogue (everything in v0.3.6)
 
 ### Inference
 

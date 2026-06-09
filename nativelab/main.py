@@ -15,8 +15,21 @@ if "--cli" in _entry_sys.argv[1:]:
 
     _entry_sys.exit(_entry_run_cli(_entry_sys.argv[1:]))
 
-from nativelab.imports.import_global import QApplication, QFont, QIcon
+from nativelab.imports.import_global import QApplication, QFont, QIcon, Qt, _platform
 from nativelab.UI.mainwindow import MainWindow
+
+
+def _configure_qt_platform():
+    if _platform.system() != "Darwin":
+        return
+    set_attribute = getattr(QApplication, "setAttribute", None)
+    app_attrs = getattr(Qt, "ApplicationAttribute", None)
+    dont_use_native_menu = getattr(app_attrs, "AA_DontUseNativeMenuBar", None)
+    if callable(set_attribute) and dont_use_native_menu is not None:
+        try:
+            set_attribute(dont_use_native_menu, True)
+        except Exception:
+            pass
 
 
 def main():
@@ -27,6 +40,7 @@ def main():
 
         _entry_sys.exit(run_cli(_entry_sys.argv[1:]))
 
+    _configure_qt_platform()
     app = QApplication(_entry_sys.argv)
     app.setApplicationName("NativeLab")
     base_dir = _entry_os.path.dirname(__file__)

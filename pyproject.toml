@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nativelab"
-version = "0.3.5"
+version = "0.3.7"
 description = "NativeLab AI framework"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -12,13 +12,19 @@ requires-python = ">=3.10"
 dependencies = [
     "psutil==7.2.2",
     "pypdf>=6.1.3",
-    "PyQt6==6.10.2",
-    "aiohttp>=3.9.0",
-    "discord.py>=2.3.2"
+    "PyQt6==6.10.2"
 ]
 
 [project.optional-dependencies]
+# The normal install is the GUI profile. Extras remain explicit so packagers,
+# lockfile tools, and advanced users can resolve narrower or fuller profiles.
+cli = [
+    "psutil==7.2.2",
+    "pypdf>=6.1.3"
+]
 gui = [
+    "psutil==7.2.2",
+    "pypdf>=6.1.3",
     "PyQt6==6.10.2"
 ]
 discord = [
@@ -28,7 +34,62 @@ discord = [
 whatsapp = [
     "aiohttp>=3.9.0"
 ]
+integrations = [
+    "aiohttp>=3.9.0",
+    "discord.py>=2.3.2"
+]
 hf = [
+    "transformers>=5.0.0",
+    "torch>=2.2.0",
+    "safetensors>=0.4.0",
+    "accelerate>=0.30.0",
+    "sentencepiece>=0.2.0",
+    "pillow>=12.2.0",
+    "requests>=2.33.0",
+    "urllib3>=2.7.0",
+    "filelock>=3.20.3"
+]
+transformers = [
+    "transformers>=5.0.0",
+    "torch>=2.2.0",
+    "safetensors>=0.4.0",
+    "accelerate>=0.30.0",
+    "sentencepiece>=0.2.0",
+    "pillow>=12.2.0",
+    "requests>=2.33.0",
+    "urllib3>=2.7.0",
+    "filelock>=3.20.3"
+]
+full = [
+    "psutil==7.2.2",
+    "pypdf>=6.1.3",
+    "PyQt6==6.10.2",
+    "aiohttp>=3.9.0",
+    "discord.py>=2.3.2",
+    "transformers>=5.0.0",
+    "torch>=2.2.0",
+    "safetensors>=0.4.0",
+    "accelerate>=0.30.0",
+    "sentencepiece>=0.2.0",
+    "pillow>=12.2.0",
+    "requests>=2.33.0",
+    "urllib3>=2.7.0",
+    "filelock>=3.20.3"
+]
+
+[dependency-groups]
+cli = [
+    "psutil==7.2.2",
+    "pypdf>=6.1.3"
+]
+gui = [
+    { include-group = "cli" },
+    "PyQt6==6.10.2"
+]
+full = [
+    { include-group = "gui" },
+    "aiohttp>=3.9.0",
+    "discord.py>=2.3.2",
     "transformers>=5.0.0",
     "torch>=2.2.0",
     "safetensors>=0.4.0",
@@ -42,6 +103,7 @@ hf = [
 
 [project.scripts]
 nativelab = "nativelab.__main__:main"
+nativelab-cli = "nativelab.__main__:cli_main"
 
 [tool.setuptools.packages.find]
 where = ["."]

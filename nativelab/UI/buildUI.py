@@ -625,6 +625,7 @@ QMenuBar {{
     background:{c['bg1']};
     color:{c['txt2']};
     border-bottom:1px solid {c['bdr']};
+    min-height:30px;
     padding:2px 4px; font-size:13px;
 }}
 QMenuBar::item {{ padding:5px 14px; border-radius:5px; }}
