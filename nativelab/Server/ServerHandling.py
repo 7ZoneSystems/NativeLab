@@ -65,22 +65,90 @@ PORT_RANGE_END   = SERVER_CONFIG.port_range_hi
 def detect_gpus() -> list:
     """
     Detect available GPUs. Returns list of dicts:
-      { idx, name, vram_mb, type }   type = 'cuda' | 'metal' | 'vulkan'
+      { idx, name, vram_mb, type }   type = 'cuda' | 'rocm' | 'metal' | 'vulkan'
     """
     gpus = []
-    # ── NVIDIA / AMD via nvidia-smi ───────────────────────────────────────────
+    # ── NVIDIA CUDA via nvidia-smi ────────────────────────────────────────────
     try:
-        out = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=name,memory.total",
-             "--format=csv,noheader,nounits"],
-            timeout=LONG_TIMEOUT_SECONDS, stderr=subprocess.DEVNULL).decode().strip()
+        queries = [
+            "name,memory.total,memory.free,multiprocessor_count",
+            "name,memory.total,memory.free",
+            "name,memory.total",
+        ]
+        out = ""
+        for query in queries:
+            try:
+                out = subprocess.check_output(
+                    ["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader,nounits"],
+                    timeout=LONG_TIMEOUT_SECONDS, stderr=subprocess.DEVNULL).decode().strip()
+                if out:
+                    break
+            except Exception:
+                continue
         for i, line in enumerate(out.splitlines()):
             parts = [p.strip() for p in line.split(",")]
             vram  = int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else 0
+            free  = int(parts[2]) if len(parts) >= 3 and parts[2].isdigit() else 0
+            cores = int(parts[3]) if len(parts) >= 4 and parts[3].isdigit() else 0
             gpus.append({"idx": i, "name": parts[0] if parts else f"GPU {i}",
-                         "vram_mb": vram, "type": "cuda"})
+                         "vram_mb": vram, "vram_free_mb": free,
+                         "cores": cores, "type": "cuda"})
     except Exception:
         pass
+    # ── AMD ROCm ──────────────────────────────────────────────────────────────
+    if not gpus:
+        try:
+            out = subprocess.check_output(
+                ["rocm-smi", "--showproductname", "--showmeminfo", "vram", "--json"],
+                timeout=LONG_TIMEOUT_SECONDS, stderr=subprocess.DEVNULL).decode()
+            data = json.loads(out)
+            for key in sorted(data.keys()):
+                row = data.get(key) or {}
+                if not isinstance(row, dict):
+                    continue
+                name = str(
+                    row.get("Card series")
+                    or row.get("GPU use (%)")
+                    or row.get("Device Name")
+                    or key
+                )
+                total = 0
+                used = 0
+                for rk, rv in row.items():
+                    lk = str(rk).lower()
+                    text = str(rv).strip()
+                    digits = "".join(ch for ch in text if ch.isdigit())
+                    if not digits:
+                        continue
+                    value = int(digits)
+                    if "total" in lk and "memory" in lk:
+                        total = value // (1024 * 1024) if value > 1024 * 1024 else value
+                    elif "used" in lk and "memory" in lk:
+                        used = value // (1024 * 1024) if value > 1024 * 1024 else value
+                gpus.append({
+                    "idx": len(gpus),
+                    "name": name,
+                    "vram_mb": total,
+                    "vram_free_mb": max(0, total - used) if total else 0,
+                    "cores": 0,
+                    "type": "rocm",
+                })
+        except Exception:
+            try:
+                out = subprocess.check_output(
+                    ["rocm-smi", "--showproductname"],
+                    timeout=LONG_TIMEOUT_SECONDS, stderr=subprocess.DEVNULL).decode()
+                for line in out.splitlines():
+                    if "GPU" in line and ":" in line:
+                        name = line.split(":", 1)[-1].strip()
+                        if name:
+                            gpus.append({
+                                "idx": len(gpus), "name": name,
+                                "vram_mb": 0, "vram_free_mb": 0,
+                                "cores": 0, "type": "rocm",
+                            })
+            except Exception:
+                pass
     # ── Apple Metal (macOS) ───────────────────────────────────────────────────
     if not gpus and _platform.system() == "Darwin":
         try:
@@ -93,13 +161,15 @@ def detect_gpus() -> list:
                     name = stripped.split(":", 1)[-1].strip()
                     if name:
                         gpus.append({"idx": 0, "name": name,
-                                     "vram_mb": 0, "type": "metal"})
+                                     "vram_mb": 0, "vram_free_mb": 0,
+                                     "cores": 0, "type": "metal"})
                         break
         except Exception:
             pass
         if not gpus:
             gpus.append({"idx": 0, "name": "Apple GPU (Metal)",
-                         "vram_mb": 0, "type": "metal"})
+                         "vram_mb": 0, "vram_free_mb": 0,
+                         "cores": 0, "type": "metal"})
     # ── Vulkan fallback probe ─────────────────────────────────────────────────
     if not gpus:
         try:
@@ -110,7 +180,8 @@ def detect_gpus() -> list:
                 if "deviceName" in line:
                     name = line.split("=", 1)[-1].strip()
                     gpus.append({"idx": len(gpus), "name": name,
-                                 "vram_mb": 0, "type": "vulkan"})
+                                 "vram_mb": 0, "vram_free_mb": 0,
+                                 "cores": 0, "type": "vulkan"})
         except Exception:
             pass
     return gpus

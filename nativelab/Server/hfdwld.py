@@ -17,18 +17,26 @@ class HfSearchWorker(QThread):
         self._token = token
 
     def run(self):
-        import urllib.request as _ur, json as _j
-        url = f"https://huggingface.co/api/models/{self._repo}"
         try:
-            req = _ur.Request(url, headers=hf_auth_headers(self._token))
-            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
-                data = _j.loads(r.read())
-            siblings = data.get("siblings", [])
-            gguf = [s for s in siblings
-                    if s.get("rfilename", "").lower().endswith(".gguf")]
-            self.results_ready.emit(gguf)
+            self.results_ready.emit(fetch_hf_gguf_files(self._repo, self._token))
         except Exception as e:
             self.err.emit(normalize_hf_exception(e, repo_id=self._repo))
+
+
+def fetch_hf_gguf_files(repo_id: str, token: str = "") -> list:
+    """Return GGUF file metadata for a Hugging Face repo."""
+    import urllib.request as _ur, json as _j
+
+    repo = str(repo_id or "").strip().strip("/")
+    url = f"https://huggingface.co/api/models/{repo}"
+    req = _ur.Request(url, headers=hf_auth_headers(token))
+    with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+        data = _j.loads(r.read())
+    siblings = data.get("siblings", [])
+    return [
+        s for s in siblings
+        if str(s.get("rfilename", "")).lower().endswith(".gguf")
+    ]
 
 
 class _AbortedError(Exception):
@@ -97,9 +105,10 @@ class HfDownloadWorker(QThread):
 
         url  = (f"https://huggingface.co/{self._repo}"
                 f"/resolve/main/{self._filename}")
-        dest = self._dest_dir / self._filename
+        dest = _safe_child_path(self._dest_dir, self._filename)
         part = self._part_path(dest)
         self._dest_dir.mkdir(parents=True, exist_ok=True)
+        dest.parent.mkdir(parents=True, exist_ok=True)
 
         # Resolve CDN URL once upfront (avoids repeated redirect overhead)
         try:
@@ -193,6 +202,22 @@ def _hf_auth_headers(token: str = "") -> dict:
     return hf_auth_headers(token)
 
 
+def _safe_child_path(root: Path, name: str) -> Path:
+    raw = str(name or "").replace("\\", "/").strip("/")
+    if not raw:
+        raise ValueError("Empty download filename")
+    rel = Path(raw)
+    if rel.is_absolute() or any(part in {"..", ""} for part in rel.parts):
+        raise ValueError(f"Unsafe download filename: {name}")
+    base = Path(root).resolve()
+    dest = (Path(root) / rel).resolve()
+    try:
+        dest.relative_to(base)
+    except ValueError:
+        raise ValueError(f"Download path escapes destination: {name}")
+    return Path(root) / rel
+
+
 def _hf_runtime_file(name: str) -> bool:
     n = str(name or "").lower()
     base = Path(n).name
@@ -232,31 +257,39 @@ class HfSnapshotSearchWorker(QThread):
         self._token = token
 
     def run(self):
-        import urllib.request as _ur, json as _j
-        from urllib.parse import quote as _quote
         try:
-            rev = _quote(self._revision, safe="")
-            url = f"https://huggingface.co/api/models/{self._repo}/revision/{rev}"
-            req = _ur.Request(url, headers=_hf_auth_headers(self._token))
-            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
-                data = _j.loads(r.read().decode("utf-8", errors="replace"))
-            files = []
-            for sib in data.get("siblings", []):
-                name = sib.get("rfilename", "")
-                if not _hf_runtime_file(name):
-                    continue
-                size = int(sib.get("size") or sib.get("lfs", {}).get("size") or 0)
-                files.append({"name": name, "size": size})
-            files.sort(key=lambda x: x["name"].lower())
-            self.results_ready.emit({
-                "repo": self._repo,
-                "revision": self._revision,
-                "sha": data.get("sha", ""),
-                "files": files,
-                "total_size": sum(int(f.get("size") or 0) for f in files),
-            })
+            self.results_ready.emit(fetch_hf_snapshot_files(self._repo, self._revision, self._token))
         except Exception as e:
             self.err.emit(normalize_hf_exception(e, repo_id=self._repo))
+
+
+def fetch_hf_snapshot_files(repo_id: str, revision: str = "main", token: str = "") -> dict:
+    """Return files needed for a local HF Transformers runtime snapshot."""
+    import urllib.request as _ur, json as _j
+    from urllib.parse import quote as _quote
+
+    repo = str(repo_id or "").strip().strip("/")
+    rev_text = (revision or "main").strip()
+    rev = _quote(rev_text, safe="")
+    url = f"https://huggingface.co/api/models/{repo}/revision/{rev}"
+    req = _ur.Request(url, headers=_hf_auth_headers(token))
+    with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+        data = _j.loads(r.read().decode("utf-8", errors="replace"))
+    files = []
+    for sib in data.get("siblings", []):
+        name = sib.get("rfilename", "")
+        if not _hf_runtime_file(name):
+            continue
+        size = int(sib.get("size") or sib.get("lfs", {}).get("size") or 0)
+        files.append({"name": name, "size": size})
+    files.sort(key=lambda x: x["name"].lower())
+    return {
+        "repo": repo,
+        "revision": rev_text,
+        "sha": data.get("sha", ""),
+        "files": files,
+        "total_size": sum(int(f.get("size") or 0) for f in files),
+    }
 
 
 class HfSnapshotDownloadWorker(QThread):
@@ -340,7 +373,7 @@ class HfSnapshotDownloadWorker(QThread):
     def _existing_bytes(self, dest_dir: Path) -> int:
         total = 0
         for fdata in self._files:
-            dest = dest_dir / fdata.get("name", "")
+            dest = _safe_child_path(dest_dir, fdata.get("name", ""))
             part = self._part_path(dest)
             expected = int(fdata.get("size") or 0)
             if dest.exists():
@@ -361,7 +394,7 @@ class HfSnapshotDownloadWorker(QThread):
             if not name:
                 continue
             try:
-                self._part_path(dest_dir / name).unlink()
+                self._part_path(_safe_child_path(dest_dir, name)).unlink()
             except Exception:
                 pass
 
@@ -374,7 +407,7 @@ class HfSnapshotDownloadWorker(QThread):
     def _download_one(self, dest_dir: Path, filename: str, expected_size: int):
         import urllib.request as _ur
 
-        dest = dest_dir / filename
+        dest = _safe_child_path(dest_dir, filename)
         part = self._part_path(dest)
         dest.parent.mkdir(parents=True, exist_ok=True)
         if dest.exists() and (not expected_size or dest.stat().st_size >= expected_size):
@@ -476,48 +509,52 @@ class LlamaCppReleaseFetcher(QThread):
     err           = pyqtSignal(str)
 
     def run(self):
-        import urllib.request as _ur, json as _j, platform as _pl
-        url = "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10"
         try:
-            req = _ur.Request(url, headers={"User-Agent": "NativeLabPro/2",
-                                            "Accept": "application/vnd.github+json"})
-            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
-                releases = _j.loads(r.read())
-
-            sys_name = _pl.system().lower()
-            machine  = _pl.machine().lower()
-
-            # Pick platform filter keywords
-            if sys_name == "windows":
-                kw = ["win"]
-            elif sys_name == "darwin":
-                kw = ["macos", "osx", "macos"]
-            else:
-                kw = ["ubuntu", "linux"]
-
-            # Prefer cuda/vulkan/metal builds, include cpu as fallback
-            result = []
-            for rel in releases:
-                tag    = rel.get("tag_name", "")
-                assets = []
-                for a in rel.get("assets", []):
-                    n = a["name"].lower()
-                    if not any(k in n for k in kw):
-                        continue
-                    if not n.endswith(".zip") and not n.endswith(".tar.gz"):
-                        continue
-                    if n.startswith("cudart-"):
-                        continue
-                    assets.append({
-                        "name":  a["name"],
-                        "url":   a["browser_download_url"],
-                        "size":  a.get("size", 0),
-                    })
-                if assets:
-                    result.append({"tag": tag, "assets": assets})
-            self.results_ready.emit(result)
+            self.results_ready.emit(fetch_llama_cpp_releases())
         except Exception as e:
             self.err.emit(str(e))
+
+
+def fetch_llama_cpp_releases(per_page: int = 10) -> list:
+    """Fetch compatible llama.cpp release assets for this platform."""
+    import urllib.request as _ur, json as _j, platform as _pl
+
+    url = f"https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page={int(per_page)}"
+    req = _ur.Request(url, headers={
+        "User-Agent": "NativeLabPro/2",
+        "Accept": "application/vnd.github+json",
+    })
+    with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+        releases = _j.loads(r.read())
+
+    sys_name = _pl.system().lower()
+    if sys_name == "windows":
+        kw = ["win"]
+    elif sys_name == "darwin":
+        kw = ["macos", "osx"]
+    else:
+        kw = ["ubuntu", "linux"]
+
+    result = []
+    for rel in releases:
+        tag = rel.get("tag_name", "")
+        assets = []
+        for a in rel.get("assets", []):
+            n = str(a.get("name", "")).lower()
+            if not any(k in n for k in kw):
+                continue
+            if not n.endswith(".zip") and not n.endswith(".tar.gz"):
+                continue
+            if n.startswith("cudart-"):
+                continue
+            assets.append({
+                "name": a.get("name", ""),
+                "url": a.get("browser_download_url", ""),
+                "size": a.get("size", 0),
+            })
+        if assets:
+            result.append({"tag": tag, "assets": assets})
+    return result
 
 
 class LlamaCppDownloadWorker(QThread):
@@ -526,6 +563,7 @@ class LlamaCppDownloadWorker(QThread):
     done      = pyqtSignal(str)        # install path
     err       = pyqtSignal(str)
     status    = pyqtSignal(str)        # status message
+    paused    = pyqtSignal(bool)
 
     CHUNK = 262144
 
@@ -536,31 +574,39 @@ class LlamaCppDownloadWorker(QThread):
         self._dest_dir = dest_dir
         self._expected_size = expected_size
         self._abort    = False
+        self._abort_delete = False
+        self._pause_event = threading.Event()
+        self._pause_event.set()
 
-    def abort(self):
+    def abort(self, delete_part: bool = False):
+        self._abort_delete = bool(delete_part)
         self._abort = True
+        self._pause_event.set()
+
+    def pause(self):
+        self._pause_event.clear()
+        self.paused.emit(True)
+
+    def resume(self):
+        self._pause_event.set()
+        self.paused.emit(False)
+
+    def is_paused(self) -> bool:
+        return not self._pause_event.is_set()
 
     def run(self):
-        import urllib.request as _ur, zipfile, tarfile, tempfile, shutil
+        import zipfile, tarfile, tempfile, shutil
 
         tmp = Path(tempfile.mkdtemp())
-        archive = tmp / self._filename
+        archive = self._archive_path()
         try:
-            # Download
-            self.status.emit(f"Downloading {self._filename}…")
-            req = _ur.Request(self._url, headers={"User-Agent": "NativeLabPro/2"})
-            with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
-                total = self._expected_size or int(r.headers.get("Content-Length") or 0)
-                done  = 0
-                with open(archive, "wb") as f:
-                    while not self._abort:
-                        chunk = r.read(self.CHUNK)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        done += len(chunk)
-                        self.progress.emit(done, total)
+            self._download_archive(archive)
             if self._abort:
+                if self._abort_delete:
+                    try:
+                        archive.unlink()
+                    except Exception:
+                        pass
                 return
 
             # Extract
@@ -622,3 +668,56 @@ class LlamaCppDownloadWorker(QThread):
             self.err.emit(str(e))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+
+    def _archive_path(self) -> Path:
+        downloads = self._dest_dir / "downloads"
+        downloads.mkdir(parents=True, exist_ok=True)
+        return downloads / self._filename
+
+    def _part_path(self, archive: Path) -> Path:
+        return archive.with_name(archive.name + ".part")
+
+    def _download_archive(self, archive: Path):
+        import urllib.request as _ur
+
+        expected = int(self._expected_size or 0)
+        if archive.exists() and (not expected or archive.stat().st_size >= expected):
+            self.status.emit(f"Using cached {self._filename}")
+            self.progress.emit(archive.stat().st_size, expected or archive.stat().st_size)
+            return
+
+        part = self._part_path(archive)
+        resume_from = part.stat().st_size if part.exists() else 0
+        headers = {"User-Agent": "NativeLabPro/2"}
+        if resume_from:
+            headers["Range"] = f"bytes={resume_from}-"
+        self.status.emit(f"Downloading {self._filename}...")
+        req = _ur.Request(self._url, headers=headers)
+        with _ur.urlopen(req, timeout=LONG_TIMEOUT_SECONDS) as r:
+            cl = r.headers.get("Content-Length")
+            if resume_from and getattr(r, "status", 200) == 206:
+                total = resume_from + (int(cl) if cl else 0)
+            else:
+                total = expected or (int(cl) if cl and int(cl) > 0 else 0)
+                resume_from = 0
+            done = resume_from
+            mode = "ab" if resume_from else "wb"
+            with open(part, mode) as f:
+                while True:
+                    self._pause_event.wait()
+                    if self._abort:
+                        if self._abort_delete:
+                            try:
+                                part.unlink()
+                            except Exception:
+                                pass
+                        return
+                    chunk = r.read(self.CHUNK)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    done += len(chunk)
+                    self.progress.emit(done, total)
+        if total and done != total:
+            raise ValueError(f"Size mismatch: expected {total} B, got {done} B")
+        part.replace(archive)
