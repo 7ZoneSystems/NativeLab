@@ -81,7 +81,9 @@ class ServerStreamWorker(QThread):
             conn.request("POST", "/completion", body, {"Content-Type": "application/json"})
             r = conn.getresponse()
             if r.status != 200:
-                self.err.emit(f"HTTP {r.status}"); return
+                raw = r.read().decode("utf-8", errors="replace")
+                self.err.emit(f"llama-server HTTP {r.status}: {raw or getattr(r, 'reason', '')}")
+                return
 
             buf = b""
             # Fix: read in chunks instead of byte-by-byte

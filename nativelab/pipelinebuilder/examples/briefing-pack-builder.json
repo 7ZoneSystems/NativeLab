@@ -1,0 +1,99 @@
+{
+  "version": 2,
+  "title": "Briefing Pack Builder",
+  "description": "Combines custom-code cleanup, split/merge fanout, LLM transformation, and final synthesis into a reusable briefing generator.",
+  "blocks": [
+    {"bid": 1, "btype": "input", "x": 70, "y": 320, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Input", "metadata": {}},
+    {
+      "bid": 2,
+      "btype": "custom_code",
+      "x": 280,
+      "y": 320,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Normalize notes",
+      "metadata": {
+        "custom_code": "lines = [line.strip(' -\\t') for line in text.splitlines() if line.strip()]\\nseen = []\\nfor line in lines:\\n    if line not in seen:\\n        seen.append(line)\\nresult = '\\n'.join(f'- {line}' for line in seen)\\nlog(f'normalized {len(lines)} lines into {len(seen)} unique bullets')"
+      }
+    },
+    {"bid": 3, "btype": "split", "x": 500, "y": 320, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Split work", "metadata": {}},
+    {
+      "bid": 4,
+      "btype": "llm_transform",
+      "x": 730,
+      "y": 180,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "summarization",
+      "label": "Executive brief",
+      "metadata": {
+        "llm_instruction": "Turn these notes into a concise executive brief with context, decision needed, and recommendation.",
+        "llm_max_tokens": 700,
+        "llm_passthrough_on_err": false
+      }
+    },
+    {
+      "bid": 5,
+      "btype": "intermediate",
+      "x": 730,
+      "y": 460,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Risk lens",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "List risks, blockers, missing information, owner questions, and follow-up actions from these notes."
+      }
+    },
+    {"bid": 6, "btype": "model", "x": 960, "y": 460, "w": 148, "h": 76, "model_path": "", "role": "reasoning", "label": "Risk model", "metadata": {}},
+    {
+      "bid": 7,
+      "btype": "merge",
+      "x": 1190,
+      "y": 320,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Pack sections",
+      "metadata": {
+        "merge_mode": "concat",
+        "merge_sep": "\n\n--- BRIEFING SECTION ---\n\n"
+      }
+    },
+    {
+      "bid": 8,
+      "btype": "intermediate",
+      "x": 1410,
+      "y": 320,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Final pack prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Create a polished briefing pack with: TLDR, Background, Recommendation, Risks, Open Questions, and Next Actions. Keep it scannable."
+      }
+    },
+    {"bid": 9, "btype": "model", "x": 1630, "y": 320, "w": 148, "h": 76, "model_path": "", "role": "summarization", "label": "Final model", "metadata": {}},
+    {"bid": 10, "btype": "output", "x": 1840, "y": 320, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Briefing pack", "metadata": {}}
+  ],
+  "connections": [
+    {"from_block_id": 1, "from_port": "E", "to_block_id": 2, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "E", "to_block_id": 3, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 3, "from_port": "E", "to_block_id": 4, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 3, "from_port": "S", "to_block_id": 5, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 4, "from_port": "E", "to_block_id": 7, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 5, "from_port": "E", "to_block_id": 6, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 6, "from_port": "E", "to_block_id": 7, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 7, "from_port": "E", "to_block_id": 8, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 8, "from_port": "E", "to_block_id": 9, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 9, "from_port": "E", "to_block_id": 10, "to_port": "W", "is_loop": false, "loop_times": 1}
+  ]
+}

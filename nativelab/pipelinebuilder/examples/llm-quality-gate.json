@@ -1,0 +1,83 @@
+{
+  "version": 2,
+  "title": "LLM Quality Gate",
+  "description": "Drafts an answer, scores it with an LLM block, then routes low/mid/high quality outputs through different finishing paths.",
+  "blocks": [
+    {"bid": 1, "btype": "input", "x": 80, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Input", "metadata": {}},
+    {
+      "bid": 2,
+      "btype": "intermediate",
+      "x": 280,
+      "y": 300,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Draft prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Draft a complete answer to the user's request. Prefer substance over polish at this stage."
+      }
+    },
+    {"bid": 3, "btype": "model", "x": 500, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Draft model", "metadata": {}},
+    {
+      "bid": 4,
+      "btype": "llm_score",
+      "x": 720,
+      "y": 300,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "reasoning",
+      "label": "Quality score",
+      "metadata": {
+        "llm_instruction": "Rate whether this draft is accurate, complete, specific, and useful to the user."
+      }
+    },
+    {
+      "bid": 5,
+      "btype": "intermediate",
+      "x": 950,
+      "y": 120,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Repair low",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "The draft scored low. Rewrite from scratch. Fix gaps, add concrete steps, and remove vague language."
+      }
+    },
+    {
+      "bid": 6,
+      "btype": "intermediate",
+      "x": 950,
+      "y": 300,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Polish mid",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "The draft is usable but needs polish. Improve clarity, structure, and practical specificity without changing the meaning."
+      }
+    },
+    {"bid": 7, "btype": "model", "x": 1180, "y": 120, "w": 148, "h": 76, "model_path": "", "role": "reasoning", "label": "Repair model", "metadata": {}},
+    {"bid": 8, "btype": "model", "x": 1180, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "summarization", "label": "Polish model", "metadata": {}},
+    {"bid": 9, "btype": "output", "x": 1410, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Final answer", "metadata": {}}
+  ],
+  "connections": [
+    {"from_block_id": 1, "from_port": "E", "to_block_id": 2, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "E", "to_block_id": 3, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 3, "from_port": "E", "to_block_id": 4, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 4, "from_port": "E", "to_block_id": 5, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 4, "from_port": "S", "to_block_id": 6, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 4, "from_port": "W", "to_block_id": 9, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 5, "from_port": "E", "to_block_id": 7, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 6, "from_port": "E", "to_block_id": 8, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 7, "from_port": "E", "to_block_id": 9, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 8, "from_port": "E", "to_block_id": 9, "to_port": "W", "is_loop": false, "loop_times": 1}
+  ]
+}

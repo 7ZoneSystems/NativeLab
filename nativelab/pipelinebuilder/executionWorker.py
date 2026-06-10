@@ -32,6 +32,7 @@ class PipelineExecutionWorker(QThread):
         self.input_text     = input_text
         self.primary_engine = primary_engine
         self._abort         = False
+        self._last_model_error = ""
 
     def abort(self):
         self._abort = True
@@ -110,8 +111,9 @@ class PipelineExecutionWorker(QThread):
                 self.step_started.emit(bid, b.label)
                 result = self._run_model(b, context)
                 if result is None:
-                    if not self._abort:
+                    if not self._abort and not self._last_model_error:
                         self.err.emit(f"Model block '{b.label}' returned no output.")
+                    self._last_model_error = ""
                     return
                 current_text = result
                 self.step_done.emit(bid, result)
@@ -366,12 +368,13 @@ class PipelineExecutionWorker(QThread):
             elif b.btype == PipelineBlockType.LLM_SWITCH:
                 self.step_started.emit(bid, b.label)
                 instr = b.metadata.get("llm_instruction", "")
+                _port_labels = b.metadata.get("port_labels", {})
                 # Collect arm labels from outgoing connections
-                arm_labels = list({
-                    getattr(c, "branch_label", "")
+                arm_labels = list(dict.fromkeys(
+                    str(_port_labels.get(c.from_port) or getattr(c, "branch_label", "") or "").strip()
                     for c in adj.get(bid, [])
-                    if getattr(c, "branch_label", "")
-                })
+                    if str(_port_labels.get(c.from_port) or getattr(c, "branch_label", "") or "").strip()
+                ))
                 arms_str = ", ".join(arm_labels) if arm_labels else "(no labels set)"
                 system = (
                     "You are a strict classification assistant. "
@@ -403,7 +406,6 @@ class PipelineExecutionWorker(QThread):
                     f"LLM-SWITCH '{b.label}': classified as '{_match}' (raw: '{raw[:60]}')")
                 current_text = context
                 self.step_done.emit(bid, current_text)
-                _port_labels = b.metadata.get("port_labels", {})
                 _matched_any = False
                 for conn in adj.get(bid, []):
                     bl = _port_labels.get(conn.from_port, conn.from_port)
@@ -642,6 +644,7 @@ class PipelineExecutionWorker(QThread):
         return False
     
     def _run_model(self, b: PipelineBlock, context: str) -> Optional[str]:
+        self._last_model_error = ""
         target = b.model_path
         eng = self.primary_engine
         if eng and getattr(eng, "mode", "") == "api" and (
@@ -695,7 +698,8 @@ class PipelineExecutionWorker(QThread):
                 context_source="Pipeline",
             ).strip()
         except Exception as e:
-            self.err.emit(f"Model block error: {e}"); return None
+            self._last_model_error = f"Model block '{b.label}' error: {e}"
+            self.err.emit(self._last_model_error); return None
 
     def _run_api_model_block(self, b: PipelineBlock, context: str) -> Optional[str]:
         eng = self.primary_engine
@@ -802,6 +806,7 @@ class PipelineExecutionWorker(QThread):
         if cfg is None:
             self.log_msg.emit("API engine is not configured.")
             return None
+        import urllib.error
         import urllib.request
         try:
             if cfg.api_format == "anthropic":
@@ -873,8 +878,22 @@ class PipelineExecutionWorker(QThread):
             if text:
                 context_meter.append_output(text)
             return text.strip()
+        except urllib.error.HTTPError as e:
+            raw = ""
+            try:
+                raw = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                raw = ""
+            detail = f"API query error: HTTP {e.code}: {raw or getattr(e, 'reason', '')}"
+            self._last_model_error = detail
+            self.log_msg.emit(detail)
+            self.err.emit(detail)
+            return None
         except Exception as e:
-            self.log_msg.emit(f"API query error: {e}")
+            detail = f"API query error: {e}"
+            self._last_model_error = detail
+            self.log_msg.emit(detail)
+            self.err.emit(detail)
             return None
 
     # ── context injection blocks ──────────────────────────────────────────────

@@ -162,6 +162,7 @@ class UiBuildMixin:
 
         self.appearance_tab = AppearanceTab()
         self.appearance_tab.theme_changed.connect(self._on_appearance_changed)
+        self.help_tab = self._build_help_tab()
         self.settings_panel = self._build_settings_panel()
 
     def _on_data_imported(self):
@@ -244,6 +245,7 @@ class UiBuildMixin:
             ("Server", "server", self.server_tab),
             ("Appearance", "appearance", self.appearance_tab),
             ("Accounts", "key", self.accounts_tab),
+            ("Help", "book-open", self.help_tab),
         ]
         for label, icon_name, widget in self._settings_pages:
             item = QListWidgetItem(icon(icon_name), label)
@@ -257,6 +259,165 @@ class UiBuildMixin:
         self.settings_nav.setCurrentRow(0)
         self._refresh_settings_nav_colors()
         return panel
+
+    def _build_help_tab(self) -> QWidget:
+        page = QWidget()
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setObjectName("chat_scroll")
+        inner = QWidget()
+        inner.setObjectName("chat_container")
+        root = QVBoxLayout(inner)
+        root.setContentsMargins(22, 18, 22, 22)
+        root.setSpacing(12)
+        scroll.setWidget(inner)
+        outer.addWidget(scroll)
+
+        hdr = QLabel("Help")
+        set_label_icon(hdr, "book-open", "Help", 18)
+        hdr.setStyleSheet("font-size:16px;font-weight:bold;margin-bottom:4px;")
+        root.addWidget(hdr)
+
+        sub = QLabel("Setup controls and local app guides.")
+        sub.setWordWrap(True)
+        sub.setObjectName("txt2_small")
+        root.addWidget(sub)
+
+        setup_card = QFrame()
+        setup_card.setObjectName("tab_card")
+        setup_l = QVBoxLayout(setup_card)
+        setup_l.setContentsMargins(18, 14, 18, 16)
+        setup_l.setSpacing(10)
+
+        setup_title = QLabel("Auto Setup")
+        set_label_icon(setup_title, "download", "Auto Setup", 16)
+        setup_title.setStyleSheet("font-size:13px;font-weight:bold;")
+        setup_l.addWidget(setup_title)
+
+        setup_desc = QLabel("Start or resume the guided model setup from Settings.")
+        setup_desc.setWordWrap(True)
+        setup_desc.setObjectName("txt2_small")
+        setup_l.addWidget(setup_desc)
+
+        backend_row = QHBoxLayout()
+        backend_row.setSpacing(8)
+        backend_lbl = QLabel("Backend")
+        backend_lbl.setFixedWidth(86)
+        self.help_auto_setup_backend = QComboBox()
+        self.help_auto_setup_backend.addItem("llama.cpp GGUF (easy)", "llama_cpp")
+        self.help_auto_setup_backend.addItem("Hugging Face Transformers (hard)", "hf_transformers")
+        backend_row.addWidget(backend_lbl)
+        backend_row.addWidget(self.help_auto_setup_backend, 1)
+        setup_l.addLayout(backend_row)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        self.help_auto_setup_start_btn = QPushButton("Run Auto Setup")
+        self.help_auto_setup_pause_btn = QPushButton("Pause")
+        self.help_auto_setup_resume_btn = QPushButton("Resume")
+        self.help_auto_setup_cancel_btn = QPushButton("Stop")
+        set_button_icon(self.help_auto_setup_start_btn, "play", "Run Auto Setup")
+        set_button_icon(self.help_auto_setup_pause_btn, "circle-pause", "Pause")
+        set_button_icon(self.help_auto_setup_resume_btn, "refresh-cw", "Resume")
+        set_button_icon(self.help_auto_setup_cancel_btn, "stop-circle", "Stop")
+        self.help_auto_setup_start_btn.setObjectName("btn_send")
+        for btn in (
+            self.help_auto_setup_start_btn,
+            self.help_auto_setup_pause_btn,
+            self.help_auto_setup_resume_btn,
+            self.help_auto_setup_cancel_btn,
+        ):
+            btn.setFixedHeight(32)
+            btn_row.addWidget(btn)
+        btn_row.addStretch()
+        setup_l.addLayout(btn_row)
+
+        self.help_auto_setup_status = QLabel("Idle.")
+        self.help_auto_setup_status.setWordWrap(True)
+        self.help_auto_setup_status.setObjectName("txt2_small")
+        setup_l.addWidget(self.help_auto_setup_status)
+
+        self.help_auto_setup_start_btn.clicked.connect(self._start_auto_setup_from_help)
+        self.help_auto_setup_pause_btn.clicked.connect(self._pause_auto_setup)
+        self.help_auto_setup_resume_btn.clicked.connect(self._resume_auto_setup)
+        self.help_auto_setup_cancel_btn.clicked.connect(self._cancel_auto_setup)
+        root.addWidget(setup_card)
+
+        guides_card = QFrame()
+        guides_card.setObjectName("tab_card")
+        guides_l = QVBoxLayout(guides_card)
+        guides_l.setContentsMargins(18, 14, 18, 16)
+        guides_l.setSpacing(10)
+
+        guides_title = QLabel("Guides")
+        set_label_icon(guides_title, "book-open", "Guides", 16)
+        guides_title.setStyleSheet("font-size:13px;font-weight:bold;")
+        guides_l.addWidget(guides_title)
+
+        guide_rows = [
+            ("Pipeline Guide", "pipeline", self._show_pipeline_guide),
+            ("Model Guide", "models", lambda: self._show_help_doc("Model Guide", "docs/models.md")),
+            ("Labs Guide", "labs", lambda: self._show_help_doc("Labs Guide", "docs/labs.md")),
+            ("Workflow Guide", "workflow", lambda: self._show_help_doc("Workflow Guide", "docs/workflows.md")),
+            ("CLI Guide", "code", lambda: self._show_help_doc("CLI Guide", "docs/cli.md")),
+            ("Troubleshooting", "warn", lambda: self._show_help_doc("Troubleshooting", "docs/troubleshooting.md")),
+        ]
+        for label, icon_name, callback in guide_rows:
+            btn = QPushButton(label)
+            set_button_icon(btn, icon_name, label)
+            btn.setFixedHeight(32)
+            btn.clicked.connect(lambda _checked=False, cb=callback: cb())
+            guides_l.addWidget(btn)
+        root.addWidget(guides_card)
+        root.addStretch()
+        return page
+
+    def _start_auto_setup_from_help(self):
+        combo = getattr(self, "help_auto_setup_backend", None)
+        backend = combo.currentData() if combo is not None else "llama_cpp"
+        self._start_auto_setup(str(backend or "llama_cpp"))
+
+    def _show_pipeline_guide(self):
+        if hasattr(self, "pipeline_tab") and hasattr(self.pipeline_tab, "_show_manual"):
+            self.pipeline_tab._show_manual()
+            return
+        self._show_help_doc("Pipeline Guide", "docs/workflows.md")
+
+    def _show_help_doc(self, title: str, relative_path: str):
+        path = Path(__file__).resolve().parents[3] / relative_path
+        if not path.exists():
+            QMessageBox.warning(self, "Guide Missing", f"Could not find guide:\n{path}")
+            return
+        try:
+            text = path.read_text(encoding="utf-8")
+        except Exception as exc:
+            QMessageBox.warning(self, "Guide Error", f"Could not read guide:\n{exc}")
+            return
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        prepare_adaptive_window(dlg, 820, 680, min_width=560, min_height=420)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(0, 0, 0, 0)
+        browser = QTextBrowser()
+        browser.setObjectName("chat_te")
+        browser.setOpenExternalLinks(True)
+        browser.setHtml(md_to_html(text, colors=C))
+        lay.addWidget(browser, 1)
+        btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(12, 8, 12, 12)
+        btn_row.addStretch()
+        close_btn = QPushButton("Close")
+        set_button_icon(close_btn, "x", "Close")
+        close_btn.setFixedHeight(32)
+        close_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(close_btn)
+        lay.addLayout(btn_row)
+        dlg.exec()
 
     def _on_settings_nav_changed(self, row: int):
         if hasattr(self, "settings_stack") and 0 <= row < self.settings_stack.count():

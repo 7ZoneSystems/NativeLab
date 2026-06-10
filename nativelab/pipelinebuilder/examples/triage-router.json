@@ -1,0 +1,123 @@
+{
+  "version": 2,
+  "title": "Triage Router",
+  "description": "A deterministic branch pipeline that routes urgent or blocked requests to a focused response path and all other input to a standard answer path.",
+  "blocks": [
+    {
+      "bid": 1,
+      "btype": "input",
+      "x": 80,
+      "y": 260,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Input",
+      "metadata": {}
+    },
+    {
+      "bid": 2,
+      "btype": "transform",
+      "x": 280,
+      "y": 260,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Clean input",
+      "metadata": {
+        "transform_type": "strip"
+      }
+    },
+    {
+      "bid": 3,
+      "btype": "if_else",
+      "x": 480,
+      "y": 260,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Urgent?",
+      "metadata": {
+        "condition": "any(word in text.lower() for word in ['urgent', 'blocked', 'down', 'crash', 'broken', 'production'])"
+      }
+    },
+    {
+      "bid": 4,
+      "btype": "intermediate",
+      "x": 700,
+      "y": 150,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Incident prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Treat this as a high-priority incident. Provide immediate mitigation steps, likely root causes, checks to run, and a short escalation note."
+      }
+    },
+    {
+      "bid": 5,
+      "btype": "intermediate",
+      "x": 700,
+      "y": 370,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Standard prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Answer normally. Be concise, practical, and include clear next steps."
+      }
+    },
+    {
+      "bid": 6,
+      "btype": "model",
+      "x": 930,
+      "y": 150,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "reasoning",
+      "label": "Incident model",
+      "metadata": {}
+    },
+    {
+      "bid": 7,
+      "btype": "model",
+      "x": 930,
+      "y": 370,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Answer model",
+      "metadata": {}
+    },
+    {
+      "bid": 8,
+      "btype": "output",
+      "x": 1160,
+      "y": 260,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Routed output",
+      "metadata": {}
+    }
+  ],
+  "connections": [
+    {"from_block_id": 1, "from_port": "E", "to_block_id": 2, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "E", "to_block_id": 3, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 3, "from_port": "E", "to_block_id": 4, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 3, "from_port": "W", "to_block_id": 5, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 4, "from_port": "E", "to_block_id": 6, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 5, "from_port": "E", "to_block_id": 7, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 6, "from_port": "E", "to_block_id": 8, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 7, "from_port": "E", "to_block_id": 8, "to_port": "W", "is_loop": false, "loop_times": 1}
+  ]
+}

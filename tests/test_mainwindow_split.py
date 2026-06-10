@@ -19,6 +19,10 @@ class MainWindowSplitTests(unittest.TestCase):
     def test_vline_remains_static_helper(self):
         self.assertIsNotNone(MainWindow._vline())
 
+    def test_help_page_methods_are_exposed(self):
+        for name in ("_build_help_tab", "_start_auto_setup_from_help", "_show_help_doc"):
+            self.assertTrue(callable(getattr(MainWindow, name, None)))
+
 
 if __name__ == "__main__":
     unittest.main()

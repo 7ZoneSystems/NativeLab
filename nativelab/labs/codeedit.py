@@ -24,6 +24,7 @@ from nativelab.imports.import_global import (
 )
 from nativelab.UI.icons import refresh_widget_icons, set_button_icon, set_label_icon, set_status_label
 from nativelab.UI.buildUI import prepare_adaptive_window
+from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 from nativelab.UI.toggle import ToggleSwitch
 
 from .endpoints import LabEndpoints
@@ -628,7 +629,7 @@ class CodeEditPanel(QWidget):
             self._render_history()
             self._save_temp()
         self._pending_index = None
-        QMessageBox.critical(self, "Structured Edit Error", msg)
+        show_llm_error_dialog(self, msg, source="Code edit lab")
         self.btn_apply.setEnabled(True)
         self._worker = None
 

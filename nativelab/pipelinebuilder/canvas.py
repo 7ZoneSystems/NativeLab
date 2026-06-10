@@ -105,6 +105,7 @@ class PipelineCanvas(QWidget):
 
     def add_block(self, btype: str, x: int = 100, y: int = 100,
                   model_path: str = "", role: str = "general") -> PipelineBlock:
+        self.normalize_block_ids()
         b = PipelineBlock(btype, x, y, model_path, role)
         self.blocks.append(b)
         self.update()
@@ -112,8 +113,10 @@ class PipelineCanvas(QWidget):
         return b
 
     def remove_block(self, b: PipelineBlock):
+        if b not in self.blocks:
+            return
         bid = b.bid
-        self.blocks      = [bl for bl in self.blocks      if bl.bid != bid]
+        self.blocks      = [bl for bl in self.blocks      if bl is not b]
         self.connections = [c  for c  in self.connections
                             if c.from_block_id != bid and c.to_block_id != bid]
         if self._selected is b:
@@ -127,9 +130,58 @@ class PipelineCanvas(QWidget):
         self._selected     = None
         self._drag_block   = None
         self._connect_from = None
-        PipelineBlock._id_counter = 0
         self.update()
         self.blocks_changed.emit()
+
+    def _next_unused_block_id(self, reserved: set) -> int:
+        next_bid = max([PipelineBlock._id_counter, *reserved]) + 1
+        while next_bid in reserved:
+            next_bid += 1
+        PipelineBlock._id_counter = next_bid
+        return next_bid
+
+    def normalize_block_ids(self):
+        """Give every block object a unique id before adding or loading blocks."""
+        reserved = set()
+        for block in self.blocks:
+            try:
+                bid = int(getattr(block, "bid", 0))
+            except (TypeError, ValueError):
+                continue
+            if bid > 0:
+                reserved.add(bid)
+
+        used = set()
+        remap = {}
+        for block in self.blocks:
+            original_bid = getattr(block, "bid", None)
+            try:
+                bid = int(original_bid)
+            except (TypeError, ValueError):
+                bid = 0
+
+            if bid <= 0 or bid in used:
+                bid = self._next_unused_block_id(reserved)
+                reserved.add(bid)
+
+            block.bid = bid
+            used.add(bid)
+
+            if original_bid not in remap:
+                remap[original_bid] = bid
+            if original_bid != bid and bid not in remap:
+                remap[bid] = bid
+
+        if remap:
+            for conn in self.connections:
+                conn.from_block_id = remap.get(conn.from_block_id, conn.from_block_id)
+                conn.to_block_id = remap.get(conn.to_block_id, conn.to_block_id)
+
+        if used and PipelineBlock._id_counter < max(used):
+            PipelineBlock._id_counter = max(used)
+
+    def sync_block_id_counter(self):
+        self.normalize_block_ids()
 
     def _snap(self, v: int) -> int:
         return round(v / self.GRID) * self.GRID

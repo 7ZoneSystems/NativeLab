@@ -1,7 +1,12 @@
-from nativelab.imports.import_global import json, List, Dict
+from nativelab.imports.import_global import json, List, Dict, Path
 from nativelab.GlobalConfig.config_global import PIPELINES_DIR
 from .blck_typ import PipelineConnection
 from .pipblck import PipelineBlock
+
+
+PIPELINE_EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
+
+
 def _pipeline_to_dict(blocks: list, connections: list) -> dict:
     """Serialise a pipeline to a JSON-safe dict."""
     return {
@@ -63,6 +68,23 @@ def list_saved_pipelines() -> List[str]:
     """Return sorted list of saved pipeline names (without .json)."""
     return sorted(p.stem for p in PIPELINES_DIR.glob("*.json"))
 
+
+def list_example_pipelines() -> List[dict]:
+    """Return shipped example pipeline metadata."""
+    examples = []
+    for path in sorted(PIPELINE_EXAMPLES_DIR.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        examples.append({
+            "name": path.stem,
+            "title": str(data.get("title") or path.stem.replace("-", " ").title()),
+            "description": str(data.get("description") or ""),
+            "path": str(path),
+        })
+    return examples
+
 def save_pipeline(name: str, blocks: list, connections: list):
     path = PIPELINES_DIR / f"{name}.json"
     path.write_text(
@@ -71,5 +93,11 @@ def save_pipeline(name: str, blocks: list, connections: list):
 
 def load_pipeline(name: str):
     path = PIPELINES_DIR / f"{name}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return _pipeline_from_dict(data)
+
+
+def load_example_pipeline(name: str):
+    path = PIPELINE_EXAMPLES_DIR / f"{Path(name).stem}.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     return _pipeline_from_dict(data)

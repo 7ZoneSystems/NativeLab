@@ -1,0 +1,104 @@
+{
+  "version": 2,
+  "title": "Draft And Review",
+  "description": "A two-pass model flow with an intermediate review instruction between the draft and final answer.",
+  "blocks": [
+    {
+      "bid": 1,
+      "btype": "input",
+      "x": 100,
+      "y": 240,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Input",
+      "metadata": {}
+    },
+    {
+      "bid": 2,
+      "btype": "model",
+      "x": 320,
+      "y": 240,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Draft model",
+      "metadata": {}
+    },
+    {
+      "bid": 3,
+      "btype": "intermediate",
+      "x": 540,
+      "y": 240,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Review prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Review the draft below. Improve clarity, remove repetition, and keep only the useful final answer."
+      }
+    },
+    {
+      "bid": 4,
+      "btype": "model",
+      "x": 760,
+      "y": 240,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "reasoning",
+      "label": "Reviewer model",
+      "metadata": {}
+    },
+    {
+      "bid": 5,
+      "btype": "output",
+      "x": 980,
+      "y": 240,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Final output",
+      "metadata": {}
+    }
+  ],
+  "connections": [
+    {
+      "from_block_id": 1,
+      "from_port": "E",
+      "to_block_id": 2,
+      "to_port": "W",
+      "is_loop": false,
+      "loop_times": 1
+    },
+    {
+      "from_block_id": 2,
+      "from_port": "E",
+      "to_block_id": 3,
+      "to_port": "W",
+      "is_loop": false,
+      "loop_times": 1
+    },
+    {
+      "from_block_id": 3,
+      "from_port": "E",
+      "to_block_id": 4,
+      "to_port": "W",
+      "is_loop": false,
+      "loop_times": 1
+    },
+    {
+      "from_block_id": 4,
+      "from_port": "E",
+      "to_block_id": 5,
+      "to_port": "W",
+      "is_loop": false,
+      "loop_times": 1
+    }
+  ]
+}

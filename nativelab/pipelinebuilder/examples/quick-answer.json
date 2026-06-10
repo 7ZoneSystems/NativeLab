@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "title": "Quick Answer",
+  "description": "A minimal input -> model -> output flow. Select a model in the sidebar before applying this preset.",
+  "blocks": [
+    {
+      "bid": 1,
+      "btype": "input",
+      "x": 120,
+      "y": 220,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Input",
+      "metadata": {}
+    },
+    {
+      "bid": 2,
+      "btype": "model",
+      "x": 360,
+      "y": 220,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Your model",
+      "metadata": {}
+    },
+    {
+      "bid": 3,
+      "btype": "output",
+      "x": 600,
+      "y": 220,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Output",
+      "metadata": {}
+    }
+  ],
+  "connections": [
+    {
+      "from_block_id": 1,
+      "from_port": "E",
+      "to_block_id": 2,
+      "to_port": "W",
+      "is_loop": false,
+      "loop_times": 1
+    },
+    {
+      "from_block_id": 2,
+      "from_port": "E",
+      "to_block_id": 3,
+      "to_port": "W",
+      "is_loop": false,
+      "loop_times": 1
+    }
+  ]
+}

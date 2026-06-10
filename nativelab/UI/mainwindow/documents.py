@@ -1,5 +1,6 @@
 """MainWindow feature mixin extracted from nativelab.main."""
 from .shared import *
+from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 
 
 class DocumentsMixin:
@@ -420,6 +421,7 @@ class DocumentsMixin:
 
     def _on_summary_err(self, msg: str):
         self._log("ERROR", f"Summary pipeline error: {msg}")
+        notice = show_llm_error_dialog(self, msg, source="Document summary")
         self.chat_area.remove_pause_banner()
         self._pause_banner = None
         self._summarizing_active = False
@@ -427,7 +429,7 @@ class DocumentsMixin:
         self.input_bar.input.setPlaceholderText(
             "Type a message…  (Enter = send · Shift+Enter = newline)")
         if hasattr(self, "_summary_bubble") and self._summary_bubble:
-            self._summary_bubble.append_text(f"\n\nError: {msg}")
+            self._summary_bubble.append_text(f"\n\n{notice.title}\n\n{notice.user_message}")
         self._summary_worker = None
         self._summary_bubble = None
         self.input_bar.set_generating(False)

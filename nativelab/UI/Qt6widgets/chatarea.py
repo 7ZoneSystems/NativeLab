@@ -1,11 +1,46 @@
 from __future__ import annotations
 from nativelab.imports.import_global import TYPE_CHECKING, Qt, Any, QFrame, List, QScrollArea, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTimer, QProgressBar, QComboBox
-from .chatmodule import _ui
-from nativelab.UI.UI_const import C
 from nativelab.UI.icons import set_button_icon, set_status_label
 
 if TYPE_CHECKING:
     from nativelab.UI.UI_global import MessageWidget, ThinkingBlock
+
+_AUTO_SETUP_WIDGET_ATTRS = (
+    "_auto_setup_banner",
+    "_auto_setup_status",
+    "_auto_setup_progress",
+    "_auto_setup_backend_combo",
+    "_auto_setup_yes_btn",
+    "_auto_setup_no_btn",
+    "_auto_setup_pause_btn",
+    "_auto_setup_resume_btn",
+    "_auto_setup_cancel_btn",
+)
+
+
+def _qt_object_deleted(widget: object | None) -> bool:
+    if widget is None:
+        return True
+    for module_name in ("PyQt6.sip", "sip"):
+        try:
+            module = __import__(module_name, fromlist=["isdeleted"])
+            isdeleted = getattr(module, "isdeleted", None)
+            if callable(isdeleted):
+                return bool(isdeleted(widget))
+        except Exception:
+            continue
+    return False
+
+
+def _palette_value(colors: dict, key: str, fallback: str) -> str:
+    return str(colors.get(key) or fallback)
+
+
+def _ui():
+    from nativelab.UI import UI_global
+    return UI_global
+
+
 class PauseBanner(QFrame):
     status_lbl: QLabel
     spinner:    QLabel
@@ -100,9 +135,10 @@ class ChatArea(QScrollArea):
         banner = QFrame()
         banner.setObjectName("auto_setup_banner")
         banner.setMaximumWidth(620)
+        banner_bg = _palette_value(c, "surface", _palette_value(c, "bg1", _palette_value(c, "bg0", "#ffffff")))
         banner.setStyleSheet(
-            f"QFrame#auto_setup_banner{{background:{c['bg']};"
-            f"border:1px solid {c['bdr']};border-radius:8px;margin-top:10px;}}"
+            f"QFrame#auto_setup_banner{{background:{banner_bg};"
+            f"border:1px solid {_palette_value(c, 'bdr', '#d0d0d0')};border-radius:8px;margin-top:10px;}}"
         )
         root = QVBoxLayout(banner)
         root.setContentsMargins(16, 12, 16, 12)
@@ -111,20 +147,20 @@ class ChatArea(QScrollArea):
         title = QLabel("You seem new here. May I auto setup a minimal working interface for you?")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title.setWordWrap(True)
-        title.setStyleSheet(f"color:{c['txt']};font-size:13px;font-weight:600;")
+        title.setStyleSheet(f"color:{_palette_value(c, 'txt', '#111111')};font-size:13px;font-weight:600;")
         root.addWidget(title)
 
         status = QLabel("NativeLab will pick a backend, a small model, and safe defaults for this machine.")
         status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status.setWordWrap(True)
-        status.setStyleSheet(f"color:{c['txt2']};font-size:11px;")
+        status.setStyleSheet(f"color:{_palette_value(c, 'txt2', '#666666')};font-size:11px;")
         root.addWidget(status)
 
         backend_row = QHBoxLayout()
         backend_row.setSpacing(8)
         backend_row.addStretch()
         backend_lbl = QLabel("Backend:")
-        backend_lbl.setStyleSheet(f"color:{c['txt2']};font-size:11px;")
+        backend_lbl.setStyleSheet(f"color:{_palette_value(c, 'txt2', '#666666')};font-size:11px;")
         backend_combo = QComboBox()
         backend_combo.setFixedHeight(28)
         backend_combo.setMinimumWidth(210)
@@ -148,9 +184,9 @@ class ChatArea(QScrollArea):
         progress.setTextVisible(False)
         progress.setVisible(False)
         progress.setStyleSheet(
-            f"QProgressBar{{background:{c['bg2']};border:1px solid {c['bdr']};"
+            f"QProgressBar{{background:{_palette_value(c, 'bg2', '#eeeeee')};border:1px solid {_palette_value(c, 'bdr', '#d0d0d0')};"
             f"border-radius:4px;}}"
-            f"QProgressBar::chunk{{background:{c['acc']};border-radius:4px;}}"
+            f"QProgressBar::chunk{{background:{_palette_value(c, 'acc', '#695ceb')};border-radius:4px;}}"
         )
         root.addWidget(progress)
 
@@ -163,21 +199,21 @@ class ChatArea(QScrollArea):
         yes_btn.setFixedHeight(30)
         yes_btn.setMinimumWidth(90)
         set_button_icon(yes_btn, "play", yes_btn.text())
-        yes_btn.clicked.connect(on_yes_cb)
+        yes_btn.clicked.connect(lambda _checked=False: on_yes_cb())
 
         no_btn = QPushButton("No")
         no_btn.setObjectName("btn_stop")
         no_btn.setFixedHeight(30)
         no_btn.setMinimumWidth(76)
         set_button_icon(no_btn, "circle-x", "No")
-        no_btn.clicked.connect(on_no_cb)
+        no_btn.clicked.connect(lambda _checked=False: on_no_cb())
 
         pause_btn = QPushButton("Pause")
         pause_btn.setFixedHeight(30)
         pause_btn.setMinimumWidth(86)
         pause_btn.setVisible(False)
         set_button_icon(pause_btn, "circle-pause", "Pause")
-        pause_btn.clicked.connect(on_pause_cb)
+        pause_btn.clicked.connect(lambda _checked=False: on_pause_cb())
 
         resume_btn = QPushButton("Resume")
         resume_btn.setObjectName("btn_send")
@@ -185,7 +221,7 @@ class ChatArea(QScrollArea):
         resume_btn.setMinimumWidth(92)
         resume_btn.setVisible(False)
         set_button_icon(resume_btn, "play", "Resume")
-        resume_btn.clicked.connect(on_resume_cb)
+        resume_btn.clicked.connect(lambda _checked=False: on_resume_cb())
 
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setObjectName("btn_stop")
@@ -193,7 +229,7 @@ class ChatArea(QScrollArea):
         cancel_btn.setMinimumWidth(92)
         cancel_btn.setVisible(False)
         set_button_icon(cancel_btn, "stop-circle", "Cancel")
-        cancel_btn.clicked.connect(on_cancel_cb)
+        cancel_btn.clicked.connect(lambda _checked=False: on_cancel_cb())
 
         for button in (yes_btn, no_btn, pause_btn, resume_btn, cancel_btn):
             row.addWidget(button)
@@ -213,55 +249,81 @@ class ChatArea(QScrollArea):
         self._auto_setup_cancel_btn = cancel_btn
         _ui().fade_in(banner, 220)
 
+    def _clear_auto_setup_refs(self):
+        for name in _AUTO_SETUP_WIDGET_ATTRS:
+            setattr(self, name, None)
+
+    def _auto_setup_widget(self, name: str):
+        widget = getattr(self, name, None)
+        if _qt_object_deleted(widget):
+            setattr(self, name, None)
+            return None
+        return widget
+
+    def _call_auto_setup_widget(self, name: str, method: str, *args) -> bool:
+        widget = self._auto_setup_widget(name)
+        if widget is None:
+            return False
+        try:
+            getattr(widget, method)(*args)
+            return True
+        except RuntimeError:
+            setattr(self, name, None)
+            return False
+        except Exception:
+            return False
+
+    def _auto_setup_banner_alive(self) -> bool:
+        if self._auto_setup_widget("_auto_setup_banner") is not None:
+            return True
+        self._clear_auto_setup_refs()
+        return False
+
     def hide_auto_setup_prompt(self):
-        banner = getattr(self, "_auto_setup_banner", None)
+        banner = self._auto_setup_widget("_auto_setup_banner")
         if banner is not None:
             try:
                 self._vbox.removeWidget(banner)
                 banner.deleteLater()
             except RuntimeError:
                 pass
-        self._auto_setup_banner = None
-        self._auto_setup_status = None
-        self._auto_setup_progress = None
-        self._auto_setup_backend_combo = None
+            except Exception:
+                pass
+        self._clear_auto_setup_refs()
 
     def set_auto_setup_running(self, running: bool, *, paused: bool = False):
-        combo = getattr(self, "_auto_setup_backend_combo", None)
-        if combo is not None:
-            combo.setEnabled(not running)
+        if not self._auto_setup_banner_alive():
+            return
+        self._call_auto_setup_widget("_auto_setup_backend_combo", "setEnabled", not running)
         for name in ("_auto_setup_yes_btn", "_auto_setup_no_btn"):
-            btn = getattr(self, name, None)
-            if btn is not None:
-                btn.setVisible(not running)
-        pause_btn = getattr(self, "_auto_setup_pause_btn", None)
-        resume_btn = getattr(self, "_auto_setup_resume_btn", None)
-        cancel_btn = getattr(self, "_auto_setup_cancel_btn", None)
-        if pause_btn is not None:
-            pause_btn.setVisible(running and not paused)
-        if resume_btn is not None:
-            resume_btn.setVisible(running and paused)
-        if cancel_btn is not None:
-            cancel_btn.setVisible(running)
-        progress = getattr(self, "_auto_setup_progress", None)
-        if progress is not None:
-            progress.setVisible(running)
+            self._call_auto_setup_widget(name, "setVisible", not running)
+        self._call_auto_setup_widget("_auto_setup_pause_btn", "setVisible", running and not paused)
+        self._call_auto_setup_widget("_auto_setup_resume_btn", "setVisible", running and paused)
+        self._call_auto_setup_widget("_auto_setup_cancel_btn", "setVisible", running)
+        self._call_auto_setup_widget("_auto_setup_progress", "setVisible", running)
 
     def update_auto_setup_status(self, text: str = "", done: int = 0, total: int = 0):
-        status = getattr(self, "_auto_setup_status", None)
-        if status is not None and text:
-            status.setText(text)
-        progress = getattr(self, "_auto_setup_progress", None)
-        if progress is not None and total:
-            progress.setRange(0, 100)
-            progress.setValue(max(0, min(100, int(done * 100 / total))))
-            progress.setVisible(True)
+        if not self._auto_setup_banner_alive():
+            return
+        if text:
+            self._call_auto_setup_widget("_auto_setup_status", "setText", text)
+        if total:
+            pct = max(0, min(100, int(done * 100 / total)))
+            if self._call_auto_setup_widget("_auto_setup_progress", "setRange", 0, 100):
+                self._call_auto_setup_widget("_auto_setup_progress", "setValue", pct)
+                self._call_auto_setup_widget("_auto_setup_progress", "setVisible", True)
 
     def selected_auto_setup_backend(self) -> str:
-        combo = getattr(self, "_auto_setup_backend_combo", None)
+        combo = self._auto_setup_widget("_auto_setup_backend_combo")
         if combo is None:
             return "llama_cpp"
-        return str(combo.currentData() or "llama_cpp")
+        try:
+            return str(combo.currentData() or "llama_cpp")
+        except RuntimeError:
+            self._auto_setup_backend_combo = None
+            return "llama_cpp"
+        except Exception:
+            return "llama_cpp"
 
     def _scroll_bottom(self):
         try:

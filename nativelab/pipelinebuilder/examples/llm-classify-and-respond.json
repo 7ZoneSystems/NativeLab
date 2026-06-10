@@ -1,0 +1,108 @@
+{
+  "version": 2,
+  "title": "LLM Classify And Respond",
+  "description": "Uses an LLM switch to classify the request as bug, feature, docs, or other, then routes to a specialized response prompt.",
+  "blocks": [
+    {"bid": 1, "btype": "input", "x": 70, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Input", "metadata": {}},
+    {
+      "bid": 2,
+      "btype": "llm_switch",
+      "x": 280,
+      "y": 300,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "reasoning",
+      "label": "Classify",
+      "metadata": {
+        "llm_instruction": "Classify the user's request by the kind of answer it needs.",
+        "port_labels": {
+          "E": "bug",
+          "S": "feature",
+          "W": "docs",
+          "N": "other"
+        }
+      }
+    },
+    {
+      "bid": 3,
+      "btype": "intermediate",
+      "x": 520,
+      "y": 90,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Bug prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "The request is a bug report. Provide reproduction checks, likely causes, a minimal fix plan, and tests to run."
+      }
+    },
+    {
+      "bid": 4,
+      "btype": "intermediate",
+      "x": 520,
+      "y": 240,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Feature prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "The request is a feature. Propose the smallest useful implementation, UI/API behavior, edge cases, and verification plan."
+      }
+    },
+    {
+      "bid": 5,
+      "btype": "intermediate",
+      "x": 520,
+      "y": 390,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Docs prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "The request is documentation. Produce clear docs with examples, assumptions, and a compact troubleshooting section."
+      }
+    },
+    {
+      "bid": 6,
+      "btype": "intermediate",
+      "x": 520,
+      "y": 540,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "General prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Answer the request directly. If uncertain, state assumptions and ask only the minimum necessary follow-up."
+      }
+    },
+    {"bid": 7, "btype": "model", "x": 780, "y": 90, "w": 148, "h": 76, "model_path": "", "role": "coding", "label": "Bug model", "metadata": {}},
+    {"bid": 8, "btype": "model", "x": 780, "y": 240, "w": 148, "h": 76, "model_path": "", "role": "coding", "label": "Feature model", "metadata": {}},
+    {"bid": 9, "btype": "model", "x": 780, "y": 390, "w": 148, "h": 76, "model_path": "", "role": "summarization", "label": "Docs model", "metadata": {}},
+    {"bid": 10, "btype": "model", "x": 780, "y": 540, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "General model", "metadata": {}},
+    {"bid": 11, "btype": "output", "x": 1040, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Classified answer", "metadata": {}}
+  ],
+  "connections": [
+    {"from_block_id": 1, "from_port": "E", "to_block_id": 2, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "E", "to_block_id": 3, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "S", "to_block_id": 4, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "W", "to_block_id": 5, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "N", "to_block_id": 6, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 3, "from_port": "E", "to_block_id": 7, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 4, "from_port": "E", "to_block_id": 8, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 5, "from_port": "E", "to_block_id": 9, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 6, "from_port": "E", "to_block_id": 10, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 7, "from_port": "E", "to_block_id": 11, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 8, "from_port": "E", "to_block_id": 11, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 9, "from_port": "E", "to_block_id": 11, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 10, "from_port": "E", "to_block_id": 11, "to_port": "W", "is_loop": false, "loop_times": 1}
+  ]
+}

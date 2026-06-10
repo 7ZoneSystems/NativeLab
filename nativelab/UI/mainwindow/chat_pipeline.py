@@ -1,5 +1,6 @@
 """MainWindow feature mixin extracted from nativelab.main."""
 from .shared import *
+from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 
 
 class ChatPipelineMixin:
@@ -63,14 +64,19 @@ class ChatPipelineMixin:
             self._chat_pipeline_intermediate)
         self._chat_pipeline_worker.pipeline_done.connect(
             self._chat_pipeline_done)
-        self._chat_pipeline_worker.err.connect(
-            lambda msg: self.chat_area.add_message(
-                "assistant",
-                f"Pipeline error:\n\n{msg}",
-                datetime.now().strftime("%H:%M")))
+        self._chat_pipeline_worker.err.connect(self._on_chat_pipeline_exec_err)
         self._chat_pipeline_worker.log_msg.connect(
             lambda m: self._log("INFO", m))
         self._chat_pipeline_worker.start()
+
+    def _on_chat_pipeline_exec_err(self, msg: str):
+        self._log("ERROR", f"Chat pipeline error: {msg}")
+        notice = show_llm_error_dialog(self, msg, source="Chat pipeline")
+        self.chat_area.add_message(
+            "assistant",
+            f"{notice.title}\n\n{notice.user_message}",
+            datetime.now().strftime("%H:%M"))
+        self._chat_pipeline_worker = None
 
     def _chat_pipeline_step(self, label: str):
         ts = datetime.now().strftime("%H:%M")
@@ -506,12 +512,13 @@ class ChatPipelineMixin:
 
     def _on_pipeline_err(self, msg: str):
         self._log("ERROR", f"Pipeline error: {msg}")
+        notice = show_llm_error_dialog(self, msg, source="Chat pipeline")
         self._set_engine_status("Pipeline Error", "err")
         self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
         self.input_bar.set_generating(False)
         if self._pipeline_code_w:
             try:
-                self._pipeline_code_w.append_text(f"\n\nPipeline error: {msg}")
+                self._pipeline_code_w.append_text(f"\n\n{notice.title}\n\n{notice.user_message}")
             except RuntimeError:
                 pass
         self._pipeline_insight_widgets = []
@@ -545,11 +552,12 @@ class ChatPipelineMixin:
 
     def _on_err(self, msg: str):
         self._log("ERROR", msg)
+        notice = show_llm_error_dialog(self, msg, source="Chat")
         self._set_engine_status("Error", "err")
         self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
         self.input_bar.set_generating(False)
         if self._stream_w:
-            try: self._stream_w.append_text(f"\n\nError: {msg}")
+            try: self._stream_w.append_text(f"\n\n{notice.title}\n\n{notice.user_message}")
             except RuntimeError: pass
         if self._stream_w:
             try: self._stream_w.finalize()

@@ -26,6 +26,7 @@ from nativelab.imports.import_global import (
     QFont, Qt, QSlider, QSpinBox,
 )
 from nativelab.UI.icons import refresh_widget_icons, set_button_icon, set_label_icon, set_status_label
+from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 from nativelab.UI.toggle import ToggleSwitch
 from nativelab.GlobalConfig.const import LONG_TIMEOUT_MS, MAX_CONTEXT_TOKENS
 
@@ -2365,6 +2366,6 @@ class PyToDocPanel(QWidget):
     def _on_error(self, msg: str):
         self._set_running(False)
         self._log(f"Error: {msg}")
-        QMessageBox.critical(self, "Pipeline Error", msg)
+        show_llm_error_dialog(self, msg, source="Py-to-Doc lab")
         self._worker = None
         self._refresh_resume_jobs()

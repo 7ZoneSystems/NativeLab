@@ -1,0 +1,100 @@
+{
+  "version": 2,
+  "title": "Research Synthesis Fanout",
+  "description": "Splits input into two analysis paths, merges the findings, and asks a final model to produce a synthesized answer.",
+  "blocks": [
+    {"bid": 1, "btype": "input", "x": 80, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Input", "metadata": {}},
+    {"bid": 2, "btype": "split", "x": 270, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Fan out", "metadata": {}},
+    {
+      "bid": 3,
+      "btype": "intermediate",
+      "x": 480,
+      "y": 170,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Facts prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Extract the core facts, names, constraints, claims, numbers, and assumptions from the input. Do not solve yet."
+      }
+    },
+    {"bid": 4, "btype": "model", "x": 700, "y": 170, "w": 148, "h": 76, "model_path": "", "role": "reasoning", "label": "Fact analyst", "metadata": {}},
+    {
+      "bid": 5,
+      "btype": "knowledge",
+      "x": 480,
+      "y": 430,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Review rubric",
+      "metadata": {
+        "knowledge_text": "Review rubric: identify risks, missing information, tradeoffs, edge cases, and decisions that require user confirmation. Prefer explicit uncertainty over guessing."
+      }
+    },
+    {
+      "bid": 6,
+      "btype": "intermediate",
+      "x": 700,
+      "y": 430,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Risk prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Using the rubric, list risks, unknowns, contradictions, and practical tradeoffs in the input."
+      }
+    },
+    {"bid": 7, "btype": "model", "x": 920, "y": 430, "w": 148, "h": 76, "model_path": "", "role": "reasoning", "label": "Risk analyst", "metadata": {}},
+    {
+      "bid": 8,
+      "btype": "merge",
+      "x": 1130,
+      "y": 300,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Merge analyses",
+      "metadata": {
+        "merge_mode": "concat",
+        "merge_sep": "\n\n--- ANALYSIS SPLIT ---\n\n"
+      }
+    },
+    {
+      "bid": 9,
+      "btype": "intermediate",
+      "x": 1340,
+      "y": 300,
+      "w": 148,
+      "h": 76,
+      "model_path": "",
+      "role": "general",
+      "label": "Synthesis prompt",
+      "metadata": {
+        "inter_position": "above",
+        "inter_prompt": "Synthesize the merged analyses into a final answer. Include conclusion, evidence, risks, assumptions, and recommended next action."
+      }
+    },
+    {"bid": 10, "btype": "model", "x": 1550, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "summarization", "label": "Synthesis model", "metadata": {}},
+    {"bid": 11, "btype": "output", "x": 1760, "y": 300, "w": 148, "h": 76, "model_path": "", "role": "general", "label": "Final synthesis", "metadata": {}}
+  ],
+  "connections": [
+    {"from_block_id": 1, "from_port": "E", "to_block_id": 2, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "E", "to_block_id": 3, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 2, "from_port": "S", "to_block_id": 5, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 3, "from_port": "E", "to_block_id": 4, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 4, "from_port": "E", "to_block_id": 8, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 5, "from_port": "E", "to_block_id": 6, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 6, "from_port": "E", "to_block_id": 7, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 7, "from_port": "E", "to_block_id": 8, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 8, "from_port": "E", "to_block_id": 9, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 9, "from_port": "E", "to_block_id": 10, "to_port": "W", "is_loop": false, "loop_times": 1},
+    {"from_block_id": 10, "from_port": "E", "to_block_id": 11, "to_port": "W", "is_loop": false, "loop_times": 1}
+  ]
+}

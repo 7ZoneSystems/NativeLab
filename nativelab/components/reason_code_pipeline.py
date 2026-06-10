@@ -239,7 +239,8 @@ class PipelineWorker(QThread):
                         {"Content-Type": "application/json"})
             r = conn.getresponse()
             if r.status != 200:
-                self.err.emit(f"Server returned HTTP {r.status}")
+                raw = r.read().decode("utf-8", errors="replace")
+                self.err.emit(f"llama-server HTTP {r.status}: {raw or getattr(r, 'reason', '')}")
                 return None
 
             # Set per-read timeout on the underlying socket

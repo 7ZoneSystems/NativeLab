@@ -1,5 +1,6 @@
 """MainWindow feature mixin extracted from nativelab.main."""
 from .shared import *
+from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 
 
 class EngineRuntimeMixin:
@@ -123,6 +124,8 @@ class EngineRuntimeMixin:
         color = C["warn"] if state == "warn" else (C["ok"] if ok else C["err"])
         self.lbl_engine.setStyleSheet(f"color:{color};padding:0 8px;")
         self._log("INFO" if ok else "ERROR", f"Model load: {status}")
+        if not ok:
+            show_llm_error_dialog(self, status, source="Model loader")
         if hasattr(self, "model_list"):
             self._refresh_model_list()
         # Keep pipeline tab's engine reference up-to-date
@@ -258,6 +261,7 @@ class EngineRuntimeMixin:
             self._set_engine_status("API config missing", "err")
             self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
             self._log("ERROR", f"API config not found: {api_ref}")
+            show_llm_error_dialog(self, f"API config not found: {api_ref}", source="API model loader")
             return
         if self._api_engine and self._api_engine.is_loaded and self._api_engine.model_path == api_ref:
             self._flush_deferred_send(True)
@@ -280,5 +284,6 @@ class EngineRuntimeMixin:
         self._set_engine_status(status, "err")
         self.lbl_engine.setStyleSheet(f"color:{C['err']};padding:0 8px;")
         self._log("ERROR", status)
+        show_llm_error_dialog(self, status, source="API model loader")
         self._notify_labs()
         self._flush_deferred_send(False)

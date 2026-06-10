@@ -1,7 +1,7 @@
 from nativelab.Model.ModelRegistry import get_model_registry
-from nativelab.Model.model_global import api_model_ref, getapi_registry, is_api_model_ref, is_model_ref_valid
-from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
-from .pipefunctions import list_saved_pipelines, load_pipeline, save_pipeline
+from nativelab.Model.model_global import api_model_ref, getapi_registry, is_api_model_ref, is_model_ref_valid, model_ref_display_name
+from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QComboBox,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
+from .pipefunctions import list_example_pipelines, list_saved_pipelines, load_example_pipeline, load_pipeline, save_pipeline
 from .blck_typ import PipelineBlockType 
 from nativelab.core.engine_global import LlamaEngine, engine_status
 from .executionWorker import PipelineExecutionWorker
@@ -9,6 +9,7 @@ from .flowpreview import FlowPreviewController
 from nativelab.UI.UI_const import C
 from nativelab.UI.buildUI import prepare_adaptive_window
 from nativelab.UI.icons import icon, set_button_icon, set_label_icon, set_status_label
+from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 from .canvas import PipelineCanvas
 from .outrender import PipelineOutputRenderer
 from manual import make_manual_html, PIPELINE_MANUAL_HTML
@@ -76,6 +77,21 @@ class PipelineBuilderTab(QWidget):
 
         sep0 = QFrame(); sep0.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep0)
+
+        sb_l.addWidget(_sec("EXAMPLE PRESETS"))
+        self.pipeline_preset_combo = QComboBox()
+        self.pipeline_preset_combo.setFixedHeight(28)
+        self.pipeline_preset_combo.setToolTip(
+            "Select a model below, then choose an example pipeline preset.")
+        self.pipeline_preset_combo.currentIndexChanged.connect(self._on_pipeline_preset_selected)
+        sb_l.addWidget(self.pipeline_preset_combo)
+        preset_hint = QLabel("Select a model below first to auto-fill preset model blocks.")
+        preset_hint.setWordWrap(True)
+        preset_hint.setObjectName("txt3_block")
+        sb_l.addWidget(preset_hint)
+
+        sep_examples = QFrame(); sep_examples.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep_examples)
 
         sb_l.addWidget(_sec("FLOW BLOCKS"))
         sb_l.addWidget(_block_btn("Input Block",          PipelineBlockType.INPUT,        C["ok"], "input"))
@@ -379,6 +395,7 @@ class PipelineBuilderTab(QWidget):
 
         root.addWidget(rp)
 
+        self._refresh_pipeline_presets()
         self._refresh_models()
 
     # ── helpers ───────────────────────────────────────────────────────────────
@@ -451,6 +468,34 @@ class PipelineBuilderTab(QWidget):
             item.setData(Qt.ItemDataRole.UserRole + 1, "general")
             self.model_list.addItem(item)
 
+    def _refresh_pipeline_presets(self):
+        combo = getattr(self, "pipeline_preset_combo", None)
+        if combo is None:
+            return
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("Choose example...", "")
+        for item in list_example_pipelines():
+            title = item.get("title") or item.get("name", "")
+            combo.addItem(str(title), item.get("name", ""))
+            idx = combo.count() - 1
+            combo.setItemData(idx, item.get("description", ""), Qt.ItemDataRole.ToolTipRole)
+        combo.blockSignals(False)
+
+    def _on_pipeline_preset_selected(self, index: int):
+        combo = getattr(self, "pipeline_preset_combo", None)
+        if combo is None or index <= 0:
+            return
+        name = str(combo.itemData(index) or "")
+        if not name:
+            return
+        try:
+            self._load_pipeline_example(name)
+        finally:
+            combo.blockSignals(True)
+            combo.setCurrentIndex(0)
+            combo.blockSignals(False)
+
     # ── pipeline save / load ──────────────────────────────────────────────────
 
     def _save_pipeline(self):
@@ -499,6 +544,42 @@ class PipelineBuilderTab(QWidget):
             blocks, conns = load_pipeline(choice)
         except Exception as e:
             QMessageBox.critical(self, "Load Error", str(e)); return
+        self._replace_canvas_with_pipeline(blocks, conns)
+        self._current_pipeline_name = choice
+        self._log(f"Pipeline '{choice}' loaded "
+                  f"({len(blocks)} blocks, {len(conns)} connections)")
+
+    def _load_pipeline_example(self, name: str):
+        if self.canvas.blocks:
+            ans = QMessageBox.question(
+                self, "Replace Canvas",
+                "Load this example preset and replace the current canvas?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            if ans != QMessageBox.StandardButton.Yes:
+                return
+        try:
+            blocks, conns = load_example_pipeline(name)
+        except Exception as e:
+            QMessageBox.critical(self, "Preset Load Error", str(e)); return
+        model_ref, role = self._preset_model_ref()
+        placeholder_count = self._fill_example_model_placeholders(blocks, model_ref, role)
+        self._replace_canvas_with_pipeline(blocks, conns)
+        self._current_pipeline_name = ""
+        if placeholder_count and model_ref:
+            self._log(
+                f"Example preset '{name}' loaded with "
+                f"{placeholder_count} model block(s) set to {model_ref_display_name(model_ref)}")
+        else:
+            self._log(f"Example preset '{name}' loaded.")
+            if placeholder_count:
+                QMessageBox.information(
+                    self,
+                    "Preset Loaded",
+                    "The preset contains placeholder model blocks.\n\n"
+                    "Select a model in the sidebar before choosing a preset to auto-fill them, "
+                    "or delete the placeholder blocks and add your model blocks manually.")
+
+    def _replace_canvas_with_pipeline(self, blocks: list, conns: list):
         self.canvas.clear_all()
         while self.output_tabs.count() > 2:
             self.output_tabs.removeTab(2)
@@ -506,11 +587,49 @@ class PipelineBuilderTab(QWidget):
         for b in blocks:
             self.canvas.blocks.append(b)
         self.canvas.connections = conns
+        self.canvas.normalize_block_ids()
         self.canvas.update()
         self.canvas.blocks_changed.emit()
-        self._current_pipeline_name = choice
-        self._log(f"Pipeline '{choice}' loaded "
-                  f"({len(blocks)} blocks, {len(conns)} connections)")
+
+    def _preset_model_ref(self) -> tuple[str, str]:
+        item = self.model_list.currentItem() if hasattr(self, "model_list") else None
+        if item is None and hasattr(self, "model_list") and self.model_list.count() == 1:
+            item = self.model_list.item(0)
+        if item is not None:
+            path = str(item.data(Qt.ItemDataRole.UserRole) or "")
+            role = str(item.data(Qt.ItemDataRole.UserRole + 1) or "general")
+            if path:
+                return path, role
+        active_path = str(getattr(self._engine, "model_path", "") or "")
+        if active_path and (is_api_model_ref(active_path) or is_model_ref_valid(active_path)):
+            return active_path, "general"
+        return "", "general"
+
+    def _fill_example_model_placeholders(self, blocks: list, model_ref: str, role: str) -> int:
+        model_backed_types = {
+            PipelineBlockType.MODEL,
+            PipelineBlockType.LLM_IF,
+            PipelineBlockType.LLM_SWITCH,
+            PipelineBlockType.LLM_FILTER,
+            PipelineBlockType.LLM_TRANSFORM,
+            PipelineBlockType.LLM_SCORE,
+        }
+        placeholders = [
+            b for b in blocks
+            if b.btype in model_backed_types and not getattr(b, "model_path", "")
+        ]
+        if not model_ref:
+            if getattr(self._engine, "mode", "") == "api":
+                for b in placeholders:
+                    b.label = b.label if b.label not in {"Your model", "Model"} else "Active API model"
+            return len(placeholders)
+        for b in placeholders:
+            b.model_path = model_ref
+            if not getattr(b, "role", ""):
+                b.role = role or "general"
+            if b.label in {"Your model", "Model"}:
+                b.label = model_ref_display_name(model_ref)[:18]
+        return len(placeholders)
 
     def _delete_pipeline_dialog(self, saved: list):
         choice, ok = QInputDialog.getItem(
@@ -875,6 +994,12 @@ class PipelineBuilderTab(QWidget):
 
     def _on_exec_err(self, msg: str):
         self._log(str(msg))
+        notice = show_llm_error_dialog(self, msg, source="Pipeline builder")
+        try:
+            self.output_edit.set_content(f"{notice.title}\n\n{notice.user_message}")
+            self.output_tabs.setCurrentIndex(1)
+        except Exception:
+            pass
         self.btn_run.setVisible(True)
         self.btn_stop.setVisible(False)
         self._exec_worker = None

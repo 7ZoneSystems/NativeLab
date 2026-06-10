@@ -149,6 +149,15 @@ class ApiStreamWorker(QThread):
                 f"[API] Done — {n} tokens in {elapsed:.1f}s ({tps:.1f} tok/s)"
             )
             self.done.emit(tps)
+        except urllib.error.HTTPError as e:
+            raw = ""
+            try:
+                raw = e.read().decode("utf-8", errors="replace")
+            except Exception:
+                raw = ""
+            detail = f"API HTTP {e.code}: {raw or getattr(e, 'reason', '')}"
+            self.log.emit(f"[API] Error: {detail}")
+            self.err.emit(detail)
         except Exception as e:
             self.log.emit(f"[API] Error: {e}")
             self.err.emit(str(e))
