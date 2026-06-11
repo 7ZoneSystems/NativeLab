@@ -1,3 +1,46 @@
+v0.3.7
+1) Refactored the pipeline subsystem so deterministic performance-critical work now has a native C acceleration path while preserving Python as the public orchestration and UI layer.
+2) Added `nativelab/native/pipeline_core.c`, a focused native pipeline core included by the existing `_native_core` extension instead of creating a monolithic native file.
+3) Added native C helpers for pipeline block ID normalization, duplicate/invalid ID repair, connection endpoint remapping, cycle detection, deterministic transform execution, merge execution, route selection, loop visit limits, and validation record execution.
+4) Registered the new native pipeline helpers in `nativelab/native/_core.c` through explicit `_native_core` methods such as `pipeline_normalize_ids`, `pipeline_would_form_loop`, `pipeline_apply_transform`, `pipeline_merge_texts`, `pipeline_route_edges`, and `pipeline_validate_records`.
+5) Added `nativelab/native/pipeline_core.py` as the Python wrapper/fallback layer so pipeline behavior stays available even when the native extension cannot be compiled or loaded.
+6) Added `native_pipeline_available()` to the native package export surface so the app can safely detect whether pipeline acceleration is active.
+7) Added `nativelab/pipelinebuilder/graph_ops.py` to centralize pipeline graph operations, including adjacency construction, block ID normalization, loop detection, and outgoing-edge routing.
+8) Added `nativelab/pipelinebuilder/execution_core.py` to centralize deterministic execution helpers for transforms, merges, merge-input collection, output payload encoding, sender-label detection, reference injection, and knowledge injection.
+9) Added `nativelab/pipelinebuilder/validation.py` to move pipeline validation out of the UI tab and into a reusable validation boundary backed by native records where available.
+10) Refactored `PipelineCanvas` so ID repair and cycle detection delegate to the centralized graph layer instead of maintaining duplicate UI-local logic.
+11) Refactored `PipelineBuilderTab._validate()` into a thin call to `validate_pipeline()` while preserving the existing user-facing validation messages and model/reference/logic/LLM guardrails.
+12) Refactored `PipelineExecutionWorker` so deterministic queue transitions, route filtering, loop visit accounting, output payloads, transforms, merges, split fan-out, LLM branch routing, and context injection delegate to shared pipeline helpers.
+13) Preserved Python ownership of Qt signals, UI updates, model/API calls, llama-server startup/retry handling, PDF I/O, safe Python `eval`/`exec` namespaces, LLM error propagation, and centralized error dialogs.
+14) Preserved all existing safety behavior for model validity checks, LLM model attachment checks, custom-code failures, PDF dependency/file checks, filter stop output, LLM filter stop output, loop limits, duplicate connection prevention, and model-to-model connection restrictions.
+15) Added optional `setup.py` build support for `nativelab.native._native_core` so source installs can build the C helpers when a compiler is available without making NativeLab unusable when native build fails.
+16) Added `nativelab/native/pipeline_core.c` to `MANIFEST.in` and package data so native pipeline sources are included in source/package builds.
+17) Added `tests/test_pipeline_native_core.py` covering native-wrapper parity for ID normalization, loop detection, transforms, merges, route visit limits, branch selection, graph wrapper behavior, and validation messages.
+18) Expanded pipeline canvas tests to cover ID stability after the graph refactor, native-backed normalization, and validation wrapper behavior through real `PipelineBlock` objects.
+19) Rebuilt the local ignored `_native_core` extension with the new pipeline C functions and verified the native pipeline wrapper loads successfully.
+20) Added automatic pipeline canvas expansion for loaded JSON/example pipelines whose blocks exceed the default canvas size.
+21) Added `PipelineCanvas.ensure_canvas_fits_blocks()` so the scrollable canvas grows to contain far-away loaded, added, dropped, or dragged blocks with a margin instead of clipping them outside the usable area.
+22) Added explicit tracked canvas dimensions for headless/Qt-stub environments so canvas growth behavior remains testable even when `width()` and `height()` are stubbed.
+23) Updated pipeline loading in `PipelineBuilderTab._replace_canvas_with_pipeline()` to normalize IDs first and then grow the canvas to fit all loaded blocks.
+24) Added blank-canvas left-click hold-and-drag panning in the pipeline editor by scrolling the surrounding `QScrollArea`, while preserving existing block dragging and port-connection behavior.
+25) Reset canvas size, pan state, selection, dragging, and connection state on `Clear All` so a cleared pipeline returns to the default canvas dimensions.
+26) Added tests for canvas growth with far loaded blocks, reset-to-default sizing after clearing, and blank-canvas pan scrollbar movement.
+27) Shrunk the main application top/menu bar slightly by reducing `QMenuBar` minimum height, vertical padding, and menu item padding in the global UI stylesheet.
+28) Shrunk the main top-right menu-bar controls from `28x24` to `26x22` and lowered their container height so they no longer force the main top bar taller.
+29) Kept the pipeline builder toolbar height reverted after confirming the requested shrink was for the main UI top bar, not the pipeline builder canvas bar.
+30) Verified the pipeline-native migration and pipeline editor changes with focused tests for pipeline canvas IDs, native pipeline helpers, and shipped example pipelines.
+31) Verified the main UI top-bar change with MainWindow split tests and compile checks for the touched UI modules.
+32) Ran the full headless test suite after the pipeline/editor changes and confirmed all tests passed.
+33) Added an AI Pipeline Builder panel under the pipeline builder right sidebar so a loaded model can generate NativeLab pipeline JSON from a plain-English request.
+34) Added AI Builder prompt budgeting and context preflight so over-context pipeline-generation requests are blocked before model calls and explained to the user.
+35) Added JSON extraction, normalization, validation, active-model placeholder filling, and one strict JSON retry for AI-generated pipelines.
+36) Added AI Builder smart context with `/get_data`, `/context`, current-canvas injection, local history, and model/deterministic history compaction.
+37) Added native C/Rust AI Builder helper implementations for token estimation and JSON-object span detection, with Python fallback behavior preserved.
+38) Moved AI Builder into the pipeline builder's right sidebar beside the Execution tab instead of keeping it as a separate button/dialog flow.
+39) Added resizable pipeline builder sidebars with live text/control scaling and retract rails so sidebars cannot collapse permanently to zero width.
+40) Added compact AI Builder sidebar layout behavior so fields, buttons, history labels, and tab names remain visible when the right sidebar is narrow.
+41) Added dedicated `docs/pipeline-builder.md` documentation and refreshed README/docs feature, workflow, UI, architecture, installation, models, CLI, and troubleshooting docs for the new pipeline, AI Builder, native, setup, and HF dependency behavior.
+
 v0.3.6
 1) Added a first-run automatic setup pipeline that profiles the user's OS, available/used RAM, CPU threads, GPU backend, VRAM, and accelerator type before choosing a practical starter model.
 2) Added auto-setup backend choice in the app prompt so new users can pick llama.cpp GGUF easy mode or Hugging Face Transformers hard mode before setup begins.
@@ -52,7 +95,7 @@ v0.3.6
 51) Added native availability checks (`native_core_available()` and `rust_model_available()`) so the app can safely use C/Rust acceleration opportunistically without making native builds mandatory.
 52) Preserved plugin, UI, and backend orchestration in Python while moving only deterministic backend helper paths into C/Rust acceleration layers.
 
-v0.3.6
+v0.3.5
 1) Diagnosed the py-to-doc crash path around manual model reloads and local llama.cpp server lifecycle during documentation generation.
 2) Added smarter py-to-doc auto-reload routing through LabEndpoints so model/context reload requests go through the host app instead of each lab touching engines directly.
 3) Added py-to-doc auto model reload controls for low-RAM recovery, reload thresholds, re-arm margins, minimum step/time spacing, and failure limits.

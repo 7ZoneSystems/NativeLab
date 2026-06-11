@@ -151,6 +151,10 @@ Anything that **starts with a `/`** is a command, not a message to the model.
 
 You don't need to memorize these. Just type `/help` any time.
 
+The CLI can list, inspect, and run saved pipelines. Creating pipelines, editing
+the visual canvas, loading example presets, and using AI Pipeline Builder are
+done in the GUI under **Dev > Pipeline**.
+
 ---
 
 ## Embedding a file in your message

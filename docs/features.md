@@ -4,7 +4,36 @@ NativeLab is built around four pillars: **local-first inference**, **multi-engin
 
 ---
 
-## 🆕 What's new in v0.3.6
+## What's new in v0.3.7
+
+### Pipeline Builder AI and editor upgrades
+The pipeline builder now includes an **AI Builder** tab beside Execution. A
+loaded model can generate NativeLab pipeline JSON from a plain-English request,
+save it through the normal pipeline subsystem, and load it back onto the canvas
+for testing. The builder has context preflight checks, JSON-only retry handling,
+`/get_data`, `/context`, saved local AI Builder history, and smart canvas-aware
+prompts for iterative edits.
+
+The pipeline editor also gained shipped example presets, automatic canvas growth
+for far-away loaded/generated blocks, blank-canvas drag panning, resizable
+sidebars, retract rails, and live text/control scaling in tight sidebars. See
+[pipeline-builder.md](pipeline-builder.md).
+
+### Native pipeline core
+Deterministic pipeline hot paths now have an optional C acceleration layer while
+Python remains the UI, orchestration, plugin, model-call, and error-dialog
+boundary. Native helpers cover block ID normalization, connection remapping,
+cycle checks, transform/merge helpers, route selection, loop visit limits, and
+validation records. Python wrappers keep behavior identical when the native
+extension is unavailable.
+
+### UI and setup hardening
+The main UI entrypoint was split into focused `nativelab/UI/mainwindow/`
+modules, QThread shutdown was centralized, context-limit errors are surfaced via
+normal user dialogs, and the first-run auto-setup path is resumable with
+hardware-aware llama.cpp or HF Transformers backend choices.
+
+### v0.3.7 additions still current
 
 ### Labs - the experimentation layer
 A new `nativelab/labs/` package and a dedicated GUI tab. Every lab feature receives a single `LabEndpoints` instance and uses it for engine status, model swap, context change, and synchronous LLM calls (auto-routing API → server → CLI). Adding a feature is dropping one file and registering it. See [labs.md](labs.md).
@@ -17,7 +46,7 @@ The same `LabEndpoints` that powers Labs panels also powers the CLI's chat REPL.
 
 ---
 
-## Catalogue (everything in v0.3.6)
+## Catalogue (everything in v0.3.7)
 
 ### Inference
 
@@ -51,10 +80,14 @@ A node-based editor with 20+ block types:
 - Logic - IF/ELSE, SWITCH, FILTER, TRANSFORM, MERGE, SPLIT, Custom Code.
 - LLM logic - LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-TRANSFORM, LLM-SCORE.
 - Loop edges with iteration counts (e.g. drafting → critique × 3).
+- Example preset dropdown with packaged reference pipelines.
+- AI Builder tab for model-assisted pipeline JSON generation and iterative edits.
+- Resizable sidebars with retract rails and live control scaling.
+- Auto-growing canvas for loaded/generated graphs.
 - Sandboxed Python expressions (no imports, no fs/network).
 - Live execution log + per-block streaming. Save/load to JSON.
 
-See [workflows.md#visual-pipeline-builder](workflows.md#visual-pipeline-builder).
+See [pipeline-builder.md](pipeline-builder.md).
 
 ### MCP integration
 

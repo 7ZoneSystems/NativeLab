@@ -129,6 +129,76 @@ Both engines are read by `LabEndpoints.active_engine()` - API takes priority whe
 
 ---
 
+## GUI entrypoint and MainWindow modules
+
+`nativelab/main.py` is intentionally small. It handles GUI startup, `QApplication`
+creation, font/icon setup, SIGINT handling, and `MainWindow` launch.
+
+The window implementation lives under `nativelab/UI/mainwindow/`:
+
+| Module | Responsibility |
+| --- | --- |
+| `window.py` | MainWindow class and mixin composition. |
+| `ui_build.py` | Top-level layout and tab construction. |
+| `engine_runtime.py` | Local/API model load/unload and runtime state. |
+| `auto_setup.py` | First-run and settings-triggered auto setup UI wiring. |
+| `context_controls.py` | Context meter and context reload controls. |
+| `chat_pipeline.py` | Chat/pipeline mode orchestration. |
+| `documents.py` | References, summaries, multi-PDF jobs. |
+| `labs.py` | Labs tab wiring and endpoint injection. |
+| `models.py` | Model/API registry refresh and selection. |
+| `sessions.py` | Session lifecycle and persistence. |
+| `status_view.py` | Status bar, theme, and view helpers. |
+| `shared.py` | Common imports/constants for the split package. |
+
+GUI worker shutdown is centralized through `nativelab/UI/qt_workers.py` so close
+events, theme rebuilds, downloads, auto setup, model loads, accounts workers,
+and tab-specific workers stop consistently before widgets are deleted.
+
+---
+
+## Native helper boundary
+
+NativeLab uses C/Rust only for deterministic hot paths. Python keeps ownership
+of Qt widgets, plugin/backend orchestration, subprocess lifecycle, model/API
+calls, and user-facing error handling.
+
+| Native area | Files | Purpose |
+| --- | --- | --- |
+| Engine helpers | `nativelab/native/_core.c`, `engine_helpers.py` | Prompt assembly, sampler normalization, CLI sampler args, image/base64 extraction, context-error detection, reference chunk splitting. |
+| Pipeline core | `nativelab/native/pipeline_core.c`, `pipeline_core.py` | Block ID normalization, connection remapping, loop/cycle checks, route selection, transform/merge helpers, validation records. |
+| Model detection | `nativelab/native/rust_model.rs`, `rust_model.py` | Optional Rust-backed family and quant detection. |
+| AI Builder helpers | `nativelab/pipelinebuilder/aibuilder/aibuilder_core.c`, `.rs` | Token estimation and JSON-object span detection for generated pipeline responses. |
+
+All native helpers are optional. If `_native_core` or the Rust shared library is
+not present, the Python fallback path remains active.
+
+---
+
+## Pipeline subsystem
+
+The pipeline builder is split by responsibility:
+
+| File/package | Responsibility |
+| --- | --- |
+| `pipebuilder.py` | PyQt tab, sidebars, Execution/AI Builder tabs, user actions. |
+| `canvas.py` | Visual graph editing, block movement, port connections, panning, canvas growth. |
+| `pipblck.py` / `blck_typ.py` | Block and connection data structures. |
+| `pipefunctions.py` | Save/load/example pipeline JSON persistence. |
+| `graph_ops.py` | Central graph operations and native-backed ID/loop helpers. |
+| `execution_core.py` | Deterministic execution helpers used by the worker. |
+| `validation.py` | Shared pipeline validation and user-facing validation messages. |
+| `executionWorker.py` | QThread runtime for block execution and model calls. |
+| `aibuilder/` | AI Pipeline Builder UI, prompt planning, JSON extraction, smart context, history. |
+| `examples/` | Packaged example pipeline JSON presets. |
+
+This keeps Python as a thin orchestration layer around shared validation and
+execution primitives. UI code no longer owns graph invariants directly; loaded,
+generated, CLI-run, and manually edited pipelines go through the same validation
+and normalization path.
+
+---
+
 ## Project structure
 
 ```
@@ -180,8 +250,8 @@ NativeLab/
 │   ├── nativelab-0.3.3.tar.gz
 │   ├── nativelab-0.3.4-py3-none-any.whl
 │   ├── nativelab-0.3.4.tar.gz
-│   ├── nativelab-0.3.6-py3-none-any.whl
-│   └── nativelab-0.3.6.tar.gz
+│   ├── nativelab-0.3.7-py3-none-any.whl
+│   └── nativelab-0.3.7.tar.gz
 ├── docs
 │   ├── architecture.md
 │   ├── cli.md
@@ -483,20 +553,35 @@ NativeLab/
 │   │   ├── _core.c
 │   │   ├── engine_helpers.py
 │   │   ├── __init__.py
+│   │   ├── pipeline_core.c
+│   │   ├── pipeline_core.py
 │   │   ├── rust_model.py
 │   │   └── rust_model.rs
 │   ├── pipelinebuilder
+│   │   ├── aibuilder
+│   │   │   ├── aibuilder_core.c
+│   │   │   ├── aibuilder_core.rs
+│   │   │   ├── context.py
+│   │   │   ├── dialog.py
+│   │   │   ├── engine_call.py
+│   │   │   ├── __init__.py
+│   │   │   └── planner.py
 │   │   ├── blck_typ.py
 │   │   ├── canvas.py
 │   │   ├── editordialogue.py
 │   │   ├── executionWorker.py
+│   │   ├── execution_core.py
+│   │   ├── examples
+│   │   │   └── *.json
 │   │   ├── flowpreview.py
+│   │   ├── graph_ops.py
 │   │   ├── __init__.py
 │   │   ├── outrender.py
 │   │   ├── pipblck.py
 │   │   ├── pipebuilder.py
 │   │   ├── pipefunctions.py
-│   │   └── pipe_global.py
+│   │   ├── pipe_global.py
+│   │   └── validation.py
 │   ├── Prefrences
 │   │   ├── __init__.py
 │   │   ├── ParallelLoading.py
@@ -567,6 +652,9 @@ NativeLab/
 │   ├── test_hf_deps.py
 │   ├── test_mainwindow_split.py
 │   ├── test_native_helpers.py
+│   ├── test_pipeline_canvas_ids.py
+│   ├── test_pipeline_examples.py
+│   ├── test_pipeline_native_core.py
 │   └── test_qt_workers.py
 ├── uv.lock
 ├── .vscode
@@ -586,6 +674,7 @@ NativeLab/
 
 - All inference (streaming tokens, summarization, pipeline stages, downloads, MCP probes) runs on `QThread` subclasses with PyQt signals for cross-thread updates. The main thread never blocks.
 - Workers expose `abort()` that flips a flag checked at every iteration for clean cancellation.
+- `nativelab/UI/qt_workers.py` centralizes worker shutdown, signal disconnection, stuck-worker handling, and safe cleanup before UI widgets are deleted.
 - Summary workers additionally support `request_pause()`, which writes a state snapshot to `paused_jobs/` before exiting.
 - The CLI uses synchronous calls (`endpoints.call_llm`) since it has no UI to keep responsive - same backend, no QThread plumbing.
 

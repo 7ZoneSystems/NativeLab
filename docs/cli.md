@@ -174,7 +174,9 @@ nativelab --cli pipeline show direct
 cat prompt.txt | nativelab --cli pipeline run direct
 ```
 
-Pipeline authoring remains GUI-only in this pass.
+Pipeline authoring, example preset editing, and the AI Pipeline Builder remain
+GUI-only in this pass. The CLI uses the same saved JSON and validation path when
+running a pipeline.
 
 ## Integrations
 

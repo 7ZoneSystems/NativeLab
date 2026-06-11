@@ -17,6 +17,24 @@ GUI tour, theming, persistence, shortcuts, and live RAM management.
 
 ---
 
+## Pipeline Builder UI
+
+The Pipeline page inside Dev uses a three-pane layout:
+
+- Left sidebar: examples, block adders, model list, save/load/preview controls.
+- Center: scrollable canvas with block editing, connection drawing, and blank-canvas drag panning.
+- Right sidebar: **Execution** and **AI Builder** tabs.
+
+The left and right sidebars are resizable. Dragging either sidebar below its
+usable minimum snaps it into a narrow rail with a circular reopen arrow, so the
+sidebar cannot disappear permanently. Sidebar text and controls scale with the
+available width. The AI Builder tab also switches to compact stacked controls
+when the right sidebar is narrow.
+
+See [pipeline-builder.md](pipeline-builder.md) for the full workflow.
+
+---
+
 ## Chat components
 
 ### `ChatArea` & `MessageWidget`
@@ -82,7 +100,9 @@ Bottom of the window:
 - Current model + family + quant.
 - Active engine status (server port / CLI mode / API).
 - Live RAM gauge (when `psutil` is available).
-- Context usage bar (`Session.approx_tokens` ÷ ctx_value).
+- Context usage bar from the centralized context meter. Chat, Labs, code-edit,
+  pipeline, and other LLM workflows can report the active request/context usage
+  instead of only showing chat-local history size.
 
 ---
 
@@ -98,8 +118,10 @@ All on-disk state is in the project working directory.
 | `localllm/parallel_prefs.json` | Parallel loading + pipeline settings. |
 | `app_config.json` | Thresholds, defaults, theme, custom palettes. |
 | `localllm/server_config.json` | Binary paths, host/port, GPU offload. |
+| `localllm/auto_setup_state.json` | Resumable first-run auto-setup state. |
 | `localllm/api_models.json` | API model configurations. |
 | `localllm/cli_prefs.json` | CLI's last-used model + ctx. |
+| `localllm/pipeline_builder_history/{id}.json` | AI Pipeline Builder chat/context history. |
 | `mcp_config.json` | MCP server definitions. |
 | `paused_jobs/{id}.json` | Snapshots of paused summarisation jobs. |
 | `ref_cache/{id}_raw.txt` | Raw text of attached reference files. |

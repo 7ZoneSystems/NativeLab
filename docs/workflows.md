@@ -8,6 +8,7 @@ End-to-end features that span engines, references, and the UI: pipelines, summar
 - [Multi-PDF synthesis](#multi-pdf-synthesis)
 - [Parallel loading & pipeline mode](#parallel-loading--pipeline-mode)
 - [Visual pipeline builder](#visual-pipeline-builder)
+- [AI Pipeline Builder](#ai-pipeline-builder)
 - [MCP](#mcp)
 - [Download tab](#download-tab)
 
@@ -123,20 +124,36 @@ This typically produces better-structured code than asking a coding model direct
 
 ## Visual pipeline builder
 
-The most powerful feature in NativeLab. A node-based editor with 20+ block types, loop support, LLM-powered routing, live execution log, and per-block streaming.
+The most powerful feature in NativeLab. A node-based editor with 20+ block types, loop support, LLM-powered routing, shipped example presets, AI-assisted generation, live execution log, and per-block streaming.
 
 Pipelines are saved as JSON in `~/.native_lab/pipelines/` and loadable from within the UI.
 
+For the full user and developer guide, see [pipeline-builder.md](pipeline-builder.md).
+
+### Sidebars and presets
+
+The left sidebar contains block adders, the model list, example presets, and canvas controls. The right sidebar has two tabs:
+
+- **Execution** - input box, run/stop controls, logs, final output, and intermediate tabs.
+- **AI Builder** - prompt a loaded model to generate or revise a pipeline JSON file.
+
+Both sidebars are resizable. Dragging too narrow snaps a sidebar into a thin rail with a circular reopen arrow. The AI Builder and execution controls scale text/buttons when space is tight.
+
+Example preset JSON files ship in `nativelab/pipelinebuilder/examples/` and appear in the **Example Presets** dropdown. Select a model before loading a preset to auto-fill placeholder model blocks.
+
 ### Canvas
 
-A 1400×900+ infinite workspace with 20px snap-to-grid.
+A scrollable, auto-growing workspace with 20px snap-to-grid.
 
 - **Place** - click any block button in the sidebar, or drag a model directly from the model list onto the canvas.
 - **Select / move** - click a block; drag anywhere; snaps to grid on release.
 - **Connect** - hover a block until ports appear, click-drag from a port to another block's port.
+- **Pan** - click and hold blank canvas, then drag to browse the canvas.
 - **Delete** - right-click for a context menu.
 
 Connection rules: model→model is blocked (use an Intermediate block); duplicate connections silently ignored; non-logic blocks have one outgoing connection per port; logic blocks fan out.
+
+When loaded/generated JSON has blocks beyond the current canvas dimensions, the canvas expands automatically so no block is hidden outside the usable area.
 
 ### Block types
 
@@ -198,19 +215,42 @@ Draw a connection **backwards** (downstream → upstream) and the canvas detects
 
 ### Execution
 
-Click **▶ Run Pipeline**. `PipelineExecutionWorker` (a `QThread`) processes blocks in topological BFS order, carrying a `current_text` from block to block.
+Click **Run Pipeline**. `PipelineExecutionWorker` (a `QThread`) processes blocks in topological BFS order, carrying a `current_text` from block to block.
 
 - Each block emits `step_started` (spinner) and `step_done` (populates its tab).
 - Model blocks start their own `llama-server` (or fall back to `llama-cli`) and stream tokens live.
 - Execution log shows every decision: condition evaluated, branch taken, chars processed, FILTER pass/drop, MERGE inputs combined, SPLIT fan-out count, loop iteration.
-- **⏹ Stop Execution** halts cleanly after the current HTTP request completes.
+- **Stop Execution** halts cleanly after the current HTTP request completes.
+
+Pipeline validation is centralized in `nativelab/pipelinebuilder/validation.py`; graph operations live in `graph_ops.py`, and deterministic execution helpers live in `execution_core.py`. Native C helpers accelerate hot paths when available, while Python fallbacks preserve behavior.
+
+LLM engine errors, including context-window overflows from llama.cpp/Ollama/HF/API calls, are routed through the centralized user-facing LLM error dialog as well as the execution log.
 
 ### Save / load
 
 - **💾 Save Pipeline…** - name + write to `~/.native_lab/pipelines/{name}.json`.
 - **📂 Load Pipeline…** - list with delete; clearing prompt if canvas non-empty.
+- **Example Presets** - load packaged reference pipelines from the sidebar.
 
 Persisted per block: type, position, size, model path, role, label, all metadata. Per connection: source/target ports, `is_loop`, `loop_times`, branch label.
+
+## AI Pipeline Builder
+
+The **AI Builder** tab in the right sidebar asks the currently loaded model to
+produce NativeLab pipeline JSON. It uses a compact schema guide, validates the
+output, saves through the same pipeline persistence layer, and offers **Load /
+Test** to place the generated graph on the canvas.
+
+Key behavior:
+
+- Context preflight estimates input tokens plus reserved JSON output tokens before sending.
+- If the first response does not contain valid JSON, NativeLab retries once with a stricter JSON-only prompt.
+- Empty model-backed blocks are filled from the selected/active model when possible.
+- `/get_data` prints the current canvas JSON.
+- `/context` compacts AI Builder history.
+- Existing canvas/history are attached to later prompts so users can revise a pipeline over multiple requests.
+
+History is stored in `localllm/pipeline_builder_history/`. Full details are in [pipeline-builder.md#ai-builder-tab](pipeline-builder.md#ai-builder-tab).
 
 ### Performance tips
 
@@ -257,7 +297,7 @@ The CLI's wizard does the same thing - `nativelab/cli/hf_download.py` is a synch
 
 Use this when you want `hf:<local-folder>` models to work offline with Transformers:
 
-1. Install the optional backend dependencies with `pip install -e ".[hf]"`.
+1. Install the optional backend dependencies from the downloader's **Install Libraries** button, or run the pip command shown by the app.
 2. Enter a repo ID and revision, then click **Inspect**.
 3. Review the runtime files. NativeLab includes configs, tokenizer/processor files, safetensors or PyTorch shards and indexes, custom Python files, and repo metadata.
 4. Click **Download Snapshot**. Files are written under `localllm/hf_transformers/<namespace>/<repo>/` with subdirectories preserved.

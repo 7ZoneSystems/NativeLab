@@ -10,7 +10,13 @@ NativeLab runs on **Linux, macOS, and Windows**. Same install, same commands.
 pip install nativelab
 ```
 
-This pulls in `PyQt6` for the GUI and `psutil` / `pypdf` for live RAM monitoring and PDF support. The CLI works from the same install.
+The default install is the GUI build. It pulls in `PyQt6` for the desktop app
+and `psutil` / `pypdf` for live RAM monitoring and PDF support. The CLI works
+from the same install.
+
+For source/development installs, the project also defines `cli` and `labs`
+optional dependency groups. The normal PyPI install above is still the intended
+default for most users.
 
 > **Python version**: 3.10+ is required.
 
@@ -47,6 +53,11 @@ nativelab
 ```
 
 In the desktop app, open the **⬇️ Download** tab. Pick the latest llama.cpp release for your platform and click Install. Binaries land in `./llama/bin/` automatically.
+
+New users can also use the first-run auto setup prompt in the app. It profiles
+RAM, CPU, and available GPU backends, then offers a llama.cpp GGUF setup or a
+Hugging Face Transformers setup. Auto setup is resumable after pause, cancel,
+crash, or restart.
 
 ### Option B - Download a release zip manually
 
@@ -97,11 +108,11 @@ The same Download tab can also:
 - Download full HF Transformers snapshots into `localllm/hf_transformers/` and register them as `hf:<local-folder>`.
 - Pull Ollama models through an already-running Ollama daemon and register them as `ollama:<model>`.
 
-HF Transformers support is optional:
-
-```bash
-pip install -e ".[hf]"
-```
+HF Transformers runtime libraries are optional. In the **HF Transformers
+snapshot** downloader, use **Install Libraries** to install/check the needed
+Transformers, Torch, safetensors, Accelerate, SentencePiece, and Pillow
+packages from inside the app. Advanced users can run the pip command shown by
+that panel manually.
 
 ### From the CLI
 

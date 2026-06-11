@@ -126,7 +126,7 @@ nativelab --cli      # terminal control center (setup, chat, models, labs, integ
 - ⌨️  **Terminal CLI** - `nativelab --cli` opens a full terminal control center for chat, local/API models, skills, Labs, saved pipelines, integrations, endpoint serving, `@file` embedding, slash commands, and linting.
 - 🧪  **Labs** - A dedicated experimentation layer with a shared endpoint API. New lab features get engine status, model swap, context change, and LLM calls for free.
 - 🔌  **Integrations** - Local JSON endpoint, route browser, and saved Discord/WhatsApp bot connector profiles.
-- 🔗  **Visual Pipeline Builder** - 20 node types (model, transform, branch, loop, custom Python), live execution log, save/load.
+- 🔗  **Visual Pipeline Builder** - 20+ node types, shipped example presets, resizable sidebars, AI-assisted pipeline generation, native-accelerated graph helpers, live execution log, save/load.
 - 🌐  **Backend mixing** - Local GGUF, running Ollama models, optional Hugging Face Transformers models, OpenAI-compatible APIs, and Anthropic endpoints share the same app state.
 - 🔐  **Hugging Face login** - One-click browser login for gated/private repos, with access-token paste as an advanced fallback.
 - ⚡  **Parallel + pipeline mode** - Run reasoning + coding engines simultaneously and chain them automatically.
@@ -147,6 +147,7 @@ The docs are split into short, focused files so you can jump straight to what yo
 | [docs/installation.md](docs/installation.md) | Install, llama.cpp setup, first-time workspace. |
 | [docs/cli.md](docs/cli.md) | `nativelab --cli` - quick reference + link to the beginner guide. |
 | [docs/features.md](docs/features.md) | Full feature catalogue; latest release notes are in `changelog.txt`. |
+| [docs/pipeline-builder.md](docs/pipeline-builder.md) | Visual pipeline builder, AI Builder, examples, JSON schema, native pipeline core. |
 | [docs/architecture.md](docs/architecture.md) | Layered architecture, project structure, data flow. |
 | [docs/labs.md](docs/labs.md) | The Labs experimentation layer + how to add a feature. |
 | [docs/integrations.md](docs/integrations.md) | Integration endpoint routes, local HTTP bridge, Discord and WhatsApp bot connectors. |
@@ -171,7 +172,7 @@ pip install nativelab
 nativelab
 ```
 
-The first launch opens the desktop app. Use the **Download** tab to install llama.cpp binaries, grab a GGUF model, pull an Ollama model from an already-running Ollama daemon, or download a full HF Transformers snapshot. For gated/private Hugging Face repos, sign in from **Settings > Accounts > Hugging Face > Login with Hugging Face** first, then accept or request access on the repo page if Hugging Face still returns 403.
+The first launch opens the desktop app. Use the **Download** tab to install llama.cpp binaries, grab a GGUF model, pull an Ollama model from an already-running Ollama daemon, or download a full HF Transformers snapshot. The HF Transformers downloader includes an in-app library installer for the optional Transformers runtime packages. For gated/private Hugging Face repos, sign in from **Settings > Accounts > Hugging Face > Login with Hugging Face** first, then accept or request access on the repo page if Hugging Face still returns 403.
 
 ### CLI
 
@@ -230,7 +231,7 @@ Add a lab feature by dropping `nativelab/labs/<feature>.py` with a `QWidget` pan
 - **PyQt6** (installed automatically as a dependency)
 - **llama.cpp binaries** - `llama-server` / `llama-cli`. The GUI's Download tab installs these for you, or you can drop them in `./llama/bin/`.
 - Optional: `psutil` (RAM monitor), `pypdf` (PDF summarization), `pyflakes` / `flake8` / `pylint` (CLI lint).
-- Optional HF backend: `pip install -e ".[hf]"` for Transformers, Torch, safetensors, Accelerate, SentencePiece, and Pillow.
+- Optional HF backend: use the HF Transformers downloader's **Install Libraries** action, or install the displayed Transformers/Torch/safetensors/Accelerate/SentencePiece/Pillow command manually.
 
 Detailed instructions in [docs/installation.md](docs/installation.md).
 

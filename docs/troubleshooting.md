@@ -155,6 +155,48 @@ The path is resolved relative to the current working directory.
 
 The loop count is the maximum number of *visits* to that edge. If you exceed it via another path, it won't loop. Add a clear branch condition or use a fixed iteration count.
 
+### Pipeline or AI Builder says the context limit is too small
+
+The request plus reserved output tokens exceeds the loaded model context window.
+Increase the model context limit and reload the model, or shorten the prompt /
+canvas history. In AI Builder, the preflight check blocks the request before it
+is sent to the model.
+
+If the upstream server returns an error like:
+
+```text
+request (...) exceeds the available context size (...)
+```
+
+NativeLab should show a normal dialog explaining that the prompt is too large
+and suggesting a larger context or shorter input. The same error is still logged
+for debugging.
+
+### AI Builder: "The model response did not contain a JSON object"
+
+AI Builder retries once with a stricter JSON-only prompt. If it still fails,
+make the request shorter and more direct, for example:
+
+```text
+Make an input -> model -> output pipeline.
+```
+
+Avoid asking for explanations in the same request. The model must return a JSON
+object, not Markdown or prose.
+
+### AI Builder generated a pipeline but it will not save
+
+Generated pipelines still run through the normal validator. Fix the reported
+validation issue manually or ask the AI Builder to revise the graph. Common
+causes are missing Input/Output blocks, invalid connection endpoints, direct
+model-to-model links, missing LLM logic instructions, or unsafe Custom Code.
+
+### Pipeline sidebar disappeared
+
+The pipeline builder sidebars snap into a narrow rail when dragged too small.
+Look at the left or right edge of the canvas and click the circular arrow button
+to reopen the sidebar.
+
 ### Custom Code block: "name X is not defined"
 
 The sandbox restricts builtins. The full list available in custom code is documented in [workflows.md#custom-code](workflows.md#deterministic-logic-no-model-calls). For wider access, your code should run outside the sandbox (e.g. as a regular Python script invoked via subprocess from a Custom Code block).

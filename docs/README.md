@@ -26,6 +26,7 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 | Page | Topic |
 |---|---|
 | [features.md](features.md) | Full feature catalogue. Latest release notes live in `changelog.txt`. |
+| [pipeline-builder.md](pipeline-builder.md) | Visual pipeline builder, AI Builder, example presets, JSON schema, and native pipeline core. |
 | [architecture.md](architecture.md) | Layered design, engine layer, project structure. |
 | [labs.md](labs.md) | The Labs experimentation layer + how to add a feature. |
 | [integrations.md](integrations.md) | External endpoint routes, local HTTP bridge, and Discord/WhatsApp bot connectors. |
@@ -41,7 +42,10 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 → [cli.md](cli.md) and the [CLI beginner guide](../nativelab/cli/cli_guide.md).
 
 **"I want to build a multi-step pipeline with branches and loops."**
-→ [workflows.md#visual-pipeline-builder](workflows.md#visual-pipeline-builder).
+→ [pipeline-builder.md](pipeline-builder.md).
+
+**"I want the app to generate a pipeline from a description."**
+→ [pipeline-builder.md#ai-builder-tab](pipeline-builder.md#ai-builder-tab).
 
 **"I want to feed long PDFs to a model."**
 → [workflows.md#summarization-pipeline](workflows.md#summarization-pipeline).

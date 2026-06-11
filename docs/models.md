@@ -60,6 +60,10 @@ Editable per-file from the Models tab in the GUI. Defaults come from `app_config
 
 `detect_model_family()` matches filename substrings in priority order to pick the right `ModelFamily` template. `FAMILY_TEMPLATES` (in `nativelab/Model/templates.py`) ships with 20+ families - each holds the BOS/EOS, system slot, user/assistant prefixes/suffixes, and stop tokens for that family's chat format.
 
+When the optional Rust helper library is available, NativeLab can use it for
+family and quantization detection hot paths. If it is missing, the existing
+Python matcher is used automatically.
+
 A few examples:
 
 | Family            | User / Assistant template                                    | BOS / EOS                                                |
@@ -114,7 +118,7 @@ In addition to local GGUFs, NativeLab can use running Ollama models, optional Hu
 | --- | --- | --- |
 | llama.cpp GGUF | filesystem path | Existing `.gguf` behavior is unchanged. |
 | Ollama | `ollama:<model-name>` | Requires an already running Ollama service at `http://127.0.0.1:11434`. |
-| HF Transformers | `hf:<repo-id-or-local-dir>` | Install with `pip install -e ".[hf]"`; supports safetensors model dirs/repos with config/tokenizer metadata. |
+| HF Transformers | `hf:<repo-id-or-local-dir>` | Install runtime libraries from the Download tab's **Install Libraries** action, or run the pip command shown there; supports safetensors model dirs/repos with config/tokenizer metadata. |
 
 The Models tab includes buttons for adding installed Ollama models and HF repo/local-directory refs. HF vision models use the Transformers image-text-to-text path when the model architecture is supported.
 
@@ -123,7 +127,7 @@ The Models tab includes buttons for adding installed Ollama models and HF repo/l
 The Download tab now has three model/runtime paths:
 
 - **GGUF HuggingFace search** downloads one `.gguf` file into `localllm/` for llama.cpp.
-- **HF Transformers snapshot** inspects a repo revision, selects runtime files, preserves repo subdirectories, downloads into `localllm/hf_transformers/<namespace>/<repo>/`, resumes with `.part` files, and registers the result as `hf:<local-folder>`.
+- **HF Transformers snapshot** inspects a repo revision, can install/check required Python libraries from inside the app, selects runtime files, preserves repo subdirectories, downloads into `localllm/hf_transformers/<namespace>/<repo>/`, resumes with `.part` files, and registers the result as `hf:<local-folder>`.
 - **Ollama model pull** connects to the configured Ollama host, lists installed models from `/api/tags`, streams `/api/pull` progress, and registers completed pulls as `ollama:<model>`.
 
 The built-in **Popular** selectors are defined in `POPULAR_MODEL_PRESETS` in `nativelab/Model/templates.py`, grouped as `gguf`, `hf_transformers`, and `ollama`. They fill the relevant repo/model field but do not block custom IDs.
