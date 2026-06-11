@@ -23,6 +23,7 @@ from .rust_model import (
     detect_quant_type as detect_quant_type_native,
     rust_model_available,
 )
+from .pipeline_core import native_pipeline_available
 
 __all__ = [
     "append_cli_sampler_args",
@@ -35,6 +36,7 @@ __all__ = [
     "image_b64_list",
     "is_context_error",
     "native_core_available",
+    "native_pipeline_available",
     "ollama_sampler_options",
     "raw_prompt_text",
     "rust_model_available",

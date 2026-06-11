@@ -524,12 +524,23 @@ static PyObject *nl_build_reference_chunks(PyObject *self, PyObject *args) {
     return chunks;
 }
 
+#include "pipeline_core.c"
+#include "../pipelinebuilder/aibuilder/aibuilder_core.c"
+
 static PyMethodDef NativeCoreMethods[] = {
     {"build_text_prompt", nl_build_text_prompt, METH_VARARGS, "Build a text prompt from chat messages and a model family."},
     {"sampler_payload", (PyCFunction)nl_sampler_payload, METH_VARARGS | METH_KEYWORDS, "Normalize llama sampler options."},
     {"append_cli_sampler_args", (PyCFunction)nl_append_cli_sampler_args, METH_VARARGS | METH_KEYWORDS, "Append normalized sampler CLI flags to a list."},
     {"is_context_error", nl_is_context_error, METH_VARARGS, "Return True if text looks like a context-window error."},
     {"build_reference_chunks", nl_build_reference_chunks, METH_VARARGS, "Split reference text into overlapping chunks."},
+    {"pipeline_normalize_ids", nl_pipeline_normalize_ids, METH_VARARGS, "Normalize pipeline block ids and remap connection endpoints."},
+    {"pipeline_would_form_loop", nl_pipeline_would_form_loop, METH_VARARGS, "Return True if a new pipeline edge would create a loop."},
+    {"pipeline_apply_transform", nl_pipeline_apply_transform, METH_VARARGS, "Apply a deterministic pipeline text transform."},
+    {"pipeline_merge_texts", nl_pipeline_merge_texts, METH_VARARGS, "Merge pipeline branch outputs."},
+    {"pipeline_route_edges", nl_pipeline_route_edges, METH_VARARGS, "Select routable pipeline edges and update visit counts."},
+    {"pipeline_validate_records", nl_pipeline_validate_records, METH_VARARGS, "Validate pipeline records for execution readiness."},
+    {"aibuilder_estimate_tokens", nl_aibuilder_estimate_tokens, METH_VARARGS, "Estimate AI pipeline builder tokens from text."},
+    {"aibuilder_json_span", nl_aibuilder_json_span, METH_VARARGS, "Find the first balanced JSON object span in model text."},
     {NULL, NULL, 0, NULL}
 };
 
