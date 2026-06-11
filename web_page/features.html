@@ -4,680 +4,166 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NativeLab - Features</title>
-  <meta name="description" content="The full NativeLab feature catalogue: desktop GUI, terminal CLI, Labs, Py-to-Doc recovery, API/local backends, document workflows, Ollama, HF Transformers, and supported model families." />
+  <meta name="description" content="NativeLab feature overview: GUI, CLI, AI Pipeline Builder, Labs, documents, local/API backends, auto setup, native helpers, and integrations." />
   <link rel="icon" type="image/png" href="../nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="site.css" />
-
-  <style>
-    /* ── FOR YOU ── */
-    #foryou { background: var(--warm); }
-    .audience-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5px;
-      margin-top: 3rem;
-      background: var(--border);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      overflow: hidden;
-    }
-    .audience-card {
-      background: var(--paper);
-      padding: 2.2rem;
-      transition: background 0.2s;
-    }
-    .audience-card:hover { background: #fff; }
-    .aud-icon { font-size: 1.6rem; margin-bottom: 1rem; display: block; }
-    .aud-title { font-family: 'Instrument Serif', serif; font-size: 1.25rem; color: var(--ink); margin-bottom: 0.6rem; }
-    .aud-desc { font-size: 0.9rem; color: var(--dim); line-height: 1.75; font-weight: 300; }
-    .aud-tag {
-      margin-top: 1rem; display: inline-block;
-      background: var(--mist); color: var(--sage);
-      font-size: 0.75rem; font-weight: 500;
-      padding: 0.2rem 0.7rem; border-radius: 100px;
-    }
-
-    /* ── LATEST ── */
-    #latest { background: var(--paper); }
-    .latest-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1rem;
-      margin-top: 2.5rem;
-    }
-    .latest-card {
-      background: var(--warm);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 1.45rem;
-    }
-    .latest-kicker {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.68rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--sage);
-      margin-bottom: 0.55rem;
-    }
-    .latest-card h4 {
-      font-family: 'Instrument Serif', serif;
-      font-size: 1.24rem;
-      color: var(--ink);
-      margin-bottom: 0.45rem;
-      line-height: 1.25;
-    }
-    .latest-card p {
-      font-size: 0.86rem;
-      color: var(--dim);
-      line-height: 1.7;
-      font-weight: 300;
-    }
-
-    /* ── CAPABILITIES ── */
-    #capabilities { background: var(--paper); }
-    .caps-layout {
-      display: grid; grid-template-columns: 1fr 1.2fr;
-      gap: 5rem; align-items: start; margin-top: 3rem;
-    }
-    @media (max-width: 860px) { .caps-layout { grid-template-columns: 1fr; gap: 3rem; } }
-    .caps-list { display: flex; flex-direction: column; gap: 0.5rem; }
-    .cap-item {
-      display: flex; align-items: flex-start; gap: 1rem;
-      padding: 1.2rem; border-radius: 10px; cursor: pointer;
-      transition: background 0.18s; border: 1px solid transparent;
-    }
-    .cap-item.active, .cap-item:hover { background: var(--warm); border-color: var(--border); }
-    .cap-item.active .cap-num { color: var(--sage); }
-    .cap-num {
-      font-family: 'DM Mono', monospace; font-size: 0.75rem;
-      color: var(--mist); min-width: 28px; padding-top: 2px;
-      transition: color 0.18s;
-    }
-    .cap-text-head { font-weight: 500; font-size: 0.95rem; color: var(--ink); margin-bottom: 0.25rem; }
-    .cap-text-sub { font-size: 0.85rem; color: var(--dim); font-weight: 300; line-height: 1.6; }
-    .caps-detail { position: sticky; top: 100px; }
-    .detail-card {
-      background: var(--warm); border: 1px solid var(--border);
-      border-radius: 14px; padding: 2.5rem; display: none;
-    }
-    .detail-card.active { display: block; }
-    .detail-card h3 { font-family: 'Instrument Serif', serif; font-size: 1.6rem; color: var(--ink); margin-bottom: 0.8rem; }
-    .detail-card p { font-size: 0.95rem; color: var(--dim); line-height: 1.8; font-weight: 300; margin-bottom: 1rem; }
-    .detail-card p:last-of-type { margin-bottom: 0; }
-    .detail-badge { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 1.2rem; }
-    .badge { font-size: 0.75rem; font-weight: 500; padding: 0.25rem 0.7rem; border-radius: 100px; background: var(--mist); color: var(--sage); }
-    .badge.clay { background: #f5ddd3; color: var(--clay); }
-    .badge.gold { background: #f5edcf; color: #8a6d1a; }
-    .badge.blue { background: #dbeafe; color: #1d4ed8; }
-
-    /* ── API ── */
-    #api { background: var(--warm); }
-    .api-layout {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 4rem; align-items: start; margin-top: 3rem;
-    }
-    @media (max-width: 860px) { .api-layout { grid-template-columns: 1fr; gap: 2.5rem; } }
-    .provider-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr));
-      gap: 0.7rem; margin-top: 1.8rem;
-    }
-    .provider-card {
-      background: var(--paper); border: 1px solid var(--border);
-      border-radius: 10px; padding: 1rem 0.9rem;
-      display: flex; flex-direction: column; align-items: flex-start; gap: 0.35rem;
-      transition: all 0.18s;
-    }
-    .provider-card:hover { border-color: var(--sage-lt); background: #fff; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.05); }
-    .prov-icon { font-size: 1.1rem; }
-    .prov-name { font-size: 0.82rem; font-weight: 500; color: var(--ink); }
-    .prov-sub  { font-size: 0.71rem; color: var(--dim); font-weight: 300; }
-
-    .api-steps { display: flex; flex-direction: column; gap: 1.4rem; }
-    .api-step { display: flex; gap: 1rem; align-items: flex-start; }
-    .api-step-num {
-      width: 28px; height: 28px; border-radius: 50%;
-      background: var(--sage); color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      font-family: 'DM Mono', monospace; font-size: 0.72rem; font-weight: 500;
-      flex-shrink: 0; margin-top: 2px;
-    }
-    .api-step h5 { font-size: 0.9rem; font-weight: 500; color: var(--ink); margin-bottom: 0.2rem; }
-    .api-step p  { font-size: 0.83rem; color: var(--dim); font-weight: 300; line-height: 1.6; }
-
-    .prompt-box {
-      margin-top: 2.2rem; background: var(--paper);
-      border: 1px solid var(--border); border-radius: 12px; padding: 1.6rem;
-    }
-    .prompt-box h4 { font-weight: 500; font-size: 0.95rem; color: var(--ink); margin-bottom: 0.55rem; display: flex; align-items: center; gap: 0.5rem; }
-    .prompt-box p { font-size: 0.83rem; color: var(--dim); font-weight: 300; line-height: 1.6; margin-bottom: 0.9rem; }
-    .tmpl-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .tmpl-tag {
-      font-family: 'DM Mono', monospace; font-size: 0.72rem;
-      background: var(--warm); border: 1px solid var(--border);
-      color: var(--dim); padding: 0.22rem 0.65rem; border-radius: 5px;
-      cursor: pointer; transition: all 0.15s;
-    }
-    .tmpl-tag:hover, .tmpl-tag.active { background: var(--mist); color: var(--sage); border-color: var(--mist); }
-
-    /* ── MODELS ── */
-    #models { background: var(--paper); }
-    .models-intro-row {
-      display: grid; grid-template-columns: 1fr 1fr;
-      gap: 4rem; align-items: start; margin-top: 3rem;
-    }
-    @media (max-width: 720px) { .models-intro-row { grid-template-columns: 1fr; } }
-    .model-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.5rem; }
-    .model-tag {
-      font-family: 'DM Mono', monospace; font-size: 0.78rem;
-      background: var(--warm); border: 1px solid var(--border);
-      color: var(--dim); padding: 0.3rem 0.75rem; border-radius: 6px;
-    }
-    .model-tag.highlight { background: var(--mist); color: var(--sage); border-color: var(--mist); }
-    .model-note { font-size: 0.875rem; color: var(--dim); line-height: 1.8; font-weight: 300; }
-
-    /* ── REQUIREMENTS ── */
-    #requirements { background: var(--warm); }
-    .req-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 1.5rem; margin-top: 3rem;
-    }
-    .req-card { background: var(--paper); border: 1px solid var(--border); border-radius: 12px; padding: 1.8rem; }
-    .req-card h4 { font-weight: 500; font-size: 0.95rem; color: var(--ink); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-    .req-card ul { list-style: none; display: flex; flex-direction: column; gap: 0.45rem; }
-    .req-card li { font-size: 0.875rem; color: var(--dim); font-weight: 300; padding-left: 1rem; position: relative; }
-    .req-card li::before { content: '–'; position: absolute; left: 0; color: var(--mist); }
-    .req-card .note { margin-top: 1rem; font-size: 0.78rem; color: var(--sage-lt); font-style: italic; }
-  </style>
 </head>
 <body>
+  <nav class="site-nav">
+    <a class="nav-logo" href="../index.html"><img src="../nativelab/icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
+    <div class="nav-links">
+      <a href="features.html">Features</a>
+      <a href="pipeline.html">Pipelines</a>
+      <a href="compare.html">Compare</a>
+      <a href="setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+      <a href="https://pypi.org/project/nativelab/" target="_blank" class="nav-cta nav-keep">Install</a>
+    </div>
+  </nav>
 
-<!-- ── NAV ── -->
-<nav>
-  <a class="nav-logo" href="../index.html"><img src="../nativelab/icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
-  <div class="nav-links">
-    <a href="features.html">Features</a>
-    <a href="pipeline.html">Pipelines</a>
-    <a href="compare.html">vs. The Field</a>
-    <a href="setup.html">Setup</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="nav-cta nav-keep">★ Star</a>
-  </div>
-</nav>
+  <header class="hero hero-compact">
+    <div class="hero-media">
+      <img src="../images/light_mode.png" alt="NativeLab light mode workspace" />
+    </div>
+    <div class="hero-inner">
+      <p class="eyebrow">Feature catalogue - v0.3.7</p>
+      <h1>Everything in one local workspace.</h1>
+      <p class="hero-copy">
+        NativeLab covers the full loop: install a runtime, register models, chat,
+        attach documents, build pipelines, run Labs, expose endpoints, and script
+        the same engine from a terminal.
+      </p>
+    </div>
+  </header>
 
-<!-- ── PAGE HERO ── -->
-<section class="page-hero">
-  <div class="page-hero-inner">
-    <p class="section-label">Features · v0.3.6-dev</p>
-    <h1>The full <em>feature catalogue</em></h1>
-    <p class="section-intro">Everything NativeLab does today - desktop GUI, terminal CLI, Labs experimentation layer, Py-to-Doc recovery, document workflows, API/local backends, and the model families it auto-detects out of the box.</p>
-    <div class="page-hero-meta">
-      <a href="https://github.com/7ZoneSystems/NativeLab/blob/main/docs/features.md" target="_blank">Read the full features doc →</a>
-      <a href="pipeline.html">Pipeline-builder deep dive →</a>
-      <a href="compare.html">vs. LM Studio / Jan / GPT4All →</a>
-    </div>
-  </div>
-</section>
-
-<!-- ── LATEST ── -->
-<section id="latest">
-  <p class="section-label">Latest additions</p>
-  <h2>Long jobs now survive<br><em>rougher real-world runs.</em></h2>
-  <p class="section-intro">Recent work tightened the places users actually stress local models: project documentation runs, model reloads, backend selection, and UI rendering.</p>
-
-  <div class="latest-grid">
-    <div class="latest-card fade-up">
-      <div class="latest-kicker">Py-to-Doc</div>
-      <h4>Recovered project tasks</h4>
-      <p>Running jobs that ended without a clean pause are detected on load, marked paused, and repaired for resume so a crash does not leave the task stuck forever.</p>
-    </div>
-    <div class="latest-card fade-up">
-      <div class="latest-kicker">Memory</div>
-      <h4>Smarter auto reloads</h4>
-      <p>Auto-mode reloads can wait until a section boundary, apply cooldowns, re-arm after RAM recovery, and keep a post-reload baseline before trying again.</p>
-    </div>
-    <div class="latest-card fade-up">
-      <div class="latest-kicker">Engine</div>
-      <h4>Safe unload / reload</h4>
-      <p>Lab reload requests are routed through the main UI thread, busy workers block risky model switches, and hard unloads reset the app back to a blank server state.</p>
-    </div>
-    <div class="latest-card fade-up">
-      <div class="latest-kicker">Backends</div>
-      <h4>Ollama + HF refs</h4>
-      <p>Registered <code>ollama:</code> and <code>hf:</code> models can run through chat, Labs, pipelines, integrations, CLI status, and role-based model loading.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ── FOR YOU ── -->
-<section id="foryou">
-  <p class="section-label">Who it's for</p>
-  <h2>Built for the people<br><em>using it themselves.</em></h2>
-  <p class="section-intro">NativeLab started as a tool the maintainers wanted for their own work. It's grown to serve a few kinds of people well - see if any of these sound like you.</p>
-
-  <div class="audience-grid">
-    <div class="audience-card fade-up">
-      <span class="aud-icon">🔬</span>
-      <div class="aud-title">Academic Researchers</div>
-      <p class="aud-desc">Feed NativeLab your papers, drafts, and datasets. Build a pipeline that summarises sources, extracts findings, and drafts a report - all without uploading sensitive research to external servers.</p>
-      <span class="aud-tag">Literature review · Pipeline chains</span>
-    </div>
-    <div class="audience-card fade-up">
-      <span class="aud-icon">👩‍💻</span>
-      <div class="aud-title">Developers</div>
-      <p class="aud-desc">Wire a reasoning model into a coding model on the visual canvas. Use cloud APIs for heavy lifting, a local model for proprietary code. Build once, save the pipeline, and reuse it every session.</p>
-      <span class="aud-tag">Pipeline builder · Local + cloud hybrid</span>
-    </div>
-    <div class="audience-card fade-up">
-      <span class="aud-icon">⚖️</span>
-      <div class="aud-title">Legal &amp; Medical Professionals</div>
-      <p class="aud-desc">Analyse case documents and clinical notes without compliance risk. Everything runs on your hardware by default. When you need extra power, connect an API model - that's always your explicit choice.</p>
-      <span class="aud-tag">Air-gapped · Zero telemetry</span>
-    </div>
-    <div class="audience-card fade-up">
-      <span class="aud-icon">📓</span>
-      <div class="aud-title">Writers &amp; Knowledge Workers</div>
-      <p class="aud-desc">Attach notes, books, and reference documents. Build a pipeline that reads, summarises, and synthesises across all of them. Run against an API model when online, a local model when offline.</p>
-      <span class="aud-tag">Document chat · Reference context</span>
-    </div>
-    <div class="audience-card fade-up">
-      <span class="aud-icon">🏗️</span>
-      <div class="aud-title">Builders &amp; Tinkerers</div>
-      <p class="aud-desc">The visual pipeline editor lets you wire any combination of models, context blocks, and output stages. Add a custom API endpoint, define your own prompt format, and iterate freely on an open codebase.</p>
-      <span class="aud-tag">Open source · Custom prompts · Any endpoint</span>
-    </div>
-    <div class="audience-card fade-up">
-      <span class="aud-icon">🌐</span>
-      <div class="aud-title">Offline &amp; Remote Environments</div>
-      <p class="aud-desc">Field researchers, journalists in restricted regions, or anyone without reliable internet can run full AI inference with zero cloud dependency. Back online? Plug in an API model and scale up instantly.</p>
-      <span class="aud-tag">No internet required · API-ready when online</span>
-    </div>
-  </div>
-</section>
-
-<!-- ── CAPABILITIES ── -->
-<section id="capabilities">
-  <p class="section-label">What you can do</p>
-  <h2>Less setup.<br><em>More thinking.</em></h2>
-  <p class="section-intro">NativeLab handles the complexity of local AI so you can focus on your work. Here's what it unlocks - click any item to see the detail.</p>
-
-  <div class="caps-layout">
-    <div class="caps-list">
-      <div class="cap-item active" onclick="selectCap(0, this)">
-        <span class="cap-num">01</span>
-        <div>
-          <div class="cap-text-head">Desktop GUI &amp; Terminal CLI</div>
-          <div class="cap-text-sub">PyQt6 desktop app and a Claude-Code-style terminal client</div>
-        </div>
-      </div>
-      <div class="cap-item" onclick="selectCap(1, this)">
-        <span class="cap-num">02</span>
-        <div>
-          <div class="cap-text-head">Labs experimentation layer</div>
-          <div class="cap-text-sub">Drop-in panels share a single endpoint API for engine access</div>
-        </div>
-      </div>
-      <div class="cap-item" onclick="selectCap(2, this)">
-        <span class="cap-num">03</span>
-        <div>
-          <div class="cap-text-head">Visual Pipeline Builder</div>
-          <div class="cap-text-sub">20+ block types - drag, drop, wire, save</div>
-        </div>
-      </div>
-      <div class="cap-item" onclick="selectCap(3, this)">
-        <span class="cap-num">04</span>
-        <div>
-          <div class="cap-text-head">API + local mixing</div>
-          <div class="cap-text-sub">OpenAI &amp; Anthropic endpoints alongside local GGUFs</div>
-        </div>
-      </div>
-      <div class="cap-item" onclick="selectCap(4, this)">
-        <span class="cap-num">05</span>
-        <div>
-          <div class="cap-text-head">Talk to your PDFs</div>
-          <div class="cap-text-sub">References, RAG, and multi-document synthesis</div>
-        </div>
-      </div>
-      <div class="cap-item" onclick="selectCap(5, this)">
-        <span class="cap-num">06</span>
-        <div>
-          <div class="cap-text-head">Auto family detection</div>
-          <div class="cap-text-sub">20+ chat templates picked from filename, no config</div>
-        </div>
-      </div>
-      <div class="cap-item" onclick="selectCap(6, this)">
-        <span class="cap-num">07</span>
-        <div>
-          <div class="cap-text-head">HuggingFace downloader</div>
-          <div class="cap-text-sub">Search any GGUF repo and pull files without leaving the app</div>
-        </div>
-      </div>
-      <div class="cap-item" onclick="selectCap(7, this)">
-        <span class="cap-num">08</span>
-        <div>
-          <div class="cap-text-head">Py-to-Doc recovery</div>
-          <div class="cap-text-sub">Crash-aware project checkpoints and RAM-triggered reloads</div>
-        </div>
-      </div>
-      <div class="cap-item" onclick="selectCap(8, this)">
-        <span class="cap-num">09</span>
-        <div>
-          <div class="cap-text-head">Ollama &amp; HF backends</div>
-          <div class="cap-text-sub">Use <code>ollama:</code> and <code>hf:</code> models across the app</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="caps-detail">
-      <div class="detail-card active" id="detail-0">
-        <h3>Two clients, one engine</h3>
-        <p>Run NativeLab as a polished PyQt6 desktop app or as a terminal client with <code>nativelab --cli</code>. Both share the same engine layer, so a model loaded in one can be used from the other.</p>
-        <p>The CLI runs an interactive setup wizard the first time, downloads a model from HuggingFace, and drops you into a chat REPL with <code>@file</code> embedding, slash commands, and built-in linting via pyflakes / flake8 / pylint.</p>
-        <div class="detail-badge">
-          <span class="badge">PyQt6 GUI</span>
-          <span class="badge blue"><code>nativelab --cli</code></span>
-          <span class="badge clay">Slash commands</span>
-          <span class="badge"><code>@file</code> embedding</span>
-        </div>
-      </div>
-      <div class="detail-card" id="detail-1">
-        <h3>Labs - the experimentation layer</h3>
-        <p>The <code>nativelab/labs/</code> package is a sandbox for new features. Every lab panel receives a single <code>LabEndpoints</code> instance and uses it for all engine interaction - status reads, model swap, context change, and synchronous LLM calls (auto-routing API → server → CLI).</p>
-        <p>Add a feature by dropping <code>nativelab/labs/&lt;feature&gt;.py</code> with a <code>QWidget</code> panel and registering it. The same endpoint surface powers the CLI, so anything you build in Labs works from the terminal too.</p>
-        <div class="detail-badge">
-          <span class="badge gold">LabEndpoints API</span>
-          <span class="badge">Drop-in panels</span>
-          <span class="badge clay">Reverse routing</span>
-        </div>
-      </div>
-      <div class="detail-card" id="detail-2">
-        <h3>Visual Pipeline Builder</h3>
-        <p>A node-based editor with 20+ block types: I/O (Input, Output, Model, Intermediate), Context (Reference, Knowledge, PDF), Logic (IF/ELSE, SWITCH, FILTER, TRANSFORM, MERGE, SPLIT, Custom Code), and LLM-logic blocks (LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-TRANSFORM, LLM-SCORE).</p>
-        <p>Every connection is a smooth curve you draw yourself. Build loops with iteration counts, watch each stage stream live in its own tab, save pipelines as JSON, and reload them with one click. Run saved pipelines directly from chat.</p>
-        <div class="detail-badge">
-          <span class="badge blue">Drag-and-drop canvas</span>
-          <span class="badge">20+ block types</span>
-          <span class="badge clay">Save &amp; reload</span>
-          <span class="badge">Loop support</span>
-        </div>
-        <p style="margin-top: 1rem;"><a href="pipeline.html" style="color: var(--clay); text-decoration: none; font-weight: 500;">Read the full pipeline guide →</a></p>
-      </div>
-      <div class="detail-card" id="detail-3">
-        <h3>API + local mixing</h3>
-        <p>Connect any OpenAI-compatible (<code>/chat/completions</code>) or Anthropic (<code>/v1/messages</code>) endpoint from the API Models tab - works with hosted services and self-hosted servers like LM Studio, Ollama, and vLLM. Paste your key, click Test &amp; Load, and a 1-token check confirms it works before any real request is sent.</p>
-        <p>Once loaded, an API model behaves exactly like a local one - it appears in chat, works inside pipelines, and shows in the status bar. Keys are stored only on your machine.</p>
-        <div class="detail-badge">
-          <span class="badge blue">OpenAI-compatible</span>
-          <span class="badge">Anthropic <code>/v1/messages</code></span>
-          <span class="badge clay">1-token verification</span>
-          <span class="badge">Local keys only</span>
-        </div>
-      </div>
-      <div class="detail-card" id="detail-4">
-        <h3>Talk to your documents</h3>
-        <p>Attach PDFs, plain text, or source files to a session. Top-K relevant chunks are auto-injected as <code>[REFERENCE: …]</code> blocks before each prompt. Long PDFs get split, summarised section-by-section with carry-over context, then consolidated - pause/resume to disk between chunks.</p>
-        <p>Source code gets AST-level parsing for Python and regex parsers for 20+ other languages, extracting imports, classes, functions, constants, and types.</p>
-        <div class="detail-badge">
-          <span class="badge">Top-K RAG</span>
-          <span class="badge clay">Multi-PDF synthesis</span>
-          <span class="badge gold">AST script parser</span>
-        </div>
-      </div>
-      <div class="detail-card" id="detail-5">
-        <h3>Auto family detection</h3>
-        <p>NativeLab recognises 20+ chat templates from the filename - DeepSeek, DeepSeek-R1, Mistral, Mixtral, LLaMA-2/3, Phi-3/3.5, Qwen/ChatML, Gemma, CodeLlama, Falcon, Vicuna, OpenChat, Neural-Chat, Starling, Yi, Zephyr, Solar, Orca, Command-R - and applies the correct prompt format automatically.</p>
-        <p>Every quantization is detected too, from legacy <code>Q4_0</code> through K-quants and imatrix variants, with colour-coded quality tiers in the model list.</p>
-        <div class="detail-badge">
-          <span class="badge">20+ families</span>
-          <span class="badge clay">Quant detection</span>
-          <span class="badge">Per-model params</span>
-        </div>
-      </div>
-      <div class="detail-card" id="detail-6">
-        <h3>HuggingFace downloader</h3>
-        <p>Search any GGUF repo, browse files with sizes, and download into your models folder - without leaving the app. Network drops? Resume where you left off.</p>
-        <p>The Download tab also handles HF Transformers snapshots with revision/token support and Ollama pulls through a running daemon. Completed models auto-register as <code>hf:</code>, <code>ollama:</code>, or local GGUF targets.</p>
-        <div class="detail-badge">
-          <span class="badge">Search any repo</span>
-          <span class="badge clay">Resume on drop</span>
-          <span class="badge gold">HF snapshots</span>
-          <span class="badge blue">Ollama pulls</span>
-        </div>
-      </div>
-      <div class="detail-card" id="detail-7">
-        <h3>Py-to-Doc recovery</h3>
-        <p>Project mode writes checkpoint state after file, class, and function sections. On startup or task selection, NativeLab repairs interrupted project state: running jobs become paused/recovered jobs, incomplete completed checkpoints are reopened, and output offsets are checked before resume.</p>
-        <p>Auto model reloads are now boundary-aware. When free RAM drops below your configured threshold, the current section finishes first; then NativeLab can unload/reload the active local model before the next LLM section, with cooldowns and re-arm rules to avoid reload loops.</p>
-        <div class="detail-badge">
-          <span class="badge clay">Abrupt failure recovery</span>
-          <span class="badge">Paused resume state</span>
-          <span class="badge gold">RAM-aware reloads</span>
-          <span class="badge blue">GUI &amp; CLI</span>
-        </div>
-      </div>
-      <div class="detail-card" id="detail-8">
-        <h3>Ollama and HF backends</h3>
-        <p>NativeLab can register <code>ollama:&lt;model&gt;</code> and <code>hf:&lt;repo-or-dir&gt;</code> references next to GGUF files. The same engine surface exposes them to chat, Labs, pipelines, integrations, CLI tools, status widgets, and model-role loading.</p>
-        <p>HF Transformers settings include local/offline mode, safetensors, dtype, device map, attention implementation, max memory, quantization, trust remote code, revision, cache/download paths, and Hugging Face token reuse.</p>
-        <div class="detail-badge">
-          <span class="badge blue"><code>ollama:</code> refs</span>
-          <span class="badge"><code>hf:</code> refs</span>
-          <span class="badge clay">safetensors</span>
-          <span class="badge gold">shared runtime</span>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── API MODELS ── -->
-<section id="api">
-  <p class="section-label">Cloud &amp; API models</p>
-  <h2>Local when you need privacy.<br><em>Cloud when you need scale.</em></h2>
-  <p class="section-intro">Connect to any major AI provider - or your own server - with a single form. Once verified, an API model works exactly like a local one throughout the whole app.</p>
-
-  <div class="api-layout">
-    <div>
-      <p style="font-size:0.9rem;color:var(--dim);font-weight:300;line-height:1.8;margin-bottom:0.5rem;">Eight providers are pre-configured with the right URLs and model lists. Pick one, add your key, and go. Or type any custom URL for your own server.</p>
-      <div class="provider-grid">
-        <div class="provider-card"><span class="prov-icon">⚡</span><div class="prov-name">OpenAI</div><div class="prov-sub">GPT-4o, o1, o3-mini</div></div>
-        <div class="provider-card"><span class="prov-icon">◆</span><div class="prov-name">Anthropic</div><div class="prov-sub">Claude 3.5, Haiku</div></div>
-        <div class="provider-card"><span class="prov-icon">⚙</span><div class="prov-name">Groq</div><div class="prov-sub">Llama 3.3, Mixtral</div></div>
-        <div class="provider-card"><span class="prov-icon">🌊</span><div class="prov-name">Mistral</div><div class="prov-sub">Large, Codestral</div></div>
-        <div class="provider-card"><span class="prov-icon">🤝</span><div class="prov-name">Together AI</div><div class="prov-sub">Llama, Qwen</div></div>
-        <div class="provider-card"><span class="prov-icon">🔀</span><div class="prov-name">OpenRouter</div><div class="prov-sub">100+ models</div></div>
-        <div class="provider-card"><span class="prov-icon">🦙</span><div class="prov-name">Ollama</div><div class="prov-sub">Local server</div></div>
-        <div class="provider-card"><span class="prov-icon">🔧</span><div class="prov-name">Custom</div><div class="prov-sub">Any endpoint</div></div>
-      </div>
-
-      <div class="prompt-box">
-        <h4>🎨 &nbsp;Custom prompt formats</h4>
-        <p>Some models need a specific way of wrapping messages. Pick a preset and the fields fill in automatically - or define your own system prompt, user prefix/suffix, and assistant prefix from scratch.</p>
-        <div class="tmpl-tags">
-          <span class="tmpl-tag active">Default</span>
-          <span class="tmpl-tag">ChatML</span>
-          <span class="tmpl-tag">Llama-2</span>
-          <span class="tmpl-tag">Alpaca</span>
-          <span class="tmpl-tag">Gemma</span>
-          <span class="tmpl-tag">Phi-3</span>
-          <span class="tmpl-tag">Custom</span>
-        </div>
-      </div>
-    </div>
-
-    <div>
-      <p style="font-size:1rem;color:var(--dim);font-weight:300;line-height:1.8;margin-bottom:2rem;">Adding an API model takes about 30 seconds and it's always tested with one message before anything real is sent - so you know it works before you rely on it.</p>
-      <div class="api-steps">
-        <div class="api-step">
-          <div class="api-step-num">1</div>
+  <main>
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
           <div>
-            <h5>Pick a provider and model</h5>
-            <p>Choose from the list or type any model ID. The base URL fills in automatically for known providers.</p>
+            <p class="section-kicker">Latest</p>
+            <h2>Recent work focused on pipelines, setup, and stability.</h2>
           </div>
+          <p class="lead">
+            v0.3.7 adds AI-assisted pipeline generation, native pipeline helper
+            paths, sidebar resizing, centralized LLM error dialogs, and refreshed
+            first-run setup flows.
+          </p>
         </div>
-        <div class="api-step">
-          <div class="api-step-num">2</div>
-          <div>
-            <h5>Paste your API key</h5>
-            <p>Keys are stored only on your machine in a local config file. Nothing is sent anywhere except to the provider you chose.</p>
-          </div>
-        </div>
-        <div class="api-step">
-          <div class="api-step-num">3</div>
-          <div>
-            <h5>Click Test &amp; Load</h5>
-            <p>NativeLab sends a single 1-token "hi" to verify the connection. Green means ready. Errors appear immediately with the reason so you know exactly what to fix.</p>
-          </div>
-        </div>
-        <div class="api-step">
-          <div class="api-step-num">4</div>
-          <div>
-            <h5>Use it like any other model</h5>
-            <p>It appears in chat, inside pipelines, and in the status bar. Save the config to reload it instantly next time - no re-entering keys.</p>
-          </div>
+        <div class="grid four">
+          <article class="card fade-up"><h3>AI Pipeline Builder</h3><p class="muted">Generate validated pipeline JSON from a plain-English request, then load it for testing.</p><div class="tag-row"><span class="tag green">new</span></div></article>
+          <article class="card fade-up"><h3>Native helpers</h3><p class="muted">C/Rust acceleration for deterministic graph, validation, prompt, sampler, and detection hot paths.</p><div class="tag-row"><span class="tag blue">optional</span></div></article>
+          <article class="card fade-up"><h3>Auto setup</h3><p class="muted">Hardware-aware, resumable setup with llama.cpp or HF Transformers backend choices.</p><div class="tag-row"><span class="tag amber">resumable</span></div></article>
+          <article class="card fade-up"><h3>UI hardening</h3><p class="muted">MainWindow split, centralized QThread cleanup, context meter, and plain-language LLM errors.</p><div class="tag-row"><span class="tag">safer</span></div></article>
         </div>
       </div>
-    </div>
-  </div>
-</section>
+    </section>
 
-<!-- ── MODEL COMPAT ── -->
-<section id="models">
-  <p class="section-label">Model compatibility</p>
-  <h2>Works with the models<br><em>you already know</em></h2>
-
-  <div class="models-intro-row">
-    <div>
-      <p class="model-note">NativeLab automatically detects model families from filenames and applies the correct prompt template. No manual configuration needed for supported families.</p>
-      <p class="model-note" style="margin-top:1rem;">Any GGUF-format model that runs on llama.cpp will work. The list below shows families with automatic template detection.</p>
-      <div class="model-tags">
-        <span class="model-tag highlight">DeepSeek</span>
-        <span class="model-tag highlight">Mistral</span>
-        <span class="model-tag highlight">LLaMA 2 / 3</span>
-        <span class="model-tag highlight">Qwen / ChatML</span>
-        <span class="model-tag highlight">Phi</span>
-        <span class="model-tag">Gemma</span>
-        <span class="model-tag">CodeLlama</span>
-        <span class="model-tag">Falcon</span>
-        <span class="model-tag">Vicuna</span>
-        <span class="model-tag">OpenChat</span>
-        <span class="model-tag">Yi</span>
-        <span class="model-tag">Command-R</span>
-        <span class="model-tag">Starling</span>
-        <span class="model-tag">Neural-Chat</span>
-        <span class="model-tag">+ more</span>
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">App surfaces</p>
+            <h2>Use the same engine from GUI, CLI, Labs, and integrations.</h2>
+          </div>
+          <p class="lead">Every surface routes through shared runtime state so model loading, context, API profiles, and saved pipelines stay consistent.</p>
+        </div>
+        <div class="grid three">
+          <article class="card media-card fade-up">
+            <img src="../images/dev.png" alt="NativeLab dev workspace" />
+            <div class="media-caption"><h3>Dev workspace</h3><p class="muted">Labs, logs, integrations, pipelines, MCP, and skills live behind Developer Mode.</p></div>
+          </article>
+          <article class="card media-card fade-up">
+            <img src="../images/skill.png" alt="NativeLab skills tab" />
+            <div class="media-caption"><h3>Skills and Labs</h3><p class="muted">Shared skill injection plus drop-in Labs panels using one endpoint API.</p></div>
+          </article>
+          <article class="card media-card fade-up">
+            <img src="../images/server_controls.png" alt="NativeLab server controls" />
+            <div class="media-caption"><h3>Runtime controls</h3><p class="muted">llama.cpp paths, context, GPU offload, ports, and backend-specific settings.</p></div>
+          </article>
+        </div>
       </div>
-    </div>
-    <div>
-      <p class="section-label" style="margin-bottom:0.8rem;">Quantization formats</p>
-      <p class="model-note">NativeLab supports the full range of GGUF quantization levels, so you can balance quality and speed for your hardware.</p>
-      <div class="model-tags" style="margin-top:1rem;">
-        <span class="model-tag">Q2_K → Q8_0</span>
-        <span class="model-tag">IQ2 / IQ3 / IQ4</span>
-        <span class="model-tag">Q4_K_M</span>
-        <span class="model-tag">Q5_K_M</span>
-        <span class="model-tag">F16 / F32</span>
-        <span class="model-tag">BF16</span>
+    </section>
+
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Core capabilities</p>
+            <h2>A concise map of what NativeLab does.</h2>
+          </div>
+          <p class="lead">The full technical details live in the project docs, but these are the surfaces most users touch first.</p>
+        </div>
+        <div class="grid three">
+          <article class="card fade-up">
+            <h3>Model runtime</h3>
+            <ul class="feature-list">
+              <li>Local GGUF models</li>
+              <li>llama-server and llama-cli</li>
+              <li>Ollama refs and pulls</li>
+              <li>HF Transformers snapshots</li>
+              <li>OpenAI-compatible APIs</li>
+              <li>Anthropic API profiles</li>
+            </ul>
+          </article>
+          <article class="card fade-up">
+            <h3>Documents and code</h3>
+            <ul class="feature-list">
+              <li>Session references</li>
+              <li>PDF summarization</li>
+              <li>Multi-PDF synthesis</li>
+              <li>Source parser for many languages</li>
+              <li>Py-to-Doc project mode</li>
+              <li>Checkpoint resume</li>
+            </ul>
+          </article>
+          <article class="card fade-up">
+            <h3>Workflow tooling</h3>
+            <ul class="feature-list">
+              <li>Visual pipeline canvas</li>
+              <li>AI Pipeline Builder</li>
+              <li>Labs endpoint API</li>
+              <li>MCP management</li>
+              <li>Integration HTTP endpoint</li>
+              <li>Discord and WhatsApp profiles</li>
+            </ul>
+          </article>
+        </div>
       </div>
-      <p class="model-note" style="margin-top:1.2rem; font-style:italic; font-size:0.82rem; color:var(--sage-lt);">Not sure which quant to pick? Q4_K_M or Q5_K_M strike the best balance for most desktop hardware.</p>
-    </div>
-  </div>
-</section>
+    </section>
 
-<!-- ── REQUIREMENTS ── -->
-<section id="requirements">
-  <p class="section-label">System requirements</p>
-  <h2>What you<br><em>actually need</em></h2>
-  <p class="section-intro">No GPU required. NativeLab runs on CPU with standard RAM - though more RAM gives you larger models and longer contexts. API models use no local RAM at all.</p>
+    <section class="section dark">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">CLI</p>
+            <h2>A terminal control center, not a separate app.</h2>
+          </div>
+          <p class="lead">The CLI can chat, load models, run saved pipelines, inspect endpoints, manage skills, run Labs helpers, and serve integration routes.</p>
+        </div>
+        <pre class="codebox fade-up"><span class="dim">$</span> nativelab --cli
+Chat / Models / API Models / Skills / Labs / Pipelines / Integrations / Status / Setup
 
-  <div class="req-grid">
-    <div class="req-card">
-      <h4>🐍 Runtime</h4>
-      <ul>
-        <li>Python 3.10 or newer</li>
-        <li>PyQt6 (auto-installed)</li>
-        <li>llama.cpp binaries</li>
-      </ul>
-      <p class="note">GUI's Download tab fetches llama.cpp for you</p>
-    </div>
-    <div class="req-card">
-      <h4>🖥️ Operating System</h4>
-      <ul>
-        <li>Linux (most distros)</li>
-        <li>macOS (Intel &amp; Apple Silicon)</li>
-        <li>Windows 10 / 11</li>
-      </ul>
-      <p class="note">Same <code>pip install</code> on every platform</p>
-    </div>
-    <div class="req-card">
-      <h4>🧠 Memory (RAM)</h4>
-      <ul>
-        <li>8 GB minimum (small models)</li>
-        <li>16 GB recommended</li>
-        <li>32 GB for larger models</li>
-      </ul>
-      <p class="note">RAM shown live in-app · API models use zero local RAM</p>
-    </div>
-    <div class="req-card">
-      <h4>💾 Storage</h4>
-      <ul>
-        <li>~200 MB for the package</li>
-        <li>2–8 GB per GGUF model</li>
-        <li>Space for sessions, pipelines &amp; references</li>
-      </ul>
-    </div>
-    <div class="req-card">
-      <h4>⚡ Processor</h4>
-      <ul>
-        <li>Any modern multi-core CPU</li>
-        <li>More threads = faster generation</li>
-        <li>GPU offload via llama.cpp <code>ngl</code></li>
-      </ul>
-      <p class="note">Threads &amp; GPU layers fully configurable</p>
-    </div>
-    <div class="req-card">
-      <h4>🌐 Internet</h4>
-      <ul>
-        <li>Not needed for local models</li>
-        <li>Required only for API model calls</li>
-        <li>No telemetry ever sent</li>
-      </ul>
-      <p class="note">Fully offline with local GGUF models</p>
-    </div>
-  </div>
-</section>
+<span class="dim">$</span> nativelab --cli pipeline run research-synthesis --file prompt.txt
+<span class="dim">$</span> nativelab --cli endpoint /snapshot --json</pre>
+      </div>
+    </section>
+  </main>
 
-<!-- ── FOOTER ── -->
-<footer>
-  <span class="footer-brand">NativeLab</span>
-  <span>Open source · AGPL v3 · Maintained by 7ZoneSystems &amp; contributors</span>
-  <div class="footer-links">
-    <a href="../index.html">Home</a>
-    <a href="pipeline.html">Pipelines</a>
-    <a href="compare.html">vs. The Field</a>
-    <a href="setup.html">Setup</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
-    <a href="https://pypi.org/project/nativelab/" target="_blank">PyPI</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank">Issues</a>
-  </div>
-</footer>
+  <footer class="footer">
+    <span>NativeLab - feature overview</span>
+    <div class="footer-links">
+      <a href="../index.html">Home</a>
+      <a href="pipeline.html">Pipelines</a>
+      <a href="compare.html">Compare</a>
+      <a href="setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+    </div>
+  </footer>
 
-<script src="site.js"></script>
-<script>
-  function selectCap(idx, el) {
-    document.querySelectorAll('.cap-item').forEach(c => c.classList.remove('active'));
-    document.querySelectorAll('.detail-card').forEach(c => c.classList.remove('active'));
-    el.classList.add('active');
-    document.getElementById('detail-' + idx).classList.add('active');
-  }
-  document.querySelectorAll('.tmpl-tag').forEach(tag => {
-    tag.addEventListener('click', () => {
-      document.querySelectorAll('.tmpl-tag').forEach(t => t.classList.remove('active'));
-      tag.classList.add('active');
-    });
-  });
-</script>
+  <script src="site.js"></script>
 </body>
 </html>

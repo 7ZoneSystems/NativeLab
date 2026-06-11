@@ -3,424 +3,221 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NativeLab - vs. The Field</title>
-  <meta name="description" content="An honest line-by-line comparison of NativeLab v0.3.6-dev against LM Studio, AnythingLLM, Jan AI, and GPT4All. Pipelines, Py-to-Doc recovery, backend support, GPU support, document workflows, and more." />
+  <meta name="description" content="Compare NativeLab with LM Studio, AnythingLLM, Jan, and GPT4All across local models, pipelines, documents, APIs, and developer workflows." />
+  <title>NativeLab - Compare</title>
   <link rel="icon" type="image/png" href="../nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&family=Playfair+Display:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="site.css" />
-
-  <style>
-    /* The matrix has its own visual identity - serif body type, separate palette.
-       We keep the shared nav and footer but isolate the matrix block below. */
-
-    .matrix-wrap {
-      --bg:       #faf6f1;
-      --bg2:      #f3ede5;
-      --bg3:      #ece4d8;
-      --m-border: #ddd4c6;
-      --border2:  #c9bfb2;
-      --txt:      #2a1f14;
-      --txt2:     #5c4c3d;
-      --txt3:     #9c8a79;
-      --peach:    #c87941;
-      --peach2:   #e8a87c;
-      --peach3:   #f5ddc8;
-      --sap:      #4a7c5a;
-      --sap2:     #6fa882;
-      --sap3:     #d4ead9;
-      --warn:     #b5720a;
-      --nl:       #5b7fa6;
-      --lms:      #7a5fa0;
-      --any:      #4a7c5a;
-      --jan:      #a0673a;
-      --gpt:      #9e3b6e;
-
-      background: var(--bg);
-      color: var(--txt);
-      font-family: 'Lora', Georgia, serif;
-      font-size: 13px;
-      line-height: 1.65;
-      padding-top: 64px; /* clear the fixed nav */
-    }
-
-    .matrix-header { padding: 52px 56px 40px; border-bottom: 1px solid var(--m-border); background: var(--bg2); }
-    .matrix-header-inner { max-width: 1400px; margin: 0 auto; }
-    .m-label { font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--txt3); margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
-    .m-label::before { content: ''; display: block; width: 28px; height: 1px; background: var(--border2); }
-    .matrix-h1 { font-family: 'Playfair Display', Georgia, serif; font-size: clamp(26px, 3.5vw, 48px); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; margin-bottom: 14px; color: var(--txt); }
-    .matrix-h1 span { color: var(--peach); }
-    .m-subtitle { font-family: 'Lora', serif; font-style: italic; color: var(--txt2); font-size: 13px; max-width: 680px; line-height: 1.8; }
-    .build-badge { display: inline-flex; align-items: center; gap: 8px; margin-top: 20px; padding: 6px 14px; background: var(--peach3); border: 1px solid var(--peach2); border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--peach); letter-spacing: 0.08em; }
-    .build-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sap); }
-
-    .legend { display: flex; flex-wrap: wrap; gap: 24px; padding: 14px 56px; border-bottom: 1px solid var(--m-border); background: var(--bg2); }
-    .legend-item { display: flex; align-items: center; gap: 8px; font-family: 'Lora', serif; color: var(--txt3); font-size: 11px; }
-    .dot-lg { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .dot-nl { background: var(--nl); } .dot-lms { background: var(--lms); } .dot-any { background: var(--any); } .dot-jan { background: var(--jan); } .dot-gpt { background: var(--gpt); }
-
-    .filters { padding: 12px 56px; border-bottom: 1px solid var(--m-border); display: flex; gap: 6px; flex-wrap: wrap; background: var(--bg); }
-    .filter-btn { padding: 5px 13px; border-radius: 4px; border: 1px solid var(--border2); background: transparent; color: var(--txt3); font-family: 'Lora', serif; font-size: 11px; cursor: pointer; transition: all 0.15s; }
-    .filter-btn:hover { border-color: var(--peach); color: var(--peach); }
-    .filter-btn.active { background: var(--peach3); border-color: var(--peach); color: var(--peach); font-weight: 600; }
-
-    .wrapper { max-width: 1400px; margin: 0 auto; padding: 0 56px 80px; }
-    .section-header { display: grid; grid-template-columns: 300px repeat(5, 1fr); position: sticky; top: 64px; z-index: 20; background: var(--bg); border-bottom: 2px solid var(--border2); margin-top: 36px; }
-    .col-head { padding: 14px 16px; font-family: 'Playfair Display', serif; font-weight: 600; font-size: 11px; letter-spacing: 0.04em; color: var(--txt3); }
-    .col-head:first-child { font-size: 10px; font-family: 'JetBrains Mono', monospace; }
-    .col-head.nl  { color: var(--nl);  border-top: 2px solid var(--nl); }
-    .col-head.lms { color: var(--lms); border-top: 2px solid var(--lms); }
-    .col-head.any { color: var(--any); border-top: 2px solid var(--any); }
-    .col-head.jan { color: var(--jan); border-top: 2px solid var(--jan); }
-    .col-head.gpt { color: var(--gpt); border-top: 2px solid var(--gpt); }
-
-    .category { grid-column: 1/-1; padding: 24px 0 6px; font-family: 'Playfair Display', serif; font-size: 11px; font-weight: 600; letter-spacing: 0.15em; text-transform: uppercase; color: var(--txt3); display: flex; align-items: center; gap: 14px; }
-    .category::after { content: ''; flex: 1; height: 1px; background: var(--m-border); }
-    .row { display: grid; grid-template-columns: 300px repeat(5, 1fr); border-bottom: 1px solid var(--m-border); transition: background 0.1s; }
-    .row:hover { background: var(--bg2); }
-    .row.hidden { display: none; }
-    .cell { padding: 10px 16px; display: flex; align-items: center; gap: 6px; font-size: 12px; border-right: 1px solid var(--m-border); }
-    .cell:last-child { border-right: none; }
-    .feat-name { font-family: 'Lora', serif; color: var(--txt2); font-size: 12px; line-height: 1.5; }
-    .feat-name em { display: block; font-style: italic; font-size: 10px; color: var(--txt3); margin-top: 2px; }
-
-    .yes  { color: var(--sap);    font-size: 15px; font-weight: 600; }
-    .no   { color: var(--border2); font-size: 15px; }
-    .part { font-family: 'Lora', serif; font-style: italic; color: var(--warn); font-size: 11px; }
-    .m-note { font-family: 'Lora', serif; font-style: italic; color: var(--txt3); font-size: 10px; line-height: 1.4; }
-    .exclusive { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.06em; background: var(--sap3); color: var(--sap); border: 1px solid var(--sap2); padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
-    .released  { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.06em; background: var(--peach3); color: var(--peach); border: 1px solid var(--peach2); padding: 2px 7px; border-radius: 3px; white-space: nowrap; }
-    .planned   { font-family: 'Lora', serif; font-style: italic; font-size: 11px; color: var(--warn); }
-
-    .row .cell:nth-child(2) { background: rgba(91,127,166,0.03); }
-    .row:hover .cell:nth-child(2) { background: rgba(91,127,166,0.07); }
-
-    .summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 18px; margin-top: 56px; }
-    .card { background: var(--bg2); border: 1px solid var(--m-border); border-radius: 6px; padding: 24px; position: relative; overflow: hidden; }
-    .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
-    .card.nl::before  { background: var(--nl); }
-    .card.lms::before { background: var(--lms); }
-    .card.any::before { background: var(--any); }
-    .card.jan::before { background: var(--jan); }
-    .card.gpt::before { background: var(--gpt); }
-    .card-name { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 14px; margin-bottom: 4px; }
-    .card.nl  .card-name { color: var(--nl); }
-    .card.lms .card-name { color: var(--lms); }
-    .card.any .card-name { color: var(--any); }
-    .card.jan .card-name { color: var(--jan); }
-    .card.gpt .card-name { color: var(--gpt); }
-    .card-score { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 700; line-height: 1; margin: 14px 0 4px; }
-    .card-score-label { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: var(--txt3); letter-spacing: 0.1em; text-transform: uppercase; }
-    .card-tag { margin-top: 14px; font-family: 'Lora', serif; font-style: italic; font-size: 11px; color: var(--txt2); line-height: 1.7; }
-    .card-oss { display: inline-block; margin-top: 12px; font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.08em; text-transform: uppercase; }
-    .oss-yes { background: var(--sap3); color: var(--sap); border: 1px solid var(--sap2); }
-    .oss-no  { background: var(--bg3); color: var(--txt3); border: 1px solid var(--border2); }
-
-    .release-banner { background: var(--bg2); border: 1px solid var(--m-border); border-left: 3px solid var(--peach); border-radius: 0 5px 5px 0; padding: 14px 20px; margin: 32px 0 0; font-family: 'Lora', serif; font-size: 12px; color: var(--txt2); line-height: 1.8; }
-    .release-banner strong { font-family: 'Playfair Display', serif; color: var(--peach); font-weight: 600; }
-
-    .matrix-footer { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--m-border); color: var(--txt3); font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 0.04em; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-
-    @media (max-width: 900px) {
-      .matrix-header, .filters, .legend, .wrapper { padding-left: 16px; padding-right: 16px; }
-      .section-header, .row { grid-template-columns: 160px repeat(5, 1fr); }
-      .summary { grid-template-columns: 1fr 1fr; }
-    }
-  </style>
 </head>
 <body>
-
-<!-- ── NAV ── -->
-<nav>
-  <a class="nav-logo" href="../index.html"><img src="../nativelab/icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
-  <div class="nav-links">
-    <a href="features.html">Features</a>
-    <a href="pipeline.html">Pipelines</a>
-    <a href="compare.html">vs. The Field</a>
-    <a href="setup.html">Setup</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="nav-cta nav-keep">★ Star</a>
-  </div>
-</nav>
-
-<div class="matrix-wrap">
-
-<div class="matrix-header">
-  <div class="matrix-header-inner">
-    <div class="m-label">Feature Comparison Matrix &nbsp;&middot;&nbsp; NativeLab v0.3.6-dev</div>
-    <h1 class="matrix-h1">NativeLab <span>v0.3.6-dev</span> vs The Field</h1>
-    <p class="m-subtitle">An honest comparison of NativeLab against LM Studio, AnythingLLM, Jan AI, and GPT4All &mdash; covering core capabilities, hardware support, visual pipeline tooling, Py-to-Doc recovery, backend support, and overall developer experience. Open source, AGPL v3.</p>
-    <div class="build-badge"><div class="dot"></div> v0.3.6-dev &nbsp;&middot;&nbsp; pip install nativelab &nbsp;&middot;&nbsp; AGPL v3</div>
-  </div>
-</div>
-
-<div class="legend">
-  <div class="legend-item"><div class="dot-lg dot-nl"></div> NativeLab v0.3.6-dev</div>
-  <div class="legend-item"><div class="dot-lg dot-lms"></div> LM Studio</div>
-  <div class="legend-item"><div class="dot-lg dot-any"></div> AnythingLLM</div>
-  <div class="legend-item"><div class="dot-lg dot-jan"></div> Jan AI</div>
-  <div class="legend-item"><div class="dot-lg dot-gpt"></div> GPT4All</div>
-  <div class="legend-item" style="margin-left:auto"><span style="color:var(--sap);font-size:15px;font-weight:700;margin-right:5px">&#10003;</span> Full support</div>
-  <div class="legend-item"><span style="color:var(--warn);margin-right:5px;font-style:italic;font-size:11px">partial</span> Partial</div>
-  <div class="legend-item"><span style="color:var(--border2);font-size:15px;margin-right:5px">&#10007;</span> Not supported</div>
-  <div class="legend-item"><span class="exclusive" style="margin-left:0">&#9733; Exclusive</span><span style="margin-left:8px">No equivalent in any compared tool</span></div>
-</div>
-
-<div class="filters">
-  <button class="filter-btn active" onclick="filterRows('all',this)">All Features</button>
-  <button class="filter-btn" onclick="filterRows('core',this)">Core</button>
-  <button class="filter-btn" onclick="filterRows('hardware',this)">Hardware</button>
-  <button class="filter-btn" onclick="filterRows('models',this)">Models</button>
-  <button class="filter-btn" onclick="filterRows('server',this)">Server &amp; API</button>
-  <button class="filter-btn" onclick="filterRows('pipeline',this)">Pipelines</button>
-  <button class="filter-btn" onclick="filterRows('llm-logic',this)">LLM Logic</button>
-  <button class="filter-btn" onclick="filterRows('docs',this)">Documents</button>
-  <button class="filter-btn" onclick="filterRows('summarize',this)">Summarization</button>
-  <button class="filter-btn" onclick="filterRows('sessions',this)">Sessions</button>
-  <button class="filter-btn" onclick="filterRows('ui',this)">UI</button>
-  <button class="filter-btn" onclick="filterRows('agents',this)">Agents &amp; Extras</button>
-  <button class="filter-btn" onclick="filterRows('unique',this)">NativeLab Exclusive &#9733;</button>
-</div>
-
-<div class="wrapper">
-
-  <div class="section-header">
-    <div class="col-head">Feature</div>
-    <div class="col-head nl">NativeLab<br>v0.3.6-dev</div>
-    <div class="col-head lms">LM<br>Studio</div>
-    <div class="col-head any">Anything<br>LLM</div>
-    <div class="col-head jan">Jan<br>AI</div>
-    <div class="col-head gpt">GPT<br>4All</div>
-  </div>
-
-  <!-- CORE -->
-  <div class="category" data-cat="core">&#9672; Core</div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Fully open source</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Runs fully offline</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Zero telemetry</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">No account required</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Windows</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Linux</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">macOS</div></div><div class="cell"><span class="yes">&#10003;</span><span class="released" style="margin-left:7px">v0.3.6</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Zero-config beginner setup<em>One-line <code>pip install nativelab</code> on every platform</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core unique"><div class="cell"><div class="feat-name">Terminal control center CLI<em>Chat, Models, API Models, Skills, Labs, Pipelines, Integrations, Status, Setup</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="core unique"><div class="cell"><div class="feat-name">Dev workspace + Skills library<em>Labs, MCP, Integrations, Pipeline, Logs, shared skill injection</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><i class="part">plugins</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">In-app model download<em>HuggingFace repo search, quantization badges, live progress</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="core unique"><div class="cell"><div class="feat-name">HF snapshot downloads with resume controls<em>Repo inspection, revision, preserved subdirs, .part resume, pause/cancel, token auth</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Ollama pull manager<em>Installed-model listing, streamed pull progress, configurable host, auto-registration</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><i class="part">external</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">Hugging Face account tab<em>Browser/device OAuth, masked token storage, saved-token reuse, gated repo errors</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><i class="part">manual</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="core"><div class="cell"><div class="feat-name">SafeTensor model support<em>Modern .safetensor format alongside GGUF</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- HARDWARE -->
-  <div class="category" data-cat="hardware">&#9889; GPU &amp; Hardware</div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">GPU auto-detection on startup<em>nvidia-smi, system_profiler, vulkaninfo probed automatically</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">CUDA acceleration<em>NVIDIA GPU offloading via --ngl flags</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">Apple Metal acceleration<em>macOS GPU via system_profiler detection</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">Vulkan acceleration<em>AMD / Intel / cross-platform via vulkaninfo</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">Multi-GPU tensor split<em>Ratio strings e.g. 0.6,0.4 across devices</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">GPU layer control via GUI<em>&minus;1 = all layers, spin-box control, no CLI required</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">Server launch flags via GUI<em>Full llama.cpp flag exposure without command line</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware unique"><div class="cell"><div class="feat-name">RAM watchdog + auto disk spill<em>Prevents OOM crashes, LRU chunk cache</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">Live RAM usage display</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">Live context fill indicator</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware"><div class="cell"><div class="feat-name">Per-model context size / temperature / sampling control</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><i class="part">limited</i></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="hardware unique"><div class="cell"><div class="feat-name">Code-level inference optimisation<em>6.2 tok/s on $250 APU via algorithmic chunking</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- MODELS -->
-  <div class="category" data-cat="models">&#9678; Model Management</div>
-  <div class="row" data-cat="models"><div class="cell"><div class="feat-name">GGUF model support</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="models"><div class="cell"><div class="feat-name">Auto prompt template detection<em>20+ families detected from filename</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="models"><div class="cell"><div class="feat-name">Custom prompt formats<em>7 presets + fully custom fields</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="models"><div class="cell"><div class="feat-name">Quantization format detection + quality labels<em>K-quants, IQ, legacy, float &mdash; colour coded</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="models unique"><div class="cell"><div class="feat-name">Specialised model roles<em>General, Reasoning, Summarization, Coding, Secondary</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="models"><div class="cell"><div class="feat-name">Ollama backend refs<em><code>ollama:&lt;model&gt;</code> registration, loading, chat, Labs, pipelines, CLI status</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="models unique"><div class="cell"><div class="feat-name">HF Transformers backend refs<em><code>hf:&lt;repo-or-dir&gt;</code>, safetensors, local dirs, image-text routing where supported</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="models"><div class="cell"><div class="feat-name">Curated GGUF / HF / Ollama presets<em>Download-tab pickers for popular repos and library models</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><i class="part">limited</i></div><div class="cell"><i class="part">limited</i></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="models unique"><div class="cell"><div class="feat-name">llama-server + llama-cli fallback<em>Auto-switches if server mode is unavailable</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="models unique"><div class="cell"><div class="feat-name">Auto coding prompt detection + routing</div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- SERVER -->
-  <div class="category" data-cat="server">&#8853; Server &amp; API</div>
-  <div class="row" data-cat="server"><div class="cell"><div class="feat-name">In-app server management</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><i class="part">basic</i></div></div>
-  <div class="row" data-cat="server"><div class="cell"><div class="feat-name">OpenAI-compatible local API</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="server"><div class="cell"><div class="feat-name">Cloud API support<em>OpenAI, Anthropic, Groq, Mistral, Together, OpenRouter, Ollama, Custom</em></div></div><div class="cell"><span class="yes">&#10003;</span><i class="m-note" style="margin-left:6px">8 providers</i></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="server"><div class="cell"><div class="feat-name">In-app API connection test<em>1-token verification before use</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="server"><div class="cell"><div class="feat-name">MCP server management tab<em>Add / start / stop stdio + SSE servers with live logs</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="server unique"><div class="cell"><div class="feat-name">Multi-MCP server support<em>Multiple simultaneous MCP servers running in parallel</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><i class="part">limited</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="server unique"><div class="cell"><div class="feat-name">Thread-safe Labs reload bridge<em>Lab worker reload/context requests marshal back to the GUI main thread</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="server unique"><div class="cell"><div class="feat-name">Busy-safe model operations<em>Blocks unload, reload, context change, and model switch while chat/labs/summary/pipeline workers run</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="server unique"><div class="cell"><div class="feat-name">Hard server unload reset<em>Owned or reused llama-server is killed by active port and engine state returns blank</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><i class="part">basic</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><i class="part">basic</i></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- PIPELINE -->
-  <div class="category" data-cat="pipeline">&#11041; Visual Pipelines</div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Visual pipeline builder (canvas)<em>Drag, drop, B&eacute;zier connections, 8-port blocks, grid snap</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Pipeline save / load<em>Named .json per pipeline, one-click reload</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Loop / cycle stages with &times;N repeat<em>Auto-detected back-edges, dashed badge at midpoint</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Live token streaming per pipeline stage<em>Each block gets its own live output tab</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Manual prompt injection between stages<em>Intermediate block wraps context with custom instruction</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Drag model from sidebar onto canvas<em>Ghost block preview while dragging</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Branch label badges on connections<em>Colour-coded TRUE / FALSE rendered along curve</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Horizontal model pill scroll bar<em>Click to jump to any block on large canvases</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">In-app pipeline manual<em>Themed HTML manual, adapts to user colour scheme</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="pipeline unique"><div class="cell"><div class="feat-name">Pipeline validation<em>Refuses run without INPUT, catches direct MODEL&rarr;MODEL</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- LLM LOGIC -->
-  <div class="category" data-cat="llm-logic">&#9832; Python &amp; LLM Logic Blocks</div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">Python IF / ELSE block<em>Boolean expression routes TRUE &rarr; E / FALSE &rarr; W</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">Python SWITCH block<em>Expression returns string key, routes to matching arm</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">Python FILTER block<em>Gates pipeline &mdash; clean [FILTER DROPPED] on false condition</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">Python TRANSFORM block<em>Prefix, suffix, find-replace, upper, lower, strip, truncate</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">MERGE block<em>Concat, prepend, append, JSON array from multiple incoming connections</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">SPLIT block<em>Broadcasts identical context to all outgoing connections</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">Custom Code block<em>Sandboxed Python editor, live syntax check, test runner</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">Structured Edit lab<em>Checkpointed code-edit workspace, branch-from-history, diffs, diagnostics, editable model JSON</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">LLM IF / ELSE &mdash; natural language condition<em>Model answers YES / NO, routes to corresponding branch</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">LLM SWITCH &mdash; model classification routing<em>Categories from arrow labels, default fallback arm</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">LLM FILTER &mdash; model gates pipeline<em>PASS / STOP with structured explanation on drop</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">LLM TRANSFORM &mdash; model rewrites context<em>Auto-strips preamble, output-only system prompt</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">LLM SCORE &mdash; rates 1&ndash;10, routes LOW / MID / HIGH<em>Score label arm receives raw numeric value downstream</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="llm-logic unique"><div class="cell"><div class="feat-name">Vector search + RAG block in pipeline<em>Semantic retrieval as a first-class pipeline node</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- DOCUMENTS -->
-  <div class="category" data-cat="docs">&#9636; Documents &amp; References</div>
-  <div class="row" data-cat="docs"><div class="cell"><div class="feat-name">PDF / document chat (RAG)</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><i class="part">basic</i></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="docs"><div class="cell"><div class="feat-name">Multi-PDF cross-document synthesis</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="docs unique"><div class="cell"><div class="feat-name">Structured source code parsing (AST)<em>22 languages: Python, JS, TS, Rust, Go, C/C++, Java, SQL&hellip;</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><i class="part">basic</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="docs"><div class="cell"><div class="feat-name">Keyword-ranked chunk retrieval<em>Exact phrase match bonus, top-K injection</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span><i class="m-note" style="margin-left:6px">vector</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="docs"><div class="cell"><div class="feat-name">Per-session reference store (persists across restarts)</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="docs unique"><div class="cell"><div class="feat-name">Script reference panel with AST detail pane<em>Function / class list, dedicated Scripts tab</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="docs unique"><div class="cell"><div class="feat-name">Py-to-Doc project documentation<em>Recursive .gitignore-aware Python discovery, mirrored output tree, file/class/method sections</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="docs unique"><div class="cell"><div class="feat-name">Abrupt Py-to-Doc failure recovery<em>Running jobs that crash are converted to paused/recovered state for resume</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="docs unique"><div class="cell"><div class="feat-name">Py-to-Doc checkpoint repair<em>Detects incomplete completed checkpoints, validates generated offsets, repairs resume metadata</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="docs unique"><div class="cell"><div class="feat-name">Py-to-Doc smart model reloads<em>Context-budget reloads, RAM-triggered section-boundary reloads, cooldowns, re-arm, failure backoff</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- SUMMARIZE -->
-  <div class="category" data-cat="summarize">&#9638; Summarization</div>
-  <div class="row" data-cat="summarize unique"><div class="cell"><div class="feat-name">Chunked long-document summarization<em>Paragraph-boundary splits, context carryover between chunks</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><i class="part">basic</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="summarize unique"><div class="cell"><div class="feat-name">Pause / resume long jobs<em>Full state serialised every 3 chunks</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="summarize unique"><div class="cell"><div class="feat-name">Final consolidation pass (dedicated engine)<em>Reasoning / summarization model for synthesis step</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="summarize unique"><div class="cell"><div class="feat-name">Multi-PDF with cross-document synthesis<em>Per-file summaries &rarr; unified theme analysis</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><i class="part">basic</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- SESSIONS -->
-  <div class="category" data-cat="sessions">&#9635; Sessions &amp; Export</div>
-  <div class="row" data-cat="sessions"><div class="cell"><div class="feat-name">Session history persistence</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><i class="part">limited</i></div></div>
-  <div class="row" data-cat="sessions"><div class="cell"><div class="feat-name">Export (JSON / Markdown / plain text)</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="sessions"><div class="cell"><div class="feat-name">Session search, date grouping, rename, delete</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- UI -->
-  <div class="category" data-cat="ui">&#9672; UI &amp; Experience</div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Dark theme</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Appearance tab (theme customisation)</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Markdown rendering in chat</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui unique"><div class="cell"><div class="feat-name">Offline KaTeX + mixed Markdown/LaTeX rendering<em>Inline math, display math, tables with formulas, fenced-code protection</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><i class="part">partial</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Syntax highlighting in code blocks</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Smooth UI (no flicker, no tearing)<em>Custom QPainter, well-isolated threading model</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Compact IDE-style workspace<em>Dense panels, smaller bottom bar, adaptive sub-window sizing</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><i class="part">web app</i></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Native SVG brand/icons with theme-safe coloring<em>Hugging Face, Ollama, Labs, Structured Edit, Py-to-Doc icons stay readable</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Code copy buttons in chat bubbles</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui unique"><div class="cell"><div class="feat-name">Collapsible long messages<em>Auto-collapse at 260 px, show / hide toggle</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui unique"><div class="cell"><div class="feat-name">Thinking / progress block (summarization)<em>Collapsible section log, turns green on completion</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui unique"><div class="cell"><div class="feat-name">Pipeline intermediate chat bubbles<em>Amber labelled bubbles per stage in chat view</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Colour-coded log console</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="ui"><div class="cell"><div class="feat-name">Keyboard shortcuts</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><i class="part">limited</i></div><div class="cell"><i class="part">limited</i></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- AGENTS -->
-  <div class="category" data-cat="agents">&#11041; Agents &amp; Extras</div>
-  <div class="row" data-cat="agents unique"><div class="cell"><div class="feat-name">Visual agentic pipeline builder<em>Full reasoning agent via LLM logic blocks, no code required</em></div></div><div class="cell"><span class="exclusive">&#9733; Exclusive</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="agents"><div class="cell"><div class="feat-name">AI agents / tool use (MCP)</div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><i class="part">basic</i></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="agents"><div class="cell"><div class="feat-name">Web search (built-in)</div></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="agents"><div class="cell"><div class="feat-name">Multi-user / team support</div></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span><i class="m-note" style="margin-left:6px">Docker</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="agents"><div class="cell"><div class="feat-name">Multimodal (image input)<em>API image input plus supported local VLM / vision routing</em></div></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="agents"><div class="cell"><div class="feat-name">Built-in benchmarking</div></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="yes">&#10003;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-  <div class="row" data-cat="agents"><div class="cell"><div class="feat-name">IPC (Inter-Process Communication)<em>Other applications on the same machine can communicate with NativeLab</em></div></div><div class="cell"><i class="planned">&#9881; In progress</i></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div><div class="cell"><span class="no">&#10007;</span></div></div>
-
-  <!-- RELEASE BANNER -->
-  <div class="release-banner">
-    <strong>v0.3.6-dev coverage &nbsp;&middot;&nbsp;</strong>
-    Py-to-Doc abrupt failure recovery &middot; smart RAM-triggered model reloads &middot; hard unload back to blank server state &middot; busy-safe reload/context guards &middot; thread-safe Lab reload bridge &middot; terminal control center CLI &middot; Dev workspace with Skills &middot; HF Transformers and Ollama backend refs &middot; HF snapshot downloads &middot; Hugging Face account OAuth &middot; offline Markdown + LaTeX rendering &middot; visual pipeline builder with 20+ block types.
-  </div>
-
-  <!-- SUMMARY CARDS -->
-  <div class="summary">
-    <div class="card nl">
-      <div class="card-name">NativeLab v0.3.6-dev</div>
-      <div class="card-score" style="color:var(--nl)">78+</div>
-      <div class="card-score-label">features tracked</div>
-      <div class="card-tag">Best for power users, pipeline builders, agentic AI workflows, privacy-critical environments, long-document research, and crash-resumable code documentation on modest hardware.</div>
-      <span class="card-oss oss-yes">Open Source &middot; AGPL v3</span>
+  <nav class="site-nav">
+    <a class="nav-logo" href="../index.html"><img src="../nativelab/icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
+    <div class="nav-links">
+      <a href="features.html">Features</a>
+      <a href="pipeline.html">Pipelines</a>
+      <a href="compare.html">Compare</a>
+      <a href="setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" rel="noreferrer">GitHub</a>
     </div>
-    <div class="card lms">
-      <div class="card-name">LM Studio</div>
-      <div class="card-score" style="color:var(--lms)">28</div>
-      <div class="card-score-label">features tracked</div>
-      <div class="card-tag">Best for beginners, multi-GPU setups, Apple Silicon, model discovery, and benchmarking.</div>
-      <span class="card-oss oss-no">Proprietary</span>
-    </div>
-    <div class="card any">
-      <div class="card-name">AnythingLLM</div>
-      <div class="card-score" style="color:var(--any)">26</div>
-      <div class="card-score-label">features tracked</div>
-      <div class="card-tag">Best for teams, agent workflows, web search, vector RAG, and Docker deployment.</div>
-      <span class="card-oss oss-yes">Open Source</span>
-    </div>
-    <div class="card jan">
-      <div class="card-name">Jan AI</div>
-      <div class="card-score" style="color:var(--jan)">18</div>
-      <div class="card-score-label">features tracked</div>
-      <div class="card-tag">Best for simple clean chat, Apple Silicon, and connecting to multiple cloud APIs.</div>
-      <span class="card-oss oss-yes">Open Source</span>
-    </div>
-    <div class="card gpt">
-      <div class="card-name">GPT4All</div>
-      <div class="card-score" style="color:var(--gpt)">14</div>
-      <div class="card-score-label">features tracked</div>
-      <div class="card-tag">Best for absolute beginners, Windows / Linux offline chat, and zero-setup deployments.</div>
-      <span class="card-oss oss-yes">Open Source</span>
-    </div>
-  </div>
+  </nav>
 
-  <div class="matrix-footer">
-    <span>NativeLab v0.3.6-dev &nbsp;&middot;&nbsp; Feature Comparison &nbsp;&middot;&nbsp; github.com/7ZoneSystems/NativeLab</span>
-    <span>&#9733; Exclusive = no equivalent feature found in any compared tool &nbsp;|&nbsp; &#9881; In progress = under active development</span>
-  </div>
+  <main>
+    <section class="hero hero-compact">
+      <div class="hero-media">
+        <img src="../images/dark_mode.png" alt="NativeLab dark interface" />
+      </div>
+      <div class="hero-inner">
+        <p class="eyebrow">Comparison - v0.3.7</p>
+        <h1>NativeLab vs the local AI field.</h1>
+        <p class="hero-copy">
+          NativeLab is not only a model launcher. It combines local chat,
+          document workflows, runtime controls, CLI access, Labs, and a visual
+          pipeline system with AI-assisted pipeline creation.
+        </p>
+        <div class="hero-actions">
+          <a class="btn primary" href="features.html">Feature tour</a>
+          <a class="btn ghost" href="setup.html">Setup guide</a>
+        </div>
+      </div>
+    </section>
 
-</div><!-- /.wrapper -->
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="section-kicker">Positioning</p>
+          <h2>NativeLab focuses on workflows around models, not just loading models.</h2>
+        </div>
+        <div class="grid five">
+          <article class="card">
+            <span class="tag">NativeLab</span>
+            <h3>Workspace</h3>
+            <p>Local models, APIs, documents, Labs, CLI, and visual pipelines share one runtime layer.</p>
+          </article>
+          <article class="card">
+            <span class="tag">LM Studio</span>
+            <h3>Launcher</h3>
+            <p>Strong local model discovery, chat, and server controls for GGUF workflows.</p>
+          </article>
+          <article class="card">
+            <span class="tag">AnythingLLM</span>
+            <h3>Knowledge app</h3>
+            <p>Good document workspace and integrations, usually centered on knowledge bases.</p>
+          </article>
+          <article class="card">
+            <span class="tag">Jan</span>
+            <h3>Desktop chat</h3>
+            <p>Open local chat app with model management and a simpler workflow surface.</p>
+          </article>
+          <article class="card">
+            <span class="tag">GPT4All</span>
+            <h3>Offline chat</h3>
+            <p>Beginner-friendly local chat and model downloads with a narrower automation layer.</p>
+          </article>
+        </div>
+      </div>
+    </section>
 
-</div><!-- /.matrix-wrap -->
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="section-kicker">Matrix</p>
+          <h2>Where NativeLab is different.</h2>
+        </div>
+        <div class="table-wrap">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>NativeLab</th>
+                <th>LM Studio</th>
+                <th>AnythingLLM</th>
+                <th>Jan</th>
+                <th>GPT4All</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Open source local-first desktop</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Partial</td>
+                <td class="yes">Yes</td>
+                <td class="yes">Yes</td>
+                <td class="yes">Yes</td>
+              </tr>
+              <tr>
+                <td>GUI and CLI surfaces</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="partial">Partial</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>Visual pipeline builder</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="partial">Limited</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>AI-assisted pipeline builder</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>LLM, logic, file, and context pipeline blocks</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="partial">Partial</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>Shared runtime for chat, docs, Labs, and pipelines</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+              </tr>
+              <tr>
+                <td>Hugging Face snapshot downloads and dependency installer</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>llama.cpp, HF Transformers, Ollama, and API profiles</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Mostly local/API</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Local/API</td>
+                <td class="partial">Local only</td>
+              </tr>
+              <tr>
+                <td>Centralized context and engine error handling</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+              </tr>
+              <tr>
+                <td>C/Rust helper path for pipeline graph operations</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
-<!-- ── FOOTER ── -->
-<footer>
-  <span class="footer-brand">NativeLab</span>
-  <span>Open source · AGPL v3 · Maintained by 7ZoneSystems &amp; contributors</span>
-  <div class="footer-links">
-    <a href="../index.html">Home</a>
-    <a href="features.html">Features</a>
-    <a href="pipeline.html">Pipelines</a>
-    <a href="setup.html">Setup</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
-    <a href="https://pypi.org/project/nativelab/" target="_blank">PyPI</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank">Issues</a>
-  </div>
-</footer>
+    <section class="section dark">
+      <div class="wrap two-col">
+        <div>
+          <p class="section-kicker">Best fit</p>
+          <h2>Choose NativeLab when automation and inspection matter.</h2>
+          <p>
+            NativeLab is strongest when a user needs to inspect model state,
+            manage local runtimes, build repeatable workflows, and keep chat,
+            documents, and pipeline execution inside one app.
+          </p>
+        </div>
+        <div class="feature-list">
+          <div>
+            <strong>For model launch only</strong>
+            <p>LM Studio and similar launchers may be simpler.</p>
+          </div>
+          <div>
+            <strong>For repeatable workflows</strong>
+            <p>NativeLab adds graph editing, validation, native helpers, and AI-assisted pipeline generation.</p>
+          </div>
+          <div>
+            <strong>For developer control</strong>
+            <p>The CLI, Labs, plugin surface, and local-first files make NativeLab easier to inspect and extend.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
 
-<script src="site.js"></script>
-<script>
-  function filterRows(cat, btn) {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const rows = document.querySelectorAll('.row');
-    const cats = document.querySelectorAll('.category');
-    rows.forEach(row => {
-      if (cat === 'all') row.classList.remove('hidden');
-      else if (cat === 'unique') row.classList.toggle('hidden', !row.dataset.cat.includes('unique'));
-      else row.classList.toggle('hidden', !row.dataset.cat.includes(cat));
-    });
-    cats.forEach(c => {
-      if (cat === 'all' || cat === 'unique') c.style.display = '';
-      else c.style.display = c.dataset.cat === cat ? '' : 'none';
-    });
-  }
-</script>
+  <footer class="footer">
+    <span>NativeLab</span>
+    <span>Comparison content is scoped to publicly visible product capabilities.</span>
+  </footer>
+
+  <script src="site.js"></script>
 </body>
 </html>

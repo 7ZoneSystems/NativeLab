@@ -3,607 +3,201 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NativeLab - Open-source local LLM workbench</title>
-  <meta name="description" content="An open-source desktop GUI and terminal client for running local LLMs. Visual pipelines, Labs, Py-to-Doc recovery, Ollama/HF backends, MCP, and API endpoints. pip install nativelab." />
+  <title>NativeLab - Local LLM workbench</title>
+  <meta name="description" content="NativeLab is an open-source local LLM workbench with a desktop GUI, terminal CLI, visual pipelines, AI Pipeline Builder, Labs, Ollama, Hugging Face Transformers, and API backends." />
   <link rel="icon" type="image/png" href="nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="web_page/site.css" />
-
-  <style>
-    /* ── HERO ── */
-    #hero {
-      min-height: 100vh;
-      display: flex; align-items: center;
-      padding: 120px 5vw 80px;
-      position: relative;
-      overflow: hidden;
-    }
-    .hero-texture {
-      position: absolute; inset: 0; z-index: 0;
-      background:
-        radial-gradient(ellipse 70% 60% at 80% 30%, rgba(61,90,71,0.06) 0%, transparent 60%),
-        radial-gradient(ellipse 50% 40% at 20% 80%, rgba(201,168,76,0.05) 0%, transparent 55%);
-    }
-    .hero-inner {
-      position: relative; z-index: 1;
-      display: flex; align-items: center; gap: 4rem;
-      width: 100%; max-width: 1200px; margin: 0 auto;
-    }
-    .hero-copy { flex: 1 1 480px; min-width: 0; }
-    .hero-icon-wrap { margin-bottom: 1.6rem; }
-    .hero-icon {
-      width: 72px; height: 72px;
-      border-radius: 18px;
-      object-fit: contain;
-      box-shadow: 0 4px 20px rgba(61,90,71,0.15), 0 0 0 1px var(--border);
-    }
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      background: var(--warm); border: 1px solid var(--border);
-      border-radius: 100px;
-      padding: 0.3rem 0.9rem;
-      font-size: 0.8rem; font-weight: 500;
-      color: var(--sage);
-      margin-bottom: 2rem;
-      letter-spacing: 0.04em;
-    }
-    .hero-badge::before {
-      content: ''; width: 7px; height: 7px;
-      background: var(--sage); border-radius: 50%;
-    }
-    .hero-sub {
-      font-size: clamp(1rem, 2vw, 1.2rem);
-      color: var(--dim);
-      max-width: 560px;
-      margin-bottom: 2rem;
-      line-height: 1.8;
-      font-weight: 300;
-    }
-    .hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
-    .hero-link-strip {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 0.75rem;
-      max-width: 620px;
-      margin-top: 1.1rem;
-    }
-    .hero-link-btn {
-      min-height: 74px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      gap: 0.18rem;
-      background: rgba(250,249,246,0.74);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.85rem 1rem;
-      text-decoration: none;
-      color: var(--ink);
-      transition: all 0.18s;
-    }
-    .hero-link-btn:hover {
-      border-color: var(--sage-lt);
-      background: #fff;
-      transform: translateY(-1px);
-      box-shadow: 0 10px 22px rgba(15,14,23,0.05);
-    }
-    .hero-link-btn span {
-      font-family: 'DM Mono', monospace;
-      font-size: 0.66rem;
-      color: var(--sage);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-    .hero-link-btn strong {
-      font-size: 0.88rem;
-      line-height: 1.35;
-      font-weight: 500;
-    }
-    @media (max-width: 560px) { .hero-link-strip { grid-template-columns: 1fr; } }
-
-    .hero-fig {
-      flex: 0 0 auto;
-      width: min(420px, 38vw);
-      opacity: 0.95;
-      pointer-events: none;
-    }
-    @media (max-width: 900px) { .hero-fig { display: none; } }
-
-    .terminal {
-      background: #141414;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.06);
-      font-family: 'DM Mono', monospace;
-      font-size: 0.82rem;
-    }
-    .terminal-bar {
-      background: #1e1e1e;
-      padding: 0.6rem 1rem;
-      display: flex; align-items: center; gap: 0.4rem;
-    }
-    .dot { width: 10px; height: 10px; border-radius: 50%; }
-    .dot-r { background: #ff5f57; }
-    .dot-y { background: #ffbd2e; }
-    .dot-g { background: #28c840; }
-    .terminal-title { font-size: 0.7rem; color: #666; margin-left: auto; font-family: 'DM Sans', sans-serif; }
-    .terminal-body { padding: 1.2rem 1.2rem 1.4rem; line-height: 1.85; }
-    .t-dim    { color: #555; }
-    .t-green  { color: #34d399; }
-    .t-amber  { color: #fbbf24; }
-    .t-cyan   { color: #22d3ee; }
-    .t-white  { color: #e5e5e5; }
-    .cursor   { display: inline-block; width: 8px; height: 14px; background: #34d399; vertical-align: middle; animation: blink 1.1s step-end infinite; }
-    @keyframes blink { 50% { opacity: 0; } }
-
-    /* ── WHY-OVER-OTHERS ── */
-    #why { background: var(--paper); }
-    .why-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 1.5rem;
-      margin-top: 3rem;
-    }
-    .why-card {
-      background: var(--warm);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 1.8rem 1.7rem;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .why-card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0,0,0,0.05); }
-    .why-card-icon { font-size: 1.4rem; display: block; margin-bottom: 0.8rem; }
-    .why-card h4 {
-      font-family: 'Instrument Serif', serif;
-      font-size: 1.3rem;
-      color: var(--ink);
-      margin-bottom: 0.55rem;
-      line-height: 1.25;
-    }
-    .why-card p { font-size: 0.9rem; color: var(--dim); font-weight: 300; line-height: 1.7; margin-bottom: 0.7rem; }
-    .why-card .vs {
-      display: inline-block;
-      font-family: 'DM Mono', monospace;
-      font-size: 0.7rem;
-      letter-spacing: 0.04em;
-      color: var(--sage);
-      background: #fff;
-      border: 1px solid var(--border);
-      padding: 0.18rem 0.55rem;
-      border-radius: 4px;
-    }
-
-    /* ── PIPELINE TEASER ── */
-    #pipeline-teaser { background: var(--ink); color: #fff; }
-    #pipeline-teaser .section-label { color: #8a937d; }
-    #pipeline-teaser h2 { color: #fff; }
-    #pipeline-teaser h2 em { color: var(--gold); }
-    #pipeline-teaser .section-intro { color: #9e9b92; }
-
-    .teaser-layout {
-      display: grid; grid-template-columns: 1.1fr 0.9fr;
-      gap: 4rem; align-items: center; margin-top: 3rem;
-    }
-    @media (max-width: 860px) { .teaser-layout { grid-template-columns: 1fr; gap: 2.5rem; } }
-
-    .teaser-canvas {
-      background: #0d0d1c; border: 1px solid #252340;
-      border-radius: 14px; padding: 2rem 1.6rem;
-    }
-    .teaser-flow {
-      display: flex; align-items: center; justify-content: center;
-      gap: 0; flex-wrap: nowrap; overflow-x: auto;
-      margin-bottom: 1.4rem;
-    }
-    .pipe-node { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
-    .pipe-node-box {
-      width: 70px; height: 52px; border-radius: 9px;
-      display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 2px;
-      font-family: 'DM Mono', monospace; font-size: 0.56rem; font-weight: 500;
-      border: 1.5px solid;
-    }
-    .pipe-node-box .nicon { font-size: 0.9rem; }
-    .pipe-node-lbl { font-size: 0.6rem; color: #3a3a55; font-family: 'DM Mono', monospace; }
-    .pipe-arrow { flex-shrink: 0; color: #252340; font-size: 0.9rem; padding: 0 3px; display: flex; align-items: center; margin-bottom: 18px; }
-    .pipe-arrow.loop { color: #22d3ee; }
-    .pn-input  { background: rgba(52,211,153,0.08);  border-color: #34d399; color: #34d399; }
-    .pn-ref    { background: rgba(167,139,250,0.08); border-color: #a78bfa; color: #a78bfa; }
-    .pn-model  { background: rgba(34,211,238,0.08);  border-color: #22d3ee; color: #22d3ee; }
-    .pn-llm    { background: rgba(251,191,36,0.08);  border-color: #fbbf24; color: #fbbf24; }
-    .pn-output { background: rgba(248,113,113,0.08); border-color: #f87171; color: #f87171; }
-
-    .teaser-bullets { display: flex; flex-direction: column; gap: 1.4rem; }
-    .teaser-bullet { border-left: 2px solid #1e1e38; padding-left: 1.2rem; transition: border-color 0.2s; }
-    .teaser-bullet:hover { border-color: var(--gold); }
-    .teaser-bullet h5 { font-weight: 500; font-size: 0.96rem; color: #e8e4d8; margin-bottom: 0.35rem; }
-    .teaser-bullet p { font-size: 0.86rem; color: #6a6860; line-height: 1.7; font-weight: 300; }
-
-    /* ── INSTALL ── */
-    #install { background: var(--warm); }
-    .install-grid {
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.4rem; margin-top: 3rem;
-    }
-    .install-card-dark {
-      background: #141414; color: #e5e5e5;
-      border-radius: 12px; padding: 1.5rem 1.7rem;
-      font-family: 'DM Mono', monospace;
-    }
-    .install-card-dark .lbl {
-      font-family: 'DM Sans', sans-serif; font-size: 0.78rem; color: #888;
-      margin-bottom: 0.9rem; letter-spacing: 0.06em;
-    }
-    .install-card-dark code-line { display: block; font-size: 0.86rem; line-height: 2; }
-    .install-card-light {
-      background: var(--paper); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1.5rem 1.7rem;
-    }
-    .install-card-light h4 {
-      font-family: 'Instrument Serif', serif; font-size: 1.25rem;
-      color: var(--ink); margin-bottom: 0.55rem;
-    }
-    .install-card-light p { font-size: 0.88rem; color: var(--dim); line-height: 1.7; font-weight: 300; }
-    .install-snippet {
-      font-family: 'DM Mono', monospace; font-size: 0.78rem;
-      background: var(--warm); border: 1px solid var(--border);
-      border-radius: 6px; padding: 0.6rem 0.8rem;
-      color: var(--sage);
-      margin-top: 0.7rem;
-    }
-
-    /* ── CTA ── */
-    #cta { background: var(--sage); color: #fff; text-align: center; padding: 7rem 5vw; }
-    #cta .section-label { color: rgba(255,255,255,0.5); }
-    #cta h2 { color: #fff; }
-    #cta h2 em { font-style: italic; color: var(--gold); }
-    #cta p { color: rgba(255,255,255,0.7); max-width: 480px; margin: 0 auto 2.5rem; font-size: 1rem; font-weight: 300; line-height: 1.8; }
-    #cta .btn-primary { background: #fff; color: var(--sage); border-color: #fff; font-size: 1rem; }
-    #cta .btn-primary:hover { background: transparent; color: #fff; }
-    #cta .btn-secondary { color: rgba(255,255,255,0.8); border-color: rgba(255,255,255,0.3); font-size: 1rem; }
-    #cta .btn-secondary:hover { border-color: #fff; color: #fff; }
-    .cta-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
-
-    /* ── WHAT'S NEW BANNER ── */
-    #whats-new { background: var(--ink); padding: 3rem 5vw; }
-    .new-banner-inner {
-      display: flex; align-items: flex-start;
-      justify-content: space-between; flex-wrap: wrap; gap: 2rem;
-      max-width: 1200px; margin: 0 auto;
-    }
-    .new-label {
-      font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase;
-      color: var(--gold); font-weight: 600; margin-bottom: 0.6rem;
-    }
-    .new-banner-text h3 {
-      font-family: 'Instrument Serif', serif;
-      font-size: 1.7rem; color: #fff; line-height: 1.25;
-    }
-    .new-banner-text h3 em { font-style: italic; color: var(--gold); }
-    .new-pills {
-      display: flex; flex-wrap: wrap; gap: 0.5rem; max-width: 580px; padding-top: 0.35rem;
-    }
-    .new-pill {
-      display: inline-flex; align-items: center; gap: 0.4rem;
-      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 100px; padding: 0.35rem 0.9rem;
-      font-size: 0.8rem; color: #bbb; font-weight: 400; transition: all 0.2s;
-    }
-    .new-pill:hover { background: rgba(255,255,255,0.11); color: #fff; }
-    .new-pill code { font-family: 'DM Mono', monospace; font-size: 0.75rem; }
-  </style>
 </head>
 <body>
+  <nav class="site-nav">
+    <a class="nav-logo" href="index.html"><img src="nativelab/icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
+    <div class="nav-links">
+      <a href="web_page/features.html">Features</a>
+      <a href="web_page/pipeline.html">Pipelines</a>
+      <a href="web_page/compare.html">Compare</a>
+      <a href="web_page/setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+      <a href="https://pypi.org/project/nativelab/" target="_blank" class="nav-cta nav-keep">Install</a>
+    </div>
+  </nav>
 
-<!-- ── NAV ── -->
-<nav>
-  <a class="nav-logo" href="index.html"><img src="nativelab/icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
-  <div class="nav-links">
-    <a href="web_page/features.html">Features</a>
-    <a href="web_page/pipeline.html">Pipelines</a>
-    <a href="web_page/compare.html">vs. The Field</a>
-    <a href="web_page/setup.html">Setup</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="nav-cta nav-keep">★ Star</a>
-  </div>
-</nav>
-
-<!-- ── HERO ── -->
-<section id="hero">
-  <div class="hero-texture"></div>
-  <div class="hero-inner">
-
-    <div class="hero-copy">
-      <div class="hero-icon-wrap">
-        <img src="nativelab/icon.png" alt="NativeLab" class="hero-icon" />
-      </div>
-      <div class="hero-badge">Open Source · AGPL v3 · v0.3.6-dev</div>
-      <h1>A local LLM<br><em>workbench</em>,<br>not a product.</h1>
-      <p class="hero-sub">
-        NativeLab is an open-source desktop GUI and terminal client for running
-        large language models on your own hardware. Built around llama.cpp, with
-        a visual pipeline builder, MCP support, and a Labs experimentation layer.
+  <header class="hero">
+    <div class="hero-media">
+      <img src="images/dark_mode.png" alt="NativeLab dark mode chat workspace" />
+    </div>
+    <div class="hero-inner">
+      <p class="eyebrow">Open source local AI workspace - v0.3.7</p>
+      <h1>Run, build, and automate local LLM workflows.</h1>
+      <p class="hero-copy">
+        NativeLab combines a desktop GUI, terminal CLI, visual pipeline builder,
+        AI-assisted pipeline generation, Labs, document workflows, Ollama, HF
+        Transformers, llama.cpp, and API backends in one local-first app.
       </p>
       <div class="hero-actions">
-        <a href="#install" class="btn-primary">↓ &nbsp;Install with pip</a>
-        <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-secondary">View source on GitHub →</a>
-      </div>
-      <div class="hero-link-strip" aria-label="NativeLab site shortcuts">
-        <a href="web_page/compare.html" class="hero-link-btn">
-          <span>Compare</span>
-          <strong>NativeLab vs. LM Studio, Jan, GPT4All</strong>
-        </a>
-        <a href="web_page/features.html" class="hero-link-btn">
-          <span>Features</span>
-          <strong>Current GUI, CLI, Labs, and backend catalogue</strong>
-        </a>
-        <a href="web_page/pipeline.html" class="hero-link-btn">
-          <span>Pipelines</span>
-          <strong>Visual builder and LLM-logic blocks</strong>
-        </a>
-        <a href="web_page/setup.html" class="hero-link-btn">
-          <span>Setup</span>
-          <strong>Install, models, APIs, and first launch</strong>
-        </a>
-      </div>
-      <div style="margin-top: 1.4rem; font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--dim);">
-        $ <span style="color: var(--sage);">pip install nativelab</span> &nbsp;·&nbsp; Linux · macOS · Windows
-      </div>
-      <div class="gh-stats">
-        <a href="https://github.com/7ZoneSystems/NativeLab/stargazers" target="_blank">
-          <img src="https://img.shields.io/github/stars/7ZoneSystems/NativeLab?style=flat&logo=github&label=stars&color=181717" alt="Stars" />
-        </a>
-        <a href="https://github.com/7ZoneSystems/NativeLab/network/members" target="_blank">
-          <img src="https://img.shields.io/github/forks/7ZoneSystems/NativeLab?style=flat&logo=github&label=forks&color=181717" alt="Forks" />
-        </a>
-        <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">
-          <img src="https://img.shields.io/badge/dynamic/json?color=success&label=clones&query=count&url=https://gist.githubusercontent.com/7ZoneSystems/33a9ac91ae3e3c895eb5d07391b456e3/raw/clone.json&logo=github" alt="Clones" />
-        </a>
-        <a href="https://pypi.org/project/nativelab/" target="_blank">
-          <img src="https://img.shields.io/pypi/v/nativelab?logo=pypi&logoColor=white&label=pypi&color=3775A9" alt="PyPI" />
-        </a>
-        <a href="https://pypi.org/project/nativelab/" target="_blank">
-          <img src="https://img.shields.io/pypi/dm/nativelab?logo=pypi&logoColor=white&label=downloads&color=3775A9" alt="PyPI downloads" />
-        </a>
-        <a href="https://github.com/7ZoneSystems/NativeLab/commits/main" target="_blank">
-          <img src="https://img.shields.io/github/last-commit/7ZoneSystems/NativeLab?logo=github&color=brightgreen" alt="Last commit" />
-        </a>
+        <a class="btn primary" href="https://pypi.org/project/nativelab/" target="_blank">pip install nativelab</a>
+        <a class="btn" href="web_page/setup.html">Setup guide</a>
+        <a class="btn" href="https://github.com/7ZoneSystems/NativeLab" target="_blank">View source</a>
       </div>
     </div>
+  </header>
 
-    <div class="hero-fig">
-      <div class="terminal">
-        <div class="terminal-bar">
-          <div class="dot dot-r"></div>
-          <div class="dot dot-y"></div>
-          <div class="dot dot-g"></div>
-          <span class="terminal-title">nativelab --cli</span>
-        </div>
-        <div class="terminal-body">
-          <div><span class="t-dim">$ </span><span class="t-white">pip install nativelab</span></div>
-          <div><span class="t-green">✓ </span><span class="t-dim">installed nativelab 0.3.6</span></div>
-          <br>
-          <div><span class="t-dim">$ </span><span class="t-white">nativelab --cli</span></div>
-          <div><span class="t-cyan">▸ </span><span class="t-dim">llama-server detected on :8612</span></div>
-          <div><span class="t-cyan">▸ </span><span class="t-dim">model: DeepSeek-R1-Q5_K_M.gguf</span></div>
-          <br>
-          <div class="t-dim">────────────────────────────</div>
-          <br>
-          <div><span class="t-white">you ▸ </span><span class="t-dim">explain @endpoints.py</span></div>
-          <div><span class="t-amber">bot ▸ </span><span class="t-dim">It's the shared surface</span></div>
-          <div><span class="t-dim">      every Labs panel uses…</span></div>
-          <br>
-          <div><span class="t-white">you ▸ </span><span class="cursor"></span></div>
+  <main>
+    <section class="section alt">
+      <div class="wrap">
+        <div class="stat-strip fade-up">
+          <div class="stat"><strong>GUI + CLI</strong><span>same local engine surface</span></div>
+          <div class="stat"><strong>20+ blocks</strong><span>visual pipeline editor</span></div>
+          <div class="stat"><strong>C/Rust</strong><span>optional native hot paths</span></div>
+          <div class="stat"><strong>No account</strong><span>local-first by default</span></div>
         </div>
       </div>
-    </div>
+    </section>
 
-  </div>
-</section>
-
-<!-- ── WHAT'S NEW ── -->
-<div id="whats-new">
-  <div class="new-banner-inner">
-    <div class="new-banner-text">
-      <div class="new-label">✦ What's new in v0.3.6-dev</div>
-      <h3>Py-to-Doc recovery,<br><em>safe reloads &amp; backend breadth</em></h3>
-    </div>
-    <div class="new-pills">
-      <span class="new-pill">🛟 &nbsp;Abrupt Py-to-Doc task recovery</span>
-      <span class="new-pill">♻️ &nbsp;Smart RAM-triggered model reloads</span>
-      <span class="new-pill">🔒 &nbsp;Busy-safe unload / reload guards</span>
-      <span class="new-pill">🦙 &nbsp;Ollama backend refs</span>
-      <span class="new-pill">🤗 &nbsp;HF Transformers + safetensors refs</span>
-      <span class="new-pill">∑ &nbsp;Offline Markdown + LaTeX rendering</span>
-    </div>
-  </div>
-</div>
-
-<!-- ── WHY NATIVELAB / vs others ── -->
-<section id="why">
-  <p class="section-label">Why NativeLab</p>
-  <h2>What you get here<br><em>that you don't elsewhere</em></h2>
-  <p class="section-intro">There are plenty of local-LLM apps. NativeLab differs on a handful of capabilities that the others either don't have, charge for, or hide behind a closed source. Here's the honest list - see the <a href="web_page/compare.html" style="color:var(--clay);">full comparison matrix</a> for line-by-line detail.</p>
-
-  <div class="why-grid">
-    <div class="why-card fade-up">
-      <span class="why-card-icon">🏗️</span>
-      <h4>Visual pipeline builder</h4>
-      <p>Drag-and-drop canvas with 20+ block types - Input, Model, Reference, Intermediate, MERGE, SPLIT, IF/ELSE, LLM-IF, LLM-SCORE, Custom Code. Loops with iteration counts. Live token streaming per stage.</p>
-      <span class="vs">No equivalent in LM Studio · Jan · GPT4All</span>
-    </div>
-    <div class="why-card fade-up">
-      <span class="why-card-icon">🧠</span>
-      <h4>LLM-logic blocks</h4>
-      <p>Five blocks where the model itself routes the pipeline - LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-TRANSFORM, LLM-SCORE. Build agentic flows visually, no code.</p>
-      <span class="vs">Exclusive to NativeLab</span>
-    </div>
-    <div class="why-card fade-up">
-      <span class="why-card-icon">🧪</span>
-      <h4>Labs - drop-in panels</h4>
-      <p>Add a new feature by dropping one Python file into <code>nativelab/labs/</code>. Every panel gets the same endpoint API for engine status, model swap, context change, and LLM calls.</p>
-      <span class="vs">Exclusive to NativeLab</span>
-    </div>
-    <div class="why-card fade-up">
-      <span class="why-card-icon">⌨️</span>
-      <h4>Terminal CLI, same engine</h4>
-      <p><code>nativelab --cli</code> drops you into a Claude-Code-style chat REPL with <code>@file</code> embedding, slash commands, and built-in linting. Shares the engine layer with the GUI.</p>
-      <span class="vs">No CLI in LM Studio · Jan · GPT4All</span>
-    </div>
-    <div class="why-card fade-up">
-      <span class="why-card-icon">⏯️</span>
-      <h4>Crash-aware long jobs</h4>
-      <p>Py-to-Doc writes checkpoints, detects abruptly interrupted running tasks, converts them back to resumable paused jobs, and can reload local models between sections when RAM gets tight.</p>
-      <span class="vs">Exclusive to NativeLab</span>
-    </div>
-    <div class="why-card fade-up">
-      <span class="why-card-icon">🔓</span>
-      <h4>Fully open source</h4>
-      <p>AGPL v3, every parameter exposed in the UI, codebase developed in the open. LM Studio is proprietary. Read it, fork it, audit it.</p>
-      <span class="vs">vs. LM Studio (proprietary)</span>
-    </div>
-  </div>
-
-  <div style="margin-top: 3rem; text-align: center;">
-    <a href="web_page/compare.html" class="btn-secondary">See the full comparison matrix →</a>
-  </div>
-</section>
-
-<!-- ── PIPELINE TEASER ── -->
-<section id="pipeline-teaser">
-  <p class="section-label">The headline feature</p>
-  <h2>Chain models together<br><em>like building blocks.</em></h2>
-  <p class="section-intro">No code, no config files. Draw a pipeline on a canvas, hit Run, and watch each stage stream its output live. The pipeline builder is what most users come to NativeLab for - it's also where the gap to other tools is widest.</p>
-
-  <div class="teaser-layout">
-    <div class="teaser-canvas">
-      <div class="teaser-flow">
-        <div class="pipe-node">
-          <div class="pipe-node-box pn-input"><span class="nicon">▶</span>INPUT</div>
-          <span class="pipe-node-lbl">prompt</span>
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">What it is</p>
+            <h2>A compact workbench for serious local model work.</h2>
+          </div>
+          <p class="lead">
+            NativeLab is not just a chat box. It is a model runner, document
+            workspace, visual workflow editor, CLI, integration endpoint, and
+            experimental app surface built around local ownership.
+          </p>
         </div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-node">
-          <div class="pipe-node-box pn-ref"><span class="nicon">📎</span>REF.</div>
-          <span class="pipe-node-lbl">inject docs</span>
-        </div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-node">
-          <div class="pipe-node-box pn-model"><span class="nicon">🤖</span>MODEL</div>
-          <span class="pipe-node-lbl">reason</span>
-        </div>
-        <div class="pipe-arrow loop">↻×2</div>
-        <div class="pipe-node">
-          <div class="pipe-node-box pn-llm"><span class="nicon">⚖</span>LLM-IF</div>
-          <span class="pipe-node-lbl">YES / NO</span>
-        </div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-node">
-          <div class="pipe-node-box pn-output"><span class="nicon">■</span>OUTPUT</div>
-          <span class="pipe-node-lbl">final answer</span>
+
+        <div class="grid three">
+          <article class="card fade-up">
+            <h3>Desktop GUI</h3>
+            <p class="muted">Chat, models, downloads, API profiles, references, pipeline builder, Labs, MCP, integrations, settings, and live context status.</p>
+            <div class="tag-row"><span class="tag green">PyQt6</span><span class="tag">themeable</span></div>
+          </article>
+          <article class="card fade-up">
+            <h3>Terminal CLI</h3>
+            <p class="muted">A scriptable control center for chat, setup, models, Labs, saved pipelines, integrations, endpoint serving, and file references.</p>
+            <div class="tag-row"><span class="tag blue">nativelab --cli</span><span class="tag">@file</span></div>
+          </article>
+          <article class="card fade-up">
+            <h3>Visual pipelines</h3>
+            <p class="muted">Build multi-step model workflows with logic blocks, loops, references, live intermediate output, and an AI Builder tab.</p>
+            <div class="tag-row"><span class="tag amber">AI Builder</span><span class="tag">save as JSON</span></div>
+          </article>
         </div>
       </div>
-      <div style="border-top: 1px solid #1a1a30; padding-top: 1.2rem; font-family: 'DM Mono', monospace; font-size: 0.7rem; color: #555; text-align: center;">
-        20+ block types · 5 LLM-logic blocks · save/load · loop-aware
+    </section>
+
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Pipeline builder</p>
+            <h2>Draw a workflow. Let the model help build it.</h2>
+          </div>
+          <p class="lead">
+            The pipeline editor has resizable sidebars, shipped example presets,
+            blank-canvas panning, auto-growing canvases, centralized validation,
+            and optional native graph helpers. The AI Builder turns a request
+            into validated pipeline JSON.
+          </p>
+        </div>
+
+        <div class="grid two">
+          <article class="card media-card fade-up">
+            <img src="images/pipeline.png" alt="NativeLab visual pipeline builder screenshot" />
+            <div class="media-caption">
+              <h3>Visual graph editor</h3>
+              <p class="muted">Input, model, reference, transform, merge, split, LLM logic, custom code, and output blocks.</p>
+            </div>
+          </article>
+          <article class="card fade-up">
+            <h3>New in v0.3.7</h3>
+            <ul class="feature-list">
+              <li>AI Pipeline Builder tab</li>
+              <li>Context preflight before model calls</li>
+              <li>/get_data and /context commands</li>
+              <li>Example pipeline presets</li>
+              <li>Resizable retractable sidebars</li>
+              <li>C-backed graph and validation helpers</li>
+            </ul>
+            <div class="actions" style="margin-top:22px">
+              <a class="btn primary" href="web_page/pipeline.html">Pipeline guide</a>
+              <a class="btn" href="docs/pipeline-builder.md">Read docs</a>
+            </div>
+          </article>
+        </div>
       </div>
+    </section>
+
+    <section class="section dark">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Backends</p>
+            <h2>Use the model runtime that fits the job.</h2>
+          </div>
+          <p class="lead">
+            Local GGUF, llama.cpp server/CLI, running Ollama models, optional
+            HF Transformers snapshots, OpenAI-compatible APIs, and Anthropic
+            endpoints share the same app state.
+          </p>
+        </div>
+        <div class="grid four">
+          <article class="card dark-card fade-up"><h3>llama.cpp</h3><p class="muted">Local GGUF models, server mode, CLI fallback, GPU offload settings, and runtime installer.</p></article>
+          <article class="card dark-card fade-up"><h3>Ollama</h3><p class="muted">Register and pull models from an already-running daemon with shared runtime status.</p></article>
+          <article class="card dark-card fade-up"><h3>HF Transformers</h3><p class="muted">Snapshot downloader, in-app dependency installer, safetensors, dtype, device map, and offline paths.</p></article>
+          <article class="card dark-card fade-up"><h3>API models</h3><p class="muted">OpenAI-compatible and Anthropic profiles work in chat, Labs, pipelines, and integrations.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Install</p>
+            <h2>One package, then choose your runtime.</h2>
+          </div>
+          <p class="lead">
+            The default install includes the GUI. New users can let auto setup
+            pick a practical llama.cpp or HF Transformers path based on hardware.
+          </p>
+        </div>
+        <div class="grid two">
+          <pre class="codebox fade-up"><span class="dim">$</span> pip install nativelab
+<span class="dim">$</span> nativelab        <span class="dim"># desktop GUI</span>
+<span class="dim">$</span> nativelab --cli  <span class="dim"># terminal control center</span></pre>
+          <article class="card fade-up">
+            <h3>What setup handles</h3>
+            <ul class="feature-list">
+              <li>llama.cpp runtime download</li>
+              <li>GGUF or HF model download</li>
+              <li>HF dependency install button</li>
+              <li>Ollama registration</li>
+              <li>API model profiles</li>
+              <li>Resumable setup state</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>NativeLab - AGPL v3 - local-first LLM workbench</span>
+    <div class="footer-links">
+      <a href="web_page/features.html">Features</a>
+      <a href="web_page/pipeline.html">Pipelines</a>
+      <a href="web_page/compare.html">Compare</a>
+      <a href="web_page/setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+      <a href="https://pypi.org/project/nativelab/" target="_blank">PyPI</a>
     </div>
+  </footer>
 
-    <div class="teaser-bullets">
-      <div class="teaser-bullet">
-        <h5>Draw connections by hand</h5>
-        <p>Drag from any port on a block to any port on another. Smooth Bézier curves. Delete with a click. Whiteboard, not settings panel.</p>
-      </div>
-      <div class="teaser-bullet">
-        <h5>Loops detected automatically</h5>
-        <p>Connect a block back to an earlier one and NativeLab detects the cycle. Set how many times to repeat - it accumulates context each pass.</p>
-      </div>
-      <div class="teaser-bullet">
-        <h5>Every stage streams live</h5>
-        <p>Each Intermediate block gets its own live tab. You see every model's tokens arriving in real time. No black boxes.</p>
-      </div>
-      <div class="teaser-bullet">
-        <h5>Run from chat</h5>
-        <p>Hit the 🔗 Pipeline button next to Send. Pick a saved pipeline and it runs on your current message - each stage appears as its own labelled bubble.</p>
-      </div>
-      <div style="margin-top: 0.6rem;">
-        <a href="web_page/pipeline.html" style="color: var(--gold); text-decoration: none; font-weight: 500; font-size: 0.95rem;">Read the full pipeline guide →</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ── INSTALL ── -->
-<section id="install">
-  <p class="section-label">Install &amp; run</p>
-  <h2>One command,<br><em>any platform</em></h2>
-  <p class="section-intro">NativeLab ships as a pure Python package on PyPI. Install with pip - exactly the same on Linux, macOS, and Windows. Requires Python 3.10 or newer.</p>
-
-  <div class="install-grid">
-
-    <div class="install-card-dark">
-      <div class="lbl">▸ &nbsp;LINUX · MACOS · WINDOWS</div>
-      <div style="font-size: 0.86rem; line-height: 2;">
-        <div><span style="color: #555;">$</span> pip install <span style="color: #34d399;">nativelab</span></div>
-        <div><span style="color: #555;">$</span> nativelab <span style="color: #888;"># desktop GUI</span></div>
-        <div><span style="color: #555;">$</span> nativelab --cli <span style="color: #888;"># terminal client</span></div>
-      </div>
-    </div>
-
-    <div class="install-card-light">
-      <h4>First-time setup wizard</h4>
-      <p>On first launch, the GUI's Download tab installs llama.cpp binaries and pulls a GGUF model - no manual setup. The CLI runs an interactive wizard that finds <code>llama-server</code>, downloads a model, and drops you into a chat REPL.</p>
-    </div>
-
-    <div class="install-card-light">
-      <h4>Build from source</h4>
-      <p>Clone the repository and install in editable mode if you'd like to hack on it.</p>
-      <div class="install-snippet">
-        git clone github.com/7ZoneSystems/NativeLab<br>
-        cd NativeLab &amp;&amp; pip install -e .
-      </div>
-    </div>
-
-  </div>
-
-  <div style="margin-top: 2.5rem; display: flex; gap: 1rem; flex-wrap: wrap;">
-    <a href="https://pypi.org/project/nativelab/" target="_blank" class="btn-primary">View on PyPI →</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-secondary">Source on GitHub →</a>
-    <a href="web_page/setup.html" class="btn-secondary">Full setup guide →</a>
-  </div>
-</section>
-
-<!-- ── CTA ── -->
-<section id="cta">
-  <p class="section-label">Open source · AGPL v3</p>
-  <h2>Run it locally.<br><em>Read the source.</em></h2>
-  <p>NativeLab is community-driven. Install with a single pip command, contribute on GitHub, or fork it and make it your own. No account, no credit card, no telemetry.</p>
-  <div class="cta-actions">
-    <a href="https://pypi.org/project/nativelab/" target="_blank" class="btn-primary">↓ &nbsp;pip install nativelab</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" class="btn-secondary">★ &nbsp;Star on GitHub</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank" class="btn-secondary">Issues &amp; discussions →</a>
-  </div>
-  <p style="margin-top: 2rem; font-family: 'DM Mono', monospace; font-size: 0.82rem; color: rgba(255,255,255,0.55);">
-    Linux · macOS · Windows &nbsp;·&nbsp; Python 3.10+ &nbsp;·&nbsp; PyPI: nativelab
-  </p>
-</section>
-
-<!-- ── FOOTER ── -->
-<footer>
-  <span class="footer-brand">NativeLab</span>
-  <span>Open source · AGPL v3 · Maintained by 7ZoneSystems &amp; contributors</span>
-  <div class="footer-links">
-    <a href="web_page/features.html">Features</a>
-    <a href="web_page/pipeline.html">Pipelines</a>
-    <a href="web_page/compare.html">vs. The Field</a>
-    <a href="web_page/setup.html">Setup</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
-    <a href="https://pypi.org/project/nativelab/" target="_blank">PyPI</a>
-    <a href="https://github.com/7ZoneSystems/NativeLab/issues" target="_blank">Issues</a>
-  </div>
-</footer>
-
-<script src="web_page/site.js"></script>
+  <script src="web_page/site.js"></script>
 </body>
 </html>
