@@ -140,9 +140,6 @@ class ApiServerTab(QWidget):
         key_hdr = QHBoxLayout()
         key_hdr.addWidget(self._section("IP-BOUND API KEYS"))
         key_hdr.addStretch()
-        self.show_keys_toggle = ToggleSwitch("Show keys")
-        self.show_keys_toggle.toggled.connect(self._toggle_key_visibility)
-        key_hdr.addWidget(self.show_keys_toggle)
         layout.addLayout(key_hdr)
         key_row = QHBoxLayout()
         key_row.setSpacing(12)
@@ -152,16 +149,28 @@ class ApiServerTab(QWidget):
         self.lan_key_edit = QLineEdit()
         self.lan_key_edit.setEchoMode(QLineEdit.EchoMode.Password)
         self.lan_key_edit.setPlaceholderText("WiFi/LAN key")
+        self.btn_show_local_key = self._eye_button()
+        self.btn_show_lan_key = self._eye_button()
+        self.btn_show_local_key.toggled.connect(
+            lambda checked: self._toggle_key_visibility(self.local_key_edit, self.btn_show_local_key, checked))
+        self.btn_show_lan_key.toggled.connect(
+            lambda checked: self._toggle_key_visibility(self.lan_key_edit, self.btn_show_lan_key, checked))
         self.btn_gen_local = QPushButton("Generate")
         self.btn_gen_lan = QPushButton("Generate")
         set_button_icon(self.btn_gen_local, "key", "Generate")
         set_button_icon(self.btn_gen_lan, "key", "Generate")
+        self.btn_gen_local.setFixedHeight(30)
+        self.btn_gen_lan.setFixedHeight(30)
         self.btn_gen_local.clicked.connect(lambda: self.local_key_edit.setText(generate_api_key()))
         self.btn_gen_lan.clicked.connect(lambda: self.lan_key_edit.setText(generate_api_key()))
-        key_row.addLayout(self._field("127.0.0.1 key", self.local_key_edit), 1)
-        key_row.addWidget(self.btn_gen_local)
-        key_row.addLayout(self._field("WiFi/LAN key", self.lan_key_edit), 1)
-        key_row.addWidget(self.btn_gen_lan)
+        key_row.addLayout(
+            self._key_field("127.0.0.1 key", self.local_key_edit, self.btn_show_local_key, self.btn_gen_local),
+            1,
+        )
+        key_row.addLayout(
+            self._key_field("WiFi/LAN key", self.lan_key_edit, self.btn_show_lan_key, self.btn_gen_lan),
+            1,
+        )
         layout.addLayout(key_row)
 
         actions = QHBoxLayout()
@@ -254,27 +263,57 @@ class ApiServerTab(QWidget):
         box.addWidget(widget)
         return box
 
+    @staticmethod
+    def _key_field(
+        label: str,
+        edit: QLineEdit,
+        reveal_btn: QPushButton,
+        generate_btn: QPushButton,
+    ) -> QVBoxLayout:
+        box = QVBoxLayout()
+        box.setSpacing(4)
+        lab = QLabel(label)
+        lab.setObjectName("txt2_xs")
+        row = QHBoxLayout()
+        row.setSpacing(4)
+        row.addWidget(edit, 1)
+        row.addWidget(reveal_btn)
+        row.addWidget(generate_btn)
+        box.addWidget(lab)
+        box.addLayout(row)
+        return box
+
+    @staticmethod
+    def _eye_button() -> QPushButton:
+        btn = QPushButton("")
+        btn.setCheckable(True)
+        btn.setFixedSize(30, 30)
+        btn.setToolTip("Show key")
+        set_button_icon(btn, "eye", "", 16)
+        return btn
+
     def _load_config_to_ui(self):
-        idx = self.protocol_combo.findData(self._config.protocol)
-        self.protocol_combo.setCurrentIndex(idx if idx >= 0 else 0)
-        idx = self.bind_combo.findData(self._config.host)
-        self.bind_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self.protocol_combo.setCurrentIndex(self._find_combo_index(self.protocol_combo, self._config.protocol))
+        self.bind_combo.setCurrentIndex(self._find_combo_index(self.bind_combo, self._config.host))
         self.port_spin.setValue(int(self._config.port))
         self.auto_load_toggle.setChecked(bool(self._config.auto_load_model))
         self.require_key_toggle.setChecked(bool(self._config.require_api_key))
         self.local_key_edit.setText(self._config.local_api_key)
         self.lan_key_edit.setText(self._config.lan_api_key)
-        self._toggle_key_visibility(self.show_keys_toggle.isChecked())
+        self.btn_show_local_key.setChecked(False)
+        self.btn_show_lan_key.setChecked(False)
+        self._toggle_key_visibility(self.local_key_edit, self.btn_show_local_key, False)
+        self._toggle_key_visibility(self.lan_key_edit, self.btn_show_lan_key, False)
 
     def _apply_ui_to_config(self, fill_missing_keys: bool = True):
         self._config.protocol = str(self.protocol_combo.currentData() or "both")
         self._config.host = str(self.bind_combo.currentData() or "0.0.0.0")
-        self._config.port = int(self.port_spin.value())
+        self._config.port = self._spin_value(self.port_spin, self._config.port)
         self._config.model_ref = str(self.model_combo.currentData() or ACTIVE_MODEL_REF)
-        self._config.auto_load_model = bool(self.auto_load_toggle.isChecked())
-        self._config.require_api_key = bool(self.require_key_toggle.isChecked())
-        self._config.local_api_key = self.local_key_edit.text().strip()
-        self._config.lan_api_key = self.lan_key_edit.text().strip()
+        self._config.auto_load_model = self._checked_value(self.auto_load_toggle, self._config.auto_load_model)
+        self._config.require_api_key = self._checked_value(self.require_key_toggle, self._config.require_api_key)
+        self._config.local_api_key = self._line_text(self.local_key_edit, self._config.local_api_key)
+        self._config.lan_api_key = self._line_text(self.lan_key_edit, self._config.lan_api_key)
         if fill_missing_keys:
             if not self._config.local_api_key:
                 self._config.local_api_key = generate_api_key()
@@ -299,8 +338,7 @@ class ApiServerTab(QWidget):
             caps = row.get("capabilities", {})
             img = "image" if caps.get("image_input") else "text"
             self.model_combo.addItem(f"{row['name']}  [{row['backend']} / {img}]", row["native_ref"])
-        idx = self.model_combo.findData(current)
-        self.model_combo.setCurrentIndex(idx if idx >= 0 else 0)
+        self.model_combo.setCurrentIndex(self._find_combo_index(self.model_combo, current))
         self.model_combo.blockSignals(False)
 
         self.model_list.clear()
@@ -372,10 +410,42 @@ class ApiServerTab(QWidget):
         self.btn_start.setEnabled(not running)
         self.btn_stop.setEnabled(running)
 
-    def _toggle_key_visibility(self, visible: bool):
+    def _toggle_key_visibility(self, edit: QLineEdit, button: QPushButton, visible: bool):
         mode = QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password
-        self.local_key_edit.setEchoMode(mode)
-        self.lan_key_edit.setEchoMode(mode)
+        edit.setEchoMode(mode)
+        button.setToolTip("Hide key" if visible else "Show key")
+
+    @staticmethod
+    def _find_combo_index(combo: QComboBox, value: Any, default: int = 0) -> int:
+        try:
+            idx = int(combo.findData(value))
+            return idx if idx >= 0 else int(default)
+        except Exception:
+            return int(default)
+
+    @staticmethod
+    def _spin_value(spin: QSpinBox, fallback: int) -> int:
+        try:
+            return int(spin.value())
+        except Exception:
+            return int(fallback)
+
+    @staticmethod
+    def _checked_value(toggle: ToggleSwitch, fallback: bool) -> bool:
+        try:
+            return bool(toggle.isChecked())
+        except Exception:
+            return bool(fallback)
+
+    @staticmethod
+    def _line_text(edit: QLineEdit, fallback: str) -> str:
+        try:
+            value = edit.text()
+            if not isinstance(value, str):
+                return str(fallback or "")
+            return value.strip()
+        except Exception:
+            return str(fallback or "")
 
     def _on_model_changed(self):
         self._refresh_status()

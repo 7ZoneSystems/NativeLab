@@ -27,7 +27,8 @@ class ToggleSwitch(QCheckBox):
     def __init__(self, text: str = "", parent=None):
         super().__init__("", parent)
         self._label = str(text or "")
-        super().setText(self._label)
+        self._checked_fallback = False
+        self._set_base_text(self._label)
         self._offset = 1.0 if self.isChecked() else 0.0
         self._anim = QPropertyAnimation(self, b"offset", self)
         self._anim.setDuration(150)
@@ -47,17 +48,42 @@ class ToggleSwitch(QCheckBox):
 
     def setText(self, text: str) -> None:
         self._label = str(text or "")
-        super().setText(self._label)
-        self.updateGeometry()
-        self.update()
+        self._set_base_text(self._label)
+        self._safe_widget_call("updateGeometry")
+        self._safe_widget_call("update")
 
     def text(self) -> str:
         return self._label
 
+    def isChecked(self) -> bool:
+        try:
+            return bool(super().isChecked())
+        except AttributeError:
+            return bool(getattr(self, "_checked_fallback", False))
+
     def setChecked(self, checked: bool) -> None:
-        super().setChecked(bool(checked))
+        self._checked_fallback = bool(checked)
+        try:
+            super().setChecked(bool(checked))
+        except AttributeError:
+            pass
         self._offset = 1.0 if checked else 0.0
-        self.update()
+        self._safe_widget_call("update")
+
+    def _set_base_text(self, text: str) -> None:
+        try:
+            super().setText(text)
+        except AttributeError:
+            pass
+
+    def _safe_widget_call(self, name: str) -> None:
+        try:
+            getattr(super(), name)()
+        except AttributeError:
+            try:
+                getattr(self, name)()
+            except Exception:
+                pass
 
     def sizeHint(self) -> QSize:
         fm = self.fontMetrics()
