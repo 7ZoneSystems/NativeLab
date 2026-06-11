@@ -5,6 +5,16 @@ from nativelab.Model.model_global import detect_model_family, get_model_registry
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 from .blck_typ import PipelineConnection, PipelineBlockType
 from .pipblck import PipelineBlock
+from .execution_core import (
+    collect_merge_inputs,
+    knowledge_context,
+    merge_contexts,
+    output_payload,
+    output_sender_label,
+    reference_context,
+    transform_text,
+)
+from .graph_ops import build_adjacency, route_connections
 class PipelineExecutionWorker(QThread):
     """
     Sequentially executes a validated pipeline graph.
@@ -40,10 +50,32 @@ class PipelineExecutionWorker(QThread):
     # ── adjacency helpers ─────────────────────────────────────────────────────
 
     def _adjacency(self) -> Dict[int, List[PipelineConnection]]:
-        adj: Dict[int, List[PipelineConnection]] = {}
-        for c in self.connections:
-            adj.setdefault(c.from_block_id, []).append(c)
-        return adj
+        return build_adjacency(self.connections)
+
+    def _enqueue_outgoing(
+        self,
+        queue: list,
+        adj: Dict[int, List[PipelineConnection]],
+        bid: int,
+        current_text: str,
+        visit_counts: Dict[str, int],
+        mode: str = "all",
+        branch_key: str = "",
+        port_labels: Optional[dict] = None,
+        score_text: Optional[int] = None,
+    ) -> int:
+        selected = route_connections(
+            adj.get(bid, []),
+            bid,
+            visit_counts,
+            mode=mode,
+            branch_key=branch_key,
+            port_labels=port_labels or {},
+        )
+        for conn in selected:
+            out_text = str(score_text) if mode == "llm_score" and conn.from_port == "N" else current_text
+            queue.append((conn.to_block_id, out_text))
+        return len(selected)
 
     def run(self):
         adj = self._adjacency()
@@ -86,25 +118,13 @@ class PipelineExecutionWorker(QThread):
                 self.step_done.emit(bid, current_text)
 
             elif b.btype == PipelineBlockType.OUTPUT:
-                # Find which block sent us this context so we can label it
-                sender_label = ""
-                for conn in self.connections:
-                    if conn.to_block_id == bid:
-                        sender = self.blocks.get(conn.from_block_id)
-                        if sender:
-                            sender_label = sender.label
-                        break
-
+                sender_label = output_sender_label(self.blocks, self.connections, bid)
                 current_text = context
                 # Emit step_done with the raw context (no intermediate noise)
                 self.step_done.emit(bid, context)
                 # pipeline_done carries (final_text, sender_label) encoded together
                 # We encode as JSON so the tab can split them cleanly
-                import json as _json
-                self.pipeline_done.emit(_json.dumps({
-                    "text":   context,
-                    "sender": sender_label,
-                }))
+                self.pipeline_done.emit(output_payload(context, sender_label))
                 return
 
             elif b.btype == PipelineBlockType.MODEL:
@@ -166,19 +186,9 @@ class PipelineExecutionWorker(QThread):
                 current_text = context
                 self.step_done.emit(bid, current_text)
                 # Only enqueue the arm matching branch_taken
-                for conn in adj.get(bid, []):
-                    # from_port E → TRUE arm, W → FALSE arm; N/S = pass-through
-                    port = conn.from_port
-                    take = (port not in ("E", "W")) or (
-                        port == "E" and branch_taken == "TRUE") or (
-                        port == "W" and branch_taken == "FALSE")
-                    if take:
-                        key = f"{conn.from_block_id}->{conn.to_block_id}"
-                        visits = visit_counts.get(key, 0)
-                        limit  = conn.loop_times if conn.is_loop else 1
-                        if visits < limit:
-                            visit_counts[key] = visits + 1
-                            queue.append((conn.to_block_id, current_text))
+                self._enqueue_outgoing(
+                    queue, adj, bid, current_text, visit_counts,
+                    mode="if", branch_key=branch_taken)
                 continue  
 
             elif b.btype == PipelineBlockType.SWITCH:
@@ -202,18 +212,10 @@ class PipelineExecutionWorker(QThread):
                 self.step_done.emit(bid, current_text)
                 # port_labels maps from_port → arm key, e.g. {"E":"yes","W":"no"}
                 _port_labels = b.metadata.get("port_labels", {})
-                _matched = False
-                for conn in adj.get(bid, []):
-                    # resolve arm key: metadata label → from_port letter → "default"
-                    bl = _port_labels.get(conn.from_port, conn.from_port)
-                    if bl == switch_key or bl == "default" or not bl:
-                        _matched = True
-                        key = f"{conn.from_block_id}->{conn.to_block_id}"
-                        visits = visit_counts.get(key, 0)
-                        limit  = conn.loop_times if conn.is_loop else 1
-                        if visits < limit:
-                            visit_counts[key] = visits + 1
-                            queue.append((conn.to_block_id, current_text))
+                _matched = self._enqueue_outgoing(
+                    queue, adj, bid, current_text, visit_counts,
+                    mode="switch", branch_key=switch_key,
+                    port_labels=_port_labels)
                 if not _matched:
                     self.log_msg.emit(
                         f"SWITCH '{b.label}': no arm matched key '{switch_key}' - dropped.")
@@ -242,35 +244,17 @@ class PipelineExecutionWorker(QThread):
                 else:
                     self.log_msg.emit(f"⊘  FILTER '{b.label}': DROPPED - pipeline stopped here.")
                     self.pipeline_done.emit(
-                        __import__("json").dumps(
-                            {"text": f"[FILTER DROPPED]\n\nCondition '{cond}' was False.\nOriginal text:\n{context}",
-                             "sender": b.label}))
+                        output_payload(
+                            f"[FILTER DROPPED]\n\nCondition '{cond}' was False.\nOriginal text:\n{context}",
+                            b.label,
+                        ))
                     return
 
             elif b.btype == PipelineBlockType.TRANSFORM:
                 self.step_started.emit(bid, b.label)
                 ttype = b.metadata.get("transform_type", "prefix")
-                val   = b.metadata.get("transform_val", "")
                 try:
-                    if ttype == "prefix":
-                        current_text = f"{val}\n{context}"
-                    elif ttype == "suffix":
-                        current_text = f"{context}\n{val}"
-                    elif ttype == "replace":
-                        find_s = b.metadata.get("transform_find", "")
-                        repl_s = b.metadata.get("transform_repl", "")
-                        current_text = context.replace(find_s, repl_s) if find_s else context
-                    elif ttype == "upper":
-                        current_text = context.upper()
-                    elif ttype == "lower":
-                        current_text = context.lower()
-                    elif ttype == "strip":
-                        current_text = context.strip()
-                    elif ttype == "truncate":
-                        n = int(val) if val else 500
-                        current_text = context[:n]
-                    else:
-                        current_text = context
+                    current_text = transform_text(context, b.metadata)
                 except Exception as _e:
                     self.log_msg.emit(f"TRANSFORM error: {_e} - passing unchanged")
                     current_text = context
@@ -282,27 +266,10 @@ class PipelineExecutionWorker(QThread):
                 # Collect all contexts that arrived at this block this pass
                 self.step_started.emit(bid, b.label)
                 # The queue may have multiple entries for this bid; drain them
-                _extras = [context]
-                _new_queue = []
-                for _qbid, _qctx in queue:
-                    if _qbid == bid:
-                        _extras.append(_qctx)
-                    else:
-                        _new_queue.append((_qbid, _qctx))
-                queue = _new_queue
-                mode = b.metadata.get("merge_mode", "concat")
+                _extras, queue = collect_merge_inputs(queue, bid, context)
                 sep  = b.metadata.get("merge_sep", "\n\n---\n\n")
                 try:
-                    if mode == "concat":
-                        current_text = sep.join(_extras)
-                    elif mode == "prepend":
-                        current_text = sep.join(reversed(_extras))
-                    elif mode == "append":
-                        current_text = sep.join(_extras)
-                    elif mode == "json":
-                        current_text = __import__("json").dumps(_extras, indent=2)
-                    else:
-                        current_text = sep.join(_extras)
+                    current_text = merge_contexts(_extras, b.metadata)
                 except Exception as _e:
                     current_text = sep.join(_extras)
                 self.log_msg.emit(
@@ -316,13 +283,7 @@ class PipelineExecutionWorker(QThread):
                     f"⑁  SPLIT '{b.label}': broadcasting to {len(adj.get(bid,[]))} outputs")
                 self.step_done.emit(bid, current_text)
                 # Enqueue ALL outgoing connections (fan-out)
-                for conn in adj.get(bid, []):
-                    key = f"{conn.from_block_id}->{conn.to_block_id}"
-                    visits = visit_counts.get(key, 0)
-                    limit  = conn.loop_times if conn.is_loop else 1
-                    if visits < limit:
-                        visit_counts[key] = visits + 1
-                        queue.append((conn.to_block_id, current_text))
+                self._enqueue_outgoing(queue, adj, bid, current_text, visit_counts)
                 continue
 
             # ── LLM Logic blocks ──────────────────────────────────────────────
@@ -350,19 +311,9 @@ class PipelineExecutionWorker(QThread):
                     f"LLM-IF '{b.label}': raw='{raw[:60]}' -> {branch_taken}")
                 current_text = context
                 self.step_done.emit(bid, current_text)
-                for conn in adj.get(bid, []):
-                    # from_port E → TRUE arm, W → FALSE arm; N/S = pass-through
-                    port = conn.from_port
-                    take = (port not in ("E", "W")) or (
-                        port == "E" and branch_taken == "TRUE") or (
-                        port == "W" and branch_taken == "FALSE")
-                    if take:
-                        key = f"{conn.from_block_id}->{conn.to_block_id}"
-                        visits = visit_counts.get(key, 0)
-                        limit  = conn.loop_times if conn.is_loop else 1
-                        if visits < limit:
-                            visit_counts[key] = visits + 1
-                            queue.append((conn.to_block_id, current_text))
+                self._enqueue_outgoing(
+                    queue, adj, bid, current_text, visit_counts,
+                    mode="if", branch_key=branch_taken)
                 continue
 
             elif b.btype == PipelineBlockType.LLM_SWITCH:
@@ -406,17 +357,10 @@ class PipelineExecutionWorker(QThread):
                     f"LLM-SWITCH '{b.label}': classified as '{_match}' (raw: '{raw[:60]}')")
                 current_text = context
                 self.step_done.emit(bid, current_text)
-                _matched_any = False
-                for conn in adj.get(bid, []):
-                    bl = _port_labels.get(conn.from_port, conn.from_port)
-                    if bl.lower() == _match.lower() or bl == "default" or not bl:
-                        _matched_any = True
-                        key = f"{conn.from_block_id}->{conn.to_block_id}"
-                        visits = visit_counts.get(key, 0)
-                        limit  = conn.loop_times if conn.is_loop else 1
-                        if visits < limit:
-                            visit_counts[key] = visits + 1
-                            queue.append((conn.to_block_id, current_text))
+                _matched_any = self._enqueue_outgoing(
+                    queue, adj, bid, current_text, visit_counts,
+                    mode="llm_switch", branch_key=_match,
+                    port_labels=_port_labels)
                 if not _matched_any:
                     self.log_msg.emit(
                         f"LLM-SWITCH '{b.label}': no arm matched '{_match}' - dropped")
@@ -451,16 +395,16 @@ class PipelineExecutionWorker(QThread):
                     self.log_msg.emit(
                         f"LLM-FILTER '{b.label}': STOPPED - model said: {raw[:80]}")
                     self.pipeline_done.emit(
-                        __import__("json").dumps({
-                            "text": (
+                        output_payload(
+                            (
                                 f"[LLM FILTER STOPPED]\n\n"
                                 f"Block: {b.label}\n"
                                 f"Condition: {instr}\n"
                                 f"Model decision: {raw[:200]}\n\n"
                                 f"Original text:\n{context}"
                             ),
-                            "sender": b.label,
-                        }))
+                            b.label,
+                        ))
                     return
 
             elif b.btype == PipelineBlockType.LLM_TRANSFORM:
@@ -527,22 +471,10 @@ class PipelineExecutionWorker(QThread):
                 current_text = context
                 self.step_done.emit(bid, current_text)
                 # Route by band or 'score' label (raw score string)
-                for conn in adj.get(bid, []):
-                    # from_port E → LOW, S → MID, W → HIGH; N = raw score pass-through
-                    port = conn.from_port
-                    take = (
-                        port == arm_target          # E/S/W matches band
-                        or port == "N"              # N port → raw score value
-                        or port not in ("E","S","W","N")  # unknown port → always pass
-                    )
-                    if take:
-                        key = f"{conn.from_block_id}->{conn.to_block_id}"
-                        visits = visit_counts.get(key, 0)
-                        limit  = conn.loop_times if conn.is_loop else 1
-                        if visits < limit:
-                            visit_counts[key] = visits + 1
-                            out_txt = str(score) if port == "N" else current_text
-                            queue.append((conn.to_block_id, out_txt))
+                self._enqueue_outgoing(
+                    queue, adj, bid, current_text, visit_counts,
+                    mode="llm_score", branch_key=arm_target,
+                    score_text=score)
                 continue
 
             elif b.btype == PipelineBlockType.CUSTOM_CODE:
@@ -582,13 +514,7 @@ class PipelineExecutionWorker(QThread):
                 self.step_done.emit(bid, current_text)
 
             # Enqueue outgoing edges
-            for conn in adj.get(bid, []):
-                key    = f"{conn.from_block_id}->{conn.to_block_id}"
-                visits = visit_counts.get(key, 0)
-                limit  = conn.loop_times if conn.is_loop else 1
-                if visits < limit:
-                    visit_counts[key] = visits + 1
-                    queue.append((conn.to_block_id, current_text))
+            self._enqueue_outgoing(queue, adj, bid, current_text, visit_counts)
 
         if not self._abort:
             self.pipeline_done.emit(current_text)
@@ -905,12 +831,8 @@ class PipelineExecutionWorker(QThread):
             return context
         name = b.metadata.get("ref_name", b.label)
         self.log_msg.emit(f"Injecting reference '{name}' ({len(text):,} chars)")
-        return (
-            f"[REFERENCE: {name}]\n"
-            f"{text[:4000]}"
-            + ("…\n[truncated]" if len(text) > 4000 else "")
-            + f"\n[/REFERENCE]\n\n{context}"
-        )
+        injected, _name = reference_context(context, b.metadata, b.label)
+        return injected
 
     def _run_knowledge(self, b: PipelineBlock, context: str) -> str:
         text = b.metadata.get("knowledge_text", "")
@@ -918,12 +840,7 @@ class PipelineExecutionWorker(QThread):
             self.log_msg.emit(f"Knowledge '{b.label}' has no text - passing unchanged.")
             return context
         self.log_msg.emit(f"Injecting knowledge ({len(text):,} chars)")
-        return (
-            f"Knowledge Base:\n"
-            f"{text[:3000]}"
-            + ("…\n[truncated]" if len(text) > 3000 else "")
-            + f"\n\n---\n\n{context}"
-        )
+        return knowledge_context(context, b.metadata)
 
     def _run_pdf(self, b: PipelineBlock, context: str) -> Optional[str]:
         pdf_path = b.metadata.get("pdf_path", "")
