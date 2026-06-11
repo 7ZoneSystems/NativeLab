@@ -1,2 +1,5 @@
 include nativelab/native/_core.c
+include nativelab/native/pipeline_core.c
 include nativelab/native/rust_model.rs
+include nativelab/pipelinebuilder/aibuilder/aibuilder_core.c
+include nativelab/pipelinebuilder/aibuilder/aibuilder_core.rs

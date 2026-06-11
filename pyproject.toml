@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nativelab"
-version = "0.3.6"
+version = "0.3.7"
 description = "NativeLab AI framework"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -55,7 +55,10 @@ nativelab = [
     "assets/katex/fonts/*",
     "integrations/examples/*",
     "pipelinebuilder/examples/*.json",
+    "pipelinebuilder/aibuilder/*.c",
+    "pipelinebuilder/aibuilder/*.rs",
     "native/*.rs",
+    "native/pipeline_core.c",
     "native/libnativelab_rust.so",
     "native/libnativelab_rust.dylib",
     "native/nativelab_rust.dll",
