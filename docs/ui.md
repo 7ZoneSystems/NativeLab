@@ -13,7 +13,12 @@ GUI tour, theming, persistence, shortcuts, and live RAM management.
 | **🌐 API Models** | Configure OpenAI / Anthropic / self-hosted endpoints. |
 | **⬇️ Download** | HuggingFace GGUF downloads, HF Transformers snapshots, Ollama pulls, and llama.cpp release installer. |
 | **Top-right Settings** | Sidebar settings window with General, Docs, Hugging Face, Ollama, Server, Appearance, and Accounts pages. |
-| **Dev** | Hidden until **Settings > General > Developer Mode** is enabled. Contains Labs, Logs, Integrations, Pipeline, MCP, and Skills. |
+| **Dev** | Hidden until **Settings > General > Developer Mode** is enabled. Contains Labs, Logs, API Server, Integrations, Pipeline, MCP, and Skills. |
+
+The Dev > API Server sub-tab can host either the active NativeLab engine, a
+registered model, or a saved visual pipeline selected from **Hosted model**.
+Pipeline entries use `pipeline:<name>` IDs and execute through the normal
+pipeline executor.
 
 ---
 
@@ -26,10 +31,10 @@ The Pipeline page inside Dev uses a three-pane layout:
 - Right sidebar: **Execution** and **AI Builder** tabs.
 
 The left and right sidebars are resizable. Dragging either sidebar below its
-usable minimum snaps it into a narrow rail with a circular reopen arrow, so the
-sidebar cannot disappear permanently. Sidebar text and controls scale with the
-available width. The AI Builder tab also switches to compact stacked controls
-when the right sidebar is narrow.
+usable minimum retracts it and shows a circular reopen arrow at the mid-height
+edge of the canvas, so the sidebar cannot disappear permanently. Sidebar text
+and controls scale with the available width. The AI Builder tab also switches
+to compact stacked controls when the right sidebar is narrow.
 
 See [pipeline-builder.md](pipeline-builder.md) for the full workflow.
 
@@ -127,7 +132,7 @@ All on-disk state is in the project working directory.
 | `ref_cache/{id}_raw.txt` | Raw text of attached reference files. |
 | `ref_cache/{id}.pkl` | Pickled chunk caches for spilled references. |
 | `ref_index/{sid}_refs.json` | Reference metadata index per session. |
-| `~/.native_lab/pipelines/{name}.json` | Saved visual pipelines. |
+| `localllm/pipelines/{name}.json` | Saved visual pipelines. |
 
 ---
 

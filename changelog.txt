@@ -40,6 +40,31 @@ v0.3.7
 39) Added resizable pipeline builder sidebars with live text/control scaling and retract rails so sidebars cannot collapse permanently to zero width.
 40) Added compact AI Builder sidebar layout behavior so fields, buttons, history labels, and tab names remain visible when the right sidebar is narrow.
 41) Added dedicated `docs/pipeline-builder.md` documentation and refreshed README/docs feature, workflow, UI, architecture, installation, models, CLI, and troubleshooting docs for the new pipeline, AI Builder, native, setup, and HF dependency behavior.
+42) Added `run_pipeline_sync()` so saved pipelines can execute through the same `PipelineExecutionWorker` path from GUI, CLI, integration endpoints, and API-server routes without duplicating pipeline execution scripts.
+43) Added OpenAI-compatible saved-pipeline model IDs using the `pipeline:<name>` format while preserving saved pipeline JSON loading, validation, logs, intermediate output handling, and existing block behavior.
+44) Added `/v1/models` to the integration HTTP endpoint so external tools can discover saved visual pipelines as OpenAI-style model records.
+45) Added `/v1/chat/completions` and `/chat/completions` to the integration HTTP endpoint so `model: "pipeline:<name>"` runs the selected saved pipeline through the normal executor.
+46) Added structured OpenAI-style error payloads for pipeline-model execution failures, including missing pipeline, unknown model, unsupported streaming, and executor errors.
+47) Refactored CLI pipeline execution to reuse `run_pipeline_sync()` so CLI and API pipeline runs stay behaviorally aligned with the GUI pipeline executor.
+48) Added saved-pipeline entries to the Dev > API Server model catalog so the **Hosted model** dropdown can select pipelines alongside active/local/API-backed models.
+49) Updated the Dev > API Server runtime so a selected or requested `pipeline:<name>` bypasses model loading and routes directly through the existing pipeline executor instead of launching a separate runner.
+50) Kept API Server OpenAI and Anthropic protocol behavior intact for pipeline refs, including normal auth, bind/port settings, `/v1/models`, `/v1/chat/completions`, `/v1/completions`, and `/v1/messages` handling.
+51) Added tests covering integration pipeline model listing/execution and API Server hosted-pipeline catalog/execution behavior.
+52) Updated integration, feature, UI, pipeline, troubleshooting, and workflow documentation for saved pipelines as API models and Dev > API Server hosted-pipeline selection.
+53) Smoke-tested the live integration endpoint at `http://127.0.0.1:8765`, confirming `/health`, `/snapshot`, `/pipelines`, and `/v1/models` return successfully with four saved pipeline models.
+54) Verified missing pipeline execution returns the expected `404 pipeline_not_found` structured response instead of crashing or silently falling back.
+55) Re-ran the full headless test suite after the API model work and confirmed all 66 tests passed.
+56) Moved the canonical saved-pipeline storage path from `~/.native_lab/pipelines` to `localllm/pipelines` so user-created pipelines stay with the rest of NativeLab's local app data.
+57) Added a compatibility migration that copies existing legacy `~/.native_lab/pipelines/*.json` files into `localllm/pipelines` without overwriting newer files.
+58) Updated CLI pipeline listing/loading and data-portability imports so saved pipelines consistently resolve to `localllm/pipelines`.
+59) Added pipeline-name sanitization for save, load, delete, CLI, integration, and API-server paths so path-like names cannot escape the configured pipeline directory.
+60) Hardened legacy pipeline migration to skip symlinks and non-files while copying old pipeline JSON into `localllm/pipelines`.
+61) Added request body size and malformed JSON guards to the API Server and integration HTTP bridge so oversized or invalid POST requests return structured 413/400 errors instead of reading unbounded input.
+62) Hardened API Server authentication checks with constant-time key comparison and a reduced unauthenticated health payload when API keys are required.
+63) Changed the API Server key reveal UI from one global **Show keys** toggle to per-key eye buttons beside the localhost and WiFi/LAN API key fields.
+64) Added regression tests covering pipeline storage path safety, legacy symlink migration skipping, missing pipeline-model rejection, and protected health payload behavior.
+65) Hardened API Server tab construction and shared toggle controls for headless/no-GUI compatibility so UI modules can still import and smoke-test safely in CLI/test contexts.
+66) Replaced the API Server key reveal icon with a plain Lucide eye SVG asset and aligned each Generate button inside its matching API-key input row.
 
 v0.3.6
 1) Added a first-run automatic setup pipeline that profiles the user's OS, available/used RAM, CPU threads, GPU backend, VRAM, and accelerator type before choosing a practical starter model.

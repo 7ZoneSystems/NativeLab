@@ -23,6 +23,8 @@ The endpoint returns plain JSON-compatible dictionaries.
 | `/snapshot` | GET | Full catalog: routes, runtime, limits, models, API models, pipelines, labs. |
 | `/runtime` | GET | Active backend, model name/path, context size, server port, loaded state. |
 | `/models` | GET | Registered GGUF, Ollama, and HF models with role, backend, family, quant, and vision metadata. |
+| `/v1/models` | GET | OpenAI-compatible model list for saved pipelines exposed as `pipeline:<name>`. |
+| `/v1/chat/completions` | POST | OpenAI-compatible route that executes a saved pipeline when `model` is `pipeline:<name>`. |
 | `/api_models` | GET | Saved API model configs with API keys redacted. |
 | `/limits` | GET | Defaults, roles, app config, and config field metadata. |
 | `/pipelines` | GET | Saved visual pipelines with block and connection counts. |
@@ -47,6 +49,7 @@ Example requests:
 ```bash
 curl http://127.0.0.1:8765/runtime
 curl http://127.0.0.1:8765/pipelines
+curl http://127.0.0.1:8765/v1/models
 curl http://127.0.0.1:8765/labs/py_to_doc
 ```
 
@@ -65,6 +68,35 @@ curl -X POST http://127.0.0.1:8765/call_llm \
 - `system_prompt`: optional system message.
 - `n_predict`: max generation tokens.
 - `temperature`, `top_p`, `repeat_penalty`: sampling controls.
+
+### Saved pipelines as API models
+
+Every saved visual pipeline is also exposed as an OpenAI-compatible model ID:
+
+```text
+pipeline:<pipeline-name>
+```
+
+List them:
+
+```bash
+curl http://127.0.0.1:8765/v1/models
+```
+
+Run one through the normal pipeline executor:
+
+```bash
+curl -X POST http://127.0.0.1:8765/v1/chat/completions \
+  -H "content-type: application/json" \
+  -d '{
+    "model": "pipeline:research-synthesis",
+    "messages": [{"role": "user", "content": "Summarize these notes."}]
+  }'
+```
+
+The endpoint does not create a separate runner. It loads the saved pipeline JSON
+and executes it through `PipelineExecutionWorker`, so validation, block behavior,
+model calls, logs, and error handling match the GUI and CLI pipeline paths.
 
 ## Python API
 

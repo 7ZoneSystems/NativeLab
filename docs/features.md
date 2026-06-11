@@ -16,7 +16,7 @@ prompts for iterative edits.
 
 The pipeline editor also gained shipped example presets, automatic canvas growth
 for far-away loaded/generated blocks, blank-canvas drag panning, resizable
-sidebars, retract rails, and live text/control scaling in tight sidebars. See
+sidebars, floating mid-canvas reopen arrows, and live text/control scaling in tight sidebars. See
 [pipeline-builder.md](pipeline-builder.md).
 
 ### Native pipeline core
@@ -43,6 +43,16 @@ Claude-Code-style terminal client. Interactive setup wizard downloads a model fr
 
 ### Endpoint surface, shared with the CLI
 The same `LabEndpoints` that powers Labs panels also powers the CLI's chat REPL. Reverse-routing hooks (`request_load_model`, `request_context`, `request_unload`) are wired uniformly - `/load` from the REPL behaves identically to a lab feature requesting a model swap.
+
+Saved visual pipelines are also exposed through the integration HTTP bridge as
+OpenAI-compatible model IDs (`pipeline:<name>`). Calling
+`/v1/chat/completions` with one of those IDs executes the saved pipeline through
+the normal `PipelineExecutionWorker`.
+
+The Dev > API Server page now uses the same catalog. Its **Hosted model**
+dropdown includes saved pipelines, so choosing `pipeline:<name>` makes that
+API server route requests through the pipeline executor instead of loading a
+separate model runner.
 
 ---
 
@@ -82,7 +92,7 @@ A node-based editor with 20+ block types:
 - Loop edges with iteration counts (e.g. drafting → critique × 3).
 - Example preset dropdown with packaged reference pipelines.
 - AI Builder tab for model-assisted pipeline JSON generation and iterative edits.
-- Resizable sidebars with retract rails and live control scaling.
+- Resizable sidebars with floating mid-canvas reopen arrows and live control scaling.
 - Auto-growing canvas for loaded/generated graphs.
 - Sandboxed Python expressions (no imports, no fs/network).
 - Live execution log + per-block streaming. Save/load to JSON.

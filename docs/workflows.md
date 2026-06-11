@@ -126,7 +126,7 @@ This typically produces better-structured code than asking a coding model direct
 
 The most powerful feature in NativeLab. A node-based editor with 20+ block types, loop support, LLM-powered routing, shipped example presets, AI-assisted generation, live execution log, and per-block streaming.
 
-Pipelines are saved as JSON in `~/.native_lab/pipelines/` and loadable from within the UI.
+Pipelines are saved as JSON in `localllm/pipelines/` and loadable from within the UI.
 
 For the full user and developer guide, see [pipeline-builder.md](pipeline-builder.md).
 
@@ -137,7 +137,10 @@ The left sidebar contains block adders, the model list, example presets, and can
 - **Execution** - input box, run/stop controls, logs, final output, and intermediate tabs.
 - **AI Builder** - prompt a loaded model to generate or revise a pipeline JSON file.
 
-Both sidebars are resizable. Dragging too narrow snaps a sidebar into a thin rail with a circular reopen arrow. The AI Builder and execution controls scale text/buttons when space is tight.
+Both sidebars are resizable. Dragging too narrow retracts that sidebar and shows
+a circular reopen arrow at the mid-height edge of the canvas, without adding
+another sidebar strip. The AI Builder and execution controls scale text/buttons
+when space is tight.
 
 Example preset JSON files ship in `nativelab/pipelinebuilder/examples/` and appear in the **Example Presets** dropdown. Select a model before loading a preset to auto-fill placeholder model blocks.
 
@@ -228,7 +231,7 @@ LLM engine errors, including context-window overflows from llama.cpp/Ollama/HF/A
 
 ### Save / load
 
-- **💾 Save Pipeline…** - name + write to `~/.native_lab/pipelines/{name}.json`.
+- **💾 Save Pipeline…** - name + write to `localllm/pipelines/{name}.json`.
 - **📂 Load Pipeline…** - list with delete; clearing prompt if canvas non-empty.
 - **Example Presets** - load packaged reference pipelines from the sidebar.
 

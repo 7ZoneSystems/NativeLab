@@ -193,9 +193,9 @@ model-to-model links, missing LLM logic instructions, or unsafe Custom Code.
 
 ### Pipeline sidebar disappeared
 
-The pipeline builder sidebars snap into a narrow rail when dragged too small.
-Look at the left or right edge of the canvas and click the circular arrow button
-to reopen the sidebar.
+The pipeline builder sidebars retract when dragged too small. Look at the left
+or right mid-height edge of the canvas and click the circular arrow button to
+reopen the sidebar.
 
 ### Custom Code block: "name X is not defined"
 

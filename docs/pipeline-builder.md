@@ -20,10 +20,10 @@ The builder has three panes:
 | Canvas | Scrollable block graph editor. |
 | Right sidebar | **Execution** tab and **AI Builder** tab. |
 
-Both sidebars are resizable. If a sidebar is dragged too narrow, it snaps into a
-thin side rail instead of collapsing to zero. Click the circular arrow on the
-rail to reopen it. Text, buttons, and the AI Builder controls scale with the
-current sidebar width.
+Both sidebars are resizable. If a sidebar is dragged too narrow, it retracts
+instead of collapsing to zero. Click the circular arrow at the mid-height edge
+of the canvas to reopen it. Text, buttons, and the AI Builder controls scale
+with the current sidebar width.
 
 ---
 
@@ -295,5 +295,5 @@ ask the AI Builder to revise the pipeline or edit the blocks manually.
 ### Sidebar content is hidden when resized
 
 The sidebars should scale text and controls automatically. If the right sidebar
-gets too tight, it switches tab labels to `Exec` and `AI`; dragging further snaps
-the whole sidebar into a rail with a reopen arrow.
+gets too tight, it switches tab labels to `Exec` and `AI`; dragging further
+retracts the sidebar and shows a mid-canvas reopen arrow.
