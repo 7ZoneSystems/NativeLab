@@ -59,7 +59,4 @@ nativelab = [
     "pipelinebuilder/aibuilder/*.rs",
     "native/*.rs",
     "native/pipeline_core.c",
-    "native/libnativelab_rust.so",
-    "native/libnativelab_rust.dylib",
-    "native/nativelab_rust.dll",
 ]
