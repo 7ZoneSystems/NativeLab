@@ -1,11 +1,13 @@
 from nativelab.Model.ModelRegistry import get_model_registry
 from nativelab.Model.model_global import api_model_ref, getapi_registry, is_api_model_ref, is_model_ref_valid, model_ref_display_name
-from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QComboBox,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, Qt
-from .pipefunctions import list_example_pipelines, list_saved_pipelines, load_example_pipeline, load_pipeline, save_pipeline
+from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QComboBox,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, QSplitter, QSizePolicy, Qt
+from .pipefunctions import _pipeline_to_dict, list_example_pipelines, list_saved_pipelines, load_example_pipeline, load_pipeline, save_pipeline
 from .blck_typ import PipelineBlockType 
 from nativelab.core.engine_global import LlamaEngine, engine_status
 from .executionWorker import PipelineExecutionWorker
 from .flowpreview import FlowPreviewController
+from .validation import validate_pipeline
+from .aibuilder.dialog import AiPipelineBuilderPanel
 from nativelab.UI.UI_const import C
 from nativelab.UI.buildUI import prepare_adaptive_window
 from nativelab.UI.icons import icon, set_button_icon, set_label_icon, set_status_label
@@ -21,6 +23,12 @@ class PipelineBuilderTab(QWidget):
     Centre       : interactive canvas.
     Right        : execution controls + per-intermediate live panes + final output.
     """
+    LEFT_DEFAULT_W = 214
+    RIGHT_DEFAULT_W = 282
+    LEFT_RETRACT_W = 76
+    RIGHT_RETRACT_W = 88
+    LEFT_MIN_W = 132
+    RIGHT_MIN_W = 176
 
     def __init__(self, engine: "LlamaEngine", parent=None):
         super().__init__(parent)
@@ -28,10 +36,22 @@ class PipelineBuilderTab(QWidget):
         self._exec_worker: Optional[PipelineExecutionWorker] = None
         self._inter_tabs:  Dict[int, int] = {}   # block_id → tab index
         self._current_pipeline_name: str = ""
+        self._left_scaled_buttons: list = []
+        self._left_scaled_labels: list = []
+        self._right_scaled_labels: list = []
+        self._right_scaled_buttons: list = []
+        self._left_sidebar_retracted = False
+        self._right_sidebar_retracted = False
+        self._last_left_width = self.LEFT_DEFAULT_W
+        self._last_right_width = self.RIGHT_DEFAULT_W
+        self._updating_splitter = False
+        self._preview_active = False
         self._build()
 
     def update_engine(self, engine: "LlamaEngine"):
         self._engine = engine
+        if hasattr(self, "ai_builder_panel"):
+            self.ai_builder_panel.set_engine(engine)
 
     def refresh_theme(self):
         if hasattr(self, "canvas"):
@@ -43,6 +63,13 @@ class PipelineBuilderTab(QWidget):
         root = QHBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+        self.main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        try:
+            self.main_splitter.setChildrenCollapsible(True)
+        except Exception:
+            pass
+        self.main_splitter.splitterMoved.connect(self._on_main_splitter_moved)
+        root.addWidget(self.main_splitter, 1)
 
         # ══════ LEFT SIDEBAR ══════════════════════════════════════════════════
         sb = QWidget()
@@ -54,12 +81,14 @@ class PipelineBuilderTab(QWidget):
         def _sec(text: str) -> QLabel:
             lbl = QLabel(text)
             lbl.setObjectName("txt3_tiny")
+            self._left_scaled_labels.append(lbl)
             return lbl
 
         def _block_btn(label: str, btype: str, color: str, icon_name: str = "blocks") -> QPushButton:
             btn = QPushButton(label)
             set_button_icon(btn, icon_name, label)
             btn.setFixedHeight(30)
+            self._left_scaled_buttons.append((btn, color, 30, True))
             btn.setStyleSheet(
                 f"QPushButton{{background:transparent;"
                 f"color:{color};border:1px solid {color};"
@@ -73,6 +102,7 @@ class PipelineBuilderTab(QWidget):
         set_label_icon(hdr, "pipeline", "Pipeline Builder", 16)
         hdr.setObjectName("pipeline_hdr")
         hdr.setStyleSheet("font-size:12px;font-weight:700;")
+        self._left_scaled_labels.append(hdr)
         sb_l.addWidget(hdr)
 
         sep0 = QFrame(); sep0.setFrameShape(QFrame.Shape.HLine)
@@ -88,6 +118,7 @@ class PipelineBuilderTab(QWidget):
         preset_hint = QLabel("Select a model below first to auto-fill preset model blocks.")
         preset_hint.setWordWrap(True)
         preset_hint.setObjectName("txt3_block")
+        self._left_scaled_labels.append(preset_hint)
         sb_l.addWidget(preset_hint)
 
         sep_examples = QFrame(); sep_examples.setFrameShape(QFrame.Shape.HLine)
@@ -128,6 +159,7 @@ class PipelineBuilderTab(QWidget):
             "in plain English - evaluated by\n"
             "the block's attached LLM model.")
         _llm_note.setObjectName("txt3_block")
+        self._left_scaled_labels.append(_llm_note)
         sb_l.addWidget(_llm_note)
         sb_l.addWidget(_block_btn("LLM IF / ELSE",   PipelineBlockType.LLM_IF,        "#a855f7", "brain"))
         sb_l.addWidget(_block_btn("LLM SWITCH",      PipelineBlockType.LLM_SWITCH,     "#7c3aed", "brain"))
@@ -151,6 +183,7 @@ class PipelineBuilderTab(QWidget):
         self.btn_refresh = QPushButton("Refresh")
         set_button_icon(self.btn_refresh, "refresh-cw", "Refresh")
         self.btn_refresh.setFixedHeight(26)
+        self._left_scaled_buttons.append((self.btn_refresh, C["txt2"], 26, False))
         self.btn_refresh.clicked.connect(self._refresh_models)
         sb_l.addWidget(self.btn_refresh)
 
@@ -161,29 +194,29 @@ class PipelineBuilderTab(QWidget):
         self.btn_clear_canvas = QPushButton("Clear All")
         set_button_icon(self.btn_clear_canvas, "delete", "Clear All")
         self.btn_clear_canvas.setFixedHeight(28)
+        self._left_scaled_buttons.append((self.btn_clear_canvas, C["txt2"], 28, False))
         self.btn_clear_canvas.clicked.connect(self._clear_canvas)
         sb_l.addWidget(self.btn_clear_canvas)
 
         self.btn_save_pipeline = QPushButton("Save Pipeline...")
         set_button_icon(self.btn_save_pipeline, "save", "Save Pipeline...")
         self.btn_save_pipeline.setFixedHeight(28)
+        self._left_scaled_buttons.append((self.btn_save_pipeline, C["txt2"], 28, False))
         self.btn_save_pipeline.clicked.connect(self._save_pipeline)
         sb_l.addWidget(self.btn_save_pipeline)
 
         self.btn_load_pipeline = QPushButton("Load Pipeline...")
         set_button_icon(self.btn_load_pipeline, "folder-open", "Load Pipeline...")
         self.btn_load_pipeline.setFixedHeight(28)
+        self._left_scaled_buttons.append((self.btn_load_pipeline, C["txt2"], 28, False))
         self.btn_load_pipeline.clicked.connect(self._load_pipeline)
         sb_l.addWidget(self.btn_load_pipeline)
 
         self.btn_preview = QPushButton("Preview Flow")
         set_button_icon(self.btn_preview, "play", "Preview Flow")
         self.btn_preview.setFixedHeight(28)
-        self.btn_preview.setStyleSheet(
-            f"QPushButton{{background:transparent;color:{C['pipeline']};"
-            f"border:1px solid {C['pipeline']};border-radius:6px;"
-            f"font-size:11px;font-weight:600;}}"
-            f"QPushButton:hover{{background:{C['pipeline']};color:{C['bg1']};}}")
+        self._left_scaled_buttons.append((self.btn_preview, C["pipeline"], 28, True))
+        self._set_preview_button_style(False)
         self.btn_preview.clicked.connect(self._toggle_flow_preview)
         sb_l.addWidget(self.btn_preview)
         self._preview_ctrl: Optional[FlowPreviewController] = None
@@ -196,22 +229,30 @@ class PipelineBuilderTab(QWidget):
             "Intermediate block in between.")
         hint.setWordWrap(True)
         hint.setObjectName("txt3_block")
+        self._left_scaled_labels.append(hint)
         sb_l.addWidget(hint)
 
         sb_l.addStretch()
 
         sb_scroll = QScrollArea()
+        self.left_sidebar_scroll = sb_scroll
         sb_scroll.setWidget(sb)
         sb_scroll.setWidgetResizable(True)
-        sb_scroll.setFixedWidth(214)
+        sb_scroll.setMinimumWidth(0)
         sb_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         sb_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         sb_scroll.setObjectName("session_sidebar")
         sb_scroll.setStyleSheet("QScrollArea#session_sidebar { border: none; }")
-        root.addWidget(sb_scroll)
+        self.main_splitter.addWidget(sb_scroll)
 
         # ══════ CENTRE: CANVAS ════════════════════════════════════════════════
         centre = QWidget()
+        centre.setMinimumWidth(360)
+        try:
+            centre.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        except Exception:
+            pass
+        self._canvas_centre = centre
         centre_l = QVBoxLayout(centre)
         centre_l.setContentsMargins(0, 0, 0, 0)
         centre_l.setSpacing(0)
@@ -220,6 +261,7 @@ class PipelineBuilderTab(QWidget):
         toolbar = QWidget()
         toolbar.setObjectName("appearance_bar")
         toolbar.setFixedHeight(40)
+        toolbar.setMinimumWidth(0)
         tb_l = QHBoxLayout(toolbar)
         tb_l.setContentsMargins(12, 4, 12, 4)
         tb_l.setSpacing(8)
@@ -251,6 +293,11 @@ class PipelineBuilderTab(QWidget):
             #    by QSS via objectName. Per-block `col` is semantic (not theme),
             #    so it is kept as an inline color for the text.
             lbl.setObjectName("legend_pill")
+            try:
+                lbl.setMinimumWidth(0)
+                lbl.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Fixed)
+            except Exception:
+                pass
             lbl.setStyleSheet(
                 f"color:{col};font-size:10px;font-weight:600;"
                 f"padding:1px 6px;"
@@ -294,21 +341,55 @@ class PipelineBuilderTab(QWidget):
         centre_l.addWidget(pill_outer)
 
         canvas_scroll = QScrollArea()
+        canvas_scroll.setMinimumWidth(360)
+        try:
+            canvas_scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        except Exception:
+            pass
         canvas_scroll.setWidgetResizable(False)
+        self.canvas_scroll_area = canvas_scroll
         self.canvas = PipelineCanvas()
         self.canvas.blocks_changed.connect(self._on_blocks_changed)
         self.canvas.update()
         canvas_scroll.setWidget(self.canvas)
         centre_l.addWidget(canvas_scroll, 1)
+        self.btn_open_left_sidebar = self._make_sidebar_reopen_button("left", centre)
+        self.btn_open_right_sidebar = self._make_sidebar_reopen_button("right", centre)
 
-        root.addWidget(centre, 1)
+        self.main_splitter.addWidget(centre)
 
-        # ══════ RIGHT: EXECUTION PANEL ════════════════════════════════════════
+        # ══════ RIGHT: EXECUTION / AI BUILDER PANEL ══════════════════════════
         rp = QWidget()
-        rp.setFixedWidth(282)
+        self.right_sidebar_panel = rp
+        rp.setMinimumWidth(0)
+        try:
+            rp.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        except Exception:
+            pass
         rp.setObjectName("ref_panel")
-        rp_l = QVBoxLayout(rp)
-        rp_l.setContentsMargins(12, 14, 12, 14)
+        rp_outer_l = QVBoxLayout(rp)
+        rp_outer_l.setContentsMargins(8, 8, 8, 8)
+        rp_outer_l.setSpacing(0)
+
+        self.right_tabs = QTabWidget()
+        self.right_tabs.setObjectName("ref_tabs")
+        self.right_tabs.setMinimumWidth(0)
+        try:
+            self.right_tabs.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+            self.right_tabs.setUsesScrollButtons(True)
+            self.right_tabs.setElideMode(Qt.TextElideMode.ElideRight)
+        except Exception:
+            pass
+        rp_outer_l.addWidget(self.right_tabs, 1)
+
+        exec_page = QWidget()
+        exec_page.setMinimumWidth(0)
+        try:
+            exec_page.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        except Exception:
+            pass
+        rp_l = QVBoxLayout(exec_page)
+        rp_l.setContentsMargins(6, 8, 6, 8)
         rp_l.setSpacing(7)
 
         exec_hdr_row = QHBoxLayout(); exec_hdr_row.setSpacing(6)
@@ -317,10 +398,12 @@ class PipelineBuilderTab(QWidget):
         set_label_icon(exec_hdr, "play", "Execute Pipeline", 16)
         exec_hdr.setObjectName("pipeline_hdr")
         exec_hdr.setStyleSheet("font-size:12px;font-weight:700;")
+        self._right_scaled_labels.append(exec_hdr)
         exec_hdr_row.addWidget(exec_hdr, 1)
         btn_manual = QPushButton("Manual")
         set_button_icon(btn_manual, "book-open", "Manual")
         btn_manual.setFixedHeight(24)
+        self._right_scaled_buttons.append((btn_manual, 24))
         btn_manual.setStyleSheet(
             f"QPushButton{{background:transparent;color:{C['acc']};"
             f"border:1px solid {C['acc']};border-radius:5px;"
@@ -334,6 +417,7 @@ class PipelineBuilderTab(QWidget):
         self.server_badge = QLabel("Engine status unknown")
         self.server_badge.setObjectName("status_badge")
         self.server_badge.setProperty("state", "idle")
+        self._right_scaled_labels.append(self.server_badge)
         rp_l.addWidget(self.server_badge)
         self._badge_timer = QTimer(self)
         self._badge_timer.timeout.connect(self._update_server_badge)
@@ -343,9 +427,15 @@ class PipelineBuilderTab(QWidget):
         input_lbl = QLabel("Input text:")
         input_lbl.setObjectName("txt2")
         input_lbl.setStyleSheet("font-size:11px;")
+        self._right_scaled_labels.append(input_lbl)
         rp_l.addWidget(input_lbl)
 
         self.input_edit = QTextEdit()
+        self.input_edit.setMinimumWidth(0)
+        try:
+            self.input_edit.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        except Exception:
+            pass
         self.input_edit.setPlaceholderText(
             "Enter the prompt or text to feed\n"
             "into the first INPUT block…")
@@ -356,6 +446,7 @@ class PipelineBuilderTab(QWidget):
         set_button_icon(self.btn_run, "play", "Run Pipeline")
         self.btn_run.setObjectName("btn_send")
         self.btn_run.setFixedHeight(34)
+        self._right_scaled_buttons.append((self.btn_run, 34))
         self.btn_run.clicked.connect(self._run_pipeline)
         rp_l.addWidget(self.btn_run)
 
@@ -364,6 +455,7 @@ class PipelineBuilderTab(QWidget):
         self.btn_stop.setObjectName("btn_stop")
         self.btn_stop.setFixedHeight(34)
         self.btn_stop.setVisible(False)
+        self._right_scaled_buttons.append((self.btn_stop, 34))
         self.btn_stop.clicked.connect(self._stop_pipeline)
         rp_l.addWidget(self.btn_stop)
 
@@ -373,8 +465,16 @@ class PipelineBuilderTab(QWidget):
         # Tabbed output: Log | Output | one tab per intermediate block
         self.output_tabs = QTabWidget()
         self.output_tabs.setObjectName("ref_tabs")
+        self.output_tabs.setMinimumWidth(0)
+        try:
+            self.output_tabs.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+            self.output_tabs.setUsesScrollButtons(True)
+            self.output_tabs.setElideMode(Qt.TextElideMode.ElideRight)
+        except Exception:
+            pass
 
         self.exec_log = QTextEdit()
+        self.exec_log.setMinimumWidth(0)
         self.exec_log.setReadOnly(True)
         self.exec_log.setFont(QFont("Consolas", 9))
         self.exec_log.setObjectName("log_te")
@@ -388,15 +488,342 @@ class PipelineBuilderTab(QWidget):
         copy_btn = QPushButton("Copy Final Output")
         set_button_icon(copy_btn, "copy", "Copy Final Output")
         copy_btn.setFixedHeight(28)
+        self._right_scaled_buttons.append((copy_btn, 28))
         copy_btn.clicked.connect(
             lambda: QApplication.clipboard().setText(
                 self.output_edit.raw_text()))
         rp_l.addWidget(copy_btn)
 
-        root.addWidget(rp)
+        self.right_tabs.addTab(exec_page, icon("play"), "Execution")
+
+        ai_page = QWidget()
+        ai_page.setMinimumWidth(0)
+        try:
+            ai_page.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        except Exception:
+            pass
+        ai_l = QVBoxLayout(ai_page)
+        ai_l.setContentsMargins(0, 0, 0, 0)
+        ai_l.setSpacing(0)
+        self.ai_builder_panel = AiPipelineBuilderPanel(
+            self._engine,
+            parent=ai_page,
+            load_callback=self._load_ai_generated_pipeline,
+            active_model_provider=self._preset_model_ref,
+            canvas_state_provider=self._ai_canvas_state,
+            show_close=False,
+            compact=True,
+        )
+        ai_scroll = QScrollArea()
+        ai_scroll.setMinimumWidth(0)
+        try:
+            ai_scroll.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        except Exception:
+            pass
+        ai_scroll.setWidgetResizable(True)
+        ai_scroll.setWidget(self.ai_builder_panel)
+        ai_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        ai_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        ai_scroll.setStyleSheet("QScrollArea { border:none; background:transparent; }")
+        ai_l.addWidget(ai_scroll, 1)
+        self.right_tabs.addTab(ai_page, icon("brain"), "AI Builder")
+        self.right_tabs.setCurrentIndex(0)
+
+        self.main_splitter.addWidget(rp)
+        self._install_initial_sidebar_sizes()
 
         self._refresh_pipeline_presets()
         self._refresh_models()
+        QTimer.singleShot(0, self._install_initial_sidebar_sizes)
+
+    # ── resizable sidebars ───────────────────────────────────────────────────
+
+    @staticmethod
+    def _scaled_px(base: int, width: int, default_width: int,
+                   min_scale: float = 0.82, max_scale: float = 1.18) -> int:
+        try:
+            scale = float(width or default_width) / float(default_width or width or 1)
+        except Exception:
+            scale = 1.0
+        scale = max(min_scale, min(max_scale, scale))
+        return max(8, int(round(float(base) * scale)))
+
+    def _safe_splitter_sizes(self) -> list:
+        try:
+            sizes = list(self.main_splitter.sizes())
+        except Exception:
+            sizes = []
+        if len(sizes) != 3:
+            return [
+                0 if self._left_sidebar_retracted else self._last_left_width,
+                900,
+                0 if self._right_sidebar_retracted else self._last_right_width,
+            ]
+        return [max(0, int(v or 0)) for v in sizes]
+
+    def _set_font_px(self, widget, px: int):
+        try:
+            font = widget.font()
+            font.setPointSize(max(1, int(px)))
+            widget.setFont(font)
+        except Exception:
+            pass
+
+    def _set_preview_button_style(self, active: bool, px: int = 11):
+        if not hasattr(self, "btn_preview"):
+            return
+        if active:
+            self.btn_preview.setStyleSheet(
+                f"QPushButton{{background:{C['pipeline']};color:{C['bg1']};"
+                f"border:1px solid {C['pipeline']};border-radius:6px;"
+                f"font-size:{px}px;font-weight:600;}}"
+                f"QPushButton:hover{{background:{C['acc2']};color:{C['bg1']};}}")
+        else:
+            self.btn_preview.setStyleSheet(
+                f"QPushButton{{background:transparent;color:{C['pipeline']};"
+                f"border:1px solid {C['pipeline']};border-radius:6px;"
+                f"font-size:{px}px;font-weight:600;}}"
+                f"QPushButton:hover{{background:{C['pipeline']};color:{C['bg1']};}}")
+
+    def _make_sidebar_reopen_button(self, side: str, parent: QWidget) -> QPushButton:
+        btn = QPushButton(">" if side == "left" else "<", parent)
+        btn.setToolTip(f"Open {side} sidebar")
+        btn.setFixedSize(28, 28)
+        btn.setStyleSheet(
+            f"QPushButton{{background:{C['bg1']};color:{C['acc']};"
+            f"border:1px solid {C['acc']};border-radius:14px;"
+            f"font-size:15px;font-weight:800;}}"
+            f"QPushButton:hover{{background:{C['acc']};color:#fff;}}")
+        btn.clicked.connect(lambda _, s=side: self._restore_sidebar(s))
+        btn.setVisible(False)
+        return btn
+
+    def _position_sidebar_reopen_buttons(self):
+        centre = getattr(self, "_canvas_centre", None)
+        canvas_scroll = getattr(self, "canvas_scroll_area", None)
+        if centre is None:
+            return
+        try:
+            base_y = canvas_scroll.y() if canvas_scroll is not None else 0
+            area_h = canvas_scroll.height() if canvas_scroll is not None else centre.height()
+            btn_h = 28
+            y = max(8, base_y + max(0, (area_h - btn_h) // 2))
+            positions = (
+                ("btn_open_left_sidebar", 8),
+                ("btn_open_right_sidebar", max(8, centre.width() - 36)),
+            )
+            for name, x in positions:
+                btn = getattr(self, name, None)
+                if btn is None:
+                    continue
+                btn.move(int(x), int(y))
+                btn.raise_()
+        except RuntimeError:
+            pass
+
+    def _install_initial_sidebar_sizes(self):
+        for idx, stretch in enumerate((0, 1, 0)):
+            try:
+                self.main_splitter.setStretchFactor(idx, stretch)
+            except Exception:
+                pass
+        self._left_sidebar_retracted = False
+        self._right_sidebar_retracted = False
+        self._apply_splitter_state(total_hint=1400)
+
+    def _apply_splitter_state(self, total_hint: int = 0):
+        sizes = self._safe_splitter_sizes()
+        total = max(int(total_hint or 0), sum(sizes), 900)
+        left = 0 if self._left_sidebar_retracted else max(self.LEFT_MIN_W, self._last_left_width)
+        right = 0 if self._right_sidebar_retracted else max(self.RIGHT_MIN_W, self._last_right_width)
+        centre = max(360, total - left - right)
+        self._set_right_tab_labels(right)
+
+        self._updating_splitter = True
+        try:
+            self.left_sidebar_scroll.setVisible(not self._left_sidebar_retracted)
+            self.right_sidebar_panel.setVisible(not self._right_sidebar_retracted)
+            self.main_splitter.setSizes([left, centre, right])
+        finally:
+            self._updating_splitter = False
+        self._update_sidebar_reopen_buttons()
+        self._position_sidebar_reopen_buttons()
+        self._apply_sidebar_scaling()
+
+    def _retract_sidebar(self, side: str):
+        sizes = self._safe_splitter_sizes()
+        if side == "left" and not self._left_sidebar_retracted:
+            if sizes[0] > self.LEFT_RETRACT_W:
+                self._last_left_width = max(self.LEFT_MIN_W, sizes[0])
+            self._left_sidebar_retracted = True
+        elif side == "right" and not self._right_sidebar_retracted:
+            if sizes[2] > self.RIGHT_RETRACT_W:
+                self._last_right_width = max(self.RIGHT_MIN_W, sizes[2])
+            self._right_sidebar_retracted = True
+        self._apply_splitter_state(total_hint=sum(sizes))
+
+    def _restore_sidebar(self, side: str):
+        sizes = self._safe_splitter_sizes()
+        if side == "left":
+            self._left_sidebar_retracted = False
+            self._last_left_width = max(self.LEFT_MIN_W, self._last_left_width)
+        elif side == "right":
+            self._right_sidebar_retracted = False
+            self._last_right_width = max(self.RIGHT_MIN_W, self._last_right_width)
+        self._apply_splitter_state(total_hint=sum(sizes))
+
+    def _update_sidebar_reopen_buttons(self):
+        for name, visible in (
+            ("btn_open_left_sidebar", self._left_sidebar_retracted),
+            ("btn_open_right_sidebar", self._right_sidebar_retracted),
+        ):
+            btn = getattr(self, name, None)
+            if btn is None:
+                continue
+            try:
+                btn.setVisible(bool(visible))
+                if visible:
+                    btn.raise_()
+            except RuntimeError:
+                pass
+        self._position_sidebar_reopen_buttons()
+
+    def _on_main_splitter_moved(self, _pos: int, _index: int):
+        if self._updating_splitter:
+            return
+        sizes = self._safe_splitter_sizes()
+        if not self._left_sidebar_retracted:
+            if sizes[0] <= self.LEFT_RETRACT_W:
+                self._retract_sidebar("left")
+                return
+            self._last_left_width = max(self.LEFT_MIN_W, sizes[0])
+        if not self._right_sidebar_retracted:
+            if sizes[2] <= self.RIGHT_RETRACT_W:
+                self._retract_sidebar("right")
+                return
+            self._last_right_width = max(self.RIGHT_MIN_W, sizes[2])
+        self._position_sidebar_reopen_buttons()
+        self._apply_sidebar_scaling()
+
+    def _apply_sidebar_scaling(self):
+        if not self._left_sidebar_retracted:
+            self._apply_left_sidebar_scale(self._last_left_width)
+        if not self._right_sidebar_retracted:
+            self._apply_right_sidebar_scale(self._last_right_width)
+
+    def _apply_left_sidebar_scale(self, width: int):
+        body_px = self._scaled_px(11, width, self.LEFT_DEFAULT_W)
+        tiny_px = self._scaled_px(9, width, self.LEFT_DEFAULT_W)
+        header_px = self._scaled_px(12, width, self.LEFT_DEFAULT_W)
+        try:
+            self.left_sidebar_scroll.widget().setStyleSheet(
+                f"QWidget#session_sidebar{{background:{C['bg1']};"
+                f"border-right:1px solid {C['bdr']};font-size:{body_px}px;}}"
+                f"QLabel{{font-size:{body_px}px;}}"
+                f"QComboBox,QListWidget{{font-size:{body_px}px;}}")
+        except Exception:
+            pass
+        for label in self._left_scaled_labels:
+            try:
+                name = label.objectName()
+            except Exception:
+                name = ""
+            px = header_px if name == "pipeline_hdr" else tiny_px if name == "txt3_tiny" else body_px
+            self._set_font_px(label, px)
+        for btn, color, base_h, custom_style in self._left_scaled_buttons:
+            px = self._scaled_px(11, width, self.LEFT_DEFAULT_W)
+            h = max(22, self._scaled_px(base_h, width, self.LEFT_DEFAULT_W, 0.88, 1.12))
+            try:
+                btn.setFixedHeight(h)
+            except Exception:
+                pass
+            self._set_font_px(btn, px)
+            if hasattr(self, "btn_preview") and btn is self.btn_preview:
+                self._set_preview_button_style(self._preview_active, px)
+                continue
+            if custom_style:
+                btn.setStyleSheet(
+                    f"QPushButton{{background:transparent;color:{color};"
+                    f"border:1px solid {color};border-radius:6px;"
+                    f"font-size:{px}px;font-weight:600;}}"
+                    f"QPushButton:hover{{background:{color};color:#fff;}}")
+
+    def _apply_right_sidebar_scale(self, width: int):
+        body_px = self._scaled_px(11, width, self.RIGHT_DEFAULT_W, 0.86, 1.16)
+        header_px = self._scaled_px(12, width, self.RIGHT_DEFAULT_W, 0.86, 1.16)
+        try:
+            self.right_sidebar_panel.setStyleSheet(
+                f"QWidget#ref_panel{{background:{C['bg1']};"
+                f"border-left:1px solid {C['bdr']};font-size:{body_px}px;}}"
+                f"QLabel{{font-size:{body_px}px;}}"
+                f"QPushButton,QTextEdit,QLineEdit,QComboBox,QListWidget,QTabWidget{{font-size:{body_px}px;}}"
+                f"QTabBar::tab{{font-size:{body_px}px;}}")
+        except Exception:
+            pass
+        for label in self._right_scaled_labels:
+            try:
+                name = label.objectName()
+            except Exception:
+                name = ""
+            self._set_font_px(label, header_px if name == "pipeline_hdr" else body_px)
+        for btn, base_h in self._right_scaled_buttons:
+            self._set_font_px(btn, body_px)
+            try:
+                btn.setFixedHeight(max(22, self._scaled_px(base_h, width, self.RIGHT_DEFAULT_W, 0.88, 1.1)))
+            except Exception:
+                pass
+        if hasattr(self, "ai_builder_panel"):
+            try:
+                self.ai_builder_panel.set_sidebar_width(width)
+            except Exception:
+                pass
+        self._set_right_tab_labels(width)
+
+    def _set_right_tab_labels(self, width: int):
+        if not hasattr(self, "right_tabs"):
+            return
+        tight = int(width or 0) < 240
+        labels = ("Exec", "AI") if tight else ("Execution", "AI Builder")
+        try:
+            if self.right_tabs.tabText(0) != labels[0]:
+                self.right_tabs.setTabText(0, labels[0])
+            if self.right_tabs.tabText(1) != labels[1]:
+                self.right_tabs.setTabText(1, labels[1])
+        except Exception:
+            pass
+
+    def resizeEvent(self, event):
+        try:
+            super().resizeEvent(event)
+        except Exception:
+            pass
+        if hasattr(self, "main_splitter"):
+            QTimer.singleShot(0, self._sync_sidebar_sizes_from_splitter)
+            QTimer.singleShot(0, self._position_sidebar_reopen_buttons)
+
+    def _sync_sidebar_sizes_from_splitter(self):
+        if self._updating_splitter or not hasattr(self, "main_splitter"):
+            return
+        sizes = self._safe_splitter_sizes()
+        changed = False
+        if not self._left_sidebar_retracted:
+            if sizes[0] <= self.LEFT_RETRACT_W:
+                self._left_sidebar_retracted = True
+                changed = True
+            else:
+                self._last_left_width = max(self.LEFT_MIN_W, sizes[0])
+        if not self._right_sidebar_retracted:
+            if sizes[2] <= self.RIGHT_RETRACT_W:
+                self._right_sidebar_retracted = True
+                changed = True
+            else:
+                self._last_right_width = max(self.RIGHT_MIN_W, sizes[2])
+        if changed:
+            self._apply_splitter_state(total_hint=sum(sizes))
+        else:
+            self._update_sidebar_reopen_buttons()
+            self._position_sidebar_reopen_buttons()
+            self._apply_sidebar_scaling()
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
@@ -588,8 +1015,36 @@ class PipelineBuilderTab(QWidget):
             self.canvas.blocks.append(b)
         self.canvas.connections = conns
         self.canvas.normalize_block_ids()
+        self.canvas.ensure_canvas_fits_blocks()
         self.canvas.update()
         self.canvas.blocks_changed.emit()
+
+    def _load_ai_generated_pipeline(self, name: str):
+        if self.canvas.blocks:
+            ans = QMessageBox.question(
+                self,
+                "Replace Canvas",
+                f"Load generated pipeline '{name}' and replace the current canvas?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if ans != QMessageBox.StandardButton.Yes:
+                return
+        try:
+            blocks, conns = load_pipeline(name)
+        except Exception as e:
+            QMessageBox.critical(self, "AI Pipeline Load Error", str(e))
+            return
+        self._replace_canvas_with_pipeline(blocks, conns)
+        self._current_pipeline_name = name
+        if hasattr(self, "right_tabs"):
+            self.right_tabs.setCurrentIndex(0)
+        self._log(f"AI-generated pipeline '{name}' loaded for testing.")
+
+    def _ai_canvas_state(self) -> dict:
+        data = _pipeline_to_dict(self.canvas.blocks, self.canvas.connections)
+        data["current_pipeline_name"] = self._current_pipeline_name
+        data["canvas_empty"] = not bool(self.canvas.blocks)
+        return data
 
     def _preset_model_ref(self) -> tuple[str, str]:
         item = self.model_list.currentItem() if hasattr(self, "model_list") else None
@@ -804,11 +1259,8 @@ class PipelineBuilderTab(QWidget):
             parent=self)
         self._preview_ctrl.finished.connect(self._stop_flow_preview)
         set_button_icon(self.btn_preview, "stop-circle", "Stop Preview")
-        self.btn_preview.setStyleSheet(
-            f"QPushButton{{background:{C['pipeline']};color:{C['bg1']};"
-            f"border:1px solid {C['pipeline']};border-radius:6px;"
-            f"font-size:11px;font-weight:600;}}"
-            f"QPushButton:hover{{background:{C['acc2']};color:{C['bg1']};}}")
+        self._preview_active = True
+        self._set_preview_button_style(True, self._scaled_px(11, self._last_left_width, self.LEFT_DEFAULT_W))
         self._preview_ctrl.start()
 
     def _stop_flow_preview(self):
@@ -816,11 +1268,8 @@ class PipelineBuilderTab(QWidget):
             self._preview_ctrl.stop()
             self._preview_ctrl = None
         set_button_icon(self.btn_preview, "play", "Preview Flow")
-        self.btn_preview.setStyleSheet(
-            f"QPushButton{{background:transparent;color:{C['pipeline']};"
-            f"border:1px solid {C['pipeline']};border-radius:6px;"
-            f"font-size:11px;font-weight:600;}}"
-            f"QPushButton:hover{{background:{C['pipeline']};color:{C['bg1']};}}")
+        self._preview_active = False
+        self._set_preview_button_style(False, self._scaled_px(11, self._last_left_width, self.LEFT_DEFAULT_W))
 
     def _log(self, msg: str):
         ts = datetime.now().strftime("%H:%M:%S")
@@ -831,69 +1280,14 @@ class PipelineBuilderTab(QWidget):
     # ── execution ─────────────────────────────────────────────────────────────
 
     def _validate(self) -> Optional[str]:
-        blocks = self.canvas.blocks
-        if not blocks:
-            return "Canvas is empty - add blocks first."
-        if not any(b.btype == PipelineBlockType.INPUT for b in blocks):
-            return "Pipeline needs at least one INPUT block."
-        if not any(b.btype == PipelineBlockType.OUTPUT for b in blocks):
-            return "Pipeline needs at least one OUTPUT block."
-        if not self.canvas.connections:
-            return "No connections drawn. Connect the blocks with arrows."
-        # Context blocks must be configured before running
-        for b in blocks:
-            meta = getattr(b, "metadata", {})
-            if b.btype == PipelineBlockType.REFERENCE and not meta.get("ref_text"):
-                return (f"Reference block '{b.label}' has no text.\n"
-                        f"Right-click it → Configure block…")
-            if b.btype == PipelineBlockType.KNOWLEDGE and not meta.get("knowledge_text"):
-                return (f"Knowledge block '{b.label}' has no text.\n"
-                        f"Right-click it → Configure block…")
-            if b.btype == PipelineBlockType.PDF_SUMMARY and not meta.get("pdf_path"):
-                return (f"PDF block '{b.label}' has no PDF selected.\n"
-                        f"Right-click it → Configure block…")
-            # Logic blocks
-            if b.btype == PipelineBlockType.IF_ELSE and not meta.get("condition"):
-                return (f"IF/ELSE block '{b.label}' has no condition set.\n"
-                        f"Right-click it → Configure block…")
-            if b.btype == PipelineBlockType.SWITCH and not meta.get("switch_expr"):
-                return (f"SWITCH block '{b.label}' has no expression set.\n"
-                        f"Right-click it → Configure block…")
-            if b.btype == PipelineBlockType.FILTER and not meta.get("filter_cond"):
-                return (f"FILTER block '{b.label}' has no condition set.\n"
-                        f"Right-click it → Configure block…")
-            if b.btype == PipelineBlockType.TRANSFORM and not meta.get("transform_type"):
-                return (f"TRANSFORM block '{b.label}' has no transform type set.\n"
-                        f"Right-click it → Configure block…")
-            if b.btype == PipelineBlockType.CUSTOM_CODE and not meta.get("custom_code","").strip():
-                return (f"Custom Code block '{b.label}' has no code.\n"
-                        f"Right-click it → Configure block…")
-            # LLM logic blocks
-            _LLM_BTYPES_V = {
-                PipelineBlockType.LLM_IF, PipelineBlockType.LLM_SWITCH,
-                PipelineBlockType.LLM_FILTER, PipelineBlockType.LLM_TRANSFORM,
-                PipelineBlockType.LLM_SCORE,
-            }
-            if b.btype in _LLM_BTYPES_V:
-                if not meta.get("llm_instruction", "").strip():
-                    return (f"LLM logic block '{b.label}' has no instruction.\n"
-                            f"Right-click it → Configure block…")
-                mp = b.model_path or meta.get("llm_model_path", "")
-                if not mp or (not is_api_model_ref(mp) and not is_model_ref_valid(mp)):
-                    return (f"LLM logic block '{b.label}' has no valid model attached.\n"
-                            f"Right-click it → Configure block… and select a model.")
-        # Model blocks must have a valid file
-        for b in blocks:
-            if b.btype == PipelineBlockType.MODEL:
-                if not b.model_path or (not is_api_model_ref(b.model_path) and not is_model_ref_valid(b.model_path)):
-                    return (f"Model block '{b.label}' has no valid model attached.\n"
-                            f"Double-click a model in the sidebar to add it.")
-        return None
+        return validate_pipeline(self.canvas.blocks, self.canvas.connections)
 
     def _run_pipeline(self):
         err = self._validate()
         if err:
             QMessageBox.warning(self, "Invalid Pipeline", err); return
+        if hasattr(self, "right_tabs"):
+            self.right_tabs.setCurrentIndex(0)
 
         text = self.input_edit.toPlainText().strip()
         if not text:

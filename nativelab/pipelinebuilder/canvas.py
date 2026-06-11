@@ -7,16 +7,23 @@ from nativelab.Model.model_global import api_model_name_from_ref, detect_quant_t
 from .editordialogue import CodeEditorDialog, LlmLogicEditorDialog
 from nativelab.UI.UI_const import C
 from nativelab.UI.icons import add_menu_action
+from .graph_ops import normalize_block_ids as normalize_block_ids_native, would_form_loop
 class PipelineCanvas(QWidget):
     """Interactive drag-and-drop pipeline canvas with curved arrows."""
 
     blocks_changed = pyqtSignal()
     PORT_R = 6
     GRID   = 20
+    MIN_CANVAS_W = 1400
+    MIN_CANVAS_H = 900
+    CANVAS_MARGIN = 260
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumSize(1400, 900)
+        self._canvas_w = self.MIN_CANVAS_W
+        self._canvas_h = self.MIN_CANVAS_H
+        self.setMinimumSize(self.MIN_CANVAS_W, self.MIN_CANVAS_H)
+        self.resize(self.MIN_CANVAS_W, self.MIN_CANVAS_H)
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.ArrowCursor)
         self.setAcceptDrops(True)   # accept drags from model list
@@ -32,6 +39,9 @@ class PipelineCanvas(QWidget):
         self._hover_port:     Optional[str]           = None
         self._selected:       Optional[PipelineBlock] = None
         self._drop_preview:   Optional[tuple]         = None  # (x, y) ghost position
+        self._panning:        bool                    = False
+        self._pan_start:      tuple                   = (0, 0)
+        self._pan_scroll:     tuple                   = (0, 0)
         self.preview_dots:    list                    = []    # set by FlowPreviewController
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -98,6 +108,7 @@ class PipelineCanvas(QWidget):
                 else Path(model_path).stem[:18]
             )
         self._selected = b
+        self.ensure_canvas_fits_blocks()
         self.update()
         event.acceptProposedAction()
 
@@ -108,6 +119,7 @@ class PipelineCanvas(QWidget):
         self.normalize_block_ids()
         b = PipelineBlock(btype, x, y, model_path, role)
         self.blocks.append(b)
+        self.ensure_canvas_fits_blocks()
         self.update()
         self.blocks_changed.emit()
         return b
@@ -130,61 +142,91 @@ class PipelineCanvas(QWidget):
         self._selected     = None
         self._drag_block   = None
         self._connect_from = None
+        self._panning      = False
+        self._canvas_w     = self.MIN_CANVAS_W
+        self._canvas_h     = self.MIN_CANVAS_H
+        self.setMinimumSize(self.MIN_CANVAS_W, self.MIN_CANVAS_H)
+        self.resize(self.MIN_CANVAS_W, self.MIN_CANVAS_H)
         self.update()
         self.blocks_changed.emit()
 
-    def _next_unused_block_id(self, reserved: set) -> int:
-        next_bid = max([PipelineBlock._id_counter, *reserved]) + 1
-        while next_bid in reserved:
-            next_bid += 1
-        PipelineBlock._id_counter = next_bid
-        return next_bid
-
     def normalize_block_ids(self):
         """Give every block object a unique id before adding or loading blocks."""
-        reserved = set()
-        for block in self.blocks:
-            try:
-                bid = int(getattr(block, "bid", 0))
-            except (TypeError, ValueError):
-                continue
-            if bid > 0:
-                reserved.add(bid)
-
-        used = set()
-        remap = {}
-        for block in self.blocks:
-            original_bid = getattr(block, "bid", None)
-            try:
-                bid = int(original_bid)
-            except (TypeError, ValueError):
-                bid = 0
-
-            if bid <= 0 or bid in used:
-                bid = self._next_unused_block_id(reserved)
-                reserved.add(bid)
-
-            block.bid = bid
-            used.add(bid)
-
-            if original_bid not in remap:
-                remap[original_bid] = bid
-            if original_bid != bid and bid not in remap:
-                remap[bid] = bid
-
-        if remap:
-            for conn in self.connections:
-                conn.from_block_id = remap.get(conn.from_block_id, conn.from_block_id)
-                conn.to_block_id = remap.get(conn.to_block_id, conn.to_block_id)
-
-        if used and PipelineBlock._id_counter < max(used):
-            PipelineBlock._id_counter = max(used)
+        PipelineBlock._id_counter = normalize_block_ids_native(
+            self.blocks,
+            self.connections,
+            PipelineBlock._id_counter,
+        )
 
     def sync_block_id_counter(self):
         self.normalize_block_ids()
 
     def _snap(self, v: int) -> int:
         return round(v / self.GRID) * self.GRID
+
+    def _current_canvas_size(self) -> tuple:
+        try:
+            width = int(self.width())
+            height = int(self.height())
+        except Exception:
+            width = self._canvas_w
+            height = self._canvas_h
+        return (width, height)
+
+    def ensure_canvas_fits_blocks(self):
+        """Grow the scrollable canvas when loaded or moved blocks exceed bounds."""
+        if not self.blocks:
+            return
+        max_x = max(int(getattr(b, "x", 0)) + int(getattr(b, "w", 0)) for b in self.blocks)
+        max_y = max(int(getattr(b, "y", 0)) + int(getattr(b, "h", 0)) for b in self.blocks)
+        target_w = max(self.MIN_CANVAS_W, self._snap(max_x + self.CANVAS_MARGIN))
+        target_h = max(self.MIN_CANVAS_H, self._snap(max_y + self.CANVAS_MARGIN))
+        cur_w, cur_h = self._current_canvas_size()
+        if target_w > cur_w or target_h > cur_h:
+            target_w = max(target_w, cur_w)
+            target_h = max(target_h, cur_h)
+            self._canvas_w = target_w
+            self._canvas_h = target_h
+            self.setMinimumSize(target_w, target_h)
+            self.resize(target_w, target_h)
+
+    def _scroll_area(self):
+        parent = self.parentWidget()
+        while parent is not None:
+            if hasattr(parent, "horizontalScrollBar") and hasattr(parent, "verticalScrollBar"):
+                return parent
+            parent = parent.parentWidget()
+        return None
+
+    def _event_global_xy(self, event) -> tuple:
+        if hasattr(event, "globalPosition"):
+            gp = event.globalPosition()
+            return (int(gp.x()), int(gp.y()))
+        gp = event.globalPos()
+        return (int(gp.x()), int(gp.y()))
+
+    def _start_pan(self, event):
+        scroll = self._scroll_area()
+        if scroll is None:
+            return
+        self._panning = True
+        self._pan_start = self._event_global_xy(event)
+        self._pan_scroll = (
+            scroll.horizontalScrollBar().value(),
+            scroll.verticalScrollBar().value(),
+        )
+        self.setCursor(Qt.CursorShape.ClosedHandCursor)
+
+    def _pan_to(self, event):
+        scroll = self._scroll_area()
+        if scroll is None:
+            self._panning = False
+            return
+        gx, gy = self._event_global_xy(event)
+        sx, sy = self._pan_start
+        start_h, start_v = self._pan_scroll
+        scroll.horizontalScrollBar().setValue(start_h - (gx - sx))
+        scroll.verticalScrollBar().setValue(start_v - (gy - sy))
 
     def _block_by_id(self, bid: int) -> Optional[PipelineBlock]:
         for b in self.blocks:
@@ -508,19 +550,26 @@ class PipelineCanvas(QWidget):
                     self._drag_block  = b
                     self._drag_offset = (px - b.x, py - b.y)
                     self._selected    = b
+                    self._panning     = False
                     self.update()
                     return
             self._selected = None
+            self._start_pan(event)
             self.update()
 
     def mouseMoveEvent(self, event):
         px = int(event.position().x())
         py = int(event.position().y())
 
+        if self._panning:
+            self._pan_to(event)
+            return
+
         if self._drag_block:
             ox, oy = self._drag_offset
             self._drag_block.x = self._snap(px - ox)
             self._drag_block.y = self._snap(py - oy)
+            self.ensure_canvas_fits_blocks()
             self.update()
             return
 
@@ -551,8 +600,15 @@ class PipelineCanvas(QWidget):
         px = int(event.position().x())
         py = int(event.position().y())
 
+        if self._panning and event.button() == Qt.MouseButton.LeftButton:
+            self._panning = False
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+            self.update()
+            return
+
         if self._drag_block:
             self._drag_block = None
+            self.ensure_canvas_fits_blocks()
             self.blocks_changed.emit()
             self.update()
             return
@@ -930,19 +986,7 @@ class PipelineCanvas(QWidget):
 
     def _would_form_loop(self, from_bid: int, to_bid: int) -> bool:
         """Return True if to_bid can already reach from_bid (i.e. adding this edge creates a cycle)."""
-        visited: set = set()
-        queue = [to_bid]
-        while queue:
-            cur = queue.pop()
-            if cur == from_bid:
-                return True
-            if cur in visited:
-                continue
-            visited.add(cur)
-            for c in self.connections:
-                if c.from_block_id == cur:
-                    queue.append(c.to_block_id)
-        return False
+        return would_form_loop(self.connections, from_bid, to_bid)
 
     def _conn_at(self, px: int, py: int,
                  thresh: int = 8) -> "Optional[PipelineConnection]":
