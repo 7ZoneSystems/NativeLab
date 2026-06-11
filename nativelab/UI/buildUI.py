@@ -625,10 +625,10 @@ QMenuBar {{
     background:{c['bg1']};
     color:{c['txt2']};
     border-bottom:1px solid {c['bdr']};
-    min-height:30px;
-    padding:2px 4px; font-size:13px;
+    min-height:28px;
+    padding:1px 4px; font-size:13px;
 }}
-QMenuBar::item {{ padding:5px 14px; border-radius:5px; }}
+QMenuBar::item {{ padding:3px 12px; border-radius:5px; }}
 QMenuBar::item:selected {{ background:{rgba(0.14)}; color:{c['txt']}; }}
 QMenu {{
     background:{c['surface']};

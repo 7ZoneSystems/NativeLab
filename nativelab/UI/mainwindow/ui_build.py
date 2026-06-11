@@ -1,4 +1,5 @@
 """MainWindow feature mixin extracted from nativelab.main."""
+import platform as _platform
 from .shared import *
 
 
@@ -584,14 +585,14 @@ class UiBuildMixin:
                 menu_bar.setNativeMenuBar(False)
             minimum_height = getattr(menu_bar, "minimumHeight", lambda: 0)
             current_height = int((minimum_height() if callable(minimum_height) else 0) or 0)
-            menu_bar.setMinimumHeight(max(32, current_height))
+            menu_bar.setMinimumHeight(max(28, current_height))
         except Exception:
             pass
 
     def _install_topbar_controls(self, menu_bar):
         box = QWidget()
         box.setObjectName("topbar_controls")
-        box.setMinimumHeight(28)
+        box.setMinimumHeight(26)
         row = QHBoxLayout(box)
         row.setContentsMargins(0, 0, 8, 0)
         row.setSpacing(6)
@@ -604,7 +605,7 @@ class UiBuildMixin:
         self.btn_settings = QPushButton("")
         self.btn_settings.setToolTip("Open app configuration")
         for b in (self.btn_toggle_sidebar, self.btn_toggle_topbar, self.btn_tab_menu, self.btn_settings):
-            b.setFixedSize(28, 24)
+            b.setFixedSize(26, 22)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             row.addWidget(b)
         self._apply_topbar_button_styles()
