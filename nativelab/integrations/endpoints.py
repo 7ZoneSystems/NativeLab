@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any, Dict
 
@@ -38,6 +39,16 @@ class IntegrationEndpoints:
                 "path": "/models",
                 "method": "GET",
                 "description": "Registered local GGUF models with roles and detected metadata.",
+            },
+            {
+                "path": "/v1/models",
+                "method": "GET",
+                "description": "OpenAI-compatible model list for saved pipeline models.",
+            },
+            {
+                "path": "/v1/chat/completions",
+                "method": "POST",
+                "description": "OpenAI-compatible chat completion route. Use model='pipeline:<name>' to execute a saved pipeline.",
             },
             {
                 "path": "/api_models",
@@ -112,6 +123,7 @@ class IntegrationEndpoints:
             "models": self.models(),
             "api_models": self.api_models(),
             "pipelines": self.pipelines(),
+            "pipeline_models": self.pipeline_models(),
             "labs": self.labs(),
             "integrations": {
                 "discord_bots": self.discord_bots(),
@@ -128,6 +140,8 @@ class IntegrationEndpoints:
             return self.runtime()
         if clean == "/models":
             return {"models": self.models()}
+        if clean == "/v1/models":
+            return self.openai_models()
         if clean == "/api_models":
             return {"api_models": self.api_models()}
         if clean == "/limits":
@@ -159,6 +173,75 @@ class IntegrationEndpoints:
         if self._lab_endpoints is None:
             raise RuntimeError("Integration endpoint is not bound to a running app")
         return self._lab_endpoints.call_llm(*args, **kwargs)
+
+    def openai_chat_completion(self, payload: Dict[str, Any]) -> tuple[int, Dict[str, Any]]:
+        payload = dict(payload or {})
+        if payload.get("stream"):
+            return 400, self._openai_error(
+                "Streaming pipeline model responses are not supported yet. Send stream=false.",
+                code="streaming_not_supported",
+            )
+        model_id = str(payload.get("model", "") or "")
+        pipeline_name = self.pipeline_name_from_model_id(model_id)
+        if not pipeline_name:
+            return 404, self._openai_error(
+                f"Unknown pipeline model: {model_id or '(missing)'}",
+                code="model_not_found",
+            )
+        prompt = self._prompt_from_openai_payload(payload)
+        try:
+            result = self.run_pipeline_model(pipeline_name, prompt)
+        except FileNotFoundError:
+            return 404, self._openai_error(
+                f"Pipeline not found: {pipeline_name}",
+                code="pipeline_not_found",
+            )
+        except Exception as exc:
+            return 500, self._openai_error(str(exc), code="pipeline_execution_error")
+        text = str(result.get("text", ""))
+        return 200, {
+            "id": f"chatcmpl-nativelab-pipeline-{int(time.time() * 1000)}",
+            "object": "chat.completion",
+            "created": int(time.time()),
+            "model": self.pipeline_model_id(pipeline_name),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": text},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {
+                "prompt_tokens": self._rough_token_count(prompt),
+                "completion_tokens": self._rough_token_count(text),
+                "total_tokens": self._rough_token_count(prompt) + self._rough_token_count(text),
+            },
+            "nativelab": {
+                "kind": "pipeline",
+                "pipeline": pipeline_name,
+                "sender": result.get("sender", ""),
+                "logs": result.get("logs", []),
+                "steps": result.get("steps", []),
+                "intermediates": result.get("intermediates", []),
+            },
+        }
+
+    def run_pipeline_model(self, name: str, input_text: str) -> Dict[str, Any]:
+        from nativelab.pipelinebuilder.executionWorker import run_pipeline_sync
+        from nativelab.pipelinebuilder.pipefunctions import load_pipeline, safe_pipeline_name
+
+        try:
+            safe = safe_pipeline_name(name)
+        except ValueError:
+            raise FileNotFoundError("empty pipeline name")
+        blocks, conns = load_pipeline(safe)
+        return run_pipeline_sync(
+            blocks,
+            conns,
+            str(input_text or ""),
+            self._active_engine(),
+            log_cb=lambda msg: self._endpoint_log("INFO", f"pipeline:{safe}: {msg}"),
+        )
 
     def request_context(self, new_ctx: int) -> bool:
         if self._lab_endpoints is None:
@@ -248,17 +331,17 @@ class IntegrationEndpoints:
 
     def pipelines(self) -> list[Dict[str, Any]]:
         try:
-            from nativelab.GlobalConfig.config_global import PIPELINES_DIR
-            from nativelab.pipelinebuilder.pipefunctions import list_saved_pipelines
+            from nativelab.pipelinebuilder.pipefunctions import list_saved_pipelines, pipeline_path
         except Exception:
             return []
         rows = []
         for name in list_saved_pipelines():
-            path = PIPELINES_DIR / f"{name}.json"
+            path = pipeline_path(name)
             data = self._read_pipeline_file(path)
             rows.append({
                 "name": name,
                 "route": f"/pipelines/{name}",
+                "model_id": self.pipeline_model_id(name),
                 "path": str(path),
                 "exists": path.exists(),
                 "blocks": len(data.get("blocks", [])),
@@ -270,13 +353,60 @@ class IntegrationEndpoints:
             })
         return rows
 
+    def pipeline_models(self) -> list[Dict[str, Any]]:
+        rows = []
+        for pipeline in self.pipelines():
+            name = str(pipeline.get("name", "") or "")
+            if not name:
+                continue
+            rows.append({
+                "id": self.pipeline_model_id(name),
+                "name": name,
+                "object": "model",
+                "created": 0,
+                "owned_by": "nativelab-pipeline",
+                "route": "/v1/chat/completions",
+                "pipeline_route": pipeline.get("route", f"/pipelines/{name}"),
+                "blocks": pipeline.get("blocks", 0),
+                "connections": pipeline.get("connections", 0),
+                "block_types": pipeline.get("block_types", []),
+            })
+        return rows
+
+    def openai_models(self) -> Dict[str, Any]:
+        return {"object": "list", "data": self.pipeline_models()}
+
+    @staticmethod
+    def pipeline_model_id(name: str) -> str:
+        from nativelab.pipelinebuilder.pipefunctions import safe_pipeline_name
+        return f"pipeline:{safe_pipeline_name(name)}"
+
+    def pipeline_name_from_model_id(self, model_id: str) -> str:
+        model_id = str(model_id or "").strip()
+        if not model_id:
+            return ""
+        for prefix in ("pipeline:", "pipeline/"):
+            if model_id.startswith(prefix):
+                try:
+                    from nativelab.pipelinebuilder.pipefunctions import safe_pipeline_name
+                    return safe_pipeline_name(model_id[len(prefix):])
+                except ValueError:
+                    return ""
+        saved = {str(row.get("name", "")) for row in self.pipelines()}
+        if model_id in saved:
+            return model_id
+        return ""
+
     def pipeline_definition(self, name: str) -> Dict[str, Any]:
         try:
-            from nativelab.GlobalConfig.config_global import PIPELINES_DIR
+            from nativelab.pipelinebuilder.pipefunctions import pipeline_path, safe_pipeline_name
         except Exception as e:
             return {"error": str(e), "name": name}
-        safe = Path(name).stem
-        path = PIPELINES_DIR / f"{safe}.json"
+        try:
+            safe = safe_pipeline_name(name)
+            path = pipeline_path(safe)
+        except ValueError:
+            return {"error": "invalid pipeline name", "name": name}
         if not path.exists():
             return {"error": "pipeline not found", "name": name}
         return {
@@ -356,6 +486,22 @@ class IntegrationEndpoints:
         return load_skills()
 
     # Internals
+    def _active_engine(self):
+        if self._lab_endpoints is None:
+            return None
+        try:
+            return self._lab_endpoints.active_engine()
+        except Exception:
+            return None
+
+    def _endpoint_log(self, level: str, msg: str) -> None:
+        if self._lab_endpoints is not None and hasattr(self._lab_endpoints, "_log"):
+            try:
+                self._lab_endpoints._log(level, msg)
+                return
+            except Exception:
+                pass
+
     @staticmethod
     def _read_pipeline_file(path: Path) -> Dict[str, Any]:
         if not path.exists():
@@ -364,6 +510,60 @@ class IntegrationEndpoints:
             return json.loads(path.read_text(encoding="utf-8"))
         except Exception as e:
             return {"error": str(e)}
+
+    @staticmethod
+    def _openai_error(message: str, *, code: str = "error") -> Dict[str, Any]:
+        return {
+            "error": {
+                "message": str(message),
+                "type": "nativelab_pipeline_error",
+                "code": str(code),
+            }
+        }
+
+    @classmethod
+    def _prompt_from_openai_payload(cls, payload: Dict[str, Any]) -> str:
+        if payload.get("prompt") is not None:
+            return cls._content_to_text(payload.get("prompt"))
+        messages = payload.get("messages") or []
+        if not isinstance(messages, list) or not messages:
+            return ""
+        if len(messages) == 1:
+            return cls._content_to_text(messages[0].get("content", ""))
+        lines = []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            role = str(msg.get("role", "user") or "user")
+            content = cls._content_to_text(msg.get("content", ""))
+            if content:
+                lines.append(f"{role.upper()}:\n{content}")
+        return "\n\n".join(lines)
+
+    @classmethod
+    def _content_to_text(cls, content: Any) -> str:
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts = []
+            for item in content:
+                if isinstance(item, dict):
+                    if item.get("type") == "text":
+                        parts.append(str(item.get("text", "")))
+                    elif "text" in item:
+                        parts.append(str(item.get("text", "")))
+                elif item is not None:
+                    parts.append(str(item))
+            return "\n".join(part for part in parts if part)
+        if isinstance(content, dict):
+            if "text" in content:
+                return str(content.get("text", ""))
+            return json.dumps(content, ensure_ascii=False)
+        return "" if content is None else str(content)
+
+    @staticmethod
+    def _rough_token_count(text: str) -> int:
+        return len(str(text or "").split())
 
     @staticmethod
     def _lab_slug(name: str) -> str:

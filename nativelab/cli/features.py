@@ -27,6 +27,7 @@ from nativelab.integrations.whatsapp_connector import (
     load_whatsapp_bots,
     upsert_whatsapp_bot,
 )
+from nativelab.GlobalConfig.config_global import PIPELINES_DIR
 from nativelab.GlobalConfig.timeouts import LONG_TIMEOUT_MS
 from nativelab.skill import (
     active_skills,
@@ -48,7 +49,7 @@ CUSTOM_MODELS_FILE = LOCAL_LLM_DIR / "custom_models.json"
 MODEL_CONFIGS_FILE = LOCAL_LLM_DIR / "model_configs.json"
 API_MODELS_FILE = LOCAL_LLM_DIR / "api_models.json"
 EDIT_RESPONSE_FILE = LOCAL_LLM_DIR / "temp_code_edit_response.json"
-PIPELINES_DIRS = [Path.home() / ".native_lab" / "pipelines", LOCAL_LLM_DIR / "pipelines"]
+PIPELINES_DIRS = [PIPELINES_DIR]
 
 
 def print_json(data: Any) -> None:
@@ -159,9 +160,14 @@ def _load_pipeline_rows() -> list[dict[str, Any]]:
 
 
 def _load_pipeline_definition(name: str) -> dict[str, Any]:
-    safe = Path(name).stem
+    from nativelab.pipelinebuilder.pipefunctions import pipeline_path, safe_pipeline_name
+
+    try:
+        safe = safe_pipeline_name(name)
+    except ValueError:
+        return {"error": "invalid pipeline name", "name": name}
     for root in PIPELINES_DIRS:
-        path = root / f"{safe}.json"
+        path = pipeline_path(safe) if root == PIPELINES_DIR else root / f"{safe}.json"
         if path.exists():
             return {
                 "name": safe,
@@ -417,41 +423,30 @@ def pipeline_show(name: str, *, as_json: bool = False) -> dict:
 
 
 def pipeline_run(runtime: CliRuntime, name: str, text: str) -> int:
-    from nativelab.imports.qt_compat import QCoreApplication, QEventLoop
-    from nativelab.pipelinebuilder.executionWorker import PipelineExecutionWorker
+    from nativelab.pipelinebuilder.executionWorker import run_pipeline_sync
     from nativelab.pipelinebuilder.pipefunctions import load_pipeline
 
     if not runtime.endpoints.is_loaded:
         ui.err("No engine loaded for pipeline execution.")
         return 1
-    app = QCoreApplication.instance() or QCoreApplication([])
-    loop = QEventLoop()
     blocks, conns = load_pipeline(name)
-    worker = PipelineExecutionWorker(blocks, conns, text, runtime.endpoints.active_engine())
-    result = {"code": 0}
-
-    worker.log_msg.connect(lambda msg: print(ui.dim(f"[pipeline] {msg}")))
-    worker.step_started.connect(lambda bid, label: ui.info(f"step {bid}: {label}"))
-    worker.step_token.connect(lambda bid, tok: (sys.stdout.write(tok), sys.stdout.flush()))
-    worker.err.connect(lambda msg: (ui.err(msg), result.update(code=1), loop.quit()))
-
-    def done(payload: str):
-        try:
-            data = json.loads(payload)
-            final = data.get("text", payload)
-        except Exception:
-            final = payload
-        print()
-        print(ui.bold("Pipeline output"))
-        print(final)
-        loop.quit()
-
-    worker.pipeline_done.connect(done)
-    worker.start()
-    loop.exec()
-    worker.wait(LONG_TIMEOUT_MS)
-    _ = app
-    return int(result["code"])
+    try:
+        result = run_pipeline_sync(
+            blocks,
+            conns,
+            text,
+            runtime.endpoints.active_engine(),
+            log_cb=lambda msg: print(ui.dim(f"[pipeline] {msg}")),
+            step_cb=lambda step: ui.info(f"step {step['id']}: {step['label']}"),
+            token_cb=lambda tok: (sys.stdout.write(tok), sys.stdout.flush()),
+        )
+    except Exception as exc:
+        ui.err(str(exc))
+        return 1
+    print()
+    print(ui.bold("Pipeline output"))
+    print(result.get("text", ""))
+    return 0
 
 
 # ── Labs: Code Edit and py-to-doc ───────────────────────────────────────────

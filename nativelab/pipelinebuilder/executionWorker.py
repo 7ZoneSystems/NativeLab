@@ -15,6 +15,93 @@ from .execution_core import (
     transform_text,
 )
 from .graph_ops import build_adjacency, route_connections
+
+
+def _decode_pipeline_payload(payload: str) -> dict:
+    try:
+        data = json.loads(payload)
+        if isinstance(data, dict):
+            return {
+                "text": str(data.get("text", payload)),
+                "sender": str(data.get("sender", "")),
+                "raw": payload,
+            }
+    except Exception:
+        pass
+    return {"text": str(payload), "sender": "", "raw": str(payload)}
+
+
+def run_pipeline_sync(
+    blocks: List[PipelineBlock],
+    connections: List[PipelineConnection],
+    input_text: str,
+    primary_engine: "LlamaEngine",
+    *,
+    token_cb=None,
+    log_cb=None,
+    step_cb=None,
+) -> dict:
+    """
+    Execute a pipeline synchronously using PipelineExecutionWorker itself.
+
+    This is used by CLI and integration HTTP endpoints where starting a separate
+    QThread/event loop would add another execution path. All block behavior,
+    guardrails, model calls, and error handling remain inside the worker.
+    """
+    from .validation import validate_pipeline
+
+    validation_error = validate_pipeline(blocks, connections)
+    if validation_error:
+        raise RuntimeError(validation_error)
+
+    worker = PipelineExecutionWorker(blocks, connections, str(input_text or ""), primary_engine)
+    result = {
+        "text": "",
+        "sender": "",
+        "raw": "",
+        "logs": [],
+        "steps": [],
+        "intermediates": [],
+    }
+    errors: list[str] = []
+
+    def _log(msg: str):
+        result["logs"].append(str(msg))
+        if log_cb:
+            log_cb(str(msg))
+
+    def _step_started(bid: int, label: str):
+        item = {"id": int(bid), "label": str(label)}
+        result["steps"].append(item)
+        if step_cb:
+            step_cb(item)
+
+    def _token(_bid: int, tok: str):
+        if token_cb:
+            token_cb(str(tok))
+
+    def _intermediate(bid: int, label: str, text: str):
+        result["intermediates"].append({
+            "id": int(bid),
+            "label": str(label),
+            "text": str(text),
+        })
+
+    def _done(payload: str):
+        result.update(_decode_pipeline_payload(str(payload)))
+
+    worker.log_msg.connect(_log)
+    worker.step_started.connect(_step_started)
+    worker.step_token.connect(_token)
+    worker.intermediate_live.connect(_intermediate)
+    worker.pipeline_done.connect(_done)
+    worker.err.connect(lambda msg: errors.append(str(msg)))
+    worker.run()
+    if errors:
+        raise RuntimeError(errors[0])
+    return result
+
+
 class PipelineExecutionWorker(QThread):
     """
     Sequentially executes a validated pipeline graph.

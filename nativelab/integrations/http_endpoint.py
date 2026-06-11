@@ -9,6 +9,13 @@ from urllib.parse import urlparse
 from .endpoints import IntegrationEndpoints
 
 
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
+
+
+class RequestBodyTooLarge(ValueError):
+    pass
+
+
 class IntegrationHttpEndpoint:
     """Small localhost JSON server for external integration prototypes."""
 
@@ -47,14 +54,21 @@ class IntegrationHttpEndpoint:
                 if path == "/health":
                     self._send_json({"ok": True, "runtime": owner.endpoints.runtime()})
                     return
+                if path == "/v1/models":
+                    self._send_json(owner.endpoints.openai_models())
+                    return
                 self._send_json(owner.endpoints.handle(path))
 
             def do_POST(self):
-                path = urlparse(self.path).path
-                if path != "/call_llm":
-                    self._send_json({"error": "unknown POST endpoint", "path": path}, 404)
-                    return
                 try:
+                    path = urlparse(self.path).path
+                    if path in {"/v1/chat/completions", "/chat/completions"}:
+                        status, data = owner.endpoints.openai_chat_completion(self._read_json())
+                        self._send_json(data, status)
+                        return
+                    if path != "/call_llm":
+                        self._send_json({"error": "unknown POST endpoint", "path": path}, 404)
+                        return
                     payload = self._read_json()
                     text = owner.endpoints.call_llm(
                         messages=payload.get("messages"),
@@ -66,6 +80,10 @@ class IntegrationHttpEndpoint:
                         repeat_penalty=float(payload.get("repeat_penalty", 1.15)),
                     )
                     self._send_json({"text": text, "runtime": owner.endpoints.runtime()})
+                except RequestBodyTooLarge as e:
+                    self._send_json({"error": str(e), "code": "request_too_large"}, 413)
+                except (ValueError, json.JSONDecodeError) as e:
+                    self._send_json({"error": str(e), "code": "bad_request"}, 400)
                 except Exception as e:
                     self._send_json({"error": str(e)}, 500)
 
@@ -73,9 +91,15 @@ class IntegrationHttpEndpoint:
                 return
 
             def _read_json(self) -> Dict[str, Any]:
-                length = int(self.headers.get("Content-Length", "0") or "0")
+                try:
+                    length = int(self.headers.get("Content-Length", "0") or "0")
+                except ValueError as exc:
+                    raise ValueError("Invalid Content-Length header.") from exc
                 if length <= 0:
                     return {}
+                if length > MAX_REQUEST_BYTES:
+                    raise RequestBodyTooLarge(
+                        f"Request body exceeds {MAX_REQUEST_BYTES // (1024 * 1024)} MiB limit.")
                 raw = self.rfile.read(length).decode("utf-8")
                 return json.loads(raw) if raw.strip() else {}
 
