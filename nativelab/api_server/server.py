@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -9,7 +10,14 @@ from urllib.parse import urlparse
 
 from nativelab.core.engine_status import active_engine_status
 
-from .catalog import anthropic_model_list, model_catalog, openai_model_list, resolve_model_ref
+from .catalog import (
+    anthropic_model_list,
+    is_pipeline_model_ref,
+    model_catalog,
+    openai_model_list,
+    pipeline_name_from_ref,
+    resolve_model_ref,
+)
 from .config import ACTIVE_MODEL_REF, ApiServerConfig
 from .protocol import (
     anthropic_message_response,
@@ -20,6 +28,13 @@ from .protocol import (
     openai_completion_response,
     sampling_options,
 )
+
+
+MAX_REQUEST_BYTES = 8 * 1024 * 1024
+
+
+class RequestBodyTooLarge(ValueError):
+    pass
 
 
 class NativeLabApiServer:
@@ -59,9 +74,15 @@ class NativeLabApiServer:
                 return
 
             def _read_json(self) -> dict[str, Any]:
-                length = int(self.headers.get("Content-Length", "0") or "0")
+                try:
+                    length = int(self.headers.get("Content-Length", "0") or "0")
+                except ValueError as exc:
+                    raise ValueError("Invalid Content-Length header.") from exc
                 if length <= 0:
                     return {}
+                if length > MAX_REQUEST_BYTES:
+                    raise RequestBodyTooLarge(
+                        f"Request body exceeds {MAX_REQUEST_BYTES // (1024 * 1024)} MiB limit.")
                 raw = self.rfile.read(length).decode("utf-8", errors="replace")
                 return json.loads(raw) if raw.strip() else {}
 
@@ -107,7 +128,10 @@ class NativeLabApiServer:
     def _handle(self, handler: BaseHTTPRequestHandler, method: str) -> None:
         path = urlparse(handler.path).path.rstrip("/") or "/"
         if method == "GET" and path in ("/", "/health", "/v1/health"):
-            handler._send_json(self._health_payload())
+            if self.config.require_api_key and not self._authorized(handler):
+                handler._send_json(self._public_health_payload())
+            else:
+                handler._send_json(self._health_payload())
             return
         if not self._authorized(handler):
             handler._send_json(error_payload("Invalid API key for this client address.", "authentication_error", 401), 401)
@@ -119,6 +143,10 @@ class NativeLabApiServer:
                 self._handle_post(handler, path)
             else:
                 handler._send_json(error_payload("Unsupported method.", "method_not_allowed", 405), 405)
+        except RequestBodyTooLarge as exc:
+            handler._send_json(error_payload(str(exc), "request_too_large", 413), 413)
+        except (ValueError, json.JSONDecodeError) as exc:
+            handler._send_json(error_payload(str(exc), "bad_request", 400), 400)
         except Exception as exc:
             handler._send_json(error_payload(str(exc), "server_error", 500), 500)
 
@@ -164,7 +192,11 @@ class NativeLabApiServer:
     def _handle_openai_chat(self, handler, payload: dict[str, Any]) -> None:
         model_id = self._ensure_model(payload.get("model"))
         messages, images = normalize_openai_messages(payload)
-        text = self._generate(messages, images, sampling_options(payload))
+        text = (
+            self._generate_pipeline(model_id, messages)
+            if is_pipeline_model_ref(model_id)
+            else self._generate(messages, images, sampling_options(payload))
+        )
         if payload.get("stream"):
             handler._send_sse(self._openai_chat_sse(model_id, text))
         else:
@@ -176,7 +208,11 @@ class NativeLabApiServer:
         if isinstance(prompt, list):
             prompt = "\n".join(str(p) for p in prompt)
         messages = [{"role": "user", "content": str(prompt or "")}]
-        text = self._generate(messages, [], sampling_options(payload))
+        text = (
+            self._generate_pipeline(model_id, messages)
+            if is_pipeline_model_ref(model_id)
+            else self._generate(messages, [], sampling_options(payload))
+        )
         if payload.get("stream"):
             handler._send_sse(self._openai_completion_sse(model_id, text))
         else:
@@ -185,7 +221,11 @@ class NativeLabApiServer:
     def _handle_anthropic_messages(self, handler, payload: dict[str, Any]) -> None:
         model_id = self._ensure_model(payload.get("model"))
         messages, images = normalize_anthropic_messages(payload)
-        text = self._generate(messages, images, sampling_options(payload))
+        text = (
+            self._generate_pipeline(model_id, messages)
+            if is_pipeline_model_ref(model_id)
+            else self._generate(messages, images, sampling_options(payload))
+        )
         if payload.get("stream"):
             handler._send_sse(self._anthropic_sse(model_id, text))
         else:
@@ -208,12 +248,28 @@ class NativeLabApiServer:
                 seed=opts["seed"],
             )
 
+    def _generate_pipeline(self, model_ref: str, messages: list[dict[str, str]]) -> str:
+        name = pipeline_name_from_ref(model_ref)
+        if not name:
+            raise RuntimeError(f"Invalid pipeline model ref: {model_ref}")
+        prompt = self._messages_to_pipeline_prompt(messages)
+        from nativelab.integrations.endpoints import IntegrationEndpoints
+
+        result = IntegrationEndpoints(self.endpoints).run_pipeline_model(name, prompt)
+        return str(result.get("text", ""))
+
     def _ensure_model(self, requested_model: Any) -> str:
         requested = str(requested_model or "").strip()
         selected_ref = str(self.config.model_ref or ACTIVE_MODEL_REF)
         target_ref = resolve_model_ref(requested) if requested else ""
+        if requested and is_pipeline_model_ref(requested) and not target_ref:
+            raise RuntimeError(f"Pipeline model not found: {requested}")
         if not target_ref and selected_ref != ACTIVE_MODEL_REF:
             target_ref = selected_ref
+        if target_ref and is_pipeline_model_ref(target_ref):
+            if not resolve_model_ref(target_ref):
+                raise RuntimeError(f"Pipeline model not found: {target_ref}")
+            return target_ref
         active_ref = str(self.endpoints.model_path or "")
         if target_ref:
             model_id = self._model_id_for_ref(target_ref)
@@ -236,6 +292,20 @@ class NativeLabApiServer:
                 return str(row.get("id") or row.get("name") or "nativelab-model")
         return str(model_ref or "nativelab-active").rstrip("/").split("/")[-1]
 
+    @staticmethod
+    def _messages_to_pipeline_prompt(messages: list[dict[str, str]]) -> str:
+        rows = [m for m in messages if isinstance(m, dict) and str(m.get("content", "")).strip()]
+        if not rows:
+            raise RuntimeError("No messages were provided.")
+        if len(rows) == 1:
+            return str(rows[0].get("content", "") or "")
+        parts = []
+        for msg in rows:
+            role = str(msg.get("role") or "user").upper()
+            content = str(msg.get("content") or "")
+            parts.append(f"{role}:\n{content}")
+        return "\n\n".join(parts)
+
     def _authorized(self, handler: BaseHTTPRequestHandler) -> bool:
         if not self.config.require_api_key:
             return True
@@ -245,7 +315,14 @@ class NativeLabApiServer:
         if not key:
             key = str(handler.headers.get("x-api-key") or "").strip()
         expected = self.config.local_api_key if self._is_loopback(handler.client_address[0]) else self.config.lan_api_key
-        return bool(key and expected and key == expected)
+        return bool(key and expected and secrets.compare_digest(str(key), str(expected)))
+
+    def _public_health_payload(self) -> dict[str, Any]:
+        return {
+            "ok": True,
+            "name": "NativeLab API Server",
+            "auth": {"required": True},
+        }
 
     @staticmethod
     def _is_loopback(ip: str) -> bool:
