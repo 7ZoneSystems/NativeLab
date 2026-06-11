@@ -1,7 +1,7 @@
 from nativelab.Model.ModelRegistry import get_model_registry
 from nativelab.Model.model_global import api_model_ref, getapi_registry, is_api_model_ref, is_model_ref_valid, model_ref_display_name
 from nativelab.imports.import_global import QInputDialog,QMessageBox,datetime,QListWidgetItem,QApplication,QComboBox,QDialog, Path,Dict,Optional,QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QTextEdit, QFont, QFrame, QTabWidget, QScrollArea, QListWidget, QAbstractItemView, QWidget, QTimer, QSplitter, QSizePolicy, Qt
-from .pipefunctions import _pipeline_to_dict, list_example_pipelines, list_saved_pipelines, load_example_pipeline, load_pipeline, save_pipeline
+from .pipefunctions import _pipeline_to_dict, list_example_pipelines, list_saved_pipelines, load_example_pipeline, load_pipeline, pipeline_path, save_pipeline
 from .blck_typ import PipelineBlockType 
 from nativelab.core.engine_global import LlamaEngine, engine_status
 from .executionWorker import PipelineExecutionWorker
@@ -15,7 +15,7 @@ from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 from .canvas import PipelineCanvas
 from .outrender import PipelineOutputRenderer
 from manual import make_manual_html, PIPELINE_MANUAL_HTML
-from nativelab.GlobalConfig.config_global import ROLE_ICONS, PIPELINES_DIR, LONG_TIMEOUT_MS
+from nativelab.GlobalConfig.config_global import ROLE_ICONS, LONG_TIMEOUT_MS
 class PipelineBuilderTab(QWidget):
     """
     Full-featured pipeline builder tab.
@@ -1096,7 +1096,7 @@ class PipelineBuilderTab(QWidget):
             f"Permanently delete '{choice}'?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if ans == QMessageBox.StandardButton.Yes:
-            (PIPELINES_DIR / f"{choice}.json").unlink(missing_ok=True)
+            pipeline_path(choice).unlink(missing_ok=True)
             self._log(f"Pipeline '{choice}' deleted.")
 
     def _update_server_badge(self):

@@ -1,5 +1,6 @@
 from nativelab.imports.import_global import _sys
 from pathlib import Path
+import shutil
 from .hardwareUtil import cpu_count
 from .timeouts import LONG_TIMEOUT_MS, LONG_TIMEOUT_NONE, LONG_TIMEOUT_SECONDS
 _sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -8,14 +9,40 @@ REFS_DIR          = Path("chat_refs")
 REF_CACHE_DIR     = Path("ref_cache")
 REF_INDEX_DIR     = Path("ref_index")
 PAUSED_JOBS_DIR   = Path("paused_jobs")
+LOCAL_LLM_DIR     = Path("localllm")
 APP_CONFIG_FILE   = Path("app_config.json")
 MAX_CONTEXT_TOKENS = 300000
+LOCAL_LLM_DIR.mkdir(parents=True, exist_ok=True)
 REFS_DIR.mkdir(parents=True, exist_ok=True)
 REF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 REF_INDEX_DIR.mkdir(parents=True, exist_ok=True)
 PAUSED_JOBS_DIR.mkdir(parents=True, exist_ok=True)
-PIPELINES_DIR = Path.home() / ".native_lab" / "pipelines"
+PIPELINES_DIR = LOCAL_LLM_DIR / "pipelines"
+LEGACY_PIPELINES_DIR = Path.home() / ".native_lab" / "pipelines"
 PIPELINES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def migrate_legacy_pipelines() -> int:
+    """Copy old ~/.native_lab/pipelines JSON files into localllm/pipelines."""
+    if not LEGACY_PIPELINES_DIR.exists() or not LEGACY_PIPELINES_DIR.is_dir():
+        return 0
+    moved = 0
+    for src in LEGACY_PIPELINES_DIR.glob("*.json"):
+        if src.is_symlink() or not src.is_file():
+            continue
+        dst = PIPELINES_DIR / src.name
+        if dst.exists():
+            continue
+        try:
+            PIPELINES_DIR.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+            moved += 1
+        except Exception:
+            continue
+    return moved
+
+
+migrate_legacy_pipelines()
 APP_CONFIG_DEFAULTS = {
     "ram_watchdog_mb":        800,
     "chunk_index_size":       400,

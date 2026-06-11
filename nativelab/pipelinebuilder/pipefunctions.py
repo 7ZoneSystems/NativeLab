@@ -7,6 +7,22 @@ from .pipblck import PipelineBlock
 PIPELINE_EXAMPLES_DIR = Path(__file__).resolve().parent / "examples"
 
 
+def safe_pipeline_name(name: str) -> str:
+    raw = str(name or "").strip().replace("\\", "/")
+    base = Path(raw).name
+    if base.lower().endswith(".json"):
+        base = base[:-5]
+    safe = "".join("_" if ch in '<>:"\\|?*\0' else ch for ch in base).strip().strip(".")
+    if not safe:
+        raise ValueError("Pipeline name is empty or unsafe.")
+    return safe
+
+
+def pipeline_path(name: str) -> Path:
+    safe = safe_pipeline_name(name)
+    return PIPELINES_DIR / f"{safe}.json"
+
+
 def _pipeline_to_dict(blocks: list, connections: list) -> dict:
     """Serialise a pipeline to a JSON-safe dict."""
     return {
@@ -66,6 +82,7 @@ def _pipeline_from_dict(data: dict):
 
 def list_saved_pipelines() -> List[str]:
     """Return sorted list of saved pipeline names (without .json)."""
+    PIPELINES_DIR.mkdir(parents=True, exist_ok=True)
     return sorted(p.stem for p in PIPELINES_DIR.glob("*.json"))
 
 
@@ -86,13 +103,14 @@ def list_example_pipelines() -> List[dict]:
     return examples
 
 def save_pipeline(name: str, blocks: list, connections: list):
-    path = PIPELINES_DIR / f"{name}.json"
+    PIPELINES_DIR.mkdir(parents=True, exist_ok=True)
+    path = pipeline_path(name)
     path.write_text(
         json.dumps(_pipeline_to_dict(blocks, connections), indent=2),
         encoding="utf-8")
 
 def load_pipeline(name: str):
-    path = PIPELINES_DIR / f"{name}.json"
+    path = pipeline_path(name)
     data = json.loads(path.read_text(encoding="utf-8"))
     return _pipeline_from_dict(data)
 

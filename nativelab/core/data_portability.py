@@ -264,9 +264,16 @@ def _portable_path(path: Path) -> str:
 def _target_path(portable_path: str) -> Path:
     if portable_path.startswith("~/"):
         rel = Path(portable_path[2:])
-        if rel.is_absolute() or ".." in rel.parts or not rel.parts or rel.parts[0] != ".native_lab":
+        if (
+            rel.is_absolute()
+            or ".." in rel.parts
+            or len(rel.parts) != 3
+            or rel.parts[0] != ".native_lab"
+            or rel.parts[1] != "pipelines"
+            or rel.suffix.lower() != ".json"
+        ):
             raise ValueError(f"Unsupported export path: {portable_path}")
-        return Path.home() / rel
+        return PIPELINES_DIR / rel.name
     rel = Path(portable_path)
     if rel.is_absolute() or ".." in rel.parts or not rel.parts or rel.parts[0] not in ALLOWED_RELATIVE_ROOTS:
         raise ValueError(f"Unsupported export path: {portable_path}")
