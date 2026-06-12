@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+external/
+captures/
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/deploymentTargetDropDown.xml
+app/build/
+app/src/main/assets/runtimes/android-arm64/llama-cli

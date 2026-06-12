@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Background -->
+    <path
+        android:fillColor="#09090d"
+        android:pathData="M8,6h32a4,4 0,0 1,4 4v28a4,4 0,0 1,-4 4H8a4,4 0,0 1,-4 -4V10a4,4 0,0 1,4 -4z" />
+    <!-- Terminal lines (accent) -->
+    <path
+        android:fillColor="#55C2A4"
+        android:pathData="M14,14h20a2,2 0,0 1,2 2v4a2,2 0,0 1,-2 2H14a2,2 0,0 1,-2 -2v-4a2,2 0,0 1,2 -2z" />
+    <path
+        android:fillColor="#3da88a"
+        android:pathData="M14,24h14a2,2 0,0 1,2 2v4a2,2 0,0 1,-2 2H14a2,2 0,0 1,-2 -2v-4a2,2 0,0 1,2 -2z" />
+    <!-- AI circle -->
+    <path
+        android:fillColor="#ededf5"
+        android:pathData="M35,31m-4,0a4,4 0,1 0,8 0a4,4 0,1 0,-8 0" />
+    <path
+        android:fillColor="#09090d"
+        android:pathData="M35,31m-2,0a2,2 0,1 0,4 0a2,2 0,1 0,-4 0" />
+</vector>

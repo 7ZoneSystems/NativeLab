@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PhonoLab" parent="Theme.Material3.Dark.NoActionBar">
+        <!-- Primary = Accent teal -->
+        <item name="colorPrimary">@color/ph_accent</item>
+        <item name="colorPrimaryVariant">@color/ph_accent2</item>
+        <item name="colorOnPrimary">#ffffff</item>
+
+        <!-- Secondary -->
+        <item name="colorSecondary">@color/ph_accent</item>
+        <item name="colorSecondaryVariant">@color/ph_accent2</item>
+        <item name="colorOnSecondary">#ffffff</item>
+
+        <!-- Background & Surface -->
+        <item name="android:colorBackground">@color/ph_bg0</item>
+        <item name="colorSurface">@color/ph_surface</item>
+        <item name="colorSurfaceVariant">@color/ph_surface2</item>
+        <item name="colorOnSurface">@color/ph_txt</item>
+        <item name="colorOnSurfaceVariant">@color/ph_txt2</item>
+
+        <!-- Error -->
+        <item name="colorError">@color/ph_err</item>
+        <item name="colorOnError">#ffffff</item>
+
+        <!-- Typography -->
+        <item name="android:fontFamily">sans-serif</item>
+
+        <!-- Status bar -->
+        <item name="android:statusBarColor">@color/ph_bg0</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Navigation bar -->
+        <item name="android:navigationBarColor">@color/ph_bg0</item>
+
+        <!-- System UI -->
+        <item name="android:windowBackground">@color/ph_bg0</item>
+    </style>
+</resources>

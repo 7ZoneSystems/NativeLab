@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="file" path="PhonoLab/models" />
+    <exclude domain="file" path="PhonoLab/downloads" />
+    <exclude domain="file" path="PhonoLab/runtime" />
+</full-backup-content>

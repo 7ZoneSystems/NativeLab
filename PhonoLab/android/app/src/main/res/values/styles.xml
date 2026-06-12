@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ═══ Button Styles ═══ -->
+
+    <!-- Primary accent button (Setup, Send) -->
+    <style name="PhonoLab.Button.Primary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/ph_accent</item>
+        <item name="android:textColor">#ffffff</item>
+        <item name="android:textSize">@dimen/ph_txt_md</item>
+        <item name="android:textStyle">bold</item>
+        <item name="cornerRadius">@dimen/ph_radius_md</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="elevation">0dp</item>
+    </style>
+
+    <!-- Secondary button (Download, Load) -->
+    <style name="PhonoLab.Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/ph_bdr2</item>
+        <item name="android:textColor">@color/ph_txt</item>
+        <item name="android:textSize">@dimen/ph_txt_md</item>
+        <item name="cornerRadius">@dimen/ph_radius_md</item>
+        <item name="android:stateListAnimator">@null</item>
+        <item name="rippleColor">@color/ph_accent_dim</item>
+    </style>
+
+    <!-- Small action button -->
+    <style name="PhonoLab.Button.Small" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/ph_txt2</item>
+        <item name="android:textSize">@dimen/ph_txt_sm</item>
+        <item name="android:minHeight">32dp</item>
+        <item name="cornerRadius">@dimen/ph_radius_sm</item>
+    </style>
+
+    <!-- ═══ Text Styles ═══ -->
+
+    <style name="PhonoLab.Text" parent="android:Widget.TextView">
+        <item name="android:textColor">@color/ph_txt</item>
+        <item name="android:textSize">@dimen/ph_txt_md</item>
+    </style>
+
+    <style name="PhonoLab.Text.Title" parent="PhonoLab.Text">
+        <item name="android:textSize">@dimen/ph_txt_lg</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.01</item>
+    </style>
+
+    <style name="PhonoLab.Text.Body" parent="PhonoLab.Text">
+        <item name="android:textSize">@dimen/ph_txt_md</item>
+        <item name="android:lineSpacingMultiplier">1.4</item>
+    </style>
+
+    <style name="PhonoLab.Text.Caption" parent="PhonoLab.Text">
+        <item name="android:textColor">@color/ph_txt2</item>
+        <item name="android:textSize">@dimen/ph_txt_sm</item>
+    </style>
+
+    <style name="PhonoLab.Text.Muted" parent="PhonoLab.Text">
+        <item name="android:textColor">@color/ph_txt3</item>
+        <item name="android:textSize">@dimen/ph_txt_xs</item>
+    </style>
+
+    <!-- ═══ Input Styles ═══ -->
+
+    <style name="PhonoLab.Input" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/ph_surface</item>
+        <item name="boxStrokeColor">@color/ph_bdr</item>
+        <item name="boxCornerRadiusTopStart">@dimen/ph_radius_md</item>
+        <item name="boxCornerRadiusTopEnd">@dimen/ph_radius_md</item>
+        <item name="boxCornerRadiusBottomStart">@dimen/ph_radius_md</item>
+        <item name="boxCornerRadiusBottomEnd">@dimen/ph_radius_md</item>
+        <item name="hintTextColor">@color/ph_txt3</item>
+        <item name="android:textColorHint">@color/ph_txt3</item>
+    </style>
+
+    <!-- ═══ Card Styles ═══ -->
+
+    <style name="PhonoLab.Card" parent="Widget.Material3.CardView.Filled">
+        <item name="cardBackgroundColor">@color/ph_surface</item>
+        <item name="strokeColor">@color/ph_bdr</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="cardCornerRadius">@dimen/ph_radius_md</item>
+        <item name="cardElevation">0dp</item>
+    </style>
+
+    <!-- ═══ Spinner Styles ═══ -->
+
+    <style name="PhonoLab.Spinner" parent="Widget.AppCompat.Spinner">
+        <item name="android:background">@drawable/ph_spinner_bg</item>
+        <item name="android:popupBackground">@color/ph_surface</item>
+        <item name="android:dropDownWidth">match_parent</item>
+    </style>
+
+    <!-- ═══ Progress Bar ═══ -->
+
+    <style name="PhonoLab.ProgressBar" parent="Widget.AppCompat.ProgressBar.Horizontal">
+        <item name="android:indeterminate">false</item>
+        <item name="android:max">100</item>
+        <item name="android:progressDrawable">@drawable/ph_progress_drawable</item>
+        <item name="android:minHeight">@dimen/ph_progress_height</item>
+        <item name="android:maxHeight">@dimen/ph_progress_height</item>
+    </style>
+</resources>

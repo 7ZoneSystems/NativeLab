@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhonoLab</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_initial">Ready. Setup llama.cpp, download a model, then load it.</string>
+    <string name="status_setup_running">Setting up llama.cpp…</string>
+    <string name="status_setup_done">llama.cpp is ready.</string>
+    <string name="status_downloading">Downloading model…</string>
+    <string name="status_loading">Loading model…</string>
+    <string name="status_generating">Generating…</string>
+    <string name="status_model_loaded">Model loaded</string>
+    <string name="status_error">Error</string>
+    <string name="status_auto_setup">First launch: setting up llama.cpp runtime…</string>
+
+    <string name="btn_setup">Setup</string>
+    <string name="btn_download">Download</string>
+    <string name="btn_load">Load</string>
+    <string name="btn_send">Send</string>
+
+    <string name="hint_prompt">Message the loaded local model</string>
+    <string name="hint_select_model">Select model</string>
+    <string name="label_download_prefix">Download: </string>
+
+    <string name="error_download_first">Download the selected catalog model first.</string>
+    <string name="error_load_first">Load a model first.</string>
+    <string name="error_no_model">No model selected.</string>
+
+    <!-- Section headers -->
+    <string name="section_runtime">RUNTIME</string>
+    <string name="section_model">MODEL</string>
+    <string name="section_chat">CHAT</string>
+</resources>

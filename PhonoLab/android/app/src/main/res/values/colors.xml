@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ═══ PhonoLab Dark Theme (NativeLab-inspired) ═══ -->
+    <!-- Backgrounds -->
+    <color name="ph_bg0">#09090d</color>
+    <color name="ph_bg1">#0f0f15</color>
+    <color name="ph_bg2">#141420</color>
+    <color name="ph_bg3">#1a1a28</color>
+
+    <!-- Surfaces -->
+    <color name="ph_surface">#1e1e2e</color>
+    <color name="ph_surface2">#252538</color>
+
+    <!-- Accent (PhonoLab teal identity) -->
+    <color name="ph_accent">#55C2A4</color>
+    <color name="ph_accent2">#3da88a</color>
+    <color name="ph_accent_dim">#1a3d33</color>
+    <color name="ph_accent_glow">#4bbd9e</color>
+
+    <!-- Text tiers -->
+    <color name="ph_txt">#ededf5</color>
+    <color name="ph_txt2">#7a7a9a</color>
+    <color name="ph_txt3">#48485e</color>
+
+    <!-- Borders -->
+    <color name="ph_bdr">#232335</color>
+    <color name="ph_bdr2">#2d2d45</color>
+
+    <!-- Semantic -->
+    <color name="ph_ok">#1cb88a</color>
+    <color name="ph_warn">#e8971a</color>
+    <color name="ph_err">#e84848</color>
+
+    <!-- Chat bubbles -->
+    <color name="ph_bubble_user">#0e0c26</color>
+    <color name="ph_bubble_ast">#0c0c14</color>
+
+    <!-- Legacy compat -->
+    <color name="phonolab_bg">@color/ph_bg0</color>
+    <color name="phonolab_text">@color/ph_txt</color>
+    <color name="phonolab_accent">@color/ph_accent</color>
+</resources>

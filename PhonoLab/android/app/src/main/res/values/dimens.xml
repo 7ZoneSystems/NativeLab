@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Spacing -->
+    <dimen name="ph_space_xs">4dp</dimen>
+    <dimen name="ph_space_sm">8dp</dimen>
+    <dimen name="ph_space_md">12dp</dimen>
+    <dimen name="ph_space_lg">16dp</dimen>
+    <dimen name="ph_space_xl">22dp</dimen>
+
+    <!-- Corner radii -->
+    <dimen name="ph_radius_sm">6dp</dimen>
+    <dimen name="ph_radius_md">8dp</dimen>
+    <dimen name="ph_radius_lg">12dp</dimen>
+    <dimen name="ph_radius_xl">16dp</dimen>
+    <dimen name="ph_radius_bubble">14dp</dimen>
+
+    <!-- Component sizes -->
+    <dimen name="ph_btn_height">44dp</dimen>
+    <dimen name="ph_btn_height_sm">36dp</dimen>
+    <dimen name="ph_input_min_height">48dp</dimen>
+    <dimen name="ph_status_height">40dp</dimen>
+    <dimen name="ph_progress_height">4dp</dimen>
+    <dimen name="ph_spinner_height">44dp</dimen>
+
+    <!-- Text sizes -->
+    <dimen name="ph_txt_xs">10sp</dimen>
+    <dimen name="ph_txt_sm">12sp</dimen>
+    <dimen name="ph_txt_md">14sp</dimen>
+    <dimen name="ph_txt_lg">16sp</dimen>
+    <dimen name="ph_txt_xl">20sp</dimen>
+
+    <!-- Card padding -->
+    <dimen name="ph_card_pad">14dp</dimen>
+    <dimen name="ph_card_pad_inner">12dp</dimen>
+</resources>
