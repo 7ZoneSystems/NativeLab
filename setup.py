@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 
 from setuptools import Extension, setup
@@ -25,10 +26,13 @@ NATIVE_ARTIFACT_PATTERNS = (
 
 
 class PureBuildPy(build_py):
-    """Keep default wheels pure even if a previous local native build exists."""
+    """Keep default wheels pure and scoped to the NativeLab package."""
 
     def run(self):
         super().run()
+        phonolab_dir = Path(self.build_lib) / "PhonoLab"
+        if phonolab_dir.exists():
+            shutil.rmtree(phonolab_dir, ignore_errors=True)
         if BUILD_NATIVE:
             return
         native_dir = Path(self.build_lib) / "nativelab" / "native"

@@ -30,6 +30,7 @@ chat_refs/
 # Config files generated at runtime
 app_config.json
 localllm/
+PhonoLab/data/
 .vscode/
 test/
 nativelab/llama/
