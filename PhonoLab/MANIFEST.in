@@ -1,0 +1,5 @@
+include README.md
+include setup.py
+include native/mobile_core.c
+recursive-include android *
+include build/ios/README.md

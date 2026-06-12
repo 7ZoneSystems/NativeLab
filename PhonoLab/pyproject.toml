@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "phonolab"
+version = "0.1.0"
+description = "PhonoLab mobile node for NativeLab"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "kivy>=2.3.0",
+    "certifi>=2024.8.30",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "build>=1.0",
+]
+
+[tool.setuptools]
+packages = [
+    "PhonoLab",
+    "PhonoLab.engine",
+    "PhonoLab.native",
+    "PhonoLab.ui",
+]
+
+[tool.setuptools.package-dir]
+PhonoLab = "."
+"PhonoLab.engine" = "engine"
+"PhonoLab.native" = "native"
+"PhonoLab.ui" = "ui"
+
+[tool.setuptools.package-data]
+PhonoLab = [
+    "README.md",
+]
+"PhonoLab.native" = [
+    "*.c",
+]

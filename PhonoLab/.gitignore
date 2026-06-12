@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.idea/
+.venv/
+dist/
+build/
+*.egg-info/
+data/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/external/
+android/app/src/main/assets/runtimes/android-arm64/llama-cli
+android/app/src/main/jniLibs/arm64-v8a/libllama-cli.so
