@@ -1,246 +1,307 @@
 package org.nativelab.phonolab
 
 import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.BufferedReader
 import java.io.File
-import java.io.FileOutputStream
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
+import java.net.Socket
 import java.net.URL
-import java.util.zip.ZipInputStream
 
+/**
+ * Runtime engine backed by llama-server (persistent HTTP).
+ *
+ * - Server starts once, model loads once, stays in memory
+ * - Chat requests go via HTTP POST to localhost
+ * - No process spawn per request — fast, session-friendly
+ * - Auto-starts server on first generate() if binary exists
+ */
 class LlamaRuntime(
     private val context: Context,
     private val store: PhonoLabStore,
 ) {
-    private val downloader = SafeDownloader(store)
-    private var loadedModel: File? = null
+    val cppManager = LlamaCppManager(context, store)
 
-    companion object {
-        // Pre-built binary from ggml releases (Android arm64)
-        private const val BINARY_RELEASE_URL =
-            "https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-cli-linux-android-arm64"
-        private const val BINARY_ZIP_URL =
-            "https://github.com/ggml-org/llama.cpp/releases/latest/download/llama-cli-android-arm64.zip"
+    private var serverProcess: Process? = null
+    private var serverPort: Int = 8080
+    private var loadedModelPath: String? = null
+    private var _isModelLoaded = false
+    private var _isServerRunning = false
+
+    // ── Public API ──────────────────────────────────────────────────
+
+    /** Find the llama-server binary. */
+    fun findServer(): File? = cppManager.findServer()
+
+    /** Whether the server process is alive. */
+    fun isServerRunning(): Boolean {
+        if (serverProcess == null) return false
+        try {
+            val exit = serverProcess!!.exitValue()
+            // Process exited — not running
+            _isServerRunning = false
+            return false
+        } catch (_: IllegalThreadStateException) {
+            // Still running
+            return true
+        }
     }
 
-    fun pullLlamaSource(progress: (done: Long, total: Long, label: String) -> Unit): File {
-        val archive = store.safeChild(store.downloadsDir, "llama.cpp-master.zip")
-        downloader.download(
-            "https://github.com/ggml-org/llama.cpp/archive/refs/heads/master.zip",
-            archive,
-            progress = progress,
-        )
-        unzipSafe(archive, store.sourceDir)
-        return store.sourceDir
+    /** Whether a model is loaded in the server. */
+    fun isModelLoaded(): Boolean = _isModelLoaded && isServerRunning()
+
+    /** The currently loaded model path. */
+    fun loadedModelPath(): String? = loadedModelPath
+
+    /** Get runtime status for UI display. */
+    fun runtimeStatus(): LlamaCppManager.RuntimeStatus = cppManager.status()
+
+    /**
+     * Start llama-server with a model.
+     * If server is already running with a different model, restarts it.
+     */
+    fun load(model: File) {
+        require(model.exists()) { "Model file does not exist: ${model.absolutePath}" }
+        require(model.extension.equals("gguf", ignoreCase = true)) {
+            "Not a GGUF file: ${model.name}"
+        }
+        require(model.length() > 1000) { "Model file is too small" }
+
+        val server = findServer() ?: error("llama-server not found. Run Setup first.")
+
+        // If server is running with the same model, just mark loaded
+        if (isServerRunning() && loadedModelPath == model.absolutePath && _isModelLoaded) {
+            return
+        }
+
+        // Stop existing server if running with different model
+        stopServer()
+
+        // Start server with this model
+        startServer(server, model)
+        loadedModelPath = model.absolutePath
+    }
+
+    /** Unload model and stop server. */
+    fun unload() {
+        stopServer()
+        loadedModelPath = null
+        _isModelLoaded = false
     }
 
     /**
-     * Auto-install llama-cli binary for Android arm64.
-     * Tries direct download first, then falls back to zip.
-     * Returns the installed binary path, or null if download fails.
+     * Generate text via llama-server HTTP API.
+     * Auto-starts server if binary exists but server isn't running.
      */
+    fun generate(prompt: String, onToken: (String) -> Unit): String {
+        // Auto-start if we have a binary and model but server isn't running
+        if (!isServerRunning() && loadedModelPath != null) {
+            val model = File(loadedModelPath!!)
+            val server = findServer()
+            if (server != null && model.exists()) {
+                startServer(server, model)
+            }
+        }
+
+        require(isServerRunning()) {
+            "llama-server is not running. Load a model first."
+        }
+        require(_isModelLoaded) {
+            "No model loaded. Select and load a model first."
+        }
+        require(prompt.length <= 18_000) {
+            "Prompt too long (${prompt.length} chars). Max: 18,000."
+        }
+
+        // Build request JSON (llama.cpp /completion endpoint)
+        val requestBody = JSONObject().apply {
+            put("prompt", prompt)
+            put("n_predict", 384)
+            put("temperature", 0.7)
+            put("top_p", 0.9)
+            put("repeat_penalty", 1.1)
+            put("stream", false)  // non-streaming for simplicity
+        }
+
+        val url = URL("http://127.0.0.1:$serverPort/completion")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "POST"
+        conn.setRequestProperty("Content-Type", "application/json")
+        conn.connectTimeout = 5_000
+        conn.readTimeout = 300_000  // 5 min for long generations
+        conn.doOutput = true
+
+        try {
+            OutputStreamWriter(conn.outputStream).use { writer ->
+                writer.write(requestBody.toString())
+                writer.flush()
+            }
+
+            val status = conn.responseCode
+            if (status != 200) {
+                val errBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+                error("llama-server returned HTTP $status: $errBody")
+            }
+
+            val responseBody = conn.inputStream.bufferedReader().readText()
+            val json = JSONObject(responseBody)
+            val content = json.optString("content", "")
+
+            // Stream the full response as one token chunk
+            onToken(content)
+
+            return content
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    // ── Auto-install ────────────────────────────────────────────────
+
+    /** Auto-install binary. Returns installed path or null. */
     fun autoInstallBinary(
         progress: (done: Long, total: Long, label: String) -> Unit,
-    ): File? {
-        // Already installed?
-        findCli()?.let { return it }
+    ): File? = cppManager.downloadAndInstall(progress)
 
-        val dest = File(store.runtimeBinDir, "llama-cli")
-        dest.parentFile?.mkdirs()
+    // ── Server management ───────────────────────────────────────────
 
-        // Try direct binary download
-        try {
-            downloadBinary(BINARY_RELEASE_URL, dest, progress)
-            dest.setExecutable(true, false)
-            if (dest.exists() && dest.length() > 0) {
-                store.markBinaryInstalled()
-                return dest
-            }
-        } catch (_: Exception) {
-            // Fall through to zip attempt
-        }
+    private fun startServer(serverBinary: File, model: File) {
+        stopServer()
 
-        // Try zip download
-        try {
-            val zipFile = File(store.downloadsDir, "llama-cli-android-arm64.zip")
-            downloader.download(BINARY_ZIP_URL, zipFile, progress = progress)
-            extractBinaryFromZip(zipFile, dest)
-            dest.setExecutable(true, false)
-            if (dest.exists() && dest.length() > 0) {
-                store.markBinaryInstalled()
-                return dest
-            }
-        } catch (_: Exception) {
-            // Fall through
-        }
-
-        return null
-    }
-
-    private fun downloadBinary(
-        urlStr: String,
-        dest: File,
-        progress: (done: Long, total: Long, label: String) -> Unit,
-    ) {
-        dest.parentFile?.mkdirs()
-        val part = File(dest.parentFile, dest.name + ".part")
-        val conn = URL(urlStr).openConnection() as HttpURLConnection
-        conn.setRequestProperty("User-Agent", "PhonoLabAndroid/1")
-        conn.connectTimeout = 30_000
-        conn.readTimeout = 60_000
-        conn.instanceFollowRedirects = true
-
-        val status = conn.responseCode
-        // Follow redirect
-        if (status in 301..308) {
-            val redirect = conn.getHeaderField("Location") ?: error("Redirect with no Location")
-            conn.disconnect()
-            downloadBinary(redirect, dest, progress)
-            return
-        }
-        require(status == 200) { "HTTP $status" }
-
-        val total = conn.contentLengthLong.coerceAtLeast(0L)
-        var done = 0L
-        conn.inputStream.use { input ->
-            FileOutputStream(part).use { output ->
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    output.write(buffer, 0, read)
-                    done += read.toLong()
-                    progress(done, total, "llama-cli")
-                }
-            }
-        }
-        if (dest.exists()) dest.delete()
-        require(part.renameTo(dest)) { "Could not finalize binary download." }
-    }
-
-    private fun extractBinaryFromZip(archive: File, dest: File) {
-        dest.parentFile?.mkdirs()
-        ZipInputStream(archive.inputStream().buffered()).use { zip ->
-            while (true) {
-                val entry = zip.nextEntry ?: break
-                if (entry.isDirectory) continue
-                val name = entry.name.substringAfterLast("/")
-                if (name == "llama-cli" || name.startsWith("llama-cli")) {
-                    FileOutputStream(dest).use { output -> zip.copyTo(output) }
-                    zip.closeEntry()
-                    return
-                }
-                zip.closeEntry()
-            }
-        }
-        error("No llama-cli binary found in zip archive")
-    }
-
-    fun installBundledRuntimeIfAvailable(): File? {
-        val dest = File(store.runtimeBinDir, "llama-cli")
-        if (dest.exists() && dest.canExecute()) return dest
-        return try {
-            context.assets.open("runtimes/android-arm64/llama-cli").use { input ->
-                dest.parentFile?.mkdirs()
-                FileOutputStream(dest).use { output -> input.copyTo(output) }
-            }
-            dest.setExecutable(true, false)
-            dest
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    fun findCli(): File? {
-        // 1. Native library (most reliable on Android)
-        val nativeCli = File(context.applicationInfo.nativeLibraryDir, "libllama-cli.so")
-        if (nativeCli.exists()) {
-            nativeCli.setExecutable(true, false)
-            return nativeCli
-        }
-        // 2. Bundled asset
-        val bundled = installBundledRuntimeIfAvailable()
-        if (bundled != null && bundled.exists()) return bundled
-        // 3. App-private installed binary
-        val privateCli = File(store.runtimeBinDir, "llama-cli")
-        if (privateCli.exists()) {
-            privateCli.setExecutable(true, false)
-            return privateCli
-        }
-        return null
-    }
-
-    fun load(model: File) {
-        require(model.exists() && model.extension.equals("gguf", ignoreCase = true)) {
-            "Choose a downloaded GGUF model first."
-        }
-        loadedModel = model
-    }
-
-    fun unload() {
-        loadedModel = null
-    }
-
-    fun isModelLoaded(): Boolean = loadedModel != null
-
-    fun generate(prompt: String, onToken: (String) -> Unit): String {
-        val model = loadedModel ?: error("Load a model first.")
-        val cli = findCli() ?: error(
-            "llama-cli is missing. Run Setup to install the runtime.",
-        )
-        require(prompt.length <= 18_000) { "Prompt is too large for the mobile safety limit." }
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        serverPort = findFreePort()
+
+        // Set LD_LIBRARY_PATH so .so files from the tarball are found
+        val binDir = serverBinary.parentFile ?: store.runtimeBinDir
+        val env = HashMap(System.getenv())
+        val existingLdPath = env["LD_LIBRARY_PATH"] ?: ""
+        env["LD_LIBRARY_PATH"] = if (existingLdPath.isNotEmpty()) {
+            "${binDir.absolutePath}:$existingLdPath"
+        } else {
+            binDir.absolutePath
+        }
+
         val command = listOf(
-            cli.absolutePath,
-            "-m",
-            model.absolutePath,
-            "-t",
-            threads.toString(),
-            "--ctx-size",
-            "2048",
-            "-n",
-            "384",
-            "--no-display-prompt",
-            "--no-escape",
-            "-p",
-            prompt,
+            serverBinary.absolutePath,
+            "-m", model.absolutePath,
+            "--port", serverPort.toString(),
+            "-t", threads.toString(),
+            "--ctx-size", "2048",
+            "-n", "384",
         )
+
         val process = ProcessBuilder(command)
             .redirectErrorStream(true)
+            .apply { environment().putAll(env) }
             .start()
-        val out = StringBuilder()
-        process.inputStream.bufferedReader().use { reader ->
-            val buffer = CharArray(1)
-            while (true) {
-                val read = reader.read(buffer)
-                if (read < 0) break
-                val text = String(buffer, 0, read)
-                out.append(text)
-                onToken(text)
+
+        serverProcess = process
+
+        // Wait for server to be ready (poll health endpoint)
+        val startTime = System.currentTimeMillis()
+        val timeout = 60_000L  // 60s for model loading
+        var ready = false
+
+        while (System.currentTimeMillis() - startTime < timeout && !ready) {
+            try {
+                val healthConn = URL("http://127.0.0.1:$serverPort/health").openConnection() as HttpURLConnection
+                healthConn.connectTimeout = 2_000
+                healthConn.readTimeout = 2_000
+                try {
+                    val healthStatus = healthConn.responseCode
+                    if (healthStatus == 200) {
+                        ready = true
+                    }
+                } finally {
+                    healthConn.disconnect()
+                }
+            } catch (_: Exception) {
+                // Server not ready yet, wait
+                Thread.sleep(500)
             }
         }
-        val code = process.waitFor()
-        require(code == 0) { "llama-cli exited with code $code" }
-        return out.toString()
+
+        if (!ready) {
+            stopServer()
+            error("llama-server failed to start within 60s. Model may be too large for device.")
+        }
+
+        _isServerRunning = true
+        _isModelLoaded = true
+        loadedModelPath = model.absolutePath
     }
 
-    private fun unzipSafe(archive: File, dest: File) {
-        val tmp = File(dest.parentFile, dest.name + ".tmp")
-        if (tmp.exists()) tmp.deleteRecursively()
-        tmp.mkdirs()
-        ZipInputStream(archive.inputStream().buffered()).use { zip ->
-            while (true) {
-                val entry = zip.nextEntry ?: break
-                if (entry.isDirectory) continue
-                val parts = entry.name.split("/").filter { it.isNotBlank() }
-                if (parts.size <= 1) continue
-                val stripped = parts.drop(1).joinToString("/")
-                val out = store.safeChild(tmp, stripped)
-                out.parentFile?.mkdirs()
-                FileOutputStream(out).use { output -> zip.copyTo(output) }
-                zip.closeEntry()
+    private fun stopServer() {
+        serverProcess?.let { proc ->
+            try {
+                proc.destroy()
+                Thread.sleep(200)
+                try {
+                    proc.exitValue()
+                } catch (_: IllegalThreadStateException) {
+                    proc.destroyForcibly()
+                }
+            } catch (_: Exception) { }
+        }
+        serverProcess = null
+        _isServerRunning = false
+    }
+
+    /**
+     * Kill ALL llama-server and llama-cli processes on the device.
+     * Called on app exit to ensure no orphan processes remain.
+     */
+    fun killAllLlamaProcesses() {
+        // First stop our tracked process
+        stopServer()
+
+        // Then kill any orphan llama processes system-wide
+        val processNames = listOf("llama-server", "llama-cli", "llama_server", "llama_cli")
+        for (name in processNames) {
+            try {
+                // Use pkill to find and kill by process name
+                val proc = ProcessBuilder("pkill", "-f", name)
+                    .redirectErrorStream(true)
+                    .start()
+                proc.waitFor()
+            } catch (_: Exception) {
+                // pkill might not be available, try killall
+                try {
+                    val proc = ProcessBuilder("killall", name)
+                        .redirectErrorStream(true)
+                        .start()
+                    proc.waitFor()
+                } catch (_: Exception) { }
             }
         }
-        if (dest.exists()) dest.deleteRecursively()
-        require(tmp.renameTo(dest)) { "Could not finalize llama.cpp source extraction." }
+
+        // Also try killing by finding PIDs via /proc
+        try {
+            val proc = ProcessBuilder("sh", "-c",
+                "for pid in \$(ps -A -o PID,ARGS 2>/dev/null | grep -E 'llama-server|llama-cli' | grep -v grep | awk '{print \$1}'); do kill -9 \$pid 2>/dev/null; done"
+            )
+                .redirectErrorStream(true)
+                .start()
+            proc.waitFor()
+        } catch (_: Exception) { }
+
+        // Reset state
+        loadedModelPath = null
+        _isModelLoaded = false
+    }
+
+    private fun findFreePort(): Int {
+        try {
+            java.net.ServerSocket(0).use { return it.localPort }
+        } catch (_: Exception) {
+            return 8080
+        }
+    }
+
+    protected fun finalize() {
+        killAllLlamaProcesses()
     }
 }
