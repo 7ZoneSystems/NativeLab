@@ -1,0 +1,390 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/ph_window_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Header -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Model Manager"
+            android:textColor="@color/ph_txt"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Manage downloaded GGUF models and configure parameters."
+            android:textColor="@color/ph_txt2"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"
+            android:layout_marginBottom="14dp" />
+
+        <!-- Model Library Card -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="MODEL LIBRARY"
+            android:textColor="@color/ph_txt3"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08"
+            android:layout_marginBottom="4dp" />
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/ph_card_bg"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/ph_bdr"
+            app:strokeWidth="1dp"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            android:layout_marginBottom="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_models"
+                    android:layout_width="match_parent"
+                    android:layout_height="200dp"
+                    android:padding="4dp" />
+
+                <!-- Action buttons -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:padding="8dp">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_browse_gguf"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:text="Browse"
+                        android:textSize="11sp"
+                        app:cornerRadius="6dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_load_selected"
+                        style="@style/Widget.Material3.Button"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:text="Load"
+                        android:textSize="11sp"
+                        app:backgroundTint="@color/ph_accent"
+                        app:cornerRadius="6dp"
+                        xmlns:app="http://schemas.android.com/apk/res-auto" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btn_remove_model"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="0dp"
+                        android:layout_height="36dp"
+                        android:layout_weight="1"
+                        android:layout_marginStart="6dp"
+                        android:text="Remove"
+                        android:textSize="11sp"
+                        app:cornerRadius="6dp"
+                        app:strokeColor="@color/ph_err"
+                        android:textColor="@color/ph_err"
+                        xmlns:app="http://schemas.android.com/apk/res-auto" />
+                </LinearLayout>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Per-Model Parameters Card -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PER-MODEL PARAMETERS"
+            android:textColor="@color/ph_txt3"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08"
+            android:layout_marginBottom="4dp" />
+
+        <TextView
+            android:id="@+id/param_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Select a model above to edit its parameters."
+            android:textColor="@color/ph_txt2"
+            android:textSize="10sp"
+            android:layout_marginBottom="6dp" />
+
+        <androidx.cardview.widget.CardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/ph_card_bg"
+            app:cardCornerRadius="8dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/ph_bdr"
+            app:strokeWidth="1dp"
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            android:layout_marginBottom="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <!-- Model info badges -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginBottom="8dp">
+
+                    <TextView
+                        android:id="@+id/cfg_name"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="No model selected"
+                        android:textColor="@color/ph_accent2"
+                        android:textSize="12sp"
+                        android:background="@color/ph_bg2"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="3dp"
+                        android:paddingBottom="3dp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/ph_divider"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- Context -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+                    <TextView
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:text="Context (tokens):"
+                        android:textColor="@color/ph_txt2"
+                        android:textSize="12sp" />
+                    <EditText
+                        android:id="@+id/cfg_ctx"
+                        android:layout_width="80dp"
+                        android:layout_height="36dp"
+                        android:text="2048"
+                        android:textColor="@color/ph_txt"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:inputType="number"
+                        android:background="@drawable/ph_input_bg"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- Threads -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+                    <TextView
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:text="Threads:"
+                        android:textColor="@color/ph_txt2"
+                        android:textSize="12sp" />
+                    <EditText
+                        android:id="@+id/cfg_threads"
+                        android:layout_width="64dp"
+                        android:layout_height="36dp"
+                        android:text="4"
+                        android:textColor="@color/ph_txt"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:inputType="number"
+                        android:background="@drawable/ph_input_bg"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- Temperature -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+                    <TextView
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:text="Temperature:"
+                        android:textColor="@color/ph_txt2"
+                        android:textSize="12sp" />
+                    <EditText
+                        android:id="@+id/cfg_temp"
+                        android:layout_width="64dp"
+                        android:layout_height="36dp"
+                        android:text="0.7"
+                        android:textColor="@color/ph_txt"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:inputType="numberDecimal"
+                        android:background="@drawable/ph_input_bg"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- Top-P -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+                    <TextView
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:text="Top-P:"
+                        android:textColor="@color/ph_txt2"
+                        android:textSize="12sp" />
+                    <EditText
+                        android:id="@+id/cfg_topp"
+                        android:layout_width="64dp"
+                        android:layout_height="36dp"
+                        android:text="0.9"
+                        android:textColor="@color/ph_txt"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:inputType="numberDecimal"
+                        android:background="@drawable/ph_input_bg"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- Top-K -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+                    <TextView
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:text="Top-K:"
+                        android:textColor="@color/ph_txt2"
+                        android:textSize="12sp" />
+                    <EditText
+                        android:id="@+id/cfg_topk"
+                        android:layout_width="64dp"
+                        android:layout_height="36dp"
+                        android:text="40"
+                        android:textColor="@color/ph_txt"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:inputType="number"
+                        android:background="@drawable/ph_input_bg"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- Repeat Penalty -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="8dp">
+                    <TextView
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:text="Repeat Penalty:"
+                        android:textColor="@color/ph_txt2"
+                        android:textSize="12sp" />
+                    <EditText
+                        android:id="@+id/cfg_rep"
+                        android:layout_width="64dp"
+                        android:layout_height="36dp"
+                        android:text="1.1"
+                        android:textColor="@color/ph_txt"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:inputType="numberDecimal"
+                        android:background="@drawable/ph_input_bg"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- Max Tokens -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginBottom="10dp">
+                    <TextView
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:text="Max Tokens:"
+                        android:textColor="@color/ph_txt2"
+                        android:textSize="12sp" />
+                    <EditText
+                        android:id="@+id/cfg_max_tokens"
+                        android:layout_width="80dp"
+                        android:layout_height="36dp"
+                        android:text="384"
+                        android:textColor="@color/ph_txt"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:inputType="number"
+                        android:background="@drawable/ph_input_bg"
+                        android:padding="6dp" />
+                </LinearLayout>
+
+                <!-- Warnings -->
+                <TextView
+                    android:id="@+id/cfg_param_warn"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/ph_warn"
+                    android:textSize="11sp"
+                    android:padding="6dp"
+                    android:visibility="gone" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:background="@color/ph_divider"
+                    android:layout_marginBottom="10dp" />
+
+                <!-- Save button -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_save_params"
+                    style="@style/Widget.Material3.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Save Parameters"
+                    android:textSize="12sp"
+                    app:backgroundTint="@color/ph_accent"
+                    app:cornerRadius="6dp"
+                    xmlns:app="http://schemas.android.com/apk/res-auto" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+    </LinearLayout>
+</ScrollView>
