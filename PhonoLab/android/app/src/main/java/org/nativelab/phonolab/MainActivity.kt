@@ -15,6 +15,7 @@ import org.nativelab.phonolab.adapter.SessionAdapter
 import org.nativelab.phonolab.data.ChatSession
 import org.nativelab.phonolab.data.SessionManager
 import org.nativelab.phonolab.theme.ThemeManager
+import org.nativelab.phonolab.ui.ApiFragment
 import org.nativelab.phonolab.ui.ChatFragment
 import org.nativelab.phonolab.ui.DownloadsFragment
 import org.nativelab.phonolab.ui.ModelsFragment
@@ -113,6 +114,10 @@ class MainActivity : AppCompatActivity() {
         }
         findViewById<View>(R.id.nav_downloads).setOnClickListener {
             navigateTo(DownloadsFragment(), "Downloads")
+            drawerLayout.closeDrawer(android.view.Gravity.START)
+        }
+        findViewById<View>(R.id.nav_api)?.setOnClickListener {
+            navigateTo(ApiFragment(), "API Endpoint")
             drawerLayout.closeDrawer(android.view.Gravity.START)
         }
         findViewById<View>(R.id.nav_theme_toggle).setOnClickListener {

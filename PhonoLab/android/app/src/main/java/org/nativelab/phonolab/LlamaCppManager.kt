@@ -115,17 +115,21 @@ class LlamaCppManager(private val context: Context, private val store: PhonoLabS
     }
 
     private fun getBinaryVersion(server: File, libDir: String): String {
+        // Try --version, but don't fail if it doesn't work
         return try {
             val (_, output) = runBinary(server, libDir, "--version")
-            output.take(200)
-        } catch (_: Exception) { "" }
+            if (output.isNotBlank()) output.take(200) else "installed (version check unavailable)"
+        } catch (_: Exception) { "installed (version check unavailable)" }
     }
 
-    /** Verify a binary actually runs with its libraries. */
+    /** Verify a binary is valid. Lenient: checks ELF magic bytes and file size. */
     fun verifyBinary(server: File, libDir: String): Boolean {
+        if (!server.exists() || server.length() < 5000) return false
+        // Check ELF magic bytes (7f 45 4c 46)
         return try {
-            val (exitCode, _) = runBinary(server, libDir, "--version")
-            exitCode == 0
+            val magic = server.inputStream().use { it.readNBytes(4) }
+            magic.size >= 4 && magic[0] == 0x7f.toByte() && magic[1] == 'E'.code.toByte() &&
+                magic[2] == 'L'.code.toByte() && magic[3] == 'F'.code.toByte()
         } catch (_: Exception) { false }
     }
 
@@ -185,49 +189,36 @@ class LlamaCppManager(private val context: Context, private val store: PhonoLabS
                 error("llama-server binary not found in extracted archive")
             }
 
-            // Move all files from extractedDir to runtimeDir
-            // This preserves the directory structure needed for .so loading
+            // Copy all files from extractedDir to runtimeDir
+            // Use copyTo (not renameTo) for cross-filesystem reliability
             extractedDir.listFiles()?.forEach { f ->
                 val target = File(dir, f.name)
                 if (target.exists()) target.delete()
-                f.renameTo(target)
+                f.copyTo(target, overwrite = true)
+                if (f.name.endsWith(".so") || f.name == "llama-server" || f.name == "llama-cli") {
+                    target.setExecutable(true, false)
+                }
             }
             extractedDir.deleteRecursively()
 
-            // Verify the server binary
+            // Verify the server binary exists and is a valid ELF
             val server = File(dir, "llama-server")
-            server.setExecutable(true, false)
-
             if (!server.exists()) {
                 error("llama-server not found after extraction")
             }
+            server.setExecutable(true, false)
 
-            // Set all .so files executable
-            dir.listFiles()?.filter { it.name.endsWith(".so") }?.forEach {
-                it.setExecutable(true, false)
-            }
-
-            // Verify with LD_LIBRARY_PATH
             if (verifyBinary(server, dir.absolutePath)) {
                 markInstalled(server)
                 archiveFile.delete()
                 return server
             }
 
-            // If --version fails, try just checking the file is a valid ELF
-            if (server.length() > 10_000) {
-                // Binary exists and is large enough — might work even if --version fails
-                // on some Android versions where ProcessBuilder has issues
-                markInstalled(server)
-                archiveFile.delete()
-                return server
-            }
-
             error(
-                "llama-server binary could not be verified on this device. " +
+                "Extracted llama-server is not a valid ELF binary. " +
+                "File: ${server.name} (${server.length()} bytes), " +
                 "Device: ${Build.MODEL} (${Build.HARDWARE}), " +
-                "ABIs: ${Build.SUPPORTED_ABIS.joinToString()}, " +
-                "Binary arch: arm64-v8a"
+                "ABIs: ${Build.SUPPORTED_ABIS.joinToString()}"
             )
         } catch (e: Exception) {
             // Clean up on failure

@@ -110,6 +110,38 @@
                     android:layout_marginStart="12dp" />
             </LinearLayout>
 
+            <!-- API ENDPOINT -->
+            <LinearLayout
+                android:id="@+id/nav_api"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/ph_sidebar_item_bg"
+                android:clickable="true"
+                android:focusable="true">
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@android:drawable/ic_menu_share"
+                    android:contentDescription="API Endpoint"
+                    android:importantForAccessibility="no" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="API Endpoint"
+                    android:textColor="@color/ph_txt"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.04"
+                    android:layout_marginStart="12dp" />
+            </LinearLayout>
+
             <!-- CHANGE THEME -->
             <LinearLayout
                 android:id="@+id/nav_theme_toggle"
