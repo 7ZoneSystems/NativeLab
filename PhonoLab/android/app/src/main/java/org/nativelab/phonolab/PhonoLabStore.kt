@@ -12,12 +12,14 @@ class PhonoLabStore(context: Context) {
     val modelsDir: File = File(root, "models")
     val downloadsDir: File = File(root, "downloads")
     val stateDir: File = File(root, "state")
+    val sessionsDir: File = File(root, "sessions")
+    val configDir: File = File(root, "config")
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("phonolab_prefs", Context.MODE_PRIVATE)
 
     init {
-        listOf(root, runtimeDir, runtimeBinDir, modelsDir, downloadsDir, stateDir).forEach {
+        listOf(root, runtimeDir, runtimeBinDir, modelsDir, downloadsDir, stateDir, sessionsDir, configDir).forEach {
             it.mkdirs()
         }
     }
