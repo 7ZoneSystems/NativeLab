@@ -1,42 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- ═══ PhonoLab Dark Theme (NativeLab-inspired) ═══ -->
-    <!-- Backgrounds -->
-    <color name="ph_bg0">#09090d</color>
-    <color name="ph_bg1">#0f0f15</color>
-    <color name="ph_bg2">#141420</color>
-    <color name="ph_bg3">#1a1a28</color>
-
-    <!-- Surfaces -->
-    <color name="ph_surface">#1e1e2e</color>
-    <color name="ph_surface2">#252538</color>
-
-    <!-- Accent (PhonoLab teal identity) -->
+    <!-- ═══ PhonoLab Light Theme (NativeLab Cream & Sage) ═══ -->
+    <color name="ph_bg0">#fdf6f0</color>
+    <color name="ph_bg1">#f8ede3</color>
+    <color name="ph_bg2">#f2e2d4</color>
+    <color name="ph_bg3">#ebd6c6</color>
+    <color name="ph_surface">#f2e2d4</color>
+    <color name="ph_surface2">#ebd6c6</color>
     <color name="ph_accent">#55C2A4</color>
     <color name="ph_accent2">#3da88a</color>
-    <color name="ph_accent_dim">#1a3d33</color>
-    <color name="ph_accent_glow">#4bbd9e</color>
-
-    <!-- Text tiers -->
-    <color name="ph_txt">#ededf5</color>
-    <color name="ph_txt2">#7a7a9a</color>
-    <color name="ph_txt3">#48485e</color>
-
-    <!-- Borders -->
-    <color name="ph_bdr">#232335</color>
-    <color name="ph_bdr2">#2d2d45</color>
-
-    <!-- Semantic -->
-    <color name="ph_ok">#1cb88a</color>
-    <color name="ph_warn">#e8971a</color>
-    <color name="ph_err">#e84848</color>
-
-    <!-- Chat bubbles -->
-    <color name="ph_bubble_user">#0e0c26</color>
-    <color name="ph_bubble_ast">#0c0c14</color>
-
-    <!-- Legacy compat -->
-    <color name="phonolab_bg">@color/ph_bg0</color>
-    <color name="phonolab_text">@color/ph_txt</color>
-    <color name="phonolab_accent">@color/ph_accent</color>
+    <color name="ph_accent_dim">#d4f0e7</color>
+    <color name="ph_txt">#1a0f0a</color>
+    <color name="ph_txt2">#6b4c3b</color>
+    <color name="ph_txt3">#b89080</color>
+    <color name="ph_bdr">#e8cfc0</color>
+    <color name="ph_bdr2">#ddbfac</color>
+    <color name="ph_ok">#15803d</color>
+    <color name="ph_warn">#b45309</color>
+    <color name="ph_err">#b91c1c</color>
+    <color name="ph_bubble_user">#fdeee4</color>
+    <color name="ph_bubble_ast">#fdf6f0</color>
+    <color name="ph_window_bg">#fdf6f0</color>
+    <color name="ph_status_bar">#f8ede3</color>
+    <color name="ph_nav_bar">#fdf6f0</color>
+    <color name="ph_toolbar_bg">#f8ede3</color>
+    <color name="ph_drawer_bg">#f8ede3</color>
+    <color name="ph_input_bg">#f2e2d4</color>
+    <color name="ph_spinner_bg">#f2e2d4</color>
+    <color name="ph_card_bg">#f2e2d4</color>
+    <color name="ph_icon">#1a0f0a</color>
+    <color name="ph_icon_secondary">#6b4c3b</color>
+    <color name="ph_divider">#e8cfc0</color>
+    <color name="ph_ripple">#2055C2A4</color>
+    <color name="ph_scrim">#40000000</color>
+    <color name="ph_chat_input_bg">#f2e2d4</color>
 </resources>

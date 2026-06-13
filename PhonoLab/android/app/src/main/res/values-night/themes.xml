@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.PhonoLab" parent="Theme.Material3.Light.NoActionBar">
+    <style name="Theme.PhonoLab" parent="Theme.Material3.Dark.NoActionBar">
         <item name="colorPrimary">@color/ph_accent</item>
         <item name="colorPrimaryVariant">@color/ph_accent2</item>
         <item name="colorOnPrimary">#ffffff</item>
@@ -14,15 +14,9 @@
         <item name="colorError">@color/ph_err</item>
         <item name="colorOnError">#ffffff</item>
         <item name="android:statusBarColor">@color/ph_status_bar</item>
-        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightStatusBar">false</item>
         <item name="android:navigationBarColor">@color/ph_nav_bar</item>
         <item name="android:windowBackground">@color/ph_window_bg</item>
         <item name="android:fontFamily">sans-serif</item>
-    </style>
-
-    <style name="Theme.PhonoLab.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/ph_bg0</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher</item>
-        <item name="postSplashScreenTheme">@style/Theme.PhonoLab</item>
     </style>
 </resources>
