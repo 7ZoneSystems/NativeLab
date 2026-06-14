@@ -76,62 +76,75 @@ class LlamaCppManager(
 
     /**
      * Find llama-server binary.
-     * ALWAYS returns the nativeLibraryDir copy (the only place exec() works).
-     * If not deployed yet, copies from store.runtimeDir.
+     * Checks multiple executable locations in order of reliability.
      */
     fun findServer(): File? {
-        val nativeDir = File(context.applicationInfo.nativeLibraryDir)
-        val nativeServer = File(nativeDir, "llama-server")
-
-        // Already deployed?
-        if (nativeServer.exists() && nativeServer.length() > 1000) {
-            return nativeServer
-        }
-
-        // Source exists in user folder — deploy it
         val source = File(store.runtimeDir, "llama-server")
-        if (source.exists() && source.length() > 1000) {
-            return deployBinary(source)
+        if (!source.exists() || source.length() < 1000) return null
+
+        // Try each deploy location
+        val deployDirs = listOf(
+            File(context.applicationInfo.nativeLibraryDir),          // Most reliable
+            File(context.codeCacheDir, "llama"),                     // Fallback
+            File(context.filesDir, "llama-bin"),                     // Last resort
+        )
+
+        for (deployDir in deployDirs) {
+            try {
+                val target = File(deployDir, "llama-server")
+                // Already deployed?
+                if (target.exists() && target.length() > 1000) {
+                    return target
+                }
+                // Try deploying
+                val deployed = deployTo(source, deployDir)
+                if (deployed != null) return deployed
+            } catch (_: Exception) {}
         }
 
-        // Legacy location
-        val legacy = File(store.runtimeBinDir, "llama-server")
-        if (legacy.exists() && legacy.length() > 1000 && legacy.absolutePath != source.absolutePath) {
-            return deployBinary(legacy)
-        }
-
-        return null
+        // Absolute fallback: return source (might fail with permission denied)
+        source.setExecutable(true, false)
+        return source
     }
 
-    /**
-     * Copy binary to nativeLibraryDir. This is the ONLY location
-     * where Android allows exec() on most devices.
-     */
-    private fun deployBinary(source: File): File? {
-        return try {
-            val nativeDir = File(context.applicationInfo.nativeLibraryDir)
-            val target = File(nativeDir, "llama-server")
-            nativeDir.mkdirs()
-
-            // Only copy if different
-            if (!target.exists() || target.length() != source.length()) {
-                source.copyTo(target, overwrite = true)
-            }
+    /** Deploy binary + .so files to a specific directory. */
+    private fun deployTo(source: File, targetDir: File): File? {
+        try {
+            targetDir.mkdirs()
+            val target = File(targetDir, "llama-server")
+            copyFile(source, target)
             target.setExecutable(true, false)
 
-            // Also copy .so files to nativeLibDir
+            // Copy .so files
             val sourceDir = source.parentFile
             sourceDir?.listFiles()?.filter { it.name.endsWith(".so") }?.forEach { so ->
-                val soTarget = File(nativeDir, so.name)
-                if (!soTarget.exists() || soTarget.length() != so.length()) {
-                    so.copyTo(soTarget, overwrite = true)
-                }
-                soTarget.setExecutable(true, false)
+                try {
+                    val soTarget = File(targetDir, so.name)
+                    copyFile(so, soTarget)
+                    soTarget.setExecutable(true, false)
+                } catch (_: Exception) {}
             }
 
-            if (target.exists() && target.length() > 1000) target else null
+            return if (target.exists() && target.length() > 1000) target else null
         } catch (_: Exception) {
-            null
+            return null
+        }
+    }
+
+    /** Stream-based file copy (more reliable than File.copyTo on Android). */
+    private fun copyFile(source: File, target: File) {
+        target.parentFile?.mkdirs()
+        if (target.exists()) target.delete()
+        source.inputStream().use { input ->
+            target.outputStream().use { output ->
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    output.write(buffer, 0, read)
+                }
+                output.flush()
+            }
         }
     }
 
@@ -248,10 +261,10 @@ class LlamaCppManager(
                 )
             }
 
-            // Deploy to nativeLibraryDir for execution
-            val deployed = deployBinary(source)
+            // Deploy to executable location
+            val deployed = findServer()
             if (deployed == null) {
-                error("Could not deploy llama-server to nativeLibraryDir for execution")
+                error("Could not deploy llama-server to any executable location")
             }
 
             markInstalled(deployed)
