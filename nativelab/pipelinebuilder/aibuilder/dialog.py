@@ -35,10 +35,19 @@ from .planner import (
     AI_BUILDER_RETRY_N_PREDICT,
     GeneratedPipeline,
     PipelineJsonError,
+    build_ai_builder_messages,
     estimate_ai_builder_budget,
     estimate_ai_builder_retry_budget,
+    normalize_pipeline_data,
+    extract_json_object,
     sanitize_pipeline_name,
     save_generated_pipeline,
+)
+from .mcp_verify import (
+    McpVerificationReport,
+    extract_mcp_blocks,
+    verify_all_mcp_blocks,
+    fix_mcp_blocks_after_verification,
 )
 
 
@@ -190,6 +199,158 @@ class AiPipelineBuildWorker(QThread):
                     retry_error.raw_response,
                 ) from retry_error
 
+    def _verify_and_fix_mcp(self, raw: str) -> GeneratedPipeline:
+        """
+        Parse generated JSON, verify MCP servers, fix/remove failed blocks,
+        then save. If MCP blocks were removed, asks the AI to regenerate
+        with the failure info so it can adapt.
+        """
+        # Parse the raw JSON
+        data = extract_json_object(raw)
+        data = normalize_pipeline_data(data)
+
+        blocks = data.get("blocks", [])
+        mcp_blocks = extract_mcp_blocks(blocks)
+
+        if not mcp_blocks:
+            # No MCP blocks — proceed normally
+            return self._save_or_retry(raw)
+
+        self.status.emit(
+            f"Found {len(mcp_blocks)} MCP server block(s). "
+            f"Verifying connections before saving..."
+        )
+
+        # Verify all MCP servers
+        report = verify_all_mcp_blocks(
+            blocks,
+            max_retries=2,
+            auto_install=True,
+            log_cb=lambda m: self.status.emit(m),
+            abort_cb=lambda: self._abort,
+        )
+
+        if self._abort:
+            raise PipelineJsonError("AI pipeline build was cancelled during MCP verification.", raw)
+
+        if report.all_ok:
+            # All MCP servers verified — update blocks with verified tools
+            for block in blocks:
+                bid = block.get("bid", 0)
+                for r in report.results:
+                    if r.block_bid == bid and r.success:
+                        block["metadata"]["mcp_connected"] = True
+                        block["metadata"]["mcp_tools"] = r.tools_found
+            # Save with verified data
+            from .planner import apply_active_model, pipeline_data_to_blocks, save_pipeline
+            from ..validation import validate_pipeline
+            data = apply_active_model(data, self._active_model_ref, self._active_model_role)
+            blocks_final, connections = pipeline_data_to_blocks(data)
+            err = validate_pipeline(blocks_final, connections)
+            if err:
+                raise ValueError(f"Generated pipeline did not pass validation:\n\n{err}")
+            from ..pipefunctions import save_pipeline as _save
+            _save(self._pipeline_name, blocks_final, connections)
+            return GeneratedPipeline(
+                name=self._pipeline_name,
+                raw_response=raw,
+                data=data,
+                blocks=blocks_final,
+                connections=connections,
+            )
+
+        # Some MCP servers failed — fix blocks and try to regenerate
+        self.status.emit("Some MCP servers failed verification. Fixing pipeline...")
+
+        fixed_blocks, fix_messages = fix_mcp_blocks_after_verification(
+            blocks, report, log_cb=lambda m: self.status.emit(m),
+        )
+
+        for msg in fix_messages:
+            self.status.emit(f"  → {msg}")
+
+        if report.removed_blocks:
+            # Ask AI to regenerate with info about which MCP servers failed
+            failed_info = "; ".join(
+                f"'{r.block_label}' ({r.url[:40]}): {r.error[:60]}"
+                for r in report.failed
+            )
+            self.status.emit(
+                f"Removed {len(report.removed_blocks)} MCP block(s). "
+                f"Asking AI to adapt the pipeline..."
+            )
+
+            # Build a retry request that tells the AI what failed
+            retry_request = (
+                f"{self._user_request}\n\n"
+                f"IMPORTANT: The following MCP servers were unreachable and have been removed: "
+                f"{failed_info}. "
+                f"Rebuild the pipeline WITHOUT those MCP blocks. "
+                f"Use alternative approaches (local model, custom code, etc.) "
+                f"to accomplish the same goal."
+            )
+
+            retry_messages = build_ai_builder_messages(
+                retry_request,
+                self._pipeline_name,
+                active_model_label=self._active_model_label,
+            )
+
+            try:
+                retry_raw = generate_pipeline_response(
+                    self._engine,
+                    retry_messages,
+                    n_predict=AI_BUILDER_N_PREDICT,
+                    temperature=0.15,
+                    abort_cb=lambda: self._abort,
+                )
+                if self._abort:
+                    raise PipelineJsonError("AI pipeline build was cancelled.", retry_raw)
+
+                # Save the regenerated pipeline (no more MCP verification needed
+                # since we told the AI not to use MCP)
+                return self._save_or_retry(retry_raw)
+
+            except PipelineJsonError:
+                # If regeneration fails, save with fixed blocks
+                self.status.emit("AI regeneration failed. Saving pipeline with fixed blocks...")
+                data["blocks"] = fixed_blocks
+                from .planner import apply_active_model, pipeline_data_to_blocks
+                from ..validation import validate_pipeline
+                from ..pipefunctions import save_pipeline as _save
+                data = apply_active_model(data, self._active_model_ref, self._active_model_role)
+                blocks_final, connections = pipeline_data_to_blocks(data)
+                err = validate_pipeline(blocks_final, connections)
+                if err:
+                    raise ValueError(f"Fixed pipeline did not pass validation:\n\n{err}")
+                _save(self._pipeline_name, blocks_final, connections)
+                return GeneratedPipeline(
+                    name=self._pipeline_name,
+                    raw_response=raw,
+                    data=data,
+                    blocks=blocks_final,
+                    connections=connections,
+                )
+
+        # All MCP blocks were fixed (not removed) — save with fixed data
+        data["blocks"] = fixed_blocks
+        from .planner import apply_active_model, pipeline_data_to_blocks
+        from ..validation import validate_pipeline
+        from ..pipefunctions import save_pipeline as _save
+        data = apply_active_model(data, self._active_model_ref, self._active_model_role)
+        blocks_final, connections = pipeline_data_to_blocks(data)
+        err = validate_pipeline(blocks_final, connections)
+        if err:
+            raise ValueError(f"Fixed pipeline did not pass validation:\n\n{err}")
+        _save(self._pipeline_name, blocks_final, connections)
+        return GeneratedPipeline(
+            name=self._pipeline_name,
+            raw_response=raw,
+            data=data,
+            blocks=blocks_final,
+            connections=connections,
+        )
+
     def run(self):
         try:
             budget = estimate_ai_builder_budget(
@@ -214,7 +375,9 @@ class AiPipelineBuildWorker(QThread):
                 self.err.emit("AI pipeline build was cancelled.")
                 return
             self.status.emit("Validating and saving generated pipeline...")
-            result = self._save_or_retry(raw)
+            # Use MCP-aware verification: tests servers, installs packages,
+            # retries on failure, removes blocks that can't connect
+            result = self._verify_and_fix_mcp(raw)
             self.done.emit(result)
         except Exception as exc:
             self.err.emit(str(exc))

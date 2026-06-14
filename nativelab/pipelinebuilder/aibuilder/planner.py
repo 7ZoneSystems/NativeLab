@@ -52,6 +52,7 @@ _ALLOWED_TYPES = {
     PipelineBlockType.LLM_FILTER,
     PipelineBlockType.LLM_TRANSFORM,
     PipelineBlockType.LLM_SCORE,
+    PipelineBlockType.MCP_SERVER,
 }
 _DEFAULT_LABELS = {
     PipelineBlockType.INPUT: "Input",
@@ -73,6 +74,7 @@ _DEFAULT_LABELS = {
     PipelineBlockType.LLM_FILTER: "LLM Filter",
     PipelineBlockType.LLM_TRANSFORM: "LLM Transform",
     PipelineBlockType.LLM_SCORE: "LLM Score",
+    PipelineBlockType.MCP_SERVER: "MCP Server",
 }
 
 
@@ -87,7 +89,7 @@ Schema:
   "blocks": [
     {
       "bid": 1,
-      "btype": "input|output|model|intermediate|reference|knowledge|pdf_summary|if_else|switch|filter|transform|merge|split|custom_code|llm_if|llm_switch|llm_filter|llm_transform|llm_score",
+      "btype": "input|output|model|intermediate|reference|knowledge|pdf_summary|if_else|switch|filter|transform|merge|split|custom_code|llm_if|llm_switch|llm_filter|llm_transform|llm_score|mcp_server",
       "x": 80, "y": 120, "w": 148, "h": 76,
       "model_path": "",
       "role": "general",
@@ -117,6 +119,7 @@ Rules:
 - merge metadata: merge_mode concat|prepend|json and merge_sep.
 - custom_code metadata: custom_code only if essential; it must be deterministic, no imports, no filesystem, no network, no subprocess.
 - llm_* metadata: llm_instruction, llm_max_tokens, llm_temp, llm_passthrough_on_err.
+- mcp_server metadata: mcp_transport ("sse" or "stdio"), mcp_url (URL for SSE, shell command for stdio), mcp_name (display name), mcp_tool_name (exact tool name to call), mcp_arg_name (input argument name, default "input"). Use mcp_server when the user needs to call external tools, access files, databases, web APIs, or any MCP-compatible server. For npx packages use stdio transport with mcp_url like "npx -y @modelcontextprotocol/server-filesystem /path".
 - Keep the graph simple enough to run, but include all blocks needed to satisfy the requested workflow.
 """
 
@@ -235,7 +238,7 @@ def build_ai_builder_retry_messages(
                 '"to_port":"W","is_loop":false,"loop_times":1}]}\n\n'
                 "Allowed btype values: input, output, model, intermediate, reference, knowledge, "
                 "pdf_summary, if_else, switch, filter, transform, merge, split, custom_code, "
-                "llm_if, llm_switch, llm_filter, llm_transform, llm_score.\n"
+                "llm_if, llm_switch, llm_filter, llm_transform, llm_score, mcp_server.\n"
                 "Required: one input, at least one output, unique bid values, valid connection endpoints. "
                 "Leave model_path empty for model and llm_* blocks unless the user explicitly named a model.\n\n"
                 f"Pipeline request:\n{request}\n\n"
@@ -446,6 +449,16 @@ def _normalize_metadata(btype: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         except Exception:
             md["llm_temp"] = 0.3
         md["llm_passthrough_on_err"] = bool(md.get("llm_passthrough_on_err", True))
+    elif btype == PipelineBlockType.MCP_SERVER:
+        md["mcp_transport"] = _clean_text(md.get("mcp_transport"), "sse", limit=10)
+        if md["mcp_transport"] not in ("sse", "stdio"):
+            md["mcp_transport"] = "sse"
+        md["mcp_url"] = _clean_text(md.get("mcp_url"), "", limit=2000)
+        md["mcp_name"] = _clean_text(md.get("mcp_name"), "", limit=80)
+        md["mcp_tool_name"] = _clean_text(md.get("mcp_tool_name"), "", limit=200)
+        md["mcp_arg_name"] = _clean_text(md.get("mcp_arg_name"), "", limit=80)
+        md.setdefault("mcp_connected", False)
+        md.setdefault("mcp_tools", [])
     return md
 
 

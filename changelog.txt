@@ -1,3 +1,21 @@
+v0.3.8
+1) Added MCP_SERVER block type to the pipeline builder so pipelines can call external MCP (Model Context Protocol) tools during execution.
+2) Added MCP Server sidebar button, canvas color (#22d3ee cyan), icon, and legend entry in the pipeline builder.
+3) Added MCP block auto-configuration dialog that opens when an MCP block is placed on the canvas, with transport selector (SSE/stdio), URL/command input, Test Connection button with green/red status dot, tool selector dropdown populated from live server response, tool description with parameter schema, and input argument name override.
+4) Added `nativelab/integrations/mcp_client.py` implementing a lightweight MCP client supporting SSE (HTTP Server-Sent Events) and stdio (subprocess JSON-RPC) transports with full MCP protocol handshake (initialize, tools/list, tools/call).
+5) Added MCP block execution in `PipelineExecutionWorker` that connects to the configured MCP server at runtime, calls the selected tool with the pipeline context as input, and returns the result to downstream blocks.
+6) Added MCP block validation requiring both a server URL and a selected tool name before the pipeline can run.
+7) Fixed pipeline validation to always run Python validation first so new block types like MCP are validated even when the native C validation layer does not recognize them.
+8) Added MCP block serialization/deserialization support so MCP blocks persist through pipeline save/load with full metadata (transport, URL, tool name, argument name, connected status, discovered tools list).
+9) Added MCP_SERVER to the AI Pipeline Builder allowed block types, default labels, and schema so the AI can generate pipelines containing MCP blocks.
+10) Added MCP metadata documentation to the AI Builder prompt guide including transport types, URL formats, npx package syntax, tool selection, and argument mapping.
+11) Added MCP metadata normalization in the AI Builder planner with safe defaults, sanitization, and transport validation.
+12) Added `nativelab/pipelinebuilder/aibuilder/mcp_verify.py` implementing post-generation MCP server verification for AI-generated pipelines with auto-install, retry, and fix/remove logic.
+13) Added MCP verification phase to `AiPipelineBuildWorker` that tests each MCP server after AI generation: starts stdio subprocesses, sends MCP protocol handshake, verifies tools/list response, auto-installs npm packages for npx commands, retries on failure, and reports detailed pass/fail status per block.
+14) Added automatic MCP block removal for servers that fail all verification attempts, followed by AI regeneration with explicit failure context so the model can rebuild the pipeline using alternative approaches.
+15) Added MCP tool list auto-update from verification results so blocks are populated with actual tools discovered from the live server.
+16) Added MCP block to the pipeline canvas context menu, pill bar, and canvas rendering alongside existing block types.
+
 v0.3.7
 1) Refactored the pipeline subsystem so deterministic performance-critical work now has a native C acceleration path while preserving Python as the public orchestration and UI layer.
 2) Added `nativelab/native/pipeline_core.c`, a focused native pipeline core included by the existing `_native_core` extension instead of creating a monolithic native file.
