@@ -75,21 +75,62 @@ class LlamaCppManager(private val context: Context, private val store: PhonoLabS
         return RuntimeStatus(true, server.absolutePath, libDir, "llama-server ready", version)
     }
 
-    /** Find llama-server binary in the runtime directory. */
+    /**
+     * Find llama-server binary.
+     * Checks nativeLibraryDir first (always allows execution on Android),
+     * then falls back to runtime directory.
+     */
     fun findServer(): File? {
+        // 1. Native library dir (always executable on Android)
+        val nativeDir = File(context.applicationInfo.nativeLibraryDir)
+        val nativeServer = File(nativeDir, "llama-server")
+        if (nativeServer.exists() && nativeServer.length() > 1000) {
+            return nativeServer
+        }
+
+        // 2. Runtime directory — copy to nativeLibDir if found there
         val dir = runtimeDir()
         val server = File(dir, "llama-server")
         if (server.exists() && server.length() > 1000) {
+            // Try to copy to nativeLibraryDir for execution
+            val deployed = deployToNativeLibDir(server, dir)
+            if (deployed != null) return deployed
+            // Fallback: return from runtime dir (might fail with permission denied)
             server.setExecutable(true, false)
             return server
         }
-        // Also check binDir for legacy installs
+
+        // 3. Legacy binDir
         val binServer = File(store.runtimeBinDir, "llama-server")
         if (binServer.exists() && binServer.length() > 1000) {
+            val deployed = deployToNativeLibDir(binServer, binServer.parentFile ?: dir)
+            if (deployed != null) return deployed
             binServer.setExecutable(true, false)
             return binServer
         }
+
         return null
+    }
+
+    /**
+     * Copy binary to nativeLibraryDir so it can be executed.
+     * Android allows execution from nativeLibDir but not from filesDir.
+     */
+    private fun deployToNativeLibDir(source: File, libDir: File): File? {
+        return try {
+            val nativeDir = File(context.applicationInfo.nativeLibraryDir)
+            val target = File(nativeDir, "llama-server")
+
+            // Only copy if source is newer or target doesn't exist
+            if (!target.exists() || target.length() != source.length() ||
+                source.lastModified() > target.lastModified()) {
+                source.copyTo(target, overwrite = true)
+            }
+            target.setExecutable(true, false)
+            if (target.exists() && target.length() > 1000) target else null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     /** Get the directory containing all .so files. */
@@ -98,11 +139,16 @@ class LlamaCppManager(private val context: Context, private val store: PhonoLabS
         return server.parentFile
     }
 
-    /** Run a binary with LD_LIBRARY_PATH set to the lib directory. */
+    /** Run a binary with LD_LIBRARY_PATH set to include both runtime and native dirs. */
     private fun runBinary(binary: File, libDir: String, vararg args: String): Pair<Int, String> {
         val env = HashMap(System.getenv())
+        val nativeDir = context.applicationInfo.nativeLibraryDir
+        val ldPaths = mutableListOf<String>()
+        ldPaths.add(libDir)
+        if (nativeDir != libDir) ldPaths.add(nativeDir)
         val existing = env["LD_LIBRARY_PATH"] ?: ""
-        env["LD_LIBRARY_PATH"] = if (existing.isNotEmpty()) "$libDir:$existing" else libDir
+        if (existing.isNotEmpty()) ldPaths.add(existing)
+        env["LD_LIBRARY_PATH"] = ldPaths.joinToString(":")
 
         val command = listOf(binary.absolutePath) + args.toList()
         val proc = ProcessBuilder(command)

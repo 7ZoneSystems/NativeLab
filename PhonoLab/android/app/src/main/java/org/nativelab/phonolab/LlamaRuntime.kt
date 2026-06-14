@@ -174,15 +174,17 @@ class LlamaRuntime(
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
         serverPort = findFreePort()
 
-        // Set LD_LIBRARY_PATH so .so files from the tarball are found
-        val binDir = serverBinary.parentFile ?: store.runtimeBinDir
+        // Set LD_LIBRARY_PATH so .so files are found
+        // .so files live in runtime/llama/, binary may be in nativeLibraryDir
+        val runtimeLibDir = File(store.runtimeDir, "llama")
+        val nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
         val env = HashMap(System.getenv())
+        val ldPaths = mutableListOf<String>()
+        if (runtimeLibDir.exists()) ldPaths.add(runtimeLibDir.absolutePath)
+        if (nativeLibDir.exists()) ldPaths.add(nativeLibDir.absolutePath)
         val existingLdPath = env["LD_LIBRARY_PATH"] ?: ""
-        env["LD_LIBRARY_PATH"] = if (existingLdPath.isNotEmpty()) {
-            "${binDir.absolutePath}:$existingLdPath"
-        } else {
-            binDir.absolutePath
-        }
+        if (existingLdPath.isNotEmpty()) ldPaths.add(existingLdPath)
+        env["LD_LIBRARY_PATH"] = ldPaths.joinToString(":")
 
         val command = listOf(
             serverBinary.absolutePath,
