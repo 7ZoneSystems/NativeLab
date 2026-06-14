@@ -1,10 +1,17 @@
 package org.nativelab.phonolab
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.SearchView
+import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -32,7 +39,22 @@ class MainActivity : AppCompatActivity() {
     private var sessions = listOf<ChatSession>()
     private var activeSessionId = ""
 
+    // Permission request launcher
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val denied = results.filter { !it.value }.keys
+        if (denied.isNotEmpty()) {
+            val names = denied.map { it.substringAfterLast(".") }.joinToString()
+            Toast.makeText(this, "Denied: $names — some features may not work", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Edge-to-edge for Android 15+ (API 35+)
+        if (Build.VERSION.SDK_INT >= 35) {
+            enableEdgeToEdge()
+        }
         ThemeManager.init(this)
         ThemeManager.applyTheme()
         super.onCreate(savedInstanceState)
@@ -50,6 +72,9 @@ class MainActivity : AppCompatActivity() {
 
         setupToolbar()
         setupSidebar()
+
+        // Request necessary permissions on first launch
+        requestNecessaryPermissions()
 
         // Modern back press handling
         onBackPressedDispatcher.addCallback(this,
@@ -239,5 +264,53 @@ class MainActivity : AppCompatActivity() {
             runtime.killAllLlamaProcesses()
         } catch (_: Exception) { }
         super.onDestroy()
+    }
+
+    private fun requestNecessaryPermissions() {
+        val needed = mutableListOf<String>()
+
+        when {
+            // Android 14+ (API 34+): partial media access
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
+                if (!hasPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)) {
+                    needed.add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+                }
+                if (!hasPermission(Manifest.permission.READ_MEDIA_IMAGES)) {
+                    needed.add(Manifest.permission.READ_MEDIA_IMAGES)
+                }
+            }
+            // Android 13 (API 33): granular media
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                if (!hasPermission(Manifest.permission.READ_MEDIA_IMAGES)) {
+                    needed.add(Manifest.permission.READ_MEDIA_IMAGES)
+                }
+            }
+            // Android 12 and below: legacy storage
+            else -> {
+                if (!hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)) {
+                    needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                }
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.Q) {
+                    if (!hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                        needed.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    }
+                }
+            }
+        }
+
+        // Notification permission for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (!hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
+                needed.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        if (needed.isNotEmpty()) {
+            permissionLauncher.launch(needed.toTypedArray())
+        }
+    }
+
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
     }
 }
