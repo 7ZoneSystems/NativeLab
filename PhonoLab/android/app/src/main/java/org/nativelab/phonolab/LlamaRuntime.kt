@@ -175,16 +175,17 @@ class LlamaRuntime(
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
         serverPort = findFreePort()
 
-        // Set LD_LIBRARY_PATH so .so files are found
-        // .so files live in store.runtimeDir, binary may be in nativeLibraryDir
-        val runtimeLibDir = store.runtimeDir
-        val nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
+        // LD_LIBRARY_PATH: .so files are in store.runtimeDir + nativeLibraryDir
+        val nativeDir = context.applicationInfo.nativeLibraryDir
+        val runtimeDir = store.runtimeDir.absolutePath
         val env = HashMap(System.getenv())
         val ldPaths = mutableListOf<String>()
-        if (runtimeLibDir.exists()) ldPaths.add(runtimeLibDir.absolutePath)
-        if (nativeLibDir.exists()) ldPaths.add(nativeLibDir.absolutePath)
-        val existingLdPath = env["LD_LIBRARY_PATH"] ?: ""
-        if (existingLdPath.isNotEmpty()) ldPaths.add(existingLdPath)
+        // runtimeDir has the extracted .so files
+        if (File(runtimeDir).exists()) ldPaths.add(runtimeDir)
+        // nativeDir has the deployed copies
+        if (nativeDir != runtimeDir) ldPaths.add(nativeDir)
+        val existing = env["LD_LIBRARY_PATH"] ?: ""
+        if (existing.isNotEmpty()) ldPaths.add(existing)
         env["LD_LIBRARY_PATH"] = ldPaths.joinToString(":")
 
         val command = listOf(

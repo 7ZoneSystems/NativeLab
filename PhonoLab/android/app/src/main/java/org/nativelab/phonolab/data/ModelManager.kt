@@ -63,7 +63,7 @@ data class ModelConfig(
 
 class ModelManager(private val store: PhonoLabStore) {
 
-    private val registryFile = File(store.root, "config/model_registry.json")
+    private val registryFile = File(store.configDir, "model_registry.json")
     private val models = mutableMapOf<String, ModelConfig>()
 
     init {

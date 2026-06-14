@@ -6,7 +6,7 @@ import java.io.File
 
 class SessionManager(private val store: PhonoLabStore) {
 
-    private val sessionsDir = File(store.root, "sessions")
+    private val sessionsDir = store.sessionsDir
 
     init {
         sessionsDir.mkdirs()
