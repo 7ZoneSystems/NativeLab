@@ -600,6 +600,18 @@ class PipelineExecutionWorker(QThread):
                     return
                 self.step_done.emit(bid, current_text)
 
+            elif b.btype == PipelineBlockType.MCP_SERVER:
+                self.step_started.emit(bid, b.label)
+                result = self._run_mcp_block(b, context)
+                if result is None:
+                    if not self._abort:
+                        self.err.emit(
+                            f"MCP block '{b.label}' failed. "
+                            f"Check the server URL/command and tool configuration.")
+                    return
+                current_text = result
+                self.step_done.emit(bid, current_text)
+
             # Enqueue outgoing edges
             self._enqueue_outgoing(queue, adj, bid, current_text, visit_counts)
 
@@ -1037,4 +1049,57 @@ class PipelineExecutionWorker(QThread):
         summary = "\n\n".join(summaries)
         self.log_msg.emit(f"PDF summarised: {len(summary):,} chars")
         return summary
+
+    # ── MCP server block ────────────────────────────────────────────────────
+
+    def _run_mcp_block(self, b: "PipelineBlock", context: str) -> Optional[str]:
+        """Execute an MCP tool call via the configured server."""
+        transport = b.metadata.get("mcp_transport", "sse")
+        url = b.metadata.get("mcp_url", "")
+        tool_name = b.metadata.get("mcp_tool_name", "")
+        arg_name = b.metadata.get("mcp_arg_name", "")
+
+        if not url:
+            self.log_msg.emit(f"MCP block '{b.label}': no server URL configured.")
+            return None
+        if not tool_name:
+            self.log_msg.emit(f"MCP block '{b.label}': no tool selected.")
+            return None
+
+        # Build arguments — use configured arg name or default to "input"
+        arguments = {}
+        key = arg_name if arg_name else "input"
+        arguments[key] = context
+
+        self.log_msg.emit(
+            f"MCP '{b.label}': calling tool '{tool_name}' "
+            f"via {transport} → {url[:60]}")
+
+        try:
+            from nativelab.integrations.mcp_client import McpClient
+            client = McpClient()
+            ok, result = client.execute(transport, url, tool_name, arguments)
+            client.shutdown()
+
+            if not ok:
+                err = result if isinstance(result, str) else "Tool call failed"
+                self.log_msg.emit(f"MCP '{b.label}' error: {err}")
+                return None
+
+            text = str(result) if result else ""
+            if not text.strip():
+                self.log_msg.emit(f"MCP '{b.label}': tool returned empty result")
+                return context  # pass through unchanged
+
+            self.log_msg.emit(
+                f"MCP '{b.label}': tool returned {len(text):,} chars")
+            return text
+        except ImportError:
+            self.log_msg.emit(
+                f"MCP '{b.label}': mcp_client module not found. "
+                f"Ensure nativelab.integrations.mcp_client is installed.")
+            return None
+        except Exception as e:
+            self.log_msg.emit(f"MCP '{b.label}' exception: {e}")
+            return None
     
