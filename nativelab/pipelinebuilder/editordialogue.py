@@ -1,4 +1,4 @@
-from nativelab.imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QMessageBox, Qt, Path
+from nativelab.imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QMessageBox, Qt, Path, QLineEdit
 from nativelab.Model.model_global import get_model_registry, detect_model_family, is_model_ref_valid
 from nativelab.GlobalConfig.config_global import ROLE_ICONS
 from .pipblck import PipelineBlock
@@ -506,4 +506,257 @@ log(f"Word count: {word_count}")
                 preview = stripped[:20]
                 break
         self._block.label = f"⌥ {preview}"
+        self.accept()
+
+
+class McpServerEditorDialog(QDialog):
+    """
+    Configuration dialog for MCP_SERVER pipeline blocks.
+    Lets the user enter an MCP server URL or command, test the connection,
+    see available tools, and pick which tool the block will call.
+    """
+
+    def __init__(self, block: "PipelineBlock", parent=None):
+        super().__init__(parent)
+        self._block = block
+        self._tester = None
+        self._connected = False
+        self._tools: list = []
+        self.setWindowTitle(f"MCP Server - {block.label}")
+        prepare_adaptive_window(self, 640, 520, min_width=500, min_height=400)
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(12)
+
+        # ── Header ───────────────────────────────────────────────────────────
+        hdr = QLabel("MCP Server Block")
+        set_label_icon(hdr, "mcp", "MCP Server Block", 18)
+        hdr.setStyleSheet(
+            f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        root.addWidget(hdr)
+
+        about = QLabel(
+            "Connect to an MCP (Model Context Protocol) server to call external "
+            "tools. Enter the server URL (SSE) or command (stdio), test the "
+            "connection, then select which tool this block should invoke. "
+            "The incoming pipeline text is passed as the tool's main argument.")
+        about.setWordWrap(True)
+        about.setStyleSheet(
+            f"color:{C['txt2']};font-size:11px;"
+            f"background:{C['bg2']};border-radius:6px;padding:10px 12px;"
+            f"border-left:3px solid #22d3ee;")
+        root.addWidget(about)
+
+        # ── Server config ────────────────────────────────────────────────────
+        srv_lbl = QLabel("SERVER CONFIGURATION")
+        srv_lbl.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1px;")
+        root.addWidget(srv_lbl)
+
+        srv_card = QFrame(); srv_card.setObjectName("tab_card")
+        srv_l = QVBoxLayout(srv_card)
+        srv_l.setContentsMargins(14, 12, 14, 12); srv_l.setSpacing(8)
+
+        def _row(label: str, widget, width=100):
+            r = QHBoxLayout(); r.setSpacing(8)
+            l = QLabel(label); l.setFixedWidth(width)
+            l.setObjectName("txt2"); l.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+            r.addWidget(l); r.addWidget(widget, 1); return r
+
+        self.combo_transport = QComboBox()
+        self.combo_transport.addItem("SSE   (HTTP endpoint)", "sse")
+        self.combo_transport.addItem("stdio (local command)", "stdio")
+        self.combo_transport.setFixedHeight(28)
+        saved_transport = self._block.metadata.get("mcp_transport", "sse")
+        self.combo_transport.setCurrentIndex(0 if saved_transport == "sse" else 1)
+        srv_l.addLayout(_row("Transport:", self.combo_transport))
+
+        self.edit_url = QLineEdit()
+        self.edit_url.setPlaceholderText(
+            "http://localhost:3000/sse   or   npx -y @modelcontextprotocol/server-filesystem /path")
+        self.edit_url.setFixedHeight(28)
+        self.edit_url.setText(self._block.metadata.get("mcp_url", ""))
+        srv_l.addLayout(_row("URL / Command:", self.edit_url))
+
+        self.edit_name = QLineEdit()
+        self.edit_name.setPlaceholderText("Display name (e.g. 'Filesystem MCP')")
+        self.edit_name.setFixedHeight(28)
+        self.edit_name.setText(self._block.metadata.get("mcp_name", ""))
+        srv_l.addLayout(_row("Name:", self.edit_name))
+
+        root.addWidget(srv_card)
+
+        # ── Test connection ──────────────────────────────────────────────────
+        test_row = QHBoxLayout(); test_row.setSpacing(10)
+        self.btn_test = QPushButton("Test Connection")
+        set_button_icon(self.btn_test, "zap", "Test Connection")
+        self.btn_test.setObjectName("btn_send")
+        self.btn_test.setFixedHeight(30)
+        self.btn_test.clicked.connect(self._test_connection)
+        test_row.addWidget(self.btn_test)
+
+        self.status_dot = QLabel("●")
+        self.status_dot.setFixedWidth(20)
+        self.status_dot.setStyleSheet(f"color:{C['txt3']};font-size:16px;")
+        self.status_dot.setToolTip("Not tested")
+        test_row.addWidget(self.status_dot)
+
+        self.status_lbl = QLabel("Not tested")
+        self.status_lbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        test_row.addWidget(self.status_lbl, 1)
+        root.addLayout(test_row)
+
+        # ── Tool selector ────────────────────────────────────────────────────
+        tool_lbl = QLabel("TOOL SELECTION")
+        tool_lbl.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1px;")
+        root.addWidget(tool_lbl)
+
+        tool_card = QFrame(); tool_card.setObjectName("tab_card")
+        tool_l = QVBoxLayout(tool_card)
+        tool_l.setContentsMargins(14, 12, 14, 12); tool_l.setSpacing(8)
+
+        self.combo_tool = QComboBox()
+        self.combo_tool.setFixedHeight(28)
+        self.combo_tool.addItem("Test connection first to see tools...", "")
+        self.combo_tool.currentIndexChanged.connect(self._on_tool_selected)
+        tool_l.addWidget(self.combo_tool)
+
+        self.tool_desc = QLabel("")
+        self.tool_desc.setWordWrap(True)
+        self.tool_desc.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        tool_l.addWidget(self.tool_desc)
+
+        tool_input_row = QHBoxLayout(); tool_input_row.setSpacing(8)
+        tool_input_lbl = QLabel("Input arg name:")
+        tool_input_lbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        tool_input_lbl.setFixedWidth(110)
+        self.edit_arg_name = QLineEdit()
+        self.edit_arg_name.setPlaceholderText("auto-detect from schema")
+        self.edit_arg_name.setFixedHeight(26)
+        self.edit_arg_name.setText(self._block.metadata.get("mcp_arg_name", ""))
+        tool_input_row.addWidget(tool_input_lbl)
+        tool_input_row.addWidget(self.edit_arg_name, 1)
+        tool_l.addLayout(tool_input_row)
+
+        root.addWidget(tool_card)
+
+        # ── Buttons ──────────────────────────────────────────────────────────
+        btn_row = QHBoxLayout(); btn_row.setSpacing(10)
+        btn_save = QPushButton("Save & Close")
+        set_button_icon(btn_save, "save", "Save & Close")
+        btn_save.setObjectName("btn_send"); btn_save.setFixedHeight(32)
+        btn_save.clicked.connect(self._save_and_close)
+        btn_cancel = QPushButton("Cancel")
+        set_button_icon(btn_cancel, "x", "Cancel")
+        btn_cancel.setFixedHeight(32)
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_save)
+        root.addLayout(btn_row)
+
+    def _set_status(self, ok: bool, msg: str):
+        self._connected = ok
+        color = C["ok"] if ok else C["err"]
+        self.status_dot.setStyleSheet(f"color:{color};font-size:16px;")
+        self.status_dot.setToolTip(msg)
+        self.status_lbl.setText(msg[:80])
+
+    def _test_connection(self):
+        """Connect to the MCP server, list tools, populate the tool combo."""
+        url = self.edit_url.text().strip()
+        if not url:
+            QMessageBox.warning(self, "Missing URL", "Enter a server URL or command.")
+            return
+
+        self.btn_test.setEnabled(False)
+        self.btn_test.setText("Testing...")
+        self.status_dot.setStyleSheet(f"color:{C['warn']};font-size:16px;")
+        self.status_lbl.setText("Connecting...")
+
+        transport = self.combo_transport.currentData()
+
+        try:
+            from nativelab.integrations.mcp_client import McpClient
+            client = McpClient()
+            ok, tools = client.test_connection(transport, url)
+            client.shutdown()
+
+            if ok:
+                self._set_status(True, f"Connected — {len(tools)} tool(s) found")
+                self._tools = tools
+                self._populate_tools(tools)
+            else:
+                err = tools if isinstance(tools, str) else "Connection failed"
+                self._set_status(False, err)
+                self.combo_tool.clear()
+                self.combo_tool.addItem("Connection failed", "")
+        except Exception as e:
+            self._set_status(False, str(e))
+            self.combo_tool.clear()
+            self.combo_tool.addItem("Error: " + str(e)[:60], "")
+        finally:
+            self.btn_test.setEnabled(True)
+            self.btn_test.setText("Test Connection")
+
+    def _populate_tools(self, tools: list):
+        self.combo_tool.blockSignals(True)
+        self.combo_tool.clear()
+        saved_tool = self._block.metadata.get("mcp_tool_name", "")
+        sel = 0
+        for i, t in enumerate(tools):
+            name = t.get("name", "unknown")
+            desc = t.get("description", "")[:60]
+            self.combo_tool.addItem(f"{name}  —  {desc}", name)
+            if name == saved_tool:
+                sel = i
+        self.combo_tool.setCurrentIndex(sel)
+        self.combo_tool.blockSignals(False)
+        self._on_tool_selected()
+
+    def _on_tool_selected(self):
+        idx = self.combo_tool.currentIndex()
+        if idx < 0 or idx >= len(self._tools):
+            self.tool_desc.setText("")
+            return
+        t = self._tools[idx]
+        desc = t.get("description", "No description")
+        schema = t.get("inputSchema", {})
+        props = schema.get("properties", {})
+        required = schema.get("required", [])
+        lines = [desc, ""]
+        if props:
+            lines.append("Parameters:")
+            for pname, pinfo in props.items():
+                req = " (required)" if pname in required else ""
+                ptype = pinfo.get("type", "any")
+                pdesc = pinfo.get("description", "")
+                lines.append(f"  • {pname} [{ptype}]{req}: {pdesc}")
+        self.tool_desc.setText("\n".join(lines))
+
+    def _save_and_close(self):
+        url = self.edit_url.text().strip()
+        if not url:
+            QMessageBox.warning(self, "Missing URL", "Enter a server URL or command.")
+            return
+
+        transport = self.combo_transport.currentData()
+        tool_name = self.combo_tool.currentData() or ""
+        name = self.edit_name.text().strip()
+
+        self._block.metadata["mcp_transport"] = transport
+        self._block.metadata["mcp_url"] = url
+        self._block.metadata["mcp_name"] = name
+        self._block.metadata["mcp_tool_name"] = tool_name
+        self._block.metadata["mcp_arg_name"] = self.edit_arg_name.text().strip()
+        self._block.metadata["mcp_connected"] = self._connected
+        self._block.metadata["mcp_tools"] = self._tools
+
+        # Label
+        display = name or tool_name or url[:24]
+        self._block.label = f"MCP {display[:22]}"
         self.accept()

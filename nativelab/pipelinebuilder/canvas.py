@@ -4,7 +4,7 @@ from .blck_typ import PipelineConnection
 from nativelab.Server.server_global import detect_model_family
 from nativelab.GlobalConfig.config_global import MODEL_ROLES
 from nativelab.Model.model_global import api_model_name_from_ref, detect_quant_type, detect_vision_model, is_api_model_ref, is_external_model_ref, model_ref_payload
-from .editordialogue import CodeEditorDialog, LlmLogicEditorDialog
+from .editordialogue import CodeEditorDialog, LlmLogicEditorDialog, McpServerEditorDialog
 from nativelab.UI.UI_const import C
 from nativelab.UI.icons import add_menu_action
 from .graph_ops import normalize_block_ids as normalize_block_ids_native, would_form_loop
@@ -329,6 +329,7 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.LLM_FILTER:    lambda: ("#6366f1",    C["bg1"]),
         PipelineBlockType.LLM_TRANSFORM: lambda: ("#0ea5e9",    C["bg1"]),
         PipelineBlockType.LLM_SCORE:     lambda: ("#d946ef",    C["bg1"]),
+        PipelineBlockType.MCP_SERVER:    lambda: ("#22d3ee",    C["bg1"]),
     }
     _BLOCK_ICONS = {
         PipelineBlockType.INPUT:        "INPUT",
@@ -350,6 +351,7 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.LLM_FILTER:    "LLM-FL",
         PipelineBlockType.LLM_TRANSFORM: "LLM-TX",
         PipelineBlockType.LLM_SCORE:     "LLM-SC",
+        PipelineBlockType.MCP_SERVER:    "MCP",
     }
 
     def _draw_block(self, p, b: PipelineBlock):      
@@ -662,6 +664,7 @@ class PipelineCanvas(QWidget):
         PipelineBlockType.LLM_FILTER,
         PipelineBlockType.LLM_TRANSFORM,
         PipelineBlockType.LLM_SCORE,
+        PipelineBlockType.MCP_SERVER,
     }
 
     def _try_connect(self, fb: PipelineBlock, fport: str,
@@ -984,6 +987,12 @@ class PipelineCanvas(QWidget):
                 b.label = "Intermediate"
             self.update()
 
+    def _configure_mcp_block(self, b: "PipelineBlock"):
+        """Open the MCP server configuration dialog."""
+        dlg = McpServerEditorDialog(b, parent=self)
+        dlg.exec()
+        self.update()
+
     def _would_form_loop(self, from_bid: int, to_bid: int) -> bool:
         """Return True if to_bid can already reach from_bid (i.e. adding this edge creates a cycle)."""
         return would_form_loop(self.connections, from_bid, to_bid)
@@ -1042,6 +1051,7 @@ class PipelineCanvas(QWidget):
                 PipelineBlockType.LLM_IF, PipelineBlockType.LLM_SWITCH,
                 PipelineBlockType.LLM_FILTER, PipelineBlockType.LLM_TRANSFORM,
                 PipelineBlockType.LLM_SCORE,
+                PipelineBlockType.MCP_SERVER,
             }
             if target.btype in _CONFIGURABLE:
                 act_cfg = add_menu_action(menu, "Configure block...", "settings")
@@ -1089,9 +1099,9 @@ class PipelineCanvas(QWidget):
                     PipelineBlockType.LLM_FILTER, PipelineBlockType.LLM_TRANSFORM,
                     PipelineBlockType.LLM_SCORE,
                 }
-                if target.btype in _LLM_LOGIC_TYPES:
-                    self._configure_llm_logic_block(target)
-                elif target.btype in _LOGIC_TYPES:
+                if target.btype == PipelineBlockType.MCP_SERVER:
+                    self._configure_mcp_block(target)
+                elif target.btype in _LLM_LOGIC_TYPES:
                     self._configure_logic_block(target)
                 else:
                     self._configure_context_block(target)

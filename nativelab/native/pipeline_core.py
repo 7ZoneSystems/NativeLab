@@ -225,13 +225,18 @@ def _route_take(mode: str, branch_key: str, port: str, port_labels: MutableMappi
 
 def validate_records(records: Sequence[Dict[str, Any]], connection_count: int) -> Optional[str]:
     record_list = [_prepare_validation_record(record) for record in records]
+    # Run Python validation first (covers all block types including MCP)
+    py_result = _validate_records_py(record_list, int(connection_count))
+    if py_result is not None:
+        return py_result
+    # Also run native validation if available (for native-only checks)
     if _core is not None and hasattr(_core, "pipeline_validate_records"):
         try:
             result = _core.pipeline_validate_records(record_list, int(connection_count))
             return None if result is None else str(result)
         except Exception:
             pass
-    return _validate_records_py(record_list, int(connection_count))
+    return None
 
 
 def _prepare_validation_record(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -247,6 +252,8 @@ def _prepare_validation_record(record: Dict[str, Any]) -> Dict[str, Any]:
     out.setdefault("has_transform_type", bool(meta.get("transform_type")))
     out.setdefault("has_custom_code", bool(str(meta.get("custom_code", "")).strip()))
     out.setdefault("has_llm_instruction", bool(str(meta.get("llm_instruction", "")).strip()))
+    out.setdefault("has_mcp_url", bool(str(meta.get("mcp_url", "")).strip()))
+    out.setdefault("has_mcp_tool", bool(str(meta.get("mcp_tool_name", "")).strip()))
     return out
 
 
@@ -294,4 +301,9 @@ def _validate_records_py(records: Sequence[Dict[str, Any]], connection_count: in
                 f"Model block '{label}' has no valid model attached.\n"
                 f"Double-click a model in the sidebar to add it."
             )
+        if btype == "mcp_server":
+            if not meta.get("mcp_url", "").strip():
+                return f"MCP Server block '{label}' has no server URL.\nRight-click it → Configure block…"
+            if not meta.get("mcp_tool_name", "").strip():
+                return f"MCP Server block '{label}' has no tool selected.\nRight-click it → Test Connection, then select a tool."
     return None

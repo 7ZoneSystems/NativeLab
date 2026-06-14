@@ -15,7 +15,7 @@ from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 from .canvas import PipelineCanvas
 from .outrender import PipelineOutputRenderer
 from manual import make_manual_html, PIPELINE_MANUAL_HTML
-from nativelab.GlobalConfig.config_global import ROLE_ICONS, LONG_TIMEOUT_MS
+from nativelab.GlobalConfig.config_global import PIPELINES_DIR, ROLE_ICONS, LONG_TIMEOUT_MS
 class PipelineBuilderTab(QWidget):
     """
     Full-featured pipeline builder tab.
@@ -167,6 +167,11 @@ class PipelineBuilderTab(QWidget):
         sb_l.addWidget(_block_btn("LLM TRANSFORM",   PipelineBlockType.LLM_TRANSFORM,  "#0ea5e9", "brain"))
         sb_l.addWidget(_block_btn("LLM SCORE",       PipelineBlockType.LLM_SCORE,      "#d946ef", "brain"))
 
+        sep_mcp = QFrame(); sep_mcp.setFrameShape(QFrame.Shape.HLine)
+        sb_l.addWidget(sep_mcp)
+        sb_l.addWidget(_sec("MCP SERVER"))
+        sb_l.addWidget(_block_btn("MCP Server", PipelineBlockType.MCP_SERVER, "#22d3ee", "mcp"))
+
         sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep1)
 
@@ -286,6 +291,7 @@ class PipelineBuilderTab(QWidget):
             ("#d946ef",     "LLM-SC"),
             (C["pipeline"], "Loop"),
             (C["acc2"],     "Forward"),
+            ("#22d3ee",     "MCP"),
         ]
         for col, txt in legend_items:
             lbl = QLabel(txt)
@@ -1133,6 +1139,8 @@ class PipelineBuilderTab(QWidget):
         }
         if btype in _LLM_BTYPES:
             self.canvas._configure_llm_logic_block(b)
+        if btype == PipelineBlockType.MCP_SERVER:
+            self.canvas._configure_mcp_block(b)
 
     def _add_model_from_list(self, item: QListWidgetItem):
         path = item.data(Qt.ItemDataRole.UserRole)
@@ -1172,6 +1180,7 @@ class PipelineBuilderTab(QWidget):
             PipelineBlockType.IF_ELSE, PipelineBlockType.SWITCH,
             PipelineBlockType.FILTER, PipelineBlockType.TRANSFORM,
             PipelineBlockType.CUSTOM_CODE,
+            PipelineBlockType.MCP_SERVER,
         }
         _PILL_COLORS = {
             PipelineBlockType.MODEL:        C["acc"],
@@ -1185,6 +1194,7 @@ class PipelineBuilderTab(QWidget):
             PipelineBlockType.LLM_FILTER:   "#6366f1",
             PipelineBlockType.LLM_TRANSFORM:"#0ea5e9",
             PipelineBlockType.LLM_SCORE:    "#d946ef",
+            PipelineBlockType.MCP_SERVER:   "#22d3ee",
         }
         # Clear old pills
         while self._pill_layout.count() > 1:  # keep final stretch
