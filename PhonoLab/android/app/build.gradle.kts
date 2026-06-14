@@ -50,6 +50,9 @@ dependencies {
     // JSON
     implementation("org.json:json:20250517")
 
+    // DocumentFile for SAF
+    implementation("androidx.documentfile:documentfile:1.1.0")
+
     // Splash screen
     implementation("androidx.core:core-splashscreen:1.2.0-alpha02")
 }

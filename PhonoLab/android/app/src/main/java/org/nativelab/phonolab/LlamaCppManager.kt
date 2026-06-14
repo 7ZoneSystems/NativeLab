@@ -20,10 +20,17 @@ import java.net.URL
  * All files must stay in the same directory — the binaries dynamically
  * load the .so files from their own directory.
  */
-class LlamaCppManager(private val context: Context, private val store: PhonoLabStore) {
+class LlamaCppManager(
+    private val context: Context,
+    private val store: PhonoLabStore,
+    private val storageManager: StorageManager? = null,
+) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("llama_cpp_manager", Context.MODE_PRIVATE)
+
+    /** Directory where the extracted release lives (user-selected folder). */
+    private fun runtimeDir(): File = store.runtimeDir
 
     data class RuntimeStatus(
         val ready: Boolean,
@@ -64,9 +71,6 @@ class LlamaCppManager(private val context: Context, private val store: PhonoLabS
         // but llama.cpp doesn't release x86_64 Android builds
         return null
     }
-
-    /** Directory where the extracted release lives. */
-    private fun runtimeDir(): File = File(store.runtimeDir, "llama")
 
     fun status(): RuntimeStatus {
         val server = findServer() ?: return RuntimeStatus(false, "", "", "llama-server not installed")

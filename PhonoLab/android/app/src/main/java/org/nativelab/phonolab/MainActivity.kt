@@ -2,13 +2,13 @@ package org.nativelab.phonolab
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.widget.LinearLayout
-import android.widget.SearchView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -35,9 +35,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sessionManager: SessionManager
     private lateinit var store: PhonoLabStore
     private lateinit var runtime: LlamaRuntime
+    private lateinit var storageManager: StorageManager
 
     private var sessions = listOf<ChatSession>()
     private var activeSessionId = ""
+
+    // SAF folder picker launcher
+    private lateinit var folderPickerLauncher: ActivityResultLauncher<Uri?>
 
     // Permission request launcher
     private val permissionLauncher = registerForActivityResult(
@@ -60,20 +64,62 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        store = PhonoLabStore(this)
+        // Initialize storage manager
+        storageManager = StorageManager(this)
+        folderPickerLauncher = storageManager.registerLauncher(this)
+        storageManager.onFolderSelected = { uri -> onFolderReady(uri) }
+
+        // Check if folder is already selected
+        if (storageManager.loadPersistedUri()) {
+            // Folder already picked — initialize normally
+            initializeApp()
+        } else {
+            // First launch — ask user to pick a folder
+            showFolderPickerDialog()
+        }
+    }
+
+    private fun showFolderPickerDialog() {
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Choose Storage Location")
+            .setMessage(
+                "PhonoLab needs a folder to store:\n\n" +
+                "• llama-server runtime\n" +
+                "• Downloaded models\n" +
+                "• Chat history & settings\n\n" +
+                "Select a folder on your device."
+            )
+            .setCancelable(false)
+            .setPositiveButton("Choose Folder") { _, _ ->
+                storageManager.pickFolder(folderPickerLauncher)
+            }
+            .setNegativeButton("Use Default") { _, _ ->
+                // Use app-private storage (no picker needed)
+                onFolderReady(null)
+            }
+            .show()
+    }
+
+    private fun onFolderReady(uri: Uri?) {
+        initializeApp()
+        Toast.makeText(this, "Storage: ${storageManager.getDisplayPath()}", Toast.LENGTH_LONG).show()
+    }
+
+    private fun initializeApp() {
+        store = PhonoLabStore(this, storageManager)
         sessionManager = SessionManager(store)
         runtime = LlamaRuntime(this, store)
 
         drawerLayout = findViewById(R.id.drawer_layout)
         toolbar = findViewById(R.id.toolbar)
 
-        // Set scrim overlay color (not available as XML attr on standard DrawerLayout)
+        // Set scrim overlay color
         drawerLayout.setScrimColor(android.graphics.Color.parseColor("#60000000"))
 
         setupToolbar()
         setupSidebar()
 
-        // Request necessary permissions on first launch
+        // Request necessary permissions
         requestNecessaryPermissions()
 
         // Modern back press handling
@@ -91,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         // Load chat fragment by default
-        if (savedInstanceState == null) {
+        if (supportFragmentManager.findFragmentById(R.id.fragment_container) == null) {
             navigateTo(ChatFragment(), "PhonoLab")
         }
 
@@ -132,7 +178,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Sidebar nav items (LinearLayout with icon + label)
+        // Sidebar nav items
         findViewById<View>(R.id.nav_models).setOnClickListener {
             navigateTo(ModelsFragment(), "Models")
             drawerLayout.closeDrawer(android.view.Gravity.START)
@@ -159,8 +205,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun refreshSessionList() {
+        if (!::sessionManager.isInitialized) return
         sessions = sessionManager.loadAll()
-        sessionAdapter.setSessions(sessions, activeSessionId)
+        if (::sessionAdapter.isInitialized) {
+            sessionAdapter.setSessions(sessions, activeSessionId)
+        }
     }
 
     private fun newChat() {
@@ -178,18 +227,15 @@ class MainActivity : AppCompatActivity() {
     private fun onSessionSelected(session: ChatSession) {
         activeSessionId = session.id
 
-        // Switch to chat fragment and load session
         val chatFragment = ChatFragment()
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, chatFragment)
             .commit()
         toolbar.title = "PhonoLab"
 
-        // Post to ensure fragment is created before loading session
         chatFragment.view?.post {
             chatFragment.loadSession(session)
         } ?: run {
-            // If view not ready, use lifecycle observer
             supportFragmentManager.executePendingTransactions()
             chatFragment.loadSession(session)
         }
@@ -259,9 +305,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        // Safety guard: kill all llama processes when app is closed
         try {
-            runtime.killAllLlamaProcesses()
+            if (::runtime.isInitialized) runtime.killAllLlamaProcesses()
         } catch (_: Exception) { }
         super.onDestroy()
     }
@@ -270,7 +315,6 @@ class MainActivity : AppCompatActivity() {
         val needed = mutableListOf<String>()
 
         when {
-            // Android 14+ (API 34+): partial media access
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> {
                 if (!hasPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)) {
                     needed.add(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
@@ -279,13 +323,11 @@ class MainActivity : AppCompatActivity() {
                     needed.add(Manifest.permission.READ_MEDIA_IMAGES)
                 }
             }
-            // Android 13 (API 33): granular media
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
                 if (!hasPermission(Manifest.permission.READ_MEDIA_IMAGES)) {
                     needed.add(Manifest.permission.READ_MEDIA_IMAGES)
                 }
             }
-            // Android 12 and below: legacy storage
             else -> {
                 if (!hasPermission(Manifest.permission.READ_EXTERNAL_STORAGE)) {
                     needed.add(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -298,7 +340,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (!hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
                 needed.add(Manifest.permission.POST_NOTIFICATIONS)

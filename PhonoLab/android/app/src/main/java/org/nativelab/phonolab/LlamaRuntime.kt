@@ -22,8 +22,9 @@ import java.net.URL
 class LlamaRuntime(
     private val context: Context,
     private val store: PhonoLabStore,
+    private val storageManager: StorageManager? = null,
 ) {
-    val cppManager = LlamaCppManager(context, store)
+    val cppManager = LlamaCppManager(context, store, storageManager)
 
     private var serverProcess: Process? = null
     private var serverPort: Int = 8080
@@ -175,8 +176,8 @@ class LlamaRuntime(
         serverPort = findFreePort()
 
         // Set LD_LIBRARY_PATH so .so files are found
-        // .so files live in runtime/llama/, binary may be in nativeLibraryDir
-        val runtimeLibDir = File(store.runtimeDir, "llama")
+        // .so files live in store.runtimeDir, binary may be in nativeLibraryDir
+        val runtimeLibDir = store.runtimeDir
         val nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
         val env = HashMap(System.getenv())
         val ldPaths = mutableListOf<String>()
