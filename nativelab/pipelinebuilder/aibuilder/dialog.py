@@ -113,6 +113,8 @@ class AiPipelineBuildWorker(QThread):
     done = pyqtSignal(object)
     err = pyqtSignal(str)
     status = pyqtSignal(str)
+    # Emitted when MCP servers need auth: list of (block_bid, block_label, url, error)
+    mcp_auth_needed = pyqtSignal(list)
 
     def __init__(
         self,
@@ -133,9 +135,20 @@ class AiPipelineBuildWorker(QThread):
         self._active_model_role = active_model_role
         self._active_model_label = active_model_label
         self._abort = False
+        self._auth_event = None  # threading.Event set when user provides auth
+        self._auth_updates: dict = {}  # bid → {mcp_auth_token, mcp_auth_env}
 
     def abort(self):
         self._abort = True
+
+    def provide_auth(self, auth_updates: dict):
+        """
+        Called from UI thread when user has configured auth for MCP servers.
+        auth_updates: {block_bid: {"mcp_auth_token": str, "mcp_auth_env": str}}
+        """
+        self._auth_updates = auth_updates
+        if self._auth_event:
+            self._auth_event.set()
 
     def _raw_preview(self, raw: str) -> str:
         text = str(raw or "").strip()
@@ -232,6 +245,46 @@ class AiPipelineBuildWorker(QThread):
 
         if self._abort:
             raise PipelineJsonError("AI pipeline build was cancelled during MCP verification.", raw)
+
+        # Handle servers that need authentication
+        if report.auth_needed and not self._abort:
+            auth_list = [
+                (r.block_bid, r.block_label, r.url, r.auth_error_detail)
+                for r in report.auth_needed
+            ]
+            self.status.emit(
+                f"🔒 {len(auth_list)} MCP server(s) require authentication. "
+                f"Waiting for user to configure credentials..."
+            )
+            self.mcp_auth_needed.emit(auth_list)
+
+            # Wait for user to provide auth (or abort)
+            import threading
+            self._auth_event = threading.Event()
+            self._auth_event.wait()  # Blocks until provide_auth() or abort
+            self._auth_event = None
+
+            if self._abort:
+                raise PipelineJsonError("AI pipeline build was cancelled during auth setup.", raw)
+
+            # Apply auth updates to blocks
+            if self._auth_updates:
+                for block in blocks:
+                    bid = block.get("bid", 0)
+                    if bid in self._auth_updates:
+                        block["metadata"].update(self._auth_updates[bid])
+                self.status.emit("Auth credentials received. Re-verifying MCP servers...")
+                # Re-run verification with updated auth
+                report = verify_all_mcp_blocks(
+                    blocks,
+                    max_retries=1,
+                    auto_install=False,
+                    log_cb=lambda m: self.status.emit(m),
+                    abort_cb=lambda: self._abort,
+                )
+                if self._abort:
+                    raise PipelineJsonError("AI pipeline build was cancelled.", raw)
+            self._auth_updates = {}
 
         if report.all_ok:
             # All MCP servers verified — update blocks with verified tools
@@ -827,6 +880,7 @@ class AiPipelineBuilderPanel(QWidget):
         self._worker.status.connect(self._log)
         self._worker.done.connect(self._on_done)
         self._worker.err.connect(self._on_error)
+        self._worker.mcp_auth_needed.connect(self._on_mcp_auth_needed)
         self._worker.finished.connect(lambda: self._set_running(False))
         self._worker.start()
 
@@ -855,6 +909,110 @@ class AiPipelineBuilderPanel(QWidget):
             self._update_history_label()
         self._log(message)
         show_llm_error_dialog(self, message, source="AI Pipeline Builder")
+
+    def _on_mcp_auth_needed(self, auth_list: list):
+        """
+        Show auth configuration dialog for MCP servers that need credentials.
+        auth_list: [(block_bid, block_label, url, error_detail), ...]
+        """
+        dlg = QDialog(self)
+        dlg.setWindowTitle("MCP Server Authentication Required")
+        prepare_adaptive_window(dlg, 560, 420, min_width=440, min_height=340)
+        root = QVBoxLayout(dlg)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(12)
+
+        hdr = QLabel("MCP servers need authentication")
+        hdr.setStyleSheet(f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        root.addWidget(hdr)
+
+        info = QLabel(
+            "The following MCP servers require credentials (API key, token, or "
+            "environment variables) before they can connect. Configure them below "
+            "or click Skip to remove these servers from the pipeline."
+        )
+        info.setWordWrap(True)
+        info.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        root.addWidget(info)
+
+        # Per-server auth entries
+        entries = {}  # bid → (token_edit, env_edit)
+        for bid, label, url, error in auth_list:
+            card = QFrame(); card.setObjectName("tab_card")
+            cl = QVBoxLayout(card)
+            cl.setContentsMargins(12, 10, 12, 10); cl.setSpacing(6)
+
+            title = QLabel(f"🔒 {label}")
+            title.setStyleSheet(
+                f"color:{C['txt']};font-size:12px;font-weight:600;")
+            cl.addWidget(title)
+
+            url_lbl = QLabel(f"URL: {url[:60]}")
+            url_lbl.setStyleSheet(f"color:{C['txt3']};font-size:10px;")
+            cl.addWidget(url_lbl)
+
+            if error:
+                err_lbl = QLabel(f"Error: {error[:120]}")
+                err_lbl.setWordWrap(True)
+                err_lbl.setStyleSheet(f"color:{C['err']};font-size:10px;")
+                cl.addWidget(err_lbl)
+
+            token_edit = QLineEdit()
+            token_edit.setPlaceholderText("API key or bearer token")
+            token_edit.setEchoMode(QLineEdit.EchoMode.Password)
+            token_edit.setFixedHeight(26)
+            trow = QHBoxLayout(); trow.setSpacing(6)
+            tlbl = QLabel("Token:"); tlbl.setFixedWidth(60)
+            tlbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+            trow.addWidget(tlbl); trow.addWidget(token_edit, 1)
+            cl.addLayout(trow)
+
+            env_edit = QLineEdit()
+            env_edit.setPlaceholderText("KEY=value (comma-separated, e.g. GITHUB_TOKEN=ghp_xxx,DATABASE_URL=...)")
+            env_edit.setFixedHeight(26)
+            erow = QHBoxLayout(); erow.setSpacing(6)
+            elbl = QLabel("Env vars:"); elbl.setFixedWidth(60)
+            elbl.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+            erow.addWidget(elbl); erow.addWidget(env_edit, 1)
+            cl.addLayout(erow)
+
+            entries[bid] = (token_edit, env_edit)
+            root.addWidget(card)
+
+        # Buttons
+        btn_row = QHBoxLayout(); btn_row.setSpacing(10)
+        btn_skip = QPushButton("Skip (remove these servers)")
+        btn_skip.setFixedHeight(30)
+        btn_skip.clicked.connect(dlg.reject)
+        btn_apply = QPushButton("Apply & Retry")
+        set_button_icon(btn_apply, "zap", "Apply & Retry")
+        btn_apply.setObjectName("btn_send")
+        btn_apply.setFixedHeight(30)
+        btn_apply.clicked.connect(dlg.accept)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_skip)
+        btn_row.addWidget(btn_apply)
+        root.addLayout(btn_row)
+
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            # Collect auth updates
+            updates = {}
+            for bid, (token_edit, env_edit) in entries.items():
+                token = token_edit.text().strip()
+                env_text = env_edit.text().strip()
+                if token or env_text:
+                    updates[bid] = {
+                        "mcp_auth_token": token,
+                        "mcp_auth_env": env_text.replace(",", "\n") if "," in env_text else env_text,
+                    }
+            self._log(f"Auth configured for {len(updates)} server(s). Retrying...")
+            if self._worker:
+                self._worker.provide_auth(updates)
+        else:
+            # User skipped — pass empty auth (blocks will be removed/kept as-is)
+            self._log("Auth skipped — servers without credentials will be handled.")
+            if self._worker:
+                self._worker.provide_auth({})
 
     def _start_context_compact(self):
         if self._is_running() or self._is_context_running():

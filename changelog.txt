@@ -15,6 +15,11 @@ v0.3.8
 14) Added automatic MCP block removal for servers that fail all verification attempts, followed by AI regeneration with explicit failure context so the model can rebuild the pipeline using alternative approaches.
 15) Added MCP tool list auto-update from verification results so blocks are populated with actual tools discovered from the live server.
 16) Added MCP block to the pipeline canvas context menu, pill bar, and canvas rendering alongside existing block types.
+17) Added authentication support to MCP server blocks with token/API key field (sent as Authorization header for SSE, MCP_AUTH_TOKEN env var for stdio) and custom environment variables.
+18) Added auth error detection in MCP verification that recognizes 401/403 responses, unauthorized, authentication required, API key, OAuth, and permission denied errors.
+19) Added auth pause in AI Builder workflow that detects when MCP servers need credentials, opens a per-server auth configuration dialog, waits for user input, and retries verification with provided credentials.
+20) Added auth credential pass-through in MCP client for both SSE (HTTP Authorization header) and stdio (environment variable injection into subprocess) transports.
+21) Added auth-needed blocks are kept in the pipeline (not removed) so users can configure credentials before first run.
 
 v0.3.7
 1) Refactored the pipeline subsystem so deterministic performance-critical work now has a native C acceleration path while preserving Python as the public orchestration and UI layer.

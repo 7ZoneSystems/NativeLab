@@ -457,7 +457,10 @@ def _normalize_metadata(btype: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         md["mcp_name"] = _clean_text(md.get("mcp_name"), "", limit=80)
         md["mcp_tool_name"] = _clean_text(md.get("mcp_tool_name"), "", limit=200)
         md["mcp_arg_name"] = _clean_text(md.get("mcp_arg_name"), "", limit=80)
+        md["mcp_auth_token"] = _clean_text(md.get("mcp_auth_token"), "", limit=2000)
+        md["mcp_auth_env"] = _clean_text(md.get("mcp_auth_env"), "", limit=2000)
         md.setdefault("mcp_connected", False)
+        md.setdefault("mcp_auth_required", False)
         md.setdefault("mcp_tools", [])
     return md
 

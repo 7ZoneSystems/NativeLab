@@ -32,6 +32,9 @@ class McpClient:
         self._notif_queue: list = []
         self._reader_thread: Optional[threading.Thread] = None
         self._request_id: int = 0
+        self._auth_token: Optional[str] = None
+        self._auth_env: Optional[Dict[str, str]] = None
+        self._extra_headers: Dict[str, str] = {}
 
     def _next_id(self) -> int:
         self._request_id += 1
@@ -39,13 +42,15 @@ class McpClient:
 
     # ── public API ──────────────────────────────────────────────────────────
 
-    def test_connection(self, transport: str, url: str) -> Tuple[bool, Any]:
+    def test_connection(self, transport: str, url: str, *,
+                        auth_token: Optional[str] = None,
+                        auth_env: Optional[Dict[str, str]] = None) -> Tuple[bool, Any]:
         """
         Connect to MCP server, list tools, return (True, tools_list) or (False, error_string).
         Does NOT leave the connection open — call shutdown() after.
         """
         try:
-            ok = self._connect(transport, url)
+            ok = self._connect(transport, url, auth_token=auth_token, auth_env=auth_env)
             if not ok:
                 return False, "Connection failed"
             return True, list(self.tools)
@@ -55,12 +60,14 @@ class McpClient:
             self.shutdown()
 
     def execute(self, transport: str, url: str,
-                tool_name: str, arguments: dict) -> Tuple[bool, Any]:
+                tool_name: str, arguments: dict, *,
+                auth_token: Optional[str] = None,
+                auth_env: Optional[Dict[str, str]] = None) -> Tuple[bool, Any]:
         """
         Connect, call a tool, return (True, result_text) or (False, error_string).
         """
         try:
-            if not self._connect(transport, url):
+            if not self._connect(transport, url, auth_token=auth_token, auth_env=auth_env):
                 return False, "Connection failed"
             result = self._call_tool(tool_name, arguments)
             if result is None:
@@ -97,9 +104,17 @@ class McpClient:
 
     # ── connection ──────────────────────────────────────────────────────────
 
-    def _connect(self, transport: str, url: str) -> bool:
+    def _connect(self, transport: str, url: str, *,
+                 auth_token: Optional[str] = None,
+                 auth_env: Optional[Dict[str, str]] = None) -> bool:
         self._transport = transport
         self._url = url
+        self._auth_token = auth_token
+        self._auth_env = auth_env or {}
+        # Build extra headers from auth token
+        self._extra_headers = {}
+        if auth_token:
+            self._extra_headers["Authorization"] = f"Bearer {auth_token}"
         if transport == "sse":
             return self._connect_sse(url)
         else:
@@ -169,10 +184,12 @@ class McpClient:
             "params": params,
         }
         try:
+            headers = {"Content-Type": "application/json"}
+            headers.update(self._extra_headers)
             async with self._session.post(
                 self._url,
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=30),
             ) as resp:
                 if resp.status != 200:
@@ -212,10 +229,12 @@ class McpClient:
             "params": params,
         }
         try:
+            headers = {"Content-Type": "application/json"}
+            headers.update(self._extra_headers)
             await self._session.post(
                 self._url,
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers=headers,
                 timeout=aiohttp.ClientTimeout(total=5),
             )
         except Exception:
@@ -224,12 +243,21 @@ class McpClient:
     def _connect_stdio(self, cmd: str) -> bool:
         """Connect to a stdio-based MCP server (including npx commands)."""
         try:
+            import os
+            env = dict(os.environ)
+            # Inject auth token as env var
+            if self._auth_token:
+                env["MCP_AUTH_TOKEN"] = self._auth_token
+            # Inject user-provided env vars
+            if self._auth_env:
+                env.update(self._auth_env)
             self._proc = subprocess.Popen(
                 cmd, shell=True,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=False,
+                env=env,
             )
             self._response_queue = []
             self._notif_queue = []
@@ -364,6 +392,38 @@ class McpClient:
         if result is None:
             return None
         return self._extract_text(result)
+
+    def get_auth_error(self) -> Optional[str]:
+        """
+        Check stderr output from a stdio process for auth-related messages.
+        Returns the error string if auth failure detected, None otherwise.
+        """
+        if not self._proc:
+            return None
+        try:
+            import select
+            if self._proc.poll() is not None:
+                # Process exited — check stderr
+                stderr = self._proc.stderr.read() if self._proc.stderr else b""
+            else:
+                # Non-blocking read of available stderr
+                ready, _, _ = select.select([self._proc.stderr], [], [], 0.5)
+                if not ready:
+                    return None
+                stderr = self._proc.stderr.read(4096) if self._proc.stderr else b""
+            text = stderr.decode("utf-8", errors="replace").lower()
+            auth_markers = [
+                "unauthorized", "authentication", "auth required",
+                "login required", "token", "permission denied",
+                "401", "403", "api key", "credential",
+                "oauth", "authorization",
+            ]
+            for marker in auth_markers:
+                if marker in text:
+                    return stderr.decode("utf-8", errors="replace")[:500]
+        except Exception:
+            pass
+        return None
 
     @staticmethod
     def _extract_text(result: Any) -> str:

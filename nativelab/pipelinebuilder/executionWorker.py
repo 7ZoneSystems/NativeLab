@@ -1058,6 +1058,8 @@ class PipelineExecutionWorker(QThread):
         url = b.metadata.get("mcp_url", "")
         tool_name = b.metadata.get("mcp_tool_name", "")
         arg_name = b.metadata.get("mcp_arg_name", "")
+        auth_token = b.metadata.get("mcp_auth_token", "")
+        auth_env_text = b.metadata.get("mcp_auth_env", "")
 
         if not url:
             self.log_msg.emit(f"MCP block '{b.label}': no server URL configured.")
@@ -1077,8 +1079,22 @@ class PipelineExecutionWorker(QThread):
 
         try:
             from nativelab.integrations.mcp_client import McpClient
+            # Parse env vars from block metadata
+            auth_env = {}
+            for line in str(auth_env_text or "").splitlines():
+                line = line.strip()
+                if line and "=" in line and not line.startswith("#"):
+                    k, _, v = line.partition("=")
+                    k, v = k.strip(), v.strip().strip("'\"")
+                    if k:
+                        auth_env[k] = v
+
             client = McpClient()
-            ok, result = client.execute(transport, url, tool_name, arguments)
+            ok, result = client.execute(
+                transport, url, tool_name, arguments,
+                auth_token=auth_token or None,
+                auth_env=auth_env or None,
+            )
             client.shutdown()
 
             if not ok:

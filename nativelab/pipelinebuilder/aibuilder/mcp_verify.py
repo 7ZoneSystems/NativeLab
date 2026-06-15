@@ -29,6 +29,8 @@ class McpVerifyResult:
     install_attempted: bool = False
     install_success: bool = False
     retries: int = 0
+    auth_needed: bool = False
+    auth_error_detail: str = ""
 
 
 @dataclass
@@ -50,6 +52,10 @@ class McpVerificationReport:
     @property
     def passed(self) -> List[McpVerifyResult]:
         return [r for r in self.results if r.success]
+
+    @property
+    def auth_needed(self) -> List[McpVerifyResult]:
+        return [r for r in self.results if r.auth_needed]
 
 
 def extract_mcp_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -100,16 +106,41 @@ def _install_npm_package(package: str, log_cb: Optional[Callable[[str], None]] =
         return False
 
 
-def _test_stdio_server(url: str, timeout: float = 15.0,
+def _parse_env_block(text: str) -> Dict[str, str]:
+    """Parse KEY=value lines into a dict."""
+    env = {}
+    for line in str(text or "").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if "=" in line:
+            key, _, val = line.partition("=")
+            key = key.strip()
+            val = val.strip().strip("'\"")
+            if key:
+                env[key] = val
+    return env
+
+
+def _test_stdio_server(url: str, timeout: float = 15.0, *,
+                       auth_token: Optional[str] = None,
+                       auth_env: Optional[Dict[str, str]] = None,
                        log_cb: Optional[Callable[[str], None]] = None) -> Tuple[bool, List[Dict], str]:
     """
     Start a stdio MCP server, run initialize + tools/list, return (ok, tools, error).
     """
     try:
+        import os
+        env = dict(os.environ)
+        if auth_token:
+            env["MCP_AUTH_TOKEN"] = auth_token
+        if auth_env:
+            env.update(auth_env)
         proc = subprocess.Popen(
             url, shell=True,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             text=False,
+            env=env,
         )
     except Exception as e:
         return False, [], f"Failed to start process: {e}"
@@ -247,7 +278,8 @@ def _read_lsp_response(proc: subprocess.Popen, timeout: float = 15.0) -> Optiona
     return None
 
 
-def _test_sse_server(url: str, timeout: float = 15.0,
+def _test_sse_server(url: str, timeout: float = 15.0, *,
+                     auth_token: Optional[str] = None,
                      log_cb: Optional[Callable[[str], None]] = None) -> Tuple[bool, List[Dict], str]:
     """
     Test an SSE MCP server by sending initialize + tools/list via HTTP POST.
@@ -271,6 +303,8 @@ def _test_sse_server(url: str, timeout: float = 15.0,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        if auth_token:
+            req.add_header("Authorization", f"Bearer {auth_token}")
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8", errors="replace")
 
@@ -311,6 +345,8 @@ def _test_sse_server(url: str, timeout: float = 15.0,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        if auth_token:
+            req2.add_header("Authorization", f"Bearer {auth_token}")
         with urllib.request.urlopen(req2, timeout=timeout) as resp2:
             body2 = resp2.read().decode("utf-8", errors="replace")
 
@@ -364,6 +400,18 @@ def _extract_error_detail(error: str) -> str:
     return error[:200]
 
 
+def _is_auth_error(error: str) -> bool:
+    """Check if an error string indicates an authentication/authorization failure."""
+    lower = (error or "").lower()
+    markers = [
+        "unauthorized", "authentication", "auth required",
+        "login required", "login", "permission denied",
+        "401", "403", "api key", "credential",
+        "oauth", "authorization", "token",
+    ]
+    return any(m in lower for m in markers)
+
+
 def verify_mcp_block(
     block: Dict[str, Any],
     *,
@@ -374,6 +422,7 @@ def verify_mcp_block(
     """
     Verify a single MCP server block.
     Tests connection, auto-installs npm packages if needed, retries on failure.
+    Detects auth errors and sets auth_needed flag.
     """
     meta = block.get("metadata", {})
     bid = block.get("bid", 0)
@@ -381,6 +430,9 @@ def verify_mcp_block(
     transport = meta.get("mcp_transport", "sse")
     url = meta.get("mcp_url", "")
     tool_name = meta.get("mcp_tool_name", "")
+    auth_token = meta.get("mcp_auth_token", "")
+    auth_env_text = meta.get("mcp_auth_env", "")
+    auth_env = _parse_env_block(auth_env_text)
 
     result = McpVerifyResult(
         block_bid=bid,
@@ -398,17 +450,28 @@ def verify_mcp_block(
     if log_cb:
         log_cb(f"  Testing MCP server '{label}': {transport} → {url[:60]}")
 
-    # First attempt
+    # First attempt (with auth if provided)
     if transport == "stdio":
-        ok, tools, err = _test_stdio_server(url, log_cb=log_cb)
+        ok, tools, err = _test_stdio_server(
+            url, auth_token=auth_token or None, auth_env=auth_env or None, log_cb=log_cb)
     else:
-        ok, tools, err = _test_sse_server(url, log_cb=log_cb)
+        ok, tools, err = _test_sse_server(
+            url, auth_token=auth_token or None, log_cb=log_cb)
 
     if ok:
         result.success = True
         result.tools_found = tools
         if log_cb:
             log_cb(f"  ✓ '{label}' connected — {len(tools)} tool(s) found")
+        return result
+
+    # Check for auth-specific errors
+    if _is_auth_error(err):
+        result.auth_needed = True
+        result.auth_error_detail = err[:300]
+        if log_cb:
+            log_cb(f"  🔒 '{label}' requires authentication: {_extract_error_detail(err)}")
+        result.error = err
         return result
 
     if log_cb:
@@ -428,7 +491,8 @@ def verify_mcp_block(
                 result.retries += 1
                 if log_cb:
                     log_cb(f"  Retrying after install (attempt 2/{max_retries + 1})...")
-                ok2, tools2, err2 = _test_stdio_server(url, log_cb=log_cb)
+                ok2, tools2, err2 = _test_stdio_server(
+                    url, auth_token=auth_token or None, auth_env=auth_env or None, log_cb=log_cb)
                 if ok2:
                     result.success = True
                     result.tools_found = tools2
@@ -447,9 +511,11 @@ def verify_mcp_block(
         time.sleep(1)
 
         if transport == "stdio":
-            ok_r, tools_r, err_r = _test_stdio_server(url, log_cb=log_cb)
+            ok_r, tools_r, err_r = _test_stdio_server(
+                url, auth_token=auth_token or None, auth_env=auth_env or None, log_cb=log_cb)
         else:
-            ok_r, tools_r, err_r = _test_sse_server(url, log_cb=log_cb)
+            ok_r, tools_r, err_r = _test_sse_server(
+                url, auth_token=auth_token or None, log_cb=log_cb)
 
         if ok_r:
             result.success = True
@@ -458,6 +524,14 @@ def verify_mcp_block(
                 log_cb(f"  ✓ '{label}' connected on retry — {len(tools_r)} tool(s)")
             return result
         err = err_r
+        # Check for auth error on retry too
+        if _is_auth_error(err_r):
+            result.auth_needed = True
+            result.auth_error_detail = err_r[:300]
+            if log_cb:
+                log_cb(f"  🔒 '{label}' requires authentication: {_extract_error_detail(err_r)}")
+            result.error = err_r
+            return result
         if log_cb:
             log_cb(f"  ✗ Retry failed: {_extract_error_detail(err_r)}")
 
@@ -582,6 +656,17 @@ def fix_mcp_blocks_after_verification(
                         f"switched to '{first_tool}'"
                     )
 
+            fixed.append(block)
+        elif result.auth_needed:
+            # Server needs auth — keep block but mark it unconfigured
+            block["metadata"]["mcp_connected"] = False
+            block["metadata"]["mcp_auth_required"] = True
+            messages.append(
+                f"MCP '{result.block_label}' needs authentication — "
+                f"configure token/env vars before running"
+            )
+            if log_cb:
+                log_cb(f"  🔒 MCP block '{result.block_label}' kept — needs auth setup")
             fixed.append(block)
         else:
             # Server failed verification — remove the block

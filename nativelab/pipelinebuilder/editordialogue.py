@@ -589,6 +589,43 @@ class McpServerEditorDialog(QDialog):
 
         root.addWidget(srv_card)
 
+        # ── Authentication ───────────────────────────────────────────────────
+        auth_lbl = QLabel("AUTHENTICATION  (optional)")
+        auth_lbl.setStyleSheet(
+            f"color:{C['txt3']};font-size:9px;font-weight:700;letter-spacing:1px;")
+        root.addWidget(auth_lbl)
+
+        auth_card = QFrame(); auth_card.setObjectName("tab_card")
+        auth_l = QVBoxLayout(auth_card)
+        auth_l.setContentsMargins(14, 12, 14, 12); auth_l.setSpacing(8)
+
+        auth_hint = QLabel(
+            "If the server requires a token or API key, enter it below. "
+            "For SSE servers it is sent as an Authorization header. "
+            "For stdio servers it is passed as the MCP_AUTH_TOKEN env var.")
+        auth_hint.setWordWrap(True)
+        auth_hint.setStyleSheet(f"color:{C['txt2']};font-size:10px;")
+        auth_l.addWidget(auth_hint)
+
+        self.edit_auth_token = QLineEdit()
+        self.edit_auth_token.setPlaceholderText("API key or bearer token")
+        self.edit_auth_token.setFixedHeight(28)
+        self.edit_auth_token.setEchoMode(QLineEdit.EchoMode.Password)
+        self.edit_auth_token.setText(self._block.metadata.get("mcp_auth_token", ""))
+        auth_l.addLayout(_row("Token:", self.edit_auth_token))
+
+        self.edit_auth_env = QTextEdit()
+        self.edit_auth_env.setPlaceholderText(
+            "KEY=value  (one per line)\n"
+            "e.g. GITHUB_TOKEN=ghp_xxxx\n"
+            "e.g. DATABASE_URL=postgres://...")
+        self.edit_auth_env.setFixedHeight(68)
+        self.edit_auth_env.setFont(QFont("Consolas", 10))
+        self.edit_auth_env.setPlainText(self._block.metadata.get("mcp_auth_env", ""))
+        auth_l.addWidget(self.edit_auth_env)
+
+        root.addWidget(auth_card)
+
         # ── Test connection ──────────────────────────────────────────────────
         test_row = QHBoxLayout(); test_row.setSpacing(10)
         self.btn_test = QPushButton("Test Connection")
@@ -679,11 +716,17 @@ class McpServerEditorDialog(QDialog):
         self.status_lbl.setText("Connecting...")
 
         transport = self.combo_transport.currentData()
+        auth_token = self.edit_auth_token.text().strip()
+        auth_env = self._parse_env_vars(self.edit_auth_env.toPlainText())
 
         try:
             from nativelab.integrations.mcp_client import McpClient
             client = McpClient()
-            ok, tools = client.test_connection(transport, url)
+            ok, tools = client.test_connection(
+                transport, url,
+                auth_token=auth_token or None,
+                auth_env=auth_env or None,
+            )
             client.shutdown()
 
             if ok:
@@ -738,6 +781,22 @@ class McpServerEditorDialog(QDialog):
                 lines.append(f"  • {pname} [{ptype}]{req}: {pdesc}")
         self.tool_desc.setText("\n".join(lines))
 
+    @staticmethod
+    def _parse_env_vars(text: str) -> dict:
+        """Parse KEY=value lines into a dict, ignoring blanks and comments."""
+        env = {}
+        for line in str(text or "").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, _, val = line.partition("=")
+                key = key.strip()
+                val = val.strip().strip("'\"")
+                if key:
+                    env[key] = val
+        return env
+
     def _save_and_close(self):
         url = self.edit_url.text().strip()
         if not url:
@@ -753,6 +812,8 @@ class McpServerEditorDialog(QDialog):
         self._block.metadata["mcp_name"] = name
         self._block.metadata["mcp_tool_name"] = tool_name
         self._block.metadata["mcp_arg_name"] = self.edit_arg_name.text().strip()
+        self._block.metadata["mcp_auth_token"] = self.edit_auth_token.text().strip()
+        self._block.metadata["mcp_auth_env"] = self.edit_auth_env.toPlainText().strip()
         self._block.metadata["mcp_connected"] = self._connected
         self._block.metadata["mcp_tools"] = self._tools
 
