@@ -53,6 +53,7 @@ _ALLOWED_TYPES = {
     PipelineBlockType.LLM_TRANSFORM,
     PipelineBlockType.LLM_SCORE,
     PipelineBlockType.MCP_SERVER,
+    PipelineBlockType.WEB_SEARCH,
 }
 _DEFAULT_LABELS = {
     PipelineBlockType.INPUT: "Input",
@@ -75,6 +76,7 @@ _DEFAULT_LABELS = {
     PipelineBlockType.LLM_TRANSFORM: "LLM Transform",
     PipelineBlockType.LLM_SCORE: "LLM Score",
     PipelineBlockType.MCP_SERVER: "MCP Server",
+    PipelineBlockType.WEB_SEARCH: "Web Search",
 }
 
 
@@ -89,7 +91,7 @@ Schema:
   "blocks": [
     {
       "bid": 1,
-      "btype": "input|output|model|intermediate|reference|knowledge|pdf_summary|if_else|switch|filter|transform|merge|split|custom_code|llm_if|llm_switch|llm_filter|llm_transform|llm_score|mcp_server",
+      "btype": "input|output|model|intermediate|reference|knowledge|pdf_summary|if_else|switch|filter|transform|merge|split|custom_code|llm_if|llm_switch|llm_filter|llm_transform|llm_score|mcp_server|web_search",
       "x": 80, "y": 120, "w": 148, "h": 76,
       "model_path": "",
       "role": "general",
@@ -120,6 +122,7 @@ Rules:
 - custom_code metadata: custom_code only if essential; it must be deterministic, no imports, no filesystem, no network, no subprocess.
 - llm_* metadata: llm_instruction, llm_max_tokens, llm_temp, llm_passthrough_on_err.
 - mcp_server metadata: mcp_transport ("sse" or "stdio"), mcp_url (URL for SSE, shell command for stdio), mcp_name (display name), mcp_tool_name (exact tool name to call), mcp_arg_name (input argument name, default "input"). Use mcp_server when the user needs to call external tools, access files, databases, web APIs, or any MCP-compatible server. For npx packages use stdio transport with mcp_url like "npx -y @modelcontextprotocol/server-filesystem /path".
+- web_search metadata: ws_categories (list of category strings from: general, images, videos, news, science, it, files, music, social media), ws_language (language code like "en"), ws_max_results (1-50, default 10), ws_timeout (seconds, default 10), ws_output_format ("text" for formatted text or "json" for structured data). Use web_search when the user needs to find current information from the internet, research a topic, or fact-check. The incoming text is used as the search query.
 - Keep the graph simple enough to run, but include all blocks needed to satisfy the requested workflow.
 """
 
@@ -238,7 +241,7 @@ def build_ai_builder_retry_messages(
                 '"to_port":"W","is_loop":false,"loop_times":1}]}\n\n'
                 "Allowed btype values: input, output, model, intermediate, reference, knowledge, "
                 "pdf_summary, if_else, switch, filter, transform, merge, split, custom_code, "
-                "llm_if, llm_switch, llm_filter, llm_transform, llm_score, mcp_server.\n"
+                "llm_if, llm_switch, llm_filter, llm_transform, llm_score, mcp_server, web_search.\n"
                 "Required: one input, at least one output, unique bid values, valid connection endpoints. "
                 "Leave model_path empty for model and llm_* blocks unless the user explicitly named a model.\n\n"
                 f"Pipeline request:\n{request}\n\n"
@@ -462,6 +465,17 @@ def _normalize_metadata(btype: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         md.setdefault("mcp_connected", False)
         md.setdefault("mcp_auth_required", False)
         md.setdefault("mcp_tools", [])
+    elif btype == PipelineBlockType.WEB_SEARCH:
+        cats = md.get("ws_categories", ["general"])
+        if not isinstance(cats, list):
+            cats = ["general"]
+        valid_cats = {"general", "images", "videos", "news", "science", "it", "files", "music", "social media"}
+        md["ws_categories"] = [c for c in cats if c in valid_cats] or ["general"]
+        md["ws_language"] = _clean_text(md.get("ws_language"), "en", limit=10)
+        md["ws_max_results"] = _coerce_int(md.get("ws_max_results"), 10, lo=1, hi=50)
+        md["ws_timeout"] = _coerce_int(md.get("ws_timeout"), 10, lo=3, hi=30)
+        fmt = _clean_text(md.get("ws_output_format"), "text", limit=10)
+        md["ws_output_format"] = fmt if fmt in ("text", "json") else "text"
     return md
 
 

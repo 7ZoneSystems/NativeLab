@@ -4,7 +4,6 @@ import html
 import re
 import tempfile
 from pathlib import Path
-
 from nativelab.imports.qt_compat import QAction, QIcon, QLabel, QPushButton, QSize, QTabWidget, QWidget
 
 
@@ -37,6 +36,7 @@ ICON_ALIASES = {
     "logs": "bug",
     "input": "log-in",
     "mcp": "plug",
+    "web_search": "search",
     "models": "folder",
     "ollama": "ollama",
     "pdf": "file-text",

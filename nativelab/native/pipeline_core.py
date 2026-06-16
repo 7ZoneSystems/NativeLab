@@ -254,6 +254,7 @@ def _prepare_validation_record(record: Dict[str, Any]) -> Dict[str, Any]:
     out.setdefault("has_llm_instruction", bool(str(meta.get("llm_instruction", "")).strip()))
     out.setdefault("has_mcp_url", bool(str(meta.get("mcp_url", "")).strip()))
     out.setdefault("has_mcp_tool", bool(str(meta.get("mcp_tool_name", "")).strip()))
+    out.setdefault("has_ws_categories", bool(meta.get("ws_categories")))
     return out
 
 
@@ -306,4 +307,7 @@ def _validate_records_py(records: Sequence[Dict[str, Any]], connection_count: in
                 return f"MCP Server block '{label}' has no server URL.\nRight-click it → Configure block…"
             if not meta.get("mcp_tool_name", "").strip():
                 return f"MCP Server block '{label}' has no tool selected.\nRight-click it → Test Connection, then select a tool."
+        if btype == "web_search":
+            if not meta.get("ws_categories"):
+                return f"Web Search block '{label}' has no categories selected.\nRight-click it → Configure block…"
     return None

@@ -45,6 +45,7 @@ def pipeline_validation_records(blocks: list) -> List[Dict[str, Any]]:
             "has_llm_instruction": bool(str(metadata.get("llm_instruction", "")).strip()),
             "has_mcp_url": bool(str(metadata.get("mcp_url", "")).strip()),
             "has_mcp_tool": bool(str(metadata.get("mcp_tool_name", "")).strip()),
+            "has_ws_categories": bool(metadata.get("ws_categories")),
             "model_path": model_path,
             "model_valid": (
                 getattr(block, "btype", "") != PipelineBlockType.MODEL

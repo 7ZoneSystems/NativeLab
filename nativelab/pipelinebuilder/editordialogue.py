@@ -1,4 +1,4 @@
-from nativelab.imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QMessageBox, Qt, Path, QLineEdit
+from nativelab.imports.import_global import QInputDialog,QDialog, QVBoxLayout, QLabel, QHBoxLayout, QComboBox, QPushButton, QFileDialog, QTextEdit, QFont, QFrame, QSpinBox, QMessageBox, Qt, Path, QLineEdit, QCheckBox, QWidget
 from nativelab.Model.model_global import get_model_registry, detect_model_family, is_model_ref_valid
 from nativelab.GlobalConfig.config_global import ROLE_ICONS
 from .pipblck import PipelineBlock
@@ -738,8 +738,12 @@ class McpServerEditorDialog(QDialog):
                 self._set_status(False, err)
                 self.combo_tool.clear()
                 self.combo_tool.addItem("Connection failed", "")
+        except ImportError as e:
+            self._set_status(False, f"MCP client not available: {e}")
+            self.combo_tool.clear()
+            self.combo_tool.addItem("MCP client not installed", "")
         except Exception as e:
-            self._set_status(False, str(e))
+            self._set_status(False, str(e)[:100])
             self.combo_tool.clear()
             self.combo_tool.addItem("Error: " + str(e)[:60], "")
         finally:
@@ -820,4 +824,201 @@ class McpServerEditorDialog(QDialog):
         # Label
         display = name or tool_name or url[:24]
         self._block.label = f"MCP {display[:22]}"
+        self.accept()
+
+
+class WebSearchEditorDialog(QDialog):
+    """
+    Configuration dialog for WEB_SEARCH pipeline blocks.
+    Uses SearXNG in-process to search the web.
+    """
+
+    AVAILABLE_CATEGORIES = [
+        ("general", "General web search"),
+        ("images", "Image search"),
+        ("videos", "Video search"),
+        ("news", "News search"),
+        ("science", "Science"),
+        ("it", "IT / Programming"),
+        ("files", "File search"),
+        ("music", "Music"),
+        ("social media", "Social media"),
+    ]
+
+    def __init__(self, block: "PipelineBlock", parent=None):
+        super().__init__(parent)
+        self._block = block
+        self.setWindowTitle(f"Web Search - {block.label}")
+        prepare_adaptive_window(self, 680, 520, min_width=540, min_height=420)
+        self._build()
+
+    def _build(self):
+        root = QVBoxLayout(self)
+        root.setContentsMargins(18, 16, 18, 16)
+        root.setSpacing(12)
+
+        # Header
+        hdr = QLabel("Web Search Block")
+        set_label_icon(hdr, "mcp", "Web Search Block", 18)
+        hdr.setStyleSheet(f"color:{C['txt']};font-size:14px;font-weight:bold;")
+        root.addWidget(hdr)
+
+        about = QLabel(
+            "Search the web using SearXNG. The incoming text is used as the "
+            "search query. Results are returned as formatted text and passed "
+            "to the next block.")
+        about.setWordWrap(True)
+        about.setStyleSheet(
+            f"color:{C['txt2']};font-size:11px;"
+            f"background:{C['bg2']};border-radius:6px;padding:10px 12px;"
+            f"border-left:3px solid #f97316;")
+        root.addWidget(about)
+
+        # Settings card
+        card = QFrame(); card.setObjectName("tab_card")
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(14, 12, 14, 12); cl.setSpacing(8)
+
+        def _row(label, widget, width=100):
+            r = QHBoxLayout(); r.setSpacing(8)
+            l = QLabel(label); l.setFixedWidth(width)
+            l.setObjectName("txt2"); l.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+            r.addWidget(l); r.addWidget(widget, 1); return r
+
+        # Categories
+        cat_lbl = QLabel("Categories (check to include):")
+        cat_lbl.setStyleSheet(f"color:{C['txt3']};font-size:9px;font-weight:700;")
+        cl.addWidget(cat_lbl)
+
+        saved_cats = self._block.metadata.get("ws_categories", ["general"])
+        self._cat_checks = {}
+        cat_grid = QWidget()
+        cat_gl = QHBoxLayout(cat_grid)
+        cat_gl.setContentsMargins(0, 0, 0, 0); cat_gl.setSpacing(6)
+        col = QVBoxLayout(); col.setSpacing(2)
+        for i, (cat_id, cat_desc) in enumerate(self.AVAILABLE_CATEGORIES):
+            cb = QCheckBox(cat_desc)
+            cb.setChecked(cat_id in saved_cats)
+            self._cat_checks[cat_id] = cb
+            col.addWidget(cb)
+            if (i + 1) % 5 == 0:
+                cat_gl.addLayout(col)
+                col = QVBoxLayout(); col.setSpacing(2)
+        cat_gl.addLayout(col)
+        cat_gl.addStretch()
+        cl.addWidget(cat_grid)
+
+        # Language
+        self.edit_lang = QLineEdit()
+        self.edit_lang.setPlaceholderText("en")
+        self.edit_lang.setFixedHeight(26)
+        self.edit_lang.setText(self._block.metadata.get("ws_language", "en"))
+        cl.addLayout(_row("Language:", self.edit_lang))
+
+        # Max results
+        self.spin_max = QSpinBox()
+        self.spin_max.setRange(1, 50)
+        self.spin_max.setValue(int(self._block.metadata.get("ws_max_results", 10)))
+        self.spin_max.setFixedHeight(26); self.spin_max.setFixedWidth(80)
+        cl.addLayout(_row("Max results:", self.spin_max))
+
+        # Timeout
+        self.spin_timeout = QSpinBox()
+        self.spin_timeout.setRange(3, 30)
+        self.spin_timeout.setValue(int(self._block.metadata.get("ws_timeout", 10)))
+        self.spin_timeout.setFixedHeight(26); self.spin_timeout.setFixedWidth(80)
+        self.spin_timeout.setSuffix(" sec")
+        cl.addLayout(_row("Timeout:", self.spin_timeout))
+
+        # Output format
+        self.combo_format = QComboBox()
+        self.combo_format.addItem("Formatted text (for context injection)", "text")
+        self.combo_format.addItem("JSON (structured data)", "json")
+        self.combo_format.setFixedHeight(26)
+        saved_fmt = self._block.metadata.get("ws_output_format", "text")
+        self.combo_format.setCurrentIndex(0 if saved_fmt == "text" else 1)
+        cl.addLayout(_row("Output format:", self.combo_format))
+
+        root.addWidget(card)
+
+        # Test
+        test_row = QHBoxLayout(); test_row.setSpacing(10)
+        self.btn_test = QPushButton("Test Search")
+        set_button_icon(self.btn_test, "zap", "Test Search")
+        self.btn_test.setObjectName("btn_send")
+        self.btn_test.setFixedHeight(30)
+        self.btn_test.clicked.connect(self._test_search)
+        test_row.addWidget(self.btn_test)
+        self.test_status = QLabel("")
+        self.test_status.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
+        test_row.addWidget(self.test_status, 1)
+        root.addLayout(test_row)
+
+        # Buttons
+        btn_row = QHBoxLayout(); btn_row.setSpacing(10)
+        btn_save = QPushButton("Save & Close")
+        set_button_icon(btn_save, "save", "Save & Close")
+        btn_save.setObjectName("btn_send"); btn_save.setFixedHeight(32)
+        btn_save.clicked.connect(self._save_and_close)
+        btn_cancel = QPushButton("Cancel")
+        set_button_icon(btn_cancel, "x", "Cancel")
+        btn_cancel.setFixedHeight(32)
+        btn_cancel.clicked.connect(self.reject)
+        btn_row.addStretch()
+        btn_row.addWidget(btn_cancel)
+        btn_row.addWidget(btn_save)
+        root.addLayout(btn_row)
+
+    def _get_categories(self) -> list[str]:
+        return [cat_id for cat_id, cb in self._cat_checks.items() if cb.isChecked()]
+
+    def _test_search(self):
+        categories = self._get_categories()
+        if not categories:
+            QMessageBox.warning(self, "No Categories", "Select at least one category.")
+            return
+
+        self.btn_test.setEnabled(False)
+        self.btn_test.setText("Searching...")
+        self.test_status.setText("Running test search...")
+
+        try:
+            from nativelab.web_search import web_search
+            results = web_search(
+                "python programming",
+                categories=categories,
+                language=self.edit_lang.text().strip() or "en",
+                max_results=3,
+                timeout=self.spin_timeout.value(),
+            )
+            if results:
+                self.test_status.setText(f"✓ {len(results)} results found")
+                self.test_status.setStyleSheet(f"color:{C['ok']};font-size:11px;")
+            else:
+                self.test_status.setText("No results (check network)")
+                self.test_status.setStyleSheet(f"color:{C['warn']};font-size:11px;")
+        except ImportError as e:
+            self.test_status.setText(f"SearXNG not installed: {str(e)[:50]}")
+            self.test_status.setStyleSheet(f"color:{C['err']};font-size:11px;")
+        except Exception as e:
+            self.test_status.setText(f"Error: {str(e)[:60]}")
+            self.test_status.setStyleSheet(f"color:{C['err']};font-size:11px;")
+        finally:
+            self.btn_test.setEnabled(True)
+            self.btn_test.setText("Test Search")
+
+    def _save_and_close(self):
+        categories = self._get_categories()
+        if not categories:
+            QMessageBox.warning(self, "No Categories", "Select at least one category.")
+            return
+
+        self._block.metadata["ws_categories"] = categories
+        self._block.metadata["ws_language"] = self.edit_lang.text().strip() or "en"
+        self._block.metadata["ws_max_results"] = self.spin_max.value()
+        self._block.metadata["ws_timeout"] = self.spin_timeout.value()
+        self._block.metadata["ws_output_format"] = self.combo_format.currentData()
+
+        cats_str = ", ".join(categories[:3])
+        self._block.label = f"Web: {cats_str[:18]}"
         self.accept()

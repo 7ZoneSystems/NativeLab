@@ -22,6 +22,7 @@ class PipelineBlockType:
     LLM_TRANSFORM= "llm_transform"# LLM rewrites/transforms text per instruction
     LLM_SCORE    = "llm_score"    # LLM scores 1–10 → routes to low/mid/high port
     MCP_SERVER   = "mcp_server"  # calls an MCP tool and returns the result
+    WEB_SEARCH   = "web_search"  # searches the web via SearXNG and returns results
 
 # Runtime pypdf guard - PDF blocks show a friendly error if not installed
 try:

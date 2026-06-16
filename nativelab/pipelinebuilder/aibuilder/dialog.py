@@ -430,7 +430,13 @@ class AiPipelineBuildWorker(QThread):
             self.status.emit("Validating and saving generated pipeline...")
             # Use MCP-aware verification: tests servers, installs packages,
             # retries on failure, removes blocks that can't connect
-            result = self._verify_and_fix_mcp(raw)
+            try:
+                result = self._verify_and_fix_mcp(raw)
+            except Exception as mcp_err:
+                self.status.emit(
+                    f"MCP/Web Search verification failed: {mcp_err}. "
+                    f"Saving pipeline without verification.")
+                result = self._save_or_retry(raw)
             self.done.emit(result)
         except Exception as exc:
             self.err.emit(str(exc))

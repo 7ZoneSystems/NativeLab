@@ -169,8 +169,16 @@ class PipelineBuilderTab(QWidget):
 
         sep_mcp = QFrame(); sep_mcp.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep_mcp)
-        sb_l.addWidget(_sec("MCP SERVER"))
+        sb_l.addWidget(_sec("EXTERNAL TOOLS"))
+
+        ext_hint = QLabel("Connect to MCP servers or search the web.")
+        ext_hint.setWordWrap(True)
+        ext_hint.setObjectName("txt3_block")
+        self._left_scaled_labels.append(ext_hint)
+        sb_l.addWidget(ext_hint)
+
         sb_l.addWidget(_block_btn("MCP Server", PipelineBlockType.MCP_SERVER, "#22d3ee", "mcp"))
+        sb_l.addWidget(_block_btn("Web Search", PipelineBlockType.WEB_SEARCH, "#f97316", "web_search"))
 
         sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
         sb_l.addWidget(sep1)
@@ -292,6 +300,7 @@ class PipelineBuilderTab(QWidget):
             (C["pipeline"], "Loop"),
             (C["acc2"],     "Forward"),
             ("#22d3ee",     "MCP"),
+            ("#f97316",     "Web"),
         ]
         for col, txt in legend_items:
             lbl = QLabel(txt)
@@ -1140,7 +1149,15 @@ class PipelineBuilderTab(QWidget):
         if btype in _LLM_BTYPES:
             self.canvas._configure_llm_logic_block(b)
         if btype == PipelineBlockType.MCP_SERVER:
-            self.canvas._configure_mcp_block(b)
+            try:
+                self.canvas._configure_mcp_block(b)
+            except Exception as e:
+                self._log(f"MCP config dialog error: {e}")
+        if btype == PipelineBlockType.WEB_SEARCH:
+            try:
+                self.canvas._configure_web_search_block(b)
+            except Exception as e:
+                self._log(f"Web Search config dialog error: {e}")
 
     def _add_model_from_list(self, item: QListWidgetItem):
         path = item.data(Qt.ItemDataRole.UserRole)
@@ -1181,6 +1198,7 @@ class PipelineBuilderTab(QWidget):
             PipelineBlockType.FILTER, PipelineBlockType.TRANSFORM,
             PipelineBlockType.CUSTOM_CODE,
             PipelineBlockType.MCP_SERVER,
+            PipelineBlockType.WEB_SEARCH,
         }
         _PILL_COLORS = {
             PipelineBlockType.MODEL:        C["acc"],
@@ -1195,6 +1213,7 @@ class PipelineBuilderTab(QWidget):
             PipelineBlockType.LLM_TRANSFORM:"#0ea5e9",
             PipelineBlockType.LLM_SCORE:    "#d946ef",
             PipelineBlockType.MCP_SERVER:   "#22d3ee",
+            PipelineBlockType.WEB_SEARCH:   "#f97316",
         }
         # Clear old pills
         while self._pill_layout.count() > 1:  # keep final stretch

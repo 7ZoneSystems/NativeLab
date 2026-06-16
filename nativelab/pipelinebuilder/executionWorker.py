@@ -602,12 +602,32 @@ class PipelineExecutionWorker(QThread):
 
             elif b.btype == PipelineBlockType.MCP_SERVER:
                 self.step_started.emit(bid, b.label)
-                result = self._run_mcp_block(b, context)
+                try:
+                    result = self._run_mcp_block(b, context)
+                except Exception as e:
+                    self.log_msg.emit(f"MCP '{b.label}' unexpected error: {e}")
+                    result = None
                 if result is None:
                     if not self._abort:
                         self.err.emit(
                             f"MCP block '{b.label}' failed. "
                             f"Check the server URL/command and tool configuration.")
+                    return
+                current_text = result
+                self.step_done.emit(bid, current_text)
+
+            elif b.btype == PipelineBlockType.WEB_SEARCH:
+                self.step_started.emit(bid, b.label)
+                try:
+                    result = self._run_web_search_block(b, context)
+                except Exception as e:
+                    self.log_msg.emit(f"Web Search '{b.label}' unexpected error: {e}")
+                    result = None
+                if result is None:
+                    if not self._abort:
+                        self.err.emit(
+                            f"Web Search block '{b.label}' failed. "
+                            f"Check that SearXNG is installed in nativelab/web_search/searxng/")
                     return
                 current_text = result
                 self.step_done.emit(bid, current_text)
@@ -1117,5 +1137,65 @@ class PipelineExecutionWorker(QThread):
             return None
         except Exception as e:
             self.log_msg.emit(f"MCP '{b.label}' exception: {e}")
+            return None
+
+    # ── web search block ────────────────────────────────────────────────────
+
+    def _run_web_search_block(self, b: "PipelineBlock", context: str) -> Optional[str]:
+        """Execute a web search using SearXNG in-process."""
+        categories = b.metadata.get("ws_categories", ["general"])
+        language = b.metadata.get("ws_language", "en")
+        max_results = int(b.metadata.get("ws_max_results", 10))
+        timeout = int(b.metadata.get("ws_timeout", 10))
+        output_format = b.metadata.get("ws_output_format", "text")
+
+        # Use incoming context as the search query
+        query = context.strip()
+        if not query:
+            self.log_msg.emit(f"Web Search '{b.label}': empty query, passing through")
+            return context
+
+        self.log_msg.emit(
+            f"Web Search '{b.label}': searching '{query[:50]}' "
+            f"in {', '.join(categories)} ({language})")
+
+        try:
+            from nativelab.web_search import web_search, web_search_text
+
+            if output_format == "json":
+                import json
+                results = web_search(
+                    query,
+                    categories=categories,
+                    language=language,
+                    max_results=max_results,
+                    timeout=timeout,
+                )
+                text = json.dumps(results, ensure_ascii=False, indent=2)
+            else:
+                text = web_search_text(
+                    query,
+                    categories=categories,
+                    language=language,
+                    max_results=max_results,
+                    timeout=timeout,
+                )
+
+            if not text or text.startswith("No results"):
+                self.log_msg.emit(f"Web Search '{b.label}': no results found")
+                # Pass through original context with a note
+                return f"[Web search returned no results for: {query}]\n\n{context}"
+
+            self.log_msg.emit(
+                f"Web Search '{b.label}': got {len(text):,} chars of results")
+            return text
+
+        except ImportError:
+            self.log_msg.emit(
+                f"Web Search '{b.label}': nativelab.web_search not available. "
+                f"Ensure SearXNG is installed in nativelab/web_search/searxng/")
+            return None
+        except Exception as e:
+            self.log_msg.emit(f"Web Search '{b.label}' error: {e}")
             return None
     
