@@ -49,3 +49,15 @@ llama/bin/
 .yarnrc.yml
 SETUP_BADGES.md
 !nativelab/assets/icons
+
+# Android build artifacts
+PhonoLab/android/app/.cxx/
+PhonoLab/android/app/build/
+PhonoLab/android/build/
+PhonoLab/android/.gradle/
+PhonoLab/.idea/
+PhonoLab/android/local.properties
+PhonoLab/android/app/local.properties
+
+# Keep jniLibs .so files (bundled llama.cpp binaries)
+!PhonoLab/android/app/src/main/jniLibs/**/*.so

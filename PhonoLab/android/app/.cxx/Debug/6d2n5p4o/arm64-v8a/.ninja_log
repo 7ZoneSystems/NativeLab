@@ -1,5 +1,0 @@
-# ninja log v5
-0	4067	1781718801079548398	CMakeFiles/runner.dir/runner.cpp.o	a429c187d4738451
-4070	4123	1781718801139747203	/home/hrirake/Desktop/NativeLabGithub/NativeLab/PhonoLab/android/app/build/intermediates/cxx/Debug/6d2n5p4o/obj/arm64-v8a/librunner.so	622088cd56ac13d5
-4	574	1781720439348364689	CMakeFiles/runner.dir/runner.cpp.o	a429c187d4738451
-574	591	1781720439370410297	/home/hrirake/Desktop/NativeLabGithub/NativeLab/PhonoLab/android/app/build/intermediates/cxx/Debug/6d2n5p4o/obj/arm64-v8a/librunner.so	622088cd56ac13d5
