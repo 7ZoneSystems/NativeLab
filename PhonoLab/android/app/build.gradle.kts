@@ -7,12 +7,28 @@ android {
     namespace = "org.nativelab.phonolab"
     compileSdk = 36
 
+    ndkVersion = "27.0.12077973"
+
     defaultConfig {
         applicationId = "org.nativelab.phonolab"
-        minSdk = 26
-        targetSdk = 36
+        minSdk = 21
+        targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        ndk {
+            // Only package ABIs we have binaries for
+            // arm64-v8a: all 64-bit devices (~95% of active devices)
+            // armeabi-v7a: 32-bit fallback (older/budget devices)
+            // Remove armeabi-v7a if no 32-bit binary available
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     buildTypes {
@@ -22,6 +38,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
         }
     }
 

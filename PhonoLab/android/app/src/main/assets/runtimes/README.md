@@ -1,6 +1,10 @@
-Place an executable Android arm64 llama-cli at:
+# Runtime binaries
 
-    app/src/main/assets/runtimes/android-arm64/llama-cli
+This directory is deprecated. Binaries are now bundled in jniLibs/ instead.
 
-The app copies this asset into app-private PhonoLab/runtime/bin and marks it
-executable on first use. The binary itself is intentionally not committed.
+See: app/src/main/jniLibs/arm64-v8a/README.md
+
+To set up:
+    cd PhonoLab/android
+    ./setup_binaries.sh
+    ./gradlew assembleDebug

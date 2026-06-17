@@ -1,32 +1,32 @@
 package org.nativelab.phonolab
 
 import android.content.Context
-import org.json.JSONArray
+import android.util.Log
 import org.json.JSONObject
-import java.io.BufferedReader
 import java.io.File
-import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
-import java.net.Socket
 import java.net.URL
 
 /**
  * Runtime engine backed by llama-server (persistent HTTP).
  *
- * - Server starts once, model loads once, stays in memory
- * - Chat requests go via HTTP POST to localhost
- * - No process spawn per request — fast, session-friendly
- * - Auto-starts server on first generate() if binary exists
+ * Binary is bundled in APK → extracted to nativeLibraryDir at install.
+ * Server started via JNI fork()+execve() — no W^X issues.
+ * Chat via HTTP POST to localhost.
  */
 class LlamaRuntime(
     private val context: Context,
     private val store: PhonoLabStore,
     private val storageManager: StorageManager? = null,
 ) {
+    companion object {
+        private const val TAG = "LlamaRuntime"
+    }
+
     val cppManager = LlamaCppManager(context, store, storageManager)
 
-    private var serverProcess: Process? = null
+    private var serverPid: Int = -1
     private var serverPort: Int = 8080
     private var loadedModelPath: String? = null
     private var _isModelLoaded = false
@@ -39,16 +39,13 @@ class LlamaRuntime(
 
     /** Whether the server process is alive. */
     fun isServerRunning(): Boolean {
-        if (serverProcess == null) return false
-        try {
-            val exit = serverProcess!!.exitValue()
-            // Process exited — not running
+        if (serverPid <= 0) return false
+        val running = cppManager.isRunning(serverPid)
+        if (!running) {
             _isServerRunning = false
-            return false
-        } catch (_: IllegalThreadStateException) {
-            // Still running
-            return true
+            serverPid = -1
         }
+        return running
     }
 
     /** Whether a model is loaded in the server. */
@@ -71,17 +68,18 @@ class LlamaRuntime(
         }
         require(model.length() > 1000) { "Model file is too small" }
 
-        val server = findServer() ?: error("llama-server not found. Run Setup first.")
+        val server = findServer() ?: error(
+            "llama-server not found in nativeLibraryDir.\n" +
+                "Run setup_binaries.sh and rebuild the APK.\n" +
+                "Path: ${context.applicationInfo.nativeLibraryDir}"
+        )
 
-        // If server is running with the same model, just mark loaded
+        // If server is running with the same model, just return
         if (isServerRunning() && loadedModelPath == model.absolutePath && _isModelLoaded) {
             return
         }
 
-        // Stop existing server if running with different model
         stopServer()
-
-        // Start server with this model
         startServer(server, model)
         loadedModelPath = model.absolutePath
     }
@@ -95,10 +93,9 @@ class LlamaRuntime(
 
     /**
      * Generate text via llama-server HTTP API.
-     * Auto-starts server if binary exists but server isn't running.
      */
     fun generate(prompt: String, onToken: (String) -> Unit): String {
-        // Auto-start if we have a binary and model but server isn't running
+        // Auto-start if needed
         if (!isServerRunning() && loadedModelPath != null) {
             val model = File(loadedModelPath!!)
             val server = findServer()
@@ -107,24 +104,17 @@ class LlamaRuntime(
             }
         }
 
-        require(isServerRunning()) {
-            "llama-server is not running. Load a model first."
-        }
-        require(_isModelLoaded) {
-            "No model loaded. Select and load a model first."
-        }
-        require(prompt.length <= 18_000) {
-            "Prompt too long (${prompt.length} chars). Max: 18,000."
-        }
+        require(isServerRunning()) { "llama-server is not running. Load a model first." }
+        require(_isModelLoaded) { "No model loaded. Select and load a model first." }
+        require(prompt.length <= 18_000) { "Prompt too long (${prompt.length} chars). Max: 18,000." }
 
-        // Build request JSON (llama.cpp /completion endpoint)
         val requestBody = JSONObject().apply {
             put("prompt", prompt)
             put("n_predict", 384)
             put("temperature", 0.7)
             put("top_p", 0.9)
             put("repeat_penalty", 1.1)
-            put("stream", false)  // non-streaming for simplicity
+            put("stream", false)
         }
 
         val url = URL("http://127.0.0.1:$serverPort/completion")
@@ -132,7 +122,7 @@ class LlamaRuntime(
         conn.requestMethod = "POST"
         conn.setRequestProperty("Content-Type", "application/json")
         conn.connectTimeout = 5_000
-        conn.readTimeout = 300_000  // 5 min for long generations
+        conn.readTimeout = 300_000
         conn.doOutput = true
 
         try {
@@ -150,19 +140,15 @@ class LlamaRuntime(
             val responseBody = conn.inputStream.bufferedReader().readText()
             val json = JSONObject(responseBody)
             val content = json.optString("content", "")
-
-            // Stream the full response as one token chunk
             onToken(content)
-
             return content
         } finally {
             conn.disconnect()
         }
     }
 
-    // ── Auto-install ────────────────────────────────────────────────
+    // ── Auto-install (legacy fallback) ──────────────────────────────
 
-    /** Auto-install binary. Returns installed path or null. */
     fun autoInstallBinary(
         progress: (done: Long, total: Long, label: String) -> Unit,
     ): File? = cppManager.downloadAndInstall(progress)
@@ -175,55 +161,43 @@ class LlamaRuntime(
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
         serverPort = findFreePort()
 
-        // LD_LIBRARY_PATH: .so files are in store.runtimeDir + nativeLibraryDir
-        val nativeDir = context.applicationInfo.nativeLibraryDir
-        val runtimeDir = store.runtimeDir.absolutePath
-        val env = HashMap(System.getenv())
-        val ldPaths = mutableListOf<String>()
-        // runtimeDir has the extracted .so files
-        if (File(runtimeDir).exists()) ldPaths.add(runtimeDir)
-        // nativeDir has the deployed copies
-        if (nativeDir != runtimeDir) ldPaths.add(nativeDir)
-        val existing = env["LD_LIBRARY_PATH"] ?: ""
-        if (existing.isNotEmpty()) ldPaths.add(existing)
-        env["LD_LIBRARY_PATH"] = ldPaths.joinToString(":")
+        Log.d(TAG, "Starting server: ${serverBinary.absolutePath}")
+        Log.d(TAG, "Model: ${model.absolutePath} (${model.length()} bytes)")
+        Log.d(TAG, "Port: $serverPort, Threads: $threads")
 
-        val command = listOf(
-            serverBinary.absolutePath,
-            "-m", model.absolutePath,
-            "--port", serverPort.toString(),
-            "-t", threads.toString(),
-            "--ctx-size", "2048",
-            "-n", "384",
+        val pid = cppManager.startServer(
+            serverBin = serverBinary,
+            modelPath = model,
+            port = serverPort,
+            threads = threads,
+            ctxSize = 2048,
+            nPredict = 384,
         )
 
-        val process = ProcessBuilder(command)
-            .redirectErrorStream(true)
-            .apply { environment().putAll(env) }
-            .start()
+        serverPid = pid
 
-        serverProcess = process
-
-        // Wait for server to be ready (poll health endpoint)
+        // Wait for server to be ready
         val startTime = System.currentTimeMillis()
-        val timeout = 60_000L  // 60s for model loading
+        val timeout = 60_000L
         var ready = false
 
         while (System.currentTimeMillis() - startTime < timeout && !ready) {
+            val exitCode = cppManager.checkProcess(pid)
+            if (exitCode > 0) {
+                serverPid = -1
+                error("llama-server exited immediately with code $exitCode")
+            }
+
             try {
                 val healthConn = URL("http://127.0.0.1:$serverPort/health").openConnection() as HttpURLConnection
                 healthConn.connectTimeout = 2_000
                 healthConn.readTimeout = 2_000
                 try {
-                    val healthStatus = healthConn.responseCode
-                    if (healthStatus == 200) {
-                        ready = true
-                    }
+                    if (healthConn.responseCode == 200) ready = true
                 } finally {
                     healthConn.disconnect()
                 }
             } catch (_: Exception) {
-                // Server not ready yet, wait
                 Thread.sleep(500)
             }
         }
@@ -236,63 +210,36 @@ class LlamaRuntime(
         _isServerRunning = true
         _isModelLoaded = true
         loadedModelPath = model.absolutePath
+        Log.d(TAG, "Server ready on port $serverPort")
     }
 
     private fun stopServer() {
-        serverProcess?.let { proc ->
-            try {
-                proc.destroy()
-                Thread.sleep(200)
-                try {
-                    proc.exitValue()
-                } catch (_: IllegalThreadStateException) {
-                    proc.destroyForcibly()
-                }
-            } catch (_: Exception) { }
+        if (serverPid > 0) {
+            cppManager.killServer(serverPid)
+            serverPid = -1
         }
-        serverProcess = null
         _isServerRunning = false
     }
 
     /**
-     * Kill ALL llama-server and llama-cli processes on the device.
-     * Called on app exit to ensure no orphan processes remain.
+     * Kill ALL llama processes on the device. Called on app exit.
      */
     fun killAllLlamaProcesses() {
-        // First stop our tracked process
         stopServer()
-
-        // Then kill any orphan llama processes system-wide
         val processNames = listOf("llama-server", "llama-cli", "llama_server", "llama_cli")
         for (name in processNames) {
             try {
-                // Use pkill to find and kill by process name
                 val proc = ProcessBuilder("pkill", "-f", name)
-                    .redirectErrorStream(true)
-                    .start()
+                    .redirectErrorStream(true).start()
                 proc.waitFor()
             } catch (_: Exception) {
-                // pkill might not be available, try killall
                 try {
                     val proc = ProcessBuilder("killall", name)
-                        .redirectErrorStream(true)
-                        .start()
+                        .redirectErrorStream(true).start()
                     proc.waitFor()
-                } catch (_: Exception) { }
+                } catch (_: Exception) {}
             }
         }
-
-        // Also try killing by finding PIDs via /proc
-        try {
-            val proc = ProcessBuilder("sh", "-c",
-                "for pid in \$(ps -A -o PID,ARGS 2>/dev/null | grep -E 'llama-server|llama-cli' | grep -v grep | awk '{print \$1}'); do kill -9 \$pid 2>/dev/null; done"
-            )
-                .redirectErrorStream(true)
-                .start()
-            proc.waitFor()
-        } catch (_: Exception) { }
-
-        // Reset state
         loadedModelPath = null
         _isModelLoaded = false
     }

@@ -3,6 +3,7 @@ package org.nativelab.phonolab
 import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
+import android.util.Log
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -10,17 +11,52 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Centralized manager for llama-server binary.
- * Downloads from ggml-org/llama.cpp GitHub releases.
+ * Manages llama-server binary bundled in the APK.
  *
- * Binary is stored in user-selected folder, then COPIED to
- * nativeLibraryDir for execution (Android blocks exec from filesDir).
+ * Architecture:
+ *   APK jniLibs/arm64-v8a/libllama_server.so  (stub launcher)
+ *   APK jniLibs/arm64-v8a/libllama-server-impl.so  (real server)
+ *   APK jniLibs/arm64-v8a/libllama.so, libggml.so, etc.
+ *
+ * At install time, Android extracts ALL lib*.so to nativeLibraryDir:
+ *   /data/app/<pkg>/lib/arm64/
+ *
+ * At runtime, exec(nativeLibraryDir/libllama_server.so) via JNI fork+execve.
+ * No runtime downloads, no permission issues, no W^X violations.
  */
 class LlamaCppManager(
     private val context: Context,
     private val store: PhonoLabStore,
     private val storageManager: StorageManager? = null,
 ) {
+
+    companion object {
+        private const val TAG = "LlamaCppManager"
+        private const val SERVER_BINARY = "libllama_server.so"
+
+        init {
+            System.loadLibrary("runner")
+        }
+
+        /** Validate binary is a real ELF file. */
+        fun isValidElf(file: File): Boolean {
+            if (!file.exists() || file.length() < 4) return false
+            return try {
+                val header = ByteArray(4)
+                file.inputStream().use { it.read(header) }
+                header[0] == 0x7F.toByte() &&
+                    header[1] == 'E'.code.toByte() &&
+                    header[2] == 'L'.code.toByte() &&
+                    header[3] == 'F'.code.toByte()
+            } catch (e: Exception) { false }
+        }
+    }
+
+    // JNI methods from runner.cpp
+    external fun nativeExec(binary: String, args: Array<String>, env: Array<String>): Int
+    external fun nativeKill(pid: Int): Boolean
+    external fun nativeKillForcibly(pid: Int): Boolean
+    external fun nativeWaitPid(pid: Int): Int
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("llama_cpp_manager", Context.MODE_PRIVATE)
@@ -59,79 +95,201 @@ class LlamaCppManager(
 
     fun archDownloadSuffix(): String? {
         val arch = detectArch()
-        if (arch.isArm64) return "android-arm64"
+        if (arch.isArm64) return "arm64"
         return null
     }
 
     // ── Status ──────────────────────────────────────────────────────
 
     fun status(): RuntimeStatus {
-        val server = findServer() ?: return RuntimeStatus(false, "", "", "llama-server not installed")
-        val libDir = store.runtimeDir.absolutePath
-        val version = getBinaryVersion(server, libDir)
+        val server = findServer()
+        if (server == null) {
+            val arch = detectArch()
+            return RuntimeStatus(
+                false, "", "",
+                "llama-server not bundled. Run setup_binaries.sh and rebuild APK.\n" +
+                    "Device: ${arch.primary} (${arch.allAbis.joinToString()})"
+            )
+        }
+        val libDir = nativeLibraryDir()
+        val version = getBinaryVersion(server)
         return RuntimeStatus(true, server.absolutePath, libDir, "llama-server ready", version)
     }
 
-    // ── Find / Deploy ───────────────────────────────────────────────
+    // ── Find binary ─────────────────────────────────────────────────
+
+    /** nativeLibraryDir — the only directory Android allows exec() from. */
+    private fun nativeLibraryDir(): String = context.applicationInfo.nativeLibraryDir
 
     /**
-     * Find llama-server binary.
-     * Checks multiple executable locations in order of reliability.
+     * Find llama-server binary in nativeLibraryDir.
+     * Bundled in APK as libllama_server.so, extracted by package manager at install.
      */
     fun findServer(): File? {
-        val source = File(store.runtimeDir, "llama-server")
-        if (!source.exists() || source.length() < 1000) return null
+        val nativeDir = nativeLibraryDir()
+        val bundled = File(nativeDir, SERVER_BINARY)
 
-        // Try each deploy location
-        val deployDirs = listOf(
-            File(context.applicationInfo.nativeLibraryDir),          // Most reliable
-            File(context.codeCacheDir, "llama"),                     // Fallback
-            File(context.filesDir, "llama-bin"),                     // Last resort
+        if (bundled.exists() && isValidElf(bundled)) {
+            Log.d(TAG, "Found bundled server: ${bundled.absolutePath} (${bundled.length()} bytes)")
+            return bundled
+        }
+
+        // List what's actually in nativeLibraryDir for debugging
+        val contents = File(nativeDir).listFiles()?.map { "${it.name} (${it.length()} bytes)" }
+        Log.e(TAG, "libllama_server.so not found in nativeLibraryDir=$nativeDir, contents=$contents")
+        return null
+    }
+
+    /**
+     * LD_LIBRARY_PATH — only nativeLibraryDir needed.
+     * All .so files live there; the stub dlopen()s impl from the same dir.
+     */
+    fun buildLdLibraryPath(): String = nativeLibraryDir()
+
+    // ── Server management via JNI ───────────────────────────────────
+
+    /**
+     * Start llama-server via JNI fork()+execve().
+     * Returns child PID, or -1 on failure.
+     */
+    fun startServer(
+        serverBin: File,
+        modelPath: File,
+        port: Int,
+        threads: Int = 4,
+        ctxSize: Int = 2048,
+        nPredict: Int = 384,
+    ): Int {
+        val nativeDir = nativeLibraryDir()
+
+        check(serverBin.exists()) { "Server binary not found: ${serverBin.absolutePath}" }
+        check(modelPath.exists()) { "Model not found: ${modelPath.absolutePath}" }
+
+        Log.d(TAG, "nativeDir: $nativeDir")
+        Log.d(TAG, "binary: ${serverBin.absolutePath} (${serverBin.length()} bytes)")
+        Log.d(TAG, "model: ${modelPath.absolutePath} (${modelPath.length()} bytes)")
+
+        // Args — do NOT put binary path here, runner.cpp prepends it as argv[0]
+        val args = arrayOf(
+            "-m", modelPath.absolutePath,
+            "--port", port.toString(),
+            "-t", threads.toString(),
+            "--ctx-size", ctxSize.toString(),
+            "-n", nPredict.toString(),
+            "--host", "127.0.0.1",
         )
 
-        for (deployDir in deployDirs) {
-            try {
-                val target = File(deployDir, "llama-server")
-                // Already deployed?
-                if (target.exists() && target.length() > 1000) {
-                    return target
-                }
-                // Try deploying
-                val deployed = deployTo(source, deployDir)
-                if (deployed != null) return deployed
-            } catch (_: Exception) {}
-        }
+        // env — LD_LIBRARY_PATH MUST be nativeLibraryDir and nothing else
+        // All .so files live there; the stub dlopen()s impl from the same dir
+        val env = arrayOf(
+            "LD_LIBRARY_PATH=$nativeDir",
+            "HOME=${context.filesDir.absolutePath}",
+            "TMPDIR=${context.cacheDir.absolutePath}",
+            "PATH=/system/bin:/system/xbin",
+        )
 
-        // Absolute fallback: return source (might fail with permission denied)
-        source.setExecutable(true, false)
-        return source
+        Log.d(TAG, "Starting with LD_LIBRARY_PATH=$nativeDir")
+
+        val pid = nativeExec(serverBin.absolutePath, args, env)
+        check(pid > 0) { "nativeExec failed, returned pid=$pid" }
+
+        Log.d(TAG, "Started PID: $pid")
+        return pid
     }
 
-    /** Deploy binary + .so files to a specific directory. */
-    private fun deployTo(source: File, targetDir: File): File? {
-        try {
-            targetDir.mkdirs()
-            val target = File(targetDir, "llama-server")
-            copyFile(source, target)
-            target.setExecutable(true, false)
+    /** Kill server process gracefully. */
+    fun killServer(pid: Int) {
+        if (pid <= 0) return
+        Log.d(TAG, "Killing PID: $pid")
+        nativeKill(pid)
+        Thread.sleep(500)
+        if (nativeWaitPid(pid) == 0) {
+            Log.d(TAG, "Force killing PID: $pid")
+            nativeKillForcibly(pid)
+        }
+    }
 
-            // Copy .so files
-            val sourceDir = source.parentFile
-            sourceDir?.listFiles()?.filter { it.name.endsWith(".so") }?.forEach { so ->
-                try {
-                    val soTarget = File(targetDir, so.name)
-                    copyFile(so, soTarget)
-                    soTarget.setExecutable(true, false)
-                } catch (_: Exception) {}
+    /** Check if process is still running. */
+    fun isRunning(pid: Int): Boolean = pid > 0 && nativeWaitPid(pid) == 0
+
+    /** Get process exit code (0 = still running, >0 = exited). */
+    fun checkProcess(pid: Int): Int {
+        if (pid <= 0) return -1
+        return nativeWaitPid(pid)
+    }
+
+    // ── Version check ───────────────────────────────────────────────
+
+    private fun getBinaryVersion(server: File): String {
+        return try {
+            val env = arrayOf("LD_LIBRARY_PATH=${nativeLibraryDir()}")
+            val pid = nativeExec(server.absolutePath, arrayOf("--version"), env)
+            if (pid <= 0) return "unknown"
+            // Wait for process to finish
+            var exitCode = 0
+            for (i in 0..50) {
+                exitCode = nativeWaitPid(pid)
+                if (exitCode != 0) break
+                Thread.sleep(100)
             }
-
-            return if (target.exists() && target.length() > 1000) target else null
-        } catch (_: Exception) {
-            return null
+            "exit=$exitCode"
+        } catch (e: Exception) {
+            Log.w(TAG, "Version check failed", e)
+            "unknown"
         }
     }
 
-    /** Stream-based file copy (more reliable than File.copyTo on Android). */
+    // ── Download & Install (legacy — for runtime download fallback) ──
+
+    fun downloadAndInstall(
+        progress: (done: Long, total: Long, label: String) -> Unit,
+    ): File? {
+        // With bundled binaries, this should not be needed.
+        // But keep as fallback for development/testing.
+        val dir = store.runtimeDir
+        dir.mkdirs()
+
+        val arch = detectArch()
+        if (!arch.isArm64) {
+            error(
+                "This device runs ${arch.primary} (${arch.allAbis.joinToString()}). " +
+                    "llama.cpp only provides arm64-v8a Android binaries."
+            )
+        }
+
+        val tag = latestReleaseTag()
+        if (tag.isEmpty()) error("Could not determine latest llama.cpp release version")
+
+        val suffix = archDownloadSuffix() ?: error("No llama.cpp build for ${arch.primary}")
+        val url = "https://github.com/ggml-org/llama.cpp/releases/download/$tag/llama-$tag-bin-android-$suffix.tar.gz"
+        val archiveFile = File(store.downloadsDir, "llama-$tag-android.tar.gz")
+
+        try {
+            // Validate URL exists before downloading
+            validateUrl(url)
+
+            downloadFile(url, archiveFile, "llama-server", progress)
+            // Extract and deploy to filesDir (for exec via JNI)
+            extractTarGz(archiveFile, dir)
+            val source = File(dir, "llama-server")
+            if (!source.exists()) error("llama-server not found in archive")
+            val dest = File(context.filesDir, "llama-server")
+            copyFile(source, dest)
+            dest.setExecutable(true, false)
+            // Copy .so deps
+            dir.listFiles()?.filter { it.name.endsWith(".so") }?.forEach { so ->
+                copyFile(so, File(context.filesDir, so.name))
+            }
+            archiveFile.delete()
+            return dest
+        } catch (e: Exception) {
+            archiveFile.delete()
+            throw e
+        }
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────
+
     private fun copyFile(source: File, target: File) {
         target.parentFile?.mkdirs()
         if (target.exists()) target.delete()
@@ -148,137 +306,6 @@ class LlamaCppManager(
         }
     }
 
-    // ── Verify ──────────────────────────────────────────────────────
-
-    /** Verify binary is a valid ELF file. */
-    fun verifyBinary(server: File, libDir: String): Boolean {
-        if (!server.exists() || server.length() < 5000) return false
-        return try {
-            val magic = server.inputStream().use { it.readNBytes(4) }
-            magic.size >= 4 && magic[0] == 0x7f.toByte() && magic[1] == 'E'.code.toByte() &&
-                magic[2] == 'L'.code.toByte() && magic[3] == 'F'.code.toByte()
-        } catch (_: Exception) { false }
-    }
-
-    /** Run a binary with LD_LIBRARY_PATH. */
-    private fun runBinary(binary: File, libDir: String, vararg args: String): Pair<Int, String> {
-        val env = HashMap(System.getenv())
-        val nativeDir = context.applicationInfo.nativeLibraryDir
-        val ldPaths = mutableListOf(libDir)
-        if (nativeDir != libDir) ldPaths.add(nativeDir)
-        val existing = env["LD_LIBRARY_PATH"] ?: ""
-        if (existing.isNotEmpty()) ldPaths.add(existing)
-        env["LD_LIBRARY_PATH"] = ldPaths.joinToString(":")
-
-        val command = listOf(binary.absolutePath) + args.toList()
-        val proc = ProcessBuilder(command)
-            .redirectErrorStream(true)
-            .apply { environment().putAll(env) }
-            .start()
-        val output = proc.inputStream.bufferedReader().readText().trim()
-        val exitCode = proc.waitFor()
-        return Pair(exitCode, output)
-    }
-
-    private fun getBinaryVersion(server: File, libDir: String): String {
-        return try {
-            val (_, output) = runBinary(server, libDir, "--version")
-            if (output.isNotBlank()) output.take(200) else "installed"
-        } catch (_: Exception) { "installed" }
-    }
-
-    // ── Download & Install ──────────────────────────────────────────
-
-    fun downloadAndInstall(
-        progress: (done: Long, total: Long, label: String) -> Unit,
-    ): File? {
-        val dir = store.runtimeDir
-        dir.mkdirs()
-
-        // Check architecture
-        val arch = detectArch()
-        val archSuffix = archDownloadSuffix()
-        if (archSuffix == null) {
-            error(
-                "This device runs ${arch.primary} (${arch.allAbis.joinToString()}). " +
-                "llama.cpp only provides arm64-v8a Android binaries. " +
-                if (arch.isEmulator) {
-                    "Your emulator is x86_64. Use an ARM64 emulator image or a physical arm64 device."
-                } else {
-                    "This device does not support arm64."
-                }
-            )
-        }
-
-        // Get latest release tag
-        val tag = latestReleaseTag()
-        if (tag.isEmpty()) error("Could not determine latest llama.cpp release version")
-
-        val url = "https://github.com/ggml-org/llama.cpp/releases/download/$tag/llama-$tag-bin-$archSuffix.tar.gz"
-        val archiveFile = File(store.downloadsDir, "llama-$tag-android-arm64.tar.gz")
-
-        try {
-            // Download
-            try {
-                downloadFile(url, archiveFile, "llama-server", progress)
-            } catch (e: Exception) {
-                error("Download failed: ${e.message}\nURL: $url")
-            }
-
-            // Extract
-            try {
-                extractTarGz(archiveFile, dir)
-            } catch (e: Exception) {
-                error("Extraction failed: ${e.message}")
-            }
-
-            // Move from extracted subdir to dir
-            val extractedDir = File(dir, "llama-$tag")
-            val serverInExtracted = File(extractedDir, "llama-server")
-            if (!serverInExtracted.exists() || serverInExtracted.length() < 1000) {
-                error("llama-server binary not found in extracted archive")
-            }
-
-            extractedDir.listFiles()?.forEach { f ->
-                val target = File(dir, f.name)
-                if (target.exists()) target.delete()
-                f.copyTo(target, overwrite = true)
-                if (f.name.endsWith(".so") || f.name == "llama-server" || f.name == "llama-cli") {
-                    target.setExecutable(true, false)
-                }
-            }
-            extractedDir.deleteRecursively()
-
-            // Verify the source binary
-            val source = File(dir, "llama-server")
-            if (!source.exists()) error("llama-server not found after extraction")
-
-            if (!verifyBinary(source, dir.absolutePath)) {
-                error(
-                    "Extracted llama-server is not a valid ELF binary. " +
-                    "File: ${source.name} (${source.length()} bytes), " +
-                    "Device: ${Build.MODEL} (${Build.HARDWARE})"
-                )
-            }
-
-            // Deploy to executable location
-            val deployed = findServer()
-            if (deployed == null) {
-                error("Could not deploy llama-server to any executable location")
-            }
-
-            markInstalled(deployed)
-            archiveFile.delete()
-            return deployed
-
-        } catch (e: Exception) {
-            archiveFile.delete()
-            throw e
-        }
-    }
-
-    // ── GitHub API ──────────────────────────────────────────────────
-
     private fun latestReleaseTag(): String {
         try {
             val conn = URL("https://api.github.com/repos/ggml-org/llama.cpp/releases/latest")
@@ -287,55 +314,76 @@ class LlamaCppManager(
             conn.connectTimeout = 15_000
             conn.readTimeout = 15_000
             val status = conn.responseCode
-            if (status != 200) {
-                conn.disconnect()
-                error("GitHub API returned HTTP $status")
-            }
+            if (status != 200) { conn.disconnect(); error("GitHub API returned HTTP $status") }
             val body = conn.inputStream.bufferedReader().readText()
             conn.disconnect()
             val tag = JSONObject(body).optString("tag_name", "")
             if (tag.isEmpty()) error("GitHub API returned empty tag_name")
             return tag
         } catch (e: Exception) {
-            error("Could not fetch release info from GitHub: ${e.message}")
+            error("Could not fetch release info: ${e.message}")
         }
     }
 
+    /** HEAD request to validate URL exists before downloading. */
+    private fun validateUrl(urlStr: String) {
+        var currentUrl = urlStr
+        var redirects = 0
+        while (redirects < 5) {
+            val conn = URL(currentUrl).openConnection() as HttpURLConnection
+            conn.requestMethod = "HEAD"
+            conn.setRequestProperty("User-Agent", "PhonoLabAndroid/1")
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 15_000
+            conn.instanceFollowRedirects = false
+            try {
+                val status = conn.responseCode
+                if (status in 301..308) {
+                    currentUrl = conn.getHeaderField("Location") ?: error("Redirect with no Location")
+                    redirects++
+                    continue
+                }
+                if (status == 404) {
+                    error(
+                        "Release asset not found (404).\n" +
+                            "URL: $currentUrl\n" +
+                            "The release may not have an Android binary for this architecture.\n" +
+                            "Check: https://github.com/ggml-org/llama.cpp/releases/latest"
+                    )
+                }
+                if (status != 200) {
+                    error("URL check failed: HTTP $status for $currentUrl")
+                }
+                return  // URL is valid
+            } finally {
+                conn.disconnect()
+            }
+        }
+        error("Too many redirects checking URL: $urlStr")
+    }
+
     private fun downloadFile(
-        urlStr: String,
-        dest: File,
-        label: String,
+        urlStr: String, dest: File, label: String,
         progress: (done: Long, total: Long, label: String) -> Unit,
     ) {
         dest.parentFile?.mkdirs()
         val part = File(dest.parentFile, dest.name + ".part")
         var currentUrl = urlStr
         var redirects = 0
-
         while (redirects < 10) {
             val conn = URL(currentUrl).openConnection() as HttpURLConnection
             conn.setRequestProperty("User-Agent", "PhonoLabAndroid/1")
             conn.connectTimeout = 30_000
             conn.readTimeout = 300_000
             conn.instanceFollowRedirects = false
-
             val status = conn.responseCode
             if (status in 301..308) {
-                currentUrl = conn.getHeaderField("Location") ?: error("Redirect with no Location header")
-                conn.disconnect()
-                redirects++
-                continue
-            }
-            if (status == 404) {
-                conn.disconnect()
-                error("Release asset not found (404).\nURL: $currentUrl")
+                currentUrl = conn.getHeaderField("Location") ?: error("Redirect with no Location")
+                conn.disconnect(); redirects++; continue
             }
             if (status != 200) {
-                val errBody = try { conn.errorStream?.bufferedReader()?.readText()?.take(500) ?: "" } catch (_: Exception) { "" }
-                conn.disconnect()
-                error("HTTP $status: $errBody\nURL: $currentUrl")
+                conn.disconnect(); error("HTTP $status for $currentUrl")
             }
-
             val total = conn.contentLengthLong.coerceAtLeast(0L)
             var done = 0L
             conn.inputStream.use { input ->
@@ -355,30 +403,17 @@ class LlamaCppManager(
             require(part.renameTo(dest)) { "Could not finalize download." }
             return
         }
-        error("Too many redirects for $urlStr")
+        error("Too many redirects")
     }
 
     private fun extractTarGz(archive: File, destDir: File) {
         destDir.mkdirs()
-        val proc = ProcessBuilder(
-            "tar", "xzf", archive.absolutePath,
-            "-C", destDir.absolutePath
-        )
-            .redirectErrorStream(true)
-            .start()
+        val proc = ProcessBuilder("tar", "xzf", archive.absolutePath, "-C", destDir.absolutePath)
+            .redirectErrorStream(true).start()
         val output = proc.inputStream.bufferedReader().readText()
         val exitCode = proc.waitFor()
         if (exitCode != 0) {
             error("tar failed (exit $exitCode): ${output.take(500)}")
         }
-    }
-
-    private fun markInstalled(server: File) {
-        prefs.edit()
-            .putBoolean("installed", true)
-            .putString("server_path", server.absolutePath)
-            .putLong("installed_at", System.currentTimeMillis())
-            .apply()
-        store.markBinaryInstalled()
     }
 }
