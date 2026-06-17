@@ -123,6 +123,9 @@ def web_search(
         old_level = searx_engines_logger.level
         searx_engines_logger.setLevel(logging.CRITICAL)
 
+        if _flask_app is None:
+            searx_engines_logger.setLevel(old_level)
+            return []
         with _flask_app.test_request_context():
             result_container = Search(search_query).search()
 

@@ -13,9 +13,13 @@ import json
 import subprocess
 import threading
 import time
-import aiohttp
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
+
+try:
+    import aiohttp
+except ImportError:
+    aiohttp = None  # type: ignore[assignment]
 
 
 class McpClient:
@@ -122,15 +126,18 @@ class McpClient:
 
     def _connect_sse(self, url: str) -> bool:
         """Connect to an SSE-based MCP server."""
+        if aiohttp is None:
+            raise RuntimeError(
+                "aiohttp is required for SSE MCP servers.\n"
+                "Install it:  pip install aiohttp")
         try:
-            import aiohttp
             import asyncio
 
             loop = asyncio.new_event_loop()
 
             async def _do_connect():
-                self._session = aiohttp.ClientSession()
-                resp = await self._session.get(url, timeout=aiohttp.ClientTimeout(total=10))
+                self._session = aiohttp.ClientSession()  # type: ignore[union-attr]
+                resp = await self._session.get(url, timeout=aiohttp.ClientTimeout(total=10))  # type: ignore[union-attr]
                 if resp.status != 200:
                     await self._session.close()
                     self._session = None
@@ -165,10 +172,6 @@ class McpClient:
                 self.connected = True
                 return True
             return False
-        except ImportError:
-            raise RuntimeError(
-                "aiohttp is required for SSE MCP servers.\n"
-                "Install it:  pip install aiohttp")
         except Exception as e:
             raise RuntimeError(f"SSE connection error: {e}")
 
@@ -186,11 +189,11 @@ class McpClient:
         try:
             headers = {"Content-Type": "application/json"}
             headers.update(self._extra_headers)
-            async with self._session.post(
+            async with self._session.post(  # type: ignore[union-attr]
                 self._url,
                 json=payload,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30),
+                timeout=aiohttp.ClientTimeout(total=30),  # type: ignore[union-attr]
             ) as resp:
                 if resp.status != 200:
                     return None
@@ -231,11 +234,11 @@ class McpClient:
         try:
             headers = {"Content-Type": "application/json"}
             headers.update(self._extra_headers)
-            await self._session.post(
+            await self._session.post(  # type: ignore[union-attr]
                 self._url,
                 json=payload,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=5),
+                timeout=aiohttp.ClientTimeout(total=5),  # type: ignore[union-attr]
             )
         except Exception:
             pass
@@ -291,8 +294,11 @@ class McpClient:
         import re
         buffer = b""
         while self._proc and self._proc.poll() is None:
+            stdout = self._proc.stdout
+            if stdout is None:
+                break
             try:
-                chunk = self._proc.stdout.read(1)
+                chunk = stdout.read(1)
                 if not chunk:
                     break
                 buffer += chunk
@@ -305,7 +311,7 @@ class McpClient:
                         content_len = int(match.group(1))
                         body_start = header_end + 4
                         while len(buffer) < body_start + content_len:
-                            more = self._proc.stdout.read(
+                            more = stdout.read(
                                 content_len - (len(buffer) - body_start))
                             if not more:
                                 break
@@ -338,9 +344,12 @@ class McpClient:
             "params": params,
         }).encode("utf-8")
         header = f"Content-Length: {len(payload)}\r\n\r\n".encode("utf-8")
+        stdin = self._proc.stdin
+        if stdin is None:
+            return None
         try:
-            self._proc.stdin.write(header + payload)
-            self._proc.stdin.flush()
+            stdin.write(header + payload)
+            stdin.flush()
         except Exception:
             return None
 
@@ -367,9 +376,12 @@ class McpClient:
             "params": params,
         }).encode("utf-8")
         header = f"Content-Length: {len(payload)}\r\n\r\n".encode("utf-8")
+        stdin = self._proc.stdin
+        if stdin is None:
+            return
         try:
-            self._proc.stdin.write(header + payload)
-            self._proc.stdin.flush()
+            stdin.write(header + payload)
+            stdin.flush()
         except Exception:
             pass
 
@@ -400,17 +412,20 @@ class McpClient:
         """
         if not self._proc:
             return None
+        stderr_stream = self._proc.stderr
+        if stderr_stream is None:
+            return None
         try:
             import select
             if self._proc.poll() is not None:
                 # Process exited — check stderr
-                stderr = self._proc.stderr.read() if self._proc.stderr else b""
+                stderr = stderr_stream.read()
             else:
                 # Non-blocking read of available stderr
-                ready, _, _ = select.select([self._proc.stderr], [], [], 0.5)
+                ready, _, _ = select.select([stderr_stream], [], [], 0.5)
                 if not ready:
                     return None
-                stderr = self._proc.stderr.read(4096) if self._proc.stderr else b""
+                stderr = stderr_stream.read(4096)
             text = stderr.decode("utf-8", errors="replace").lower()
             auth_markers = [
                 "unauthorized", "authentication", "auth required",

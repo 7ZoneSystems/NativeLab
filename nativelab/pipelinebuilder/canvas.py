@@ -49,13 +49,13 @@ class PipelineCanvas(QWidget):
 
     # ── drag-and-drop from sidebar ────────────────────────────────────────────
 
-    def dragEnterEvent(self, event):
+    def dragEnterEvent(self, event):  # type: ignore[override]
         if event.mimeData().hasFormat("application/x-qabstractitemmodeldatalist"):
             event.acceptProposedAction()
         else:
             event.ignore()
 
-    def dragMoveEvent(self, event):
+    def dragMoveEvent(self, event):  # type: ignore[override]
         if event.mimeData().hasFormat("application/x-qabstractitemmodeldatalist"):
             px = int(event.position().x())
             py = int(event.position().y())
@@ -65,11 +65,11 @@ class PipelineCanvas(QWidget):
         else:
             event.ignore()
 
-    def dragLeaveEvent(self, event):
+    def dragLeaveEvent(self, event):  # type: ignore[override]
         self._drop_preview = None
         self.update()
 
-    def dropEvent(self, event):
+    def dropEvent(self, event):  # type: ignore[override]
         self._drop_preview = None
         if not event.mimeData().hasFormat("application/x-qabstractitemmodeldatalist"):
             event.ignore()
@@ -191,9 +191,10 @@ class PipelineCanvas(QWidget):
             self.resize(target_w, target_h)
 
     def _scroll_area(self):
+        from PyQt6.QtWidgets import QScrollArea
         parent = self.parentWidget()
         while parent is not None:
-            if hasattr(parent, "horizontalScrollBar") and hasattr(parent, "verticalScrollBar"):
+            if isinstance(parent, QScrollArea):
                 return parent
             parent = parent.parentWidget()
         return None
@@ -211,9 +212,11 @@ class PipelineCanvas(QWidget):
             return
         self._panning = True
         self._pan_start = self._event_global_xy(event)
+        h_bar = scroll.horizontalScrollBar()
+        v_bar = scroll.verticalScrollBar()
         self._pan_scroll = (
-            scroll.horizontalScrollBar().value(),
-            scroll.verticalScrollBar().value(),
+            h_bar.value() if h_bar else 0,
+            v_bar.value() if v_bar else 0,
         )
         self.setCursor(Qt.CursorShape.ClosedHandCursor)
 
@@ -225,8 +228,12 @@ class PipelineCanvas(QWidget):
         gx, gy = self._event_global_xy(event)
         sx, sy = self._pan_start
         start_h, start_v = self._pan_scroll
-        scroll.horizontalScrollBar().setValue(start_h - (gx - sx))
-        scroll.verticalScrollBar().setValue(start_v - (gy - sy))
+        h_bar = scroll.horizontalScrollBar()
+        v_bar = scroll.verticalScrollBar()
+        if h_bar:
+            h_bar.setValue(start_h - (gx - sx))
+        if v_bar:
+            v_bar.setValue(start_v - (gy - sy))
 
     def _block_by_id(self, bid: int) -> Optional[PipelineBlock]:
         for b in self.blocks:
@@ -236,7 +243,7 @@ class PipelineCanvas(QWidget):
 
     # ── painting ──────────────────────────────────────────────────────────────
 
-    def paintEvent(self, _event):
+    def paintEvent(self, _event):  # type: ignore[override]
 
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -536,7 +543,7 @@ class PipelineCanvas(QWidget):
 
     # ── mouse events ──────────────────────────────────────────────────────────
 
-    def mousePressEvent(self, event):
+    def mousePressEvent(self, event):  # type: ignore[override]
         px = int(event.position().x())
         py = int(event.position().y())
 
@@ -561,7 +568,7 @@ class PipelineCanvas(QWidget):
             self._start_pan(event)
             self.update()
 
-    def mouseMoveEvent(self, event):
+    def mouseMoveEvent(self, event):  # type: ignore[override]
         px = int(event.position().x())
         py = int(event.position().y())
 
@@ -600,7 +607,7 @@ class PipelineCanvas(QWidget):
         self.setCursor(Qt.CursorShape.ArrowCursor)
         self.update()
 
-    def mouseReleaseEvent(self, event):
+    def mouseReleaseEvent(self, event):  # type: ignore[override]
         px = int(event.position().x())
         py = int(event.position().y())
 
@@ -631,7 +638,7 @@ class PipelineCanvas(QWidget):
                     return
             self.update()
 
-    def mouseDoubleClickEvent(self, event):
+    def mouseDoubleClickEvent(self, event):  # type: ignore[override]
         px = int(event.position().x())
         py = int(event.position().y())
         if event.button() != Qt.MouseButton.LeftButton:
@@ -734,7 +741,7 @@ class PipelineCanvas(QWidget):
             from_block_id=fb.bid, from_port=fport,
             to_block_id=tb.bid,   to_port=tport,
             is_loop=is_loop, loop_times=loop_times)
-        conn.branch_label = branch_label   # dynamic attribute - stored at runtime
+        conn.branch_label = branch_label   # type: ignore[attr-defined]  # dynamic attribute
         self.connections.append(conn)
         self.update()
         self.blocks_changed.emit()
@@ -1051,11 +1058,13 @@ class PipelineCanvas(QWidget):
         target = next((b for b in reversed(self.blocks)
                        if b.contains(px, py)), None)
 
+        act_del = None
+        act_ren = None
+        act_role = None
+        act_cfg  = None
         if target:
             act_del = add_menu_action(menu, f"Delete '{target.label}'", "delete")
             act_ren = add_menu_action(menu, "Rename block", "pencil")
-            act_role = None
-            act_cfg  = None
             if target.btype == PipelineBlockType.MODEL:
                 act_role = add_menu_action(menu, "Change Role", "wrench")
             _CONFIGURABLE = {

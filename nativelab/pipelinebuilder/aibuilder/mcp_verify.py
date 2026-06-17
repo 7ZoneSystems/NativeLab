@@ -159,6 +159,8 @@ def _test_stdio_server(url: str, timeout: float = 15.0, *,
             },
         }).encode("utf-8")
         header = f"Content-Length: {len(init_msg)}\r\n\r\n".encode("utf-8")
+        if proc.stdin is None:
+            return False, [], "Server stdin not available"
         proc.stdin.write(header + init_msg)
         proc.stdin.flush()
 
@@ -222,6 +224,10 @@ def _read_lsp_response(proc: subprocess.Popen, timeout: float = 15.0) -> Optiona
     """Read one LSP-framed JSON-RPC response from a subprocess."""
     import select
 
+    stdout = proc.stdout
+    if stdout is None:
+        return None
+
     deadline = time.time() + timeout
     buffer = b""
 
@@ -230,13 +236,13 @@ def _read_lsp_response(proc: subprocess.Popen, timeout: float = 15.0) -> Optiona
         if remaining <= 0:
             break
 
-        ready, _, _ = select.select([proc.stdout], [], [], min(remaining, 0.5))
+        ready, _, _ = select.select([stdout], [], [], min(remaining, 0.5))
         if not ready:
             if proc.poll() is not None:
                 return None
             continue
 
-        chunk = proc.stdout.read(1)
+        chunk = stdout.read(1)
         if not chunk:
             if proc.poll() is not None:
                 return None
@@ -261,10 +267,10 @@ def _read_lsp_response(proc: subprocess.Popen, timeout: float = 15.0) -> Optiona
             remaining = deadline - time.time()
             if remaining <= 0:
                 return None
-            ready, _, _ = select.select([proc.stdout], [], [], min(remaining, 0.5))
+            ready, _, _ = select.select([stdout], [], [], min(remaining, 0.5))
             if not ready:
                 continue
-            more = proc.stdout.read(content_len - (len(buffer) - body_start))
+            more = stdout.read(content_len - (len(buffer) - body_start))
             if not more:
                 break
             buffer += more
@@ -284,9 +290,9 @@ def _test_sse_server(url: str, timeout: float = 15.0, *,
     """
     Test an SSE MCP server by sending initialize + tools/list via HTTP POST.
     """
+    import urllib.request
+    import urllib.error
     try:
-        import urllib.request
-        import urllib.error
 
         # Try POST to the SSE endpoint
         init_payload = json.dumps({

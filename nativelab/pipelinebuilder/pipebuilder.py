@@ -504,9 +504,11 @@ class PipelineBuilderTab(QWidget):
         set_button_icon(copy_btn, "copy", "Copy Final Output")
         copy_btn.setFixedHeight(28)
         self._right_scaled_buttons.append((copy_btn, 28))
-        copy_btn.clicked.connect(
-            lambda: QApplication.clipboard().setText(
-                self.output_edit.raw_text()))
+        def _copy_output():
+            cb = QApplication.clipboard()
+            if cb:
+                cb.setText(self.output_edit.raw_text())
+        copy_btn.clicked.connect(_copy_output)
         rp_l.addWidget(copy_btn)
 
         self.right_tabs.addTab(exec_page, icon("play"), "Execution")
@@ -731,11 +733,13 @@ class PipelineBuilderTab(QWidget):
         tiny_px = self._scaled_px(9, width, self.LEFT_DEFAULT_W)
         header_px = self._scaled_px(12, width, self.LEFT_DEFAULT_W)
         try:
-            self.left_sidebar_scroll.widget().setStyleSheet(
-                f"QWidget#session_sidebar{{background:{C['bg1']};"
-                f"border-right:1px solid {C['bdr']};font-size:{body_px}px;}}"
-                f"QLabel{{font-size:{body_px}px;}}"
-                f"QComboBox,QListWidget{{font-size:{body_px}px;}}")
+            w = self.left_sidebar_scroll.widget()
+            if w:
+                w.setStyleSheet(
+                    f"QWidget#session_sidebar{{background:{C['bg1']};"
+                    f"border-right:1px solid {C['bdr']};font-size:{body_px}px;}}"
+                    f"QLabel{{font-size:{body_px}px;}}"
+                    f"QComboBox,QListWidget{{font-size:{body_px}px;}}")
         except Exception:
             pass
         for label in self._left_scaled_labels:
@@ -807,7 +811,7 @@ class PipelineBuilderTab(QWidget):
         except Exception:
             pass
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event):  # type: ignore[override]
         try:
             super().resizeEvent(event)
         except Exception:
@@ -842,7 +846,7 @@ class PipelineBuilderTab(QWidget):
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
-    def _refresh_models(self):
+    def _show_manual_html(self):
         """Show the pipeline builder manual in a scrollable dialog."""
         dlg = QDialog(self)
         dlg.setWindowTitle("Pipeline Builder Manual")
@@ -1119,8 +1123,10 @@ class PipelineBuilderTab(QWidget):
         text = f"Server · port {status.server_port}" if status.mode == "server" and status.server_port else status.status_text
         set_status_label(self.server_badge, text, status.state)
         self.server_badge.setProperty("state", status.state)
-        self.server_badge.style().unpolish(self.server_badge)
-        self.server_badge.style().polish(self.server_badge)
+        s = self.server_badge.style()
+        if s:
+            s.unpolish(self.server_badge)
+            s.polish(self.server_badge)
 
     def _add_block(self, btype: str):
         count = sum(1 for b in self.canvas.blocks if b.btype == btype)
@@ -1218,8 +1224,10 @@ class PipelineBuilderTab(QWidget):
         # Clear old pills
         while self._pill_layout.count() > 1:  # keep final stretch
             item = self._pill_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item:
+                w = item.widget()
+                if w:
+                    w.deleteLater()
         # Add one pill per relevant block
         _pill_blocks = [b for b in self.canvas.blocks if b.btype in _PILL_BTYPES]
         if not _pill_blocks:
@@ -1286,7 +1294,7 @@ class PipelineBuilderTab(QWidget):
             list(self.canvas.blocks),
             list(self.canvas.connections),
             parent=self)
-        self._preview_ctrl.finished.connect(self._stop_flow_preview)
+        self._preview_ctrl.finished.connect(self._stop_flow_preview)  # type: ignore[attr-defined]
         set_button_icon(self.btn_preview, "stop-circle", "Stop Preview")
         self._preview_active = True
         self._set_preview_button_style(True, self._scaled_px(11, self._last_left_width, self.LEFT_DEFAULT_W))

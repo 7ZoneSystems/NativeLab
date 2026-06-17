@@ -19,8 +19,9 @@ from nativelab.imports.import_global import (
     pyqtSignal,
 )
 from nativelab.Model.model_global import model_ref_display_name
+from nativelab.UI.UI_const import C
 from nativelab.UI.buildUI import prepare_adaptive_window
-from nativelab.UI.icons import set_button_icon, set_label_icon
+from nativelab.UI.icons import set_button_icon, set_label_icon, set_status_label
 from nativelab.UI.llm_error_dialog import show_llm_error_dialog
 
 from .engine_call import generate_pipeline_response
@@ -66,7 +67,7 @@ class AiPipelineContextCompactWorker(QThread):
         try:
             if self._engine is None or not getattr(self._engine, "is_loaded", False):
                 self.done.emit(deterministic_compact(
-                    _InlineHistory(self._summary, self._history_text),
+                    _InlineHistory(self._summary, self._history_text),  # type: ignore[arg-type]
                     self._canvas_state,
                 ))
                 return
@@ -687,7 +688,7 @@ class AiPipelineBuilderPanel(QWidget):
         self._sidebar_width = max(0, int(width or 0))
         self._apply_sidebar_width()
 
-    def resizeEvent(self, event):
+    def resizeEvent(self, event):  # type: ignore[override]
         try:
             super().resizeEvent(event)
         except Exception:
@@ -785,11 +786,10 @@ class AiPipelineBuilderPanel(QWidget):
 
     def _set_budget_state(self, state: str):
         self.budget_lbl.setProperty("state", state)
-        try:
-            self.budget_lbl.style().unpolish(self.budget_lbl)
-            self.budget_lbl.style().polish(self.budget_lbl)
-        except Exception:
-            pass
+        s = self.budget_lbl.style()
+        if s:
+            s.unpolish(self.budget_lbl)
+            s.polish(self.budget_lbl)
 
     def _refresh_budget(self):
         name = sanitize_pipeline_name(self.name_edit.text() if hasattr(self, "name_edit") else "")
@@ -1100,7 +1100,7 @@ class AiPipelineBuilderDialog(QDialog):
             return
         super().reject()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event):  # type: ignore[override]
         if self.panel.is_running():
             event.ignore()
             QMessageBox.information(

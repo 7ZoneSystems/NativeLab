@@ -152,7 +152,7 @@ def status_icon(state: str) -> QIcon:
 
 
 def icon_size(size: int = 16) -> QSize:
-    return QSize(size, size)
+    return QSize(int(size), int(size))
 
 
 def set_button_icon(button: QPushButton, name: str, text: str | None = None, size: int = 16) -> QPushButton:
@@ -217,17 +217,17 @@ def refresh_widget_icons(root: QWidget) -> None:
             name = widget.property("_nl_icon_name")
             if name:
                 text = widget.property("_nl_icon_text")
-                size = widget.property("_nl_icon_size") or 16
-                set_button_icon(widget, str(name), str(text) if text is not None else None, int(size))
+                sz = widget.property("_nl_icon_size") or 16
+                set_button_icon(widget, str(name), str(text) if text is not None else None, int(sz))  # type: ignore[arg-type]
         elif isinstance(widget, QLabel):
             status_text = widget.property("_nl_status_text")
             if status_text is not None:
                 state = widget.property("state") or "idle"
-                size = widget.property("_nl_status_size") or 14
-                set_status_label(widget, str(status_text), str(state), int(size))
+                sz = widget.property("_nl_status_size") or 14
+                set_status_label(widget, str(status_text), str(state), int(sz))  # type: ignore[arg-type]
                 continue
             name = widget.property("_nl_label_icon_name")
             if name:
                 text = widget.property("_nl_label_icon_text") or ""
-                size = widget.property("_nl_label_icon_size") or 16
-                set_label_icon(widget, str(name), str(text), int(size))
+                sz = widget.property("_nl_label_icon_size") or 16
+                set_label_icon(widget, str(name), str(text), int(sz))  # type: ignore[arg-type]

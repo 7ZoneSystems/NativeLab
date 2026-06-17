@@ -219,17 +219,17 @@ class LlmLogicEditorDialog(QDialog):
         self.check_show_reasoning.setChecked(
             bool(self._block.metadata.get("llm_show_reasoning", True)))
         self.check_show_reasoning.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
-        adv_l.addWidget(self.check_show_reasoning)
+        adv_l.addWidget(self.check_show_reasoning)  # type: ignore[arg-type]
 
         self.check_passthrough_on_err = ToggleSwitch(
             "Pass text through unchanged if model call fails (instead of stopping pipeline)")
         self.check_passthrough_on_err.setChecked(
             bool(self._block.metadata.get("llm_passthrough_on_err", False)))
         self.check_passthrough_on_err.setStyleSheet(f"color:{C['txt2']};font-size:11px;")
-        adv_l.addWidget(self.check_passthrough_on_err)
+        adv_l.addWidget(self.check_passthrough_on_err)  # type: ignore[arg-type]
 
         root.addWidget(self._adv_frame)
-        adv_hdr.mousePressEvent = lambda _: self._toggle_adv(adv_hdr)
+        adv_hdr.mousePressEvent = lambda _: self._toggle_adv(adv_hdr)  # type: ignore[assignment]
 
         # ── Buttons ───────────────────────────────────────────────────────────
         btn_row = QHBoxLayout(); btn_row.setSpacing(10)

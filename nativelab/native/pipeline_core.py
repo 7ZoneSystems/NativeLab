@@ -4,7 +4,7 @@ import json
 from typing import Any, Dict, Iterable, List, MutableMapping, Optional, Sequence, Tuple
 
 try:
-    from . import _native_core as _core
+    from . import _native_core as _core  # type: ignore[attr-defined]
 except Exception:
     _core = None
 

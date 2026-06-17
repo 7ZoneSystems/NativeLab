@@ -15,7 +15,7 @@ from ..pipblck import PipelineBlock
 from ..validation import validate_pipeline
 
 try:
-    from nativelab.native import _native_core as _native
+    from nativelab.native import _native_core as _native  # type: ignore[attr-defined]
 except Exception:  # pragma: no cover - optional native extension
     _native = None
 
@@ -483,7 +483,7 @@ def normalize_pipeline_data(data: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Pipeline data must be a JSON object.")
 
-    raw_blocks = data.get("blocks") if isinstance(data.get("blocks"), list) else []
+    raw_blocks = list(data.get("blocks") or []) if isinstance(data.get("blocks"), list) else []
     blocks: List[Dict[str, Any]] = []
     used_ids: set[int] = set()
     old_to_new: Dict[Any, int] = {}
@@ -531,7 +531,7 @@ def normalize_pipeline_data(data: Dict[str, Any]) -> Dict[str, Any]:
     valid_ids = {b["bid"] for b in blocks}
     connections: List[Dict[str, Any]] = []
     seen_edges: set[Tuple[int, str, int, str]] = set()
-    raw_connections = data.get("connections") if isinstance(data.get("connections"), list) else []
+    raw_connections = list(data.get("connections") or []) if isinstance(data.get("connections"), list) else []
     for raw in raw_connections:
         if not isinstance(raw, dict):
             continue
