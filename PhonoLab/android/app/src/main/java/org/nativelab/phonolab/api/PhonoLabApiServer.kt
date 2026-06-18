@@ -20,14 +20,20 @@ class PhonoLabApiServer(
     private val config: ApiConfig,
     private val onLog: (String) -> Unit = {},
     private val generateFn: (prompt: String, nPredict: Int, temperature: Float, topP: Float) -> String,
+    private val streamGenerateFn: ((prompt: String, nPredict: Int, temperature: Float, topP: Float, onToken: (String) -> Unit) -> String)? = null,
     private val runtimeInfo: () -> Map<String, Any> = { emptyMap() },
     private val modelList: () -> List<Map<String, Any>> = { emptyMapList() },
 ) {
     private var serverSocket: ServerSocket? = null
     private var running = false
-    private val executor = Executors.newCachedThreadPool()
+    private val executor = Executors.newFixedThreadPool(4)
     private val requestLog = mutableListOf<String>()
     private val logLock = Any()
+
+    companion object {
+        private const val MAX_BODY_BYTES = 1024 * 1024  // 1MB
+        private fun emptyMapList() = emptyList<Map<String, Any>>()
+    }
 
     val isRunning: Boolean get() = running
 
@@ -50,6 +56,7 @@ class PhonoLabApiServer(
         running = false
         try { serverSocket?.close() } catch (_: Exception) {}
         serverSocket = null
+        try { executor.shutdownNow() } catch (_: Exception) {}
         addLog("Server stopped")
     }
 
@@ -105,6 +112,13 @@ class PhonoLabApiServer(
 
             // Read body
             val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
+            if (contentLength > MAX_BODY_BYTES) {
+                sendResponse(socket, errorResponse(
+                    "Body too large (${contentLength} bytes, max ${MAX_BODY_BYTES})",
+                    "payload_too_large", 413
+                ))
+                return
+            }
             val body = if (contentLength > 0) {
                 val buf = CharArray(contentLength)
                 var read = 0
@@ -123,12 +137,22 @@ class PhonoLabApiServer(
             addLog("$method $path from $clientIp")
 
             // Route
+            val isStreamRequest = method == "POST" &&
+                path in listOf("/chat/completions", "/v1/chat/completions") &&
+                body.contains("\"stream\"") && body.contains("true")
+
             val response = when {
                 method == "OPTIONS" -> handleOptions()
                 method == "GET" && path in listOf("/health", "/v1/health") -> handleHealth(clientIp)
                 method == "GET" && path == "/runtime" -> handleRuntime(clientIp)
                 method == "GET" && path in listOf("/models", "/v1/models") -> handleModels(clientIp, authHeader)
                 method == "GET" && path == "/capabilities" -> handleCapabilities(clientIp, authHeader)
+                isStreamRequest -> {
+                    // Streaming response — sent directly to socket, returns null if success
+                    val err = handleOpenAiChatStreaming(socket, body, authHeader)
+                    if (err == null) return // Already sent
+                    err
+                }
                 method == "POST" && path in listOf("/chat/completions", "/v1/chat/completions") ->
                     handleOpenAiChat(body, authHeader)
                 method == "POST" && path in listOf("/completions", "/v1/completions") ->
@@ -248,6 +272,7 @@ class PhonoLabApiServer(
             val nPredict = payload.optInt("max_tokens", payload.optInt("n_predict", 512))
             val temperature = payload.optDouble("temperature", 0.7).toFloat()
             val topP = payload.optDouble("top_p", 0.9).toFloat()
+            val stream = payload.optBoolean("stream", false)
 
             val text = generateFn(prompt, nPredict, temperature, topP)
             val modelId = runtimeInfo()["model"] ?: "phonolab-active"
@@ -275,6 +300,122 @@ class PhonoLabApiServer(
             }
         } catch (e: Exception) {
             return errorResponse(e.message ?: "Generation failed", "server_error", 500)
+        }
+    }
+
+    /**
+     * Handle streaming chat completion — sends SSE chunks to the socket directly.
+     * Returns null (response already sent), or an error JSONObject.
+     */
+    private fun handleOpenAiChatStreaming(
+        socket: Socket,
+        body: String,
+        authHeader: String,
+    ): JSONObject? {
+        try {
+            val payload = JSONObject(body)
+            val messages = payload.optJSONArray("messages") ?: JSONArray()
+            val prompt = messagesToPrompt(messages)
+            val nPredict = payload.optInt("max_tokens", payload.optInt("n_predict", 512))
+            val temperature = payload.optDouble("temperature", 0.7).toFloat()
+            val topP = payload.optDouble("top_p", 0.9).toFloat()
+            val modelId = runtimeInfo()["model"] ?: "phonolab-active"
+
+            val streamFn = streamGenerateFn ?: return errorResponse(
+                "Streaming not supported by this runtime.", "server_error", 501
+            )
+
+            // Send SSE headers
+            val header = buildString {
+                append("HTTP/1.1 200 OK\r\n")
+                append("Content-Type: text/event-stream; charset=utf-8\r\n")
+                append("Cache-Control: no-cache\r\n")
+                append("Access-Control-Allow-Origin: *\r\n")
+                append("Access-Control-Allow-Headers: authorization, x-api-key, content-type\r\n")
+                append("Connection: close\r\n")
+                append("\r\n")
+            }
+            val out = socket.getOutputStream()
+            out.write(header.toByteArray(Charsets.UTF_8))
+            out.flush()
+
+            val cmplId = "chatcmpl-${System.currentTimeMillis()}"
+
+            // Role chunk
+            val roleChunk = JSONObject().apply {
+                put("id", cmplId)
+                put("object", "chat.completion.chunk")
+                put("created", System.currentTimeMillis() / 1000)
+                put("model", modelId)
+                put("choices", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("index", 0)
+                        put("delta", JSONObject().apply { put("role", "assistant") })
+                        put("finish_reason", JSONObject.NULL)
+                    })
+                })
+            }
+            try {
+                out.write("data: $roleChunk\r\n\r\n".toByteArray(Charsets.UTF_8))
+                out.flush()
+            } catch (e: java.io.IOException) {
+                addLog("Client disconnected before generation: ${e.message}")
+                return null
+            }
+
+            // Generate with token callback — guard writes against client disconnect
+            var clientDisconnected = false
+            streamFn(prompt, nPredict, temperature, topP) { token ->
+                if (clientDisconnected) return@streamFn
+                try {
+                    val chunk = JSONObject().apply {
+                        put("id", cmplId)
+                        put("object", "chat.completion.chunk")
+                        put("created", System.currentTimeMillis() / 1000)
+                        put("model", modelId)
+                        put("choices", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("index", 0)
+                                put("delta", JSONObject().apply { put("content", token) })
+                                put("finish_reason", JSONObject.NULL)
+                            })
+                        })
+                    }
+                    out.write("data: $chunk\r\n\r\n".toByteArray(Charsets.UTF_8))
+                    out.flush()
+                } catch (e: java.io.IOException) {
+                    clientDisconnected = true
+                    addLog("Client disconnected during streaming: ${e.message}")
+                }
+            }
+
+            if (clientDisconnected) return null
+
+            // Finish chunk
+            val finishChunk = JSONObject().apply {
+                put("id", cmplId)
+                put("object", "chat.completion.chunk")
+                put("created", System.currentTimeMillis() / 1000)
+                put("model", modelId)
+                put("choices", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("index", 0)
+                        put("delta", JSONObject())
+                        put("finish_reason", "stop")
+                    })
+                })
+            }
+            try {
+                out.write("data: $finishChunk\r\n\r\n".toByteArray(Charsets.UTF_8))
+                out.write("data: [DONE]\r\n\r\n".toByteArray(Charsets.UTF_8))
+                out.flush()
+            } catch (e: java.io.IOException) {
+                addLog("Client disconnected before finish: ${e.message}")
+            }
+
+            return null // Already sent
+        } catch (e: Exception) {
+            return errorResponse(e.message ?: "Streaming failed", "server_error", 500)
         }
     }
 
@@ -399,9 +540,5 @@ class PhonoLabApiServer(
             socket.getOutputStream().write(bodyBytes)
             socket.getOutputStream().flush()
         } catch (_: Exception) {}
-    }
-
-    companion object {
-        private fun emptyMapList() = emptyList<Map<String, Any>>()
     }
 }
