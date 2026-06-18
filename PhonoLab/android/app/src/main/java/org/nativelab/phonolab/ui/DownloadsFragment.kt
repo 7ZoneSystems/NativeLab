@@ -16,6 +16,7 @@ import com.google.android.material.button.MaterialButton
 import org.nativelab.phonolab.*
 import org.nativelab.phonolab.adapter.CatalogAdapter
 import org.nativelab.phonolab.data.ModelManager
+import org.nativelab.phonolab.util.UiHelpers
 import java.util.concurrent.Executors
 
 class DownloadsFragment : Fragment() {
@@ -30,6 +31,10 @@ class DownloadsFragment : Fragment() {
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 
+    private fun runOnUi(block: () -> Unit) {
+        main.post { if (isAdded) block() }
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return inflater.inflate(R.layout.fragment_downloads, container, false)
     }
@@ -37,9 +42,10 @@ class DownloadsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        store = PhonoLabStore(requireContext())
-        runtime = LlamaRuntime(requireContext(), store)
-        modelManager = ModelManager(store)
+        val app = requireActivity().application as PhonoLabApp
+        store = app.store
+        runtime = app.runtime
+        modelManager = app.modelManager
 
         runtimeStatus = view.findViewById(R.id.runtime_status)
         runtimeProgress = view.findViewById(R.id.runtime_progress)
@@ -56,6 +62,11 @@ class DownloadsFragment : Fragment() {
         rvDownloads.layoutManager = LinearLayoutManager(context)
 
         refreshRuntimeStatus()
+    }
+
+    override fun onDestroyView() {
+        worker.shutdown()
+        super.onDestroyView()
     }
 
     private fun refreshRuntimeStatus() {
@@ -81,7 +92,7 @@ class DownloadsFragment : Fragment() {
     private fun installRuntime() {
         worker.execute {
             try {
-                main.post {
+                runOnUi {
                     runtimeProgress.visibility = View.VISIBLE
                     runtimeProgress.progress = 0
                     runtimeStatus.text = "Downloading llama-server…"
@@ -89,14 +100,14 @@ class DownloadsFragment : Fragment() {
                 }
 
                 val server = runtime.autoInstallBinary { done, total, label ->
-                    main.post {
-                        val pct = if (total > 0) ((done * 100) / total).toInt().coerceIn(0, 100) else 0
+                    runOnUi {
+                        val pct = UiHelpers.calcPercent(done, total)
                         runtimeProgress.progress = pct
                         runtimeStatus.text = "Installing $label: $pct%"
                     }
                 }
 
-                main.post {
+                runOnUi {
                     runtimeProgress.visibility = View.GONE
                     if (server != null) {
                         refreshRuntimeStatus()
@@ -107,7 +118,7 @@ class DownloadsFragment : Fragment() {
                     }
                 }
             } catch (e: Exception) {
-                main.post {
+                runOnUi {
                     runtimeProgress.visibility = View.GONE
                     runtimeStatus.text = "❌ ${e.javaClass.simpleName}: ${e.message}"
                     runtimeStatus.setTextColor(resources.getColor(R.color.ph_err, null))
@@ -119,7 +130,7 @@ class DownloadsFragment : Fragment() {
     private fun downloadCatalogModel(candidate: ModelCandidate) {
         worker.execute {
             try {
-                main.post {
+                runOnUi {
                     runtimeProgress.visibility = View.VISIBLE
                     runtimeProgress.progress = 0
                     runtimeStatus.text = "Downloading ${candidate.label}…"
@@ -128,8 +139,8 @@ class DownloadsFragment : Fragment() {
 
                 val downloader = SafeDownloader(store)
                 val model = downloader.downloadModel(candidate) { done, total, label ->
-                    main.post {
-                        val pct = if (total > 0) ((done * 100) / total).toInt().coerceIn(0, 100) else 0
+                    runOnUi {
+                        val pct = UiHelpers.calcPercent(done, total)
                         runtimeProgress.progress = pct
                         runtimeStatus.text = "$label: $pct%"
                     }
@@ -137,7 +148,7 @@ class DownloadsFragment : Fragment() {
 
                 modelManager.add(model, repo = candidate.repo)
 
-                main.post {
+                runOnUi {
                     runtimeProgress.visibility = View.GONE
                     val sizeMb = model.length() / (1024 * 1024)
                     runtimeStatus.text = "✅ ${model.name} ($sizeMb MB) — ready to load"
@@ -145,7 +156,7 @@ class DownloadsFragment : Fragment() {
                     Toast.makeText(context, "Model ready! Go to Chat and tap Load.", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                main.post {
+                runOnUi {
                     runtimeProgress.visibility = View.GONE
                     runtimeStatus.text = "Download failed: ${e.message}"
                     runtimeStatus.setTextColor(resources.getColor(R.color.ph_err, null))

@@ -125,6 +125,19 @@ class ModelManager(private val store: PhonoLabStore) {
     fun remove(path: String) {
         models.remove(path)
         save()
+        // Delete the actual file from disk
+        try {
+            val file = File(path)
+            if (file.exists() && file.extension.equals("gguf", ignoreCase = true)) {
+                file.delete()
+                // Also delete parent dir if empty (e.g. models/<key>/)
+                file.parentFile?.let { parent ->
+                    if (parent.listFiles()?.isEmpty() == true) {
+                        parent.delete()
+                    }
+                }
+            }
+        } catch (_: Exception) { }
     }
 
     fun discoverGgufFiles(): List<File> {
@@ -136,10 +149,19 @@ class ModelManager(private val store: PhonoLabStore) {
     }
 
     fun syncDiscovery() {
+        // Deduplicate: use canonical path as key to avoid double entries
         for (file in discoverGgufFiles()) {
-            val key = file.absolutePath
+            val key = try { file.canonicalPath } catch (_: Exception) { file.absolutePath }
             if (!models.containsKey(key)) {
-                models[key] = ModelConfig.defaults(key, file.name)
+                // Also check if a non-canonical key already exists
+                val existing = models[file.absolutePath]
+                if (existing != null) {
+                    // Re-key under canonical path
+                    models.remove(file.absolutePath)
+                    models[key] = existing
+                } else {
+                    models[key] = ModelConfig.defaults(key, file.name)
+                }
             }
         }
         save()

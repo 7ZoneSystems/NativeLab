@@ -17,6 +17,7 @@ import android.widget.Toast
 import androidx.fragment.app.Fragment
 import com.google.android.material.button.MaterialButton
 import org.nativelab.phonolab.LlamaRuntime
+import org.nativelab.phonolab.PhonoLabApp
 import org.nativelab.phonolab.PhonoLabStore
 import org.nativelab.phonolab.R
 import org.nativelab.phonolab.api.ApiConfig
@@ -47,6 +48,10 @@ class ApiFragment : Fragment() {
     private val main = Handler(Looper.getMainLooper())
     private val logUpdater = Runnable { updateLog() }
 
+    private fun runOnUi(block: () -> Unit) {
+        main.post { if (isAdded) block() }
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return inflater.inflate(R.layout.fragment_api, container, false)
     }
@@ -54,9 +59,10 @@ class ApiFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        store = PhonoLabStore(requireContext())
-        runtime = LlamaRuntime(requireContext(), store)
-        modelManager = ModelManager(store)
+        val app = requireActivity().application as PhonoLabApp
+        store = app.store
+        runtime = app.runtime
+        modelManager = app.modelManager
         config = ApiConfig.load(requireContext())
 
         // Views
@@ -74,8 +80,8 @@ class ApiFragment : Fragment() {
 
         // Protocol spinner
         val protocols = listOf("both", "openai", "anthropic")
-        protocolSpinner.adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, protocols).apply {
-            setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        protocolSpinner.adapter = ArrayAdapter(requireContext(), R.layout.ph_spinner_item, protocols).apply {
+            setDropDownViewResource(R.layout.ph_spinner_dropdown_item)
         }
         protocolSpinner.setSelection(protocols.indexOf(config.protocol).coerceAtLeast(0))
 
@@ -128,32 +134,44 @@ class ApiFragment : Fragment() {
 
         updateDisplay()
 
+        // Capture at creation time to avoid stale references if fragment is recreated
+        val capturedRuntime = runtime
+        val capturedModelManager = modelManager
+
         // Create server
         server = PhonoLabApiServer(
             config = config,
-            onLog = { msg -> main.post { appendLog(msg) } },
+            onLog = { msg -> runOnUi { appendLog(msg) } },
             generateFn = { prompt, nPredict, temperature, topP ->
-                // Generate using the runtime
-                if (!runtime.isModelLoaded()) {
-                    val modelFile = runtime.loadedModelPath()?.let { java.io.File(it) }
+                if (!capturedRuntime.isModelLoaded()) {
+                    val modelFile = capturedRuntime.loadedModelPath()?.let { java.io.File(it) }
                     if (modelFile != null && modelFile.exists()) {
-                        runtime.load(modelFile)
+                        capturedRuntime.load(modelFile)
                     }
                 }
-                runtime.generate(prompt) { }
+                capturedRuntime.generate(prompt) { }
+            },
+            streamGenerateFn = { prompt, nPredict, temperature, topP, onToken ->
+                if (!capturedRuntime.isModelLoaded()) {
+                    val modelFile = capturedRuntime.loadedModelPath()?.let { java.io.File(it) }
+                    if (modelFile != null && modelFile.exists()) {
+                        capturedRuntime.load(modelFile)
+                    }
+                }
+                capturedRuntime.generate(prompt, onToken)
             },
             runtimeInfo = {
                 mapOf(
-                    "loaded" to runtime.isModelLoaded(),
-                    "model" to (runtime.loadedModelPath()?.substringAfterLast("/") ?: "none"),
-                    "model_path" to (runtime.loadedModelPath() ?: ""),
-                    "state" to if (runtime.isServerRunning()) "loaded" else "idle",
+                    "loaded" to capturedRuntime.isModelLoaded(),
+                    "model" to (capturedRuntime.loadedModelPath()?.substringAfterLast("/") ?: "none"),
+                    "model_path" to (capturedRuntime.loadedModelPath() ?: ""),
+                    "state" to if (capturedRuntime.isServerRunning()) "loaded" else "idle",
                     "ctx" to 2048,
                 )
             },
             modelList = {
-                modelManager.syncDiscovery()
-                modelManager.all().map { m ->
+                capturedModelManager.syncDiscovery()
+                capturedModelManager.all().map { m ->
                     mapOf("id" to m.name, "path" to m.path)
                 }
             },
@@ -182,10 +200,10 @@ class ApiFragment : Fragment() {
 
     private fun updateLog() {
         val logs = server?.getRecentLogs() ?: emptyList()
-        if (logs.isNotEmpty()) {
+        if (logs.isNotEmpty() && isAdded) {
             requestLog.text = logs.reversed().joinToString("\n")
         }
-        main.postDelayed(logUpdater, 3000)
+        if (isAdded) main.postDelayed(logUpdater, 3000)
     }
 
     private fun copyToClipboard(label: String, text: String) {
