@@ -25,6 +25,8 @@
 
 NativeLab is a desktop and terminal client for running large language models entirely on your machine. It wraps [llama.cpp](https://github.com/ggerganov/llama.cpp), running Ollama models, optional Hugging Face Transformers models, and API backends behind a polished PyQt6 GUI **and** a Claude-Code-style terminal CLI, with first-class support for multi-model pipelines, document references, long-document summarization, and a brand-new **Labs** experimentation layer.
 
+**PhonoLab** is the official Android client — same local-first philosophy, runs llama.cpp on-device via JNI, with a chat UI, document attachments, RAG, vision model support, and a LAN API server. See [`PhonoLab/`](PhonoLab/) or the [PhonoLab page](web_page/phonolab.html).
+
 ```bash
 pip install nativelab
 nativelab            # GUI
@@ -134,6 +136,30 @@ nativelab --cli      # terminal control center (setup, chat, models, labs, integ
 - 📦  **Downloaders** - Pick popular presets or custom IDs for GGUFs, full HF Transformers snapshots, Ollama models, and llama.cpp binaries without leaving the app.
 
 > See [changelog.txt](changelog.txt) for the latest release notes and [docs/architecture.md](docs/architecture.md) for the layered design.
+
+---
+
+## PhonoLab — Android Client
+
+<div align="center">
+
+**Run local LLMs on your phone.** PhonoLab brings the NativeLab experience to Android.
+
+[PhonoLab page](web_page/phonolab.html) · [Source code](PhonoLab/) · [Android docs](PhonoLab/docs/README.md)
+
+</div>
+
+| Feature | Details |
+|---------|---------|
+| On-device inference | Bundled llama-server via JNI fork+execve, no W^X issues |
+| Chat UI | ChatGPT-style with sidebar, sessions, math rendering (KaTeX) |
+| Document attachments | PDF, text, DOCX — RAG chunking + keyword retrieval |
+| Image attachments | Gallery picker, vision model support (Llama 3.2 Vision, etc.) |
+| Model catalog | Built-in small models: SmolLM2, Qwen, Llama 3.2, TinyLlama |
+| LAN API server | OpenAI + Anthropic compatible, SSE streaming |
+| Themes | Dark (NativeLab Studio) + Light (Cream & Sage) |
+| Error handling | 17-layer error system, restart dialog, red banner notifications |
+| Free forever | AGPL v3 — same as NativeLab |
 
 ---
 
@@ -247,7 +273,9 @@ For security disclosures, see [SECURITY.md](SECURITY.md).
 
 ## 📜 License
 
-AGPL v3 - see [LICENSE](LICENSE). NativeLab depends on [llama.cpp](https://github.com/ggerganov/llama.cpp) (MIT) and [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) (GPL/commercial).
+**AGPL v3 — free and open source forever.** See [LICENSE](LICENSE).
+
+Both NativeLab and PhonoLab are licensed under AGPL v3. NativeLab depends on [llama.cpp](https://github.com/ggerganov/llama.cpp) (MIT) and [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) (GPL/commercial). PhonoLab depends on llama.cpp (MIT) and AndroidX (Apache 2.0).
 
 ---
 
@@ -255,6 +283,6 @@ AGPL v3 - see [LICENSE](LICENSE). NativeLab depends on [llama.cpp](https://githu
 
 **Built for people who want their LLMs local, fast, and under their own control.**
 
-[Install from PyPI](https://pypi.org/project/nativelab/) · [GitHub](https://github.com/7ZoneSystems/NativeLab) · [Docs](docs/README.md) · [Issues](https://github.com/7ZoneSystems/NativeLab/issues)
+[Install NativeLab](https://pypi.org/project/nativelab/) · [Get PhonoLab](PhonoLab/) · [GitHub](https://github.com/7ZoneSystems/NativeLab) · [Docs](docs/README.md) · [Issues](https://github.com/7ZoneSystems/NativeLab/issues)
 
 </div>

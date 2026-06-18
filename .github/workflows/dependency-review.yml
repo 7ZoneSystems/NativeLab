@@ -1,0 +1,37 @@
+# Dependency Review — scans PRs for vulnerable or risky dependency changes
+# https://github.com/actions/dependency-review-action
+
+name: "Dependency Review"
+
+on:
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-review:
+    name: "Review dependency changes"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+          deny-licenses: GPL-3.0, AGPL-3.0
+          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, CC0-1.0, Unlicense
+          config: |
+            ignore-patterns:
+              - pattern: "nativelab/web_search/searxng/*"
+              - pattern: "PhonoLab/android/app/build/*"

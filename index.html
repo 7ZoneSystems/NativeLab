@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NativeLab - Local LLM workbench</title>
-  <meta name="description" content="NativeLab is an open-source local LLM workbench with a desktop GUI, terminal CLI, visual pipelines, AI Pipeline Builder, Labs, Ollama, Hugging Face Transformers, and API backends." />
+  <meta name="description" content="NativeLab is an open-source local LLM workbench with a desktop GUI, terminal CLI, visual pipelines, AI Pipeline Builder, Labs, Ollama, Hugging Face Transformers, and API backends. PhonoLab is the Android client." />
   <link rel="icon" type="image/png" href="nativelab/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,6 +16,7 @@
     <a class="nav-logo" href="index.html"><img src="nativelab/icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
     <div class="nav-links">
       <a href="web_page/features.html">Features</a>
+      <a href="web_page/phonolab.html">PhonoLab</a>
       <a href="web_page/pipeline.html">Pipelines</a>
       <a href="web_page/compare.html">Compare</a>
       <a href="web_page/setup.html">Setup</a>
@@ -158,6 +159,33 @@
       <div class="wrap">
         <div class="section-head">
           <div>
+            <p class="section-kicker">Android</p>
+            <h2>PhonoLab — NativeLab on your phone.</h2>
+          </div>
+          <p class="lead">
+            The official Android client. Runs llama.cpp on-device via JNI, with
+            chat, document RAG, vision models, and a LAN API server. Same
+            local-first philosophy, free forever under AGPL v3.
+          </p>
+        </div>
+        <div class="grid four">
+          <article class="card fade-up"><h3>On-device inference</h3><p class="muted">Bundled llama-server via JNI fork+execve. No cloud, no account needed.</p></article>
+          <article class="card fade-up"><h3>Document RAG</h3><p class="muted">Attach PDF, text, DOCX. Automatic chunking and keyword retrieval.</p></article>
+          <article class="card fade-up"><h3>Vision models</h3><p class="muted">Attach images. Auto-detects vision models and pairs mmproj files.</p></article>
+          <article class="card fade-up"><h3>LAN API server</h3><p class="muted">OpenAI + Anthropic compatible. Use your phone as a local AI server.</p></article>
+        </div>
+        <div class="actions" style="margin-top:22px">
+          <a class="btn primary" href="web_page/phonolab.html">PhonoLab page</a>
+          <a class="btn" href="PhonoLab/docs/README.md">Docs</a>
+          <a class="btn" href="https://github.com/7ZoneSystems/NativeLab/tree/main/PhonoLab" target="_blank">Source</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
             <p class="section-kicker">Install</p>
             <h2>One package, then choose your runtime.</h2>
           </div>
@@ -187,9 +215,10 @@
   </main>
 
   <footer class="footer">
-    <span>NativeLab - AGPL v3 - local-first LLM workbench</span>
+    <span>NativeLab + PhonoLab — AGPL v3 — local-first LLM workbench</span>
     <div class="footer-links">
       <a href="web_page/features.html">Features</a>
+      <a href="web_page/phonolab.html">PhonoLab</a>
       <a href="web_page/pipeline.html">Pipelines</a>
       <a href="web_page/compare.html">Compare</a>
       <a href="web_page/setup.html">Setup</a>

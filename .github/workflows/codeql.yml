@@ -1,0 +1,167 @@
+# CodeQL Security Analysis for NativeLab + PhonoLab
+# Scans: Python, Kotlin/Java (Android), JavaScript
+# https://docs.github.com/en/code-security/code-scanning
+
+name: "CodeQL Security Scan"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    # Run weekly on Monday at 10:00 IST
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Python Analysis ──────────────────────────────────────────
+  analyze-python:
+    name: "CodeQL — Python"
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' || github.repository_owner == '7ZoneSystems'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          queries: security-extended,security-and-quality
+          config: |
+            paths:
+              - nativelab/
+              - PhonoLab/
+            paths-ignore:
+              - "**/test*"
+              - "**/__pycache__"
+              - "**/node_modules"
+              - "nativelab/web_search/searxng/"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+
+  # ── Kotlin/Java Analysis (Android) ──────────────────────────
+  analyze-kotlin:
+    name: "CodeQL — Kotlin/Java"
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' || github.repository_owner == '7ZoneSystems'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          queries: security-extended,security-and-quality
+          config: |
+            paths:
+              - PhonoLab/android/
+            paths-ignore:
+              - "**/build/"
+              - "**/.gradle/"
+              - "**/test/"
+              - "**/androidTest/"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build Android app (compile only)
+        working-directory: PhonoLab/android
+        run: ./gradlew compileDebugKotlin --no-daemon
+        env:
+          JAVA_HOME: ${{ env.JAVA_HOME }}
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:java-kotlin"
+
+  # ── JavaScript Analysis ─────────────────────────────────────
+  analyze-javascript:
+    name: "CodeQL — JavaScript"
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule' || github.repository_owner == '7ZoneSystems'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+          config: |
+            paths:
+              - web_page/
+              - nativelab/
+            paths-ignore:
+              - "**/node_modules"
+              - "**/searxng/"
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
+
+  # ── Summary ─────────────────────────────────────────────────
+  scan-summary:
+    name: "Security Scan Summary"
+    runs-on: ubuntu-latest
+    needs:
+      - analyze-python
+      - analyze-kotlin
+      - analyze-javascript
+    if: always()
+
+    steps:
+      - name: Check results
+        run: |
+          echo "## CodeQL Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Language | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Python | ${{ needs.analyze-python.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Kotlin/Java | ${{ needs.analyze-kotlin.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| JavaScript | ${{ needs.analyze-javascript.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View detailed results in the Security tab." >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.analyze-python.result }}" == "failure" ] || \
+             [ "${{ needs.analyze-kotlin.result }}" == "failure" ] || \
+             [ "${{ needs.analyze-javascript.result }}" == "failure" ]; then
+            echo "::warning::One or more CodeQL scans failed. Check the Security tab for details."
+          fi

@@ -36,6 +36,20 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 
 ---
 
+## 📱 PhonoLab — Android Client
+
+PhonoLab is the official NativeLab Android client. Same local-first philosophy, runs llama.cpp on-device.
+
+| Page | Topic |
+|---|---|
+| [PhonoLab README](../PhonoLab/docs/README.md) | Documentation index for the Android app. |
+| [ANDROID_APP.md](../PhonoLab/docs/ANDROID_APP.md) | Android architecture, error handling, singleton pattern, lifecycle protection. |
+| [FILE_INDEX.md](../PhonoLab/docs/FILE_INDEX.md) | Every file in the Android project — purpose, classes, constants. |
+| [CONSTANTS.md](../PhonoLab/docs/CONSTANTS.md) | All Android constants, limits, colors, URLs. |
+| [CONTRIBUTING.md](../PhonoLab/docs/CONTRIBUTING.md) | What to edit for specific Android changes. |
+
+---
+
 ## 🗂️ Quick links by task
 
 **"I want to chat with a local model from my terminal."**
@@ -61,6 +75,9 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 
 **"I want to understand how the codebase is organised."**
 → [architecture.md](architecture.md).
+
+**"I want to run NativeLab on my Android phone."**
+→ [PhonoLab docs](../PhonoLab/docs/README.md) and the [PhonoLab web page](../web_page/phonolab.html).
 
 ---
 

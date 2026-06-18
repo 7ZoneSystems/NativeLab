@@ -2,13 +2,14 @@
 
 ## Supported Versions
 
-NativeLab is currently in early development. Only the latest version on main is supported.
+NativeLab (desktop) and PhonoLab (Android) are currently in active development. Only the latest version on main is supported.
 
-| Version | Supported |
-| ------- | --------- |
-| =>v0.2.5| yes       |
-| latest  | yes       |
-| older   | no        |
+| Project | Version | Supported |
+|---------|---------|-----------|
+| NativeLab | >= v0.2.5 | yes |
+| NativeLab | latest | yes |
+| PhonoLab | latest | yes |
+| older | any | no |
 
 ## Reporting a Vulnerability
 

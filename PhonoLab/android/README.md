@@ -5,11 +5,19 @@ Open this directory directly in Android Studio.
 ## Features
 
 ### ChatGPT-style UI
-- **Bottom input bar** with send button
+- **Bottom input bar** with send button and attachment button
 - **Collapsible sidebar** with chat history grouped by date
 - **New Chat** button in sidebar header
 - **Search** conversations
 - **Long-press** sessions for rename/delete/export
+
+### Document & Image Attachments
+- **Attachment button** (paperclip) left of model picker
+- **Image picker**: gallery (PhotoPicker on Android 13+, fallback to file picker)
+- **Document picker**: .pdf, .txt, .doc, .docx files
+- **RAG processing**: extracts text, chunks (1500 chars), keyword-based retrieval
+- **Progress bar** shown during document processing
+- **Preview chip** with filename and clear button
 
 ### Light/Dark Theme (NativeLab-inspired)
 - **Dark**: Studio dark palette (`#09090d` bg, `#55C2A4` teal accent)
@@ -23,6 +31,7 @@ Open this directory directly in Android Studio.
 - **Load/Remove** models
 - **Parameter validation** with warnings
 - **Model registry**: persists config in `model_registry.json`
+- **API Models section**: configure external API providers (OpenAI, etc.)
 
 ### Downloads (Downloads tab)
 - **llama.cpp runtime**: auto-install binary or pull source
@@ -35,6 +44,13 @@ Open this directory directly in Android Studio.
 - **Date-grouped** in sidebar (Today, Yesterday, dates)
 - **Export** to Markdown via share intent
 - **Search** across all sessions
+- **Log capping**: max 500 log entries per session
+
+### Error Handling
+- **Fatal errors**: restart dialog with "Restart" or "Exit" buttons
+- **Non-fatal errors**: red exclamation banner (auto-dismisses 5s)
+- **State errors**: caught by `safeRunState()`, shows banner
+- **Lifecycle guards**: all UI updates check `isAdded` before touching views
 
 ### Responsive Layout
 - **Phone**: 280dp sidebar, full-width content
@@ -44,25 +60,41 @@ Open this directory directly in Android Studio.
 
 ```
 org.nativelab.phonolab/
-├── MainActivity.kt          (DrawerLayout + sidebar navigation)
-├── theme/ThemeManager.kt    (Light/dark palette system)
+├── PhonoLabApp.kt           (Singletons, crash handler, error reporting)
+├── MainActivity.kt          (DrawerLayout + sidebar, implements ChatFragment.Host)
+├── LlamaRuntime.kt          (Server lifecycle, generate, abort, vision support)
+├── LlamaCppManager.kt       (JNI bridge, nativeLoaded guard)
+├── PhonoLabStore.kt         (Storage paths, API model config)
+├── StorageManager.kt        (SAF folder picker)
+├── SafeDownloader.kt        (HuggingFace downloads with resume)
+├── ModelCatalog.kt          (Built-in model catalog)
+├── ModelFamily.kt           (Chat template + VLM detection)
+├── RagProcessor.kt          (Document RAG: extract, chunk, retrieve)
 ├── data/
-│   ├── ChatSession.kt       (Session + Message data classes)
+│   ├── ChatSession.kt       (Session + Message + imageBase64 + log cap)
 │   ├── SessionManager.kt    (JSON persistence)
 │   └── ModelManager.kt      (GGUF registry + per-model config)
+├── api/
+│   ├── ApiConfig.kt         (Server config, key generation)
+│   └── PhonoLabApiServer.kt (HTTP server, body limit, socket guards)
 ├── ui/
-│   ├── ChatFragment.kt      (Chat + bottom input)
-│   ├── ModelsFragment.kt    (Model library + params editor)
-│   └── DownloadsFragment.kt (Runtime + model downloads)
+│   ├── ChatFragment.kt      (Chat + attachments + RAG + Host interface)
+│   ├── ModelsFragment.kt    (Model library + params + API models)
+│   ├── DownloadsFragment.kt (Runtime + model downloads)
+│   ├── ApiFragment.kt       (API server control panel)
+│   ├── ErrorBannerView.kt   (Red exclamation banner)
+│   └── AttachmentBottomSheet.kt (Image/Document picker)
 ├── adapter/
-│   ├── ChatAdapter.kt       (Message bubbles)
+│   ├── ChatAdapter.kt       (Message bubbles + math WebView)
 │   ├── SessionAdapter.kt    (Date-grouped session list)
 │   ├── ModelAdapter.kt      (Model list)
-│   └── CatalogAdapter.kt    (Download catalog)
-├── LlamaRuntime.kt          (llama.cpp binary/source management)
-├── PhonoLabStore.kt         (App storage paths)
-├── SafeDownloader.kt        (Resumable HTTP downloads)
-└── ModelCatalog.kt          (Small model catalog)
+│   ├── CatalogAdapter.kt    (Download catalog)
+│   └── ApiModelAdapter.kt   (API model list)
+├── theme/ThemeManager.kt    (Light/dark palette system)
+├── util/
+│   ├── MathHelper.kt        (Math detection + KaTeX wrapping)
+│   └── UiHelpers.kt         (calcPercent helper)
+└── runner.cpp               (JNI fork+execve wrapper)
 ```
 
 ## Build & Run
@@ -107,7 +139,8 @@ PhonoLab/android/app/build/outputs/apk/debug/app-debug.apk
 - `org.json:json:20231013`
 
 ## Permissions
-- `INTERNET` - model/runtime downloads
+- `INTERNET` - model/runtime downloads, API server
 - `ACCESS_NETWORK_STATE` - connectivity check
+- `READ_MEDIA_*` - file access (Android 13+)
 
 All data stays in app-private storage.

@@ -1,0 +1,110 @@
+# Dependabot configuration for NativeLab + PhonoLab
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+
+updates:
+  # ── Python (pip) ──────────────────────────────────────────────
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "7ZoneSystems"
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "pip"
+      include: "scope"
+    groups:
+      python-dev:
+        patterns:
+          - "pytest*"
+          - "pyflakes"
+          - "flake8"
+          - "pylint"
+          - "pyinstaller*"
+          - "pyright"
+        update-types:
+          - "minor"
+          - "patch"
+      python-core:
+        patterns:
+          - "PyQt*"
+          - "psutil"
+          - "pypdf"
+          - "requests"
+          - "huggingface-hub"
+          - "safetensors"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ── Gradle (Android / PhonoLab) ──────────────────────────────
+  - package-ecosystem: "gradle"
+    directory: "/PhonoLab/android"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "7ZoneSystems"
+    labels:
+      - "dependencies"
+      - "android"
+      - "gradle"
+    commit-message:
+      prefix: "gradle"
+      include: "scope"
+    groups:
+      android-material:
+        patterns:
+          - "com.google.android.material:*"
+          - "com.google.android.gms:*"
+        update-types:
+          - "minor"
+          - "patch"
+      android-x:
+        patterns:
+          - "androidx.*"
+        update-types:
+          - "minor"
+          - "patch"
+      android-build:
+        patterns:
+          - "com.android.tools:*"
+          - "org.jetbrains.kotlin:*"
+        update-types:
+          - "patch"
+
+  # ── GitHub Actions ───────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "7ZoneSystems"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
