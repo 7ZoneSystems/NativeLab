@@ -20,6 +20,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import org.nativelab.phonolab.adapter.SessionAdapter
 import org.nativelab.phonolab.data.ChatSession
+import org.nativelab.phonolab.data.ModelManager
 import org.nativelab.phonolab.data.SessionManager
 import org.nativelab.phonolab.theme.ThemeManager
 import org.nativelab.phonolab.ui.ApiFragment
@@ -27,7 +28,7 @@ import org.nativelab.phonolab.ui.ChatFragment
 import org.nativelab.phonolab.ui.DownloadsFragment
 import org.nativelab.phonolab.ui.ModelsFragment
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), ChatFragment.Host {
 
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var toolbar: MaterialToolbar
@@ -39,6 +40,8 @@ class MainActivity : AppCompatActivity() {
 
     private var sessions = listOf<ChatSession>()
     private var activeSessionId = ""
+    private var currentFragmentTag = "chat" // chat, models, downloads, api
+    @Volatile var isSelectingImage = false
 
     // SAF folder picker launcher
     private lateinit var folderPickerLauncher: ActivityResultLauncher<Uri?>
@@ -69,12 +72,10 @@ class MainActivity : AppCompatActivity() {
         folderPickerLauncher = storageManager.registerLauncher(this)
         storageManager.onFolderSelected = { uri -> onFolderReady(uri) }
 
-        // Check if folder is already selected
+        // Check if folder is already selected (or default was chosen)
         if (storageManager.loadPersistedUri()) {
-            // Folder already picked — initialize normally
-            initializeApp()
+            initializeApp(savedInstanceState)
         } else {
-            // First launch — ask user to pick a folder
             showFolderPickerDialog()
         }
     }
@@ -94,21 +95,23 @@ class MainActivity : AppCompatActivity() {
                 storageManager.pickFolder(folderPickerLauncher)
             }
             .setNegativeButton("Use Default") { _, _ ->
-                // Use app-private storage (no picker needed)
+                storageManager.markUsingDefault()
                 onFolderReady(null)
             }
             .show()
     }
 
     private fun onFolderReady(uri: Uri?) {
-        initializeApp()
+        initializeApp(null)
         Toast.makeText(this, "Storage: ${storageManager.getDisplayPath()}", Toast.LENGTH_LONG).show()
     }
 
-    private fun initializeApp() {
-        store = PhonoLabStore(this, storageManager)
-        sessionManager = SessionManager(store)
-        runtime = LlamaRuntime(this, store)
+    private fun initializeApp(savedInstanceState: Bundle?) {
+        // Use application-level singletons (survive recreate)
+        val app = application as PhonoLabApp
+        store = app.store
+        sessionManager = app.sessionManager
+        runtime = app.runtime
 
         drawerLayout = findViewById(R.id.drawer_layout)
         toolbar = findViewById(R.id.toolbar)
@@ -136,9 +139,16 @@ class MainActivity : AppCompatActivity() {
             }
         )
 
-        // Load chat fragment by default
+        // Restore the fragment that was active before recreate (or default to chat)
         if (supportFragmentManager.findFragmentById(R.id.fragment_container) == null) {
-            navigateTo(ChatFragment(), "PhonoLab")
+            val restored = savedInstanceState?.getString("fragment_tag", "chat") ?: "chat"
+            currentFragmentTag = restored
+            when (restored) {
+                "models" -> navigateTo(ModelsFragment(), "Models")
+                "downloads" -> navigateTo(DownloadsFragment(), "Downloads")
+                "api" -> navigateTo(ApiFragment(), "API Endpoint")
+                else -> navigateTo(ChatFragment(), "PhonoLab")
+            }
         }
 
         refreshSessionList()
@@ -191,6 +201,15 @@ class MainActivity : AppCompatActivity() {
             navigateTo(ApiFragment(), "API Endpoint")
             drawerLayout.closeDrawer(android.view.Gravity.START)
         }
+        findViewById<View>(R.id.nav_logs)?.setOnClickListener {
+            val chatFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
+            if (chatFragment is ChatFragment) {
+                chatFragment.showLogs()
+            } else {
+                navigateTo(ChatFragment(), "PhonoLab")
+            }
+            drawerLayout.closeDrawer(android.view.Gravity.START)
+        }
         findViewById<View>(R.id.nav_theme_toggle).setOnClickListener {
             ThemeManager.toggleTheme()
             recreate()
@@ -198,6 +217,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun navigateTo(fragment: Fragment, title: String) {
+        currentFragmentTag = when (fragment) {
+            is ChatFragment -> "chat"
+            is ModelsFragment -> "models"
+            is DownloadsFragment -> "downloads"
+            is ApiFragment -> "api"
+            else -> "chat"
+        }
         supportFragmentManager.beginTransaction()
             .replace(R.id.fragment_container, fragment)
             .commit()
@@ -212,13 +238,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onSessionChanged() {
+        refreshSessionList()
+    }
+
     private fun newChat() {
         val chatFragment = supportFragmentManager.findFragmentById(R.id.fragment_container)
         if (chatFragment is ChatFragment) {
             chatFragment.newChat()
             activeSessionId = chatFragment.getCurrentSession()?.id ?: ""
         } else {
-            navigateTo(ChatFragment(), "PhonoLab")
+            val newFragment = ChatFragment()
+            navigateTo(newFragment, "PhonoLab")
         }
         drawerLayout.closeDrawer(android.view.Gravity.START)
         refreshSessionList()
@@ -304,10 +335,42 @@ class MainActivity : AppCompatActivity() {
         startActivity(android.content.Intent.createChooser(intent, "Export Chat"))
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("fragment_tag", currentFragmentTag)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isSelectingImage && isFinishing) {
+            try {
+                if (::runtime.isInitialized) {
+                    runtime.unload()
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (!isSelectingImage && level >= android.content.ComponentCallbacks2.TRIM_MEMORY_COMPLETE) {
+            try {
+                if (::runtime.isInitialized) {
+                    runtime.unload()
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
     override fun onDestroy() {
-        try {
-            if (::runtime.isInitialized) runtime.killAllLlamaProcesses()
-        } catch (_: Exception) { }
+        if (isFinishing) {
+            try {
+                if (::runtime.isInitialized) {
+                    runtime.unload()
+                    runtime.killAllLlamaProcesses()
+                }
+            } catch (_: Exception) { }
+        }
         super.onDestroy()
     }
 
