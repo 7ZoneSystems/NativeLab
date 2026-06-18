@@ -62,9 +62,38 @@ class SafeDownloader(private val store: PhonoLabStore) {
     ): File {
         val selected = chooseFile(fetchGgufFiles(candidate.repo), candidate)
         val dest = store.safeChild(File(store.modelsDir, candidate.key), File(selected.name).name)
+
+        // Skip download if identical file already exists
+        if (dest.exists() && dest.length() == selected.size) {
+            return dest
+        }
+
         val url = "https://huggingface.co/${candidate.repo}/resolve/main/${encodePath(selected.name)}"
         download(url, dest, selected.size, progress)
+
+        // Clean up duplicates: if other .gguf files exist for this candidate,
+        // keep only the largest one
+        cleanupDuplicates(dest)
+
         return dest
+    }
+
+    /**
+     * Remove smaller duplicate .gguf files in the same directory.
+     * Keeps only the largest file (the one just downloaded is likely the right quant).
+     */
+    private fun cleanupDuplicates(downloaded: File) {
+        val parent = downloaded.parentFile ?: return
+        if (!parent.exists()) return
+        val ggufFiles = parent.listFiles()?.filter {
+            it.isFile && it.extension.equals("gguf", ignoreCase = true) && it != downloaded
+        } ?: return
+        for (file in ggufFiles) {
+            // Delete if smaller than the just-downloaded file, or if same name (stale .part)
+            if (file.length() < downloaded.length()) {
+                file.delete()
+            }
+        }
     }
 
     fun download(
@@ -116,7 +145,15 @@ class SafeDownloader(private val store: PhonoLabStore) {
         }
         if (total > 0L && done < total) error("Download was incomplete.")
         if (dest.exists()) dest.delete()
-        require(part.renameTo(dest)) { "Could not finalize downloaded file." }
+        if (!part.renameTo(dest)) {
+            // renameTo can fail on cross-filesystem moves; fallback to copy+delete
+            part.inputStream().use { input ->
+                dest.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            part.delete()
+        }
         return dest
     }
 
