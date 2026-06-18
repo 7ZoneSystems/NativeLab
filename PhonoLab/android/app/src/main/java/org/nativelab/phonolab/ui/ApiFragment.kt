@@ -142,7 +142,7 @@ class ApiFragment : Fragment() {
         server = PhonoLabApiServer(
             config = config,
             onLog = { msg -> runOnUi { appendLog(msg) } },
-            generateFn = { prompt, nPredict, temperature, topP ->
+            generateFn = { prompt, nPredict, temperature, topP, topK, repeatPenalty ->
                 if (!capturedRuntime.isModelLoaded()) {
                     val modelFile = capturedRuntime.loadedModelPath()?.let { java.io.File(it) }
                     if (modelFile != null && modelFile.exists()) {
@@ -151,7 +151,7 @@ class ApiFragment : Fragment() {
                 }
                 capturedRuntime.generate(prompt) { }
             },
-            streamGenerateFn = { prompt, nPredict, temperature, topP, onToken ->
+            streamGenerateFn = { prompt, nPredict, temperature, topP, topK, repeatPenalty, onToken ->
                 if (!capturedRuntime.isModelLoaded()) {
                     val modelFile = capturedRuntime.loadedModelPath()?.let { java.io.File(it) }
                     if (modelFile != null && modelFile.exists()) {
@@ -163,10 +163,14 @@ class ApiFragment : Fragment() {
             runtimeInfo = {
                 mapOf(
                     "loaded" to capturedRuntime.isModelLoaded(),
-                    "model" to (capturedRuntime.loadedModelPath()?.substringAfterLast("/") ?: "none"),
+                    "model" to (capturedRuntime.loadedModelPath()?.substringAfterLast("/")?.removeSuffix(".gguf") ?: "none"),
                     "model_path" to (capturedRuntime.loadedModelPath() ?: ""),
-                    "state" to if (capturedRuntime.isServerRunning()) "loaded" else "idle",
-                    "ctx" to 2048,
+                    "state" to when {
+                        capturedRuntime.isModelLoaded() -> "loaded"
+                        capturedRuntime.isServerRunning() -> "server_running"
+                        else -> "idle"
+                    },
+                    "ctx" to (capturedRuntime.loadedConfig?.ctx ?: 2048),
                 )
             },
             modelList = {
@@ -174,6 +178,21 @@ class ApiFragment : Fragment() {
                 capturedModelManager.all().map { m ->
                     mapOf("id" to m.name, "path" to m.path)
                 }
+            },
+            loadModelFn = { modelPath ->
+                val model = java.io.File(modelPath)
+                capturedRuntime.load(model)
+            },
+            updateConfigFn = { temperature, topP, topK, repeatPenalty, maxTokens, ctx ->
+                capturedRuntime.loadedConfig?.let { cfg ->
+                    capturedRuntime.updateConfig(temperature, topP, topK, repeatPenalty, maxTokens, ctx)
+                }
+            },
+            getVisionModelFn = {
+                val path = capturedRuntime.loadedModelPath() ?: ""
+                if (path.isNotEmpty()) {
+                    org.nativelab.phonolab.detectVisionModel(path.substringAfterLast("/")).isVision
+                } else false
             },
         )
 

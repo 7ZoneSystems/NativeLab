@@ -33,7 +33,6 @@ class LlamaRuntime(
     private var serverPid: Int = -1
     private var serverPort: Int = 8080
     private var loadedModelPath: String? = null
-    private var loadedConfig: ModelConfig? = null
     private var _isModelLoaded = false
     private var _isServerRunning = false
     @Volatile private var _abort = false
@@ -59,6 +58,24 @@ class LlamaRuntime(
 
     /** The currently loaded model path. */
     fun loadedModelPath(): String? = loadedModelPath
+
+    /** The current model config (for API parameter editing). */
+    var loadedConfig: ModelConfig? = null
+        private set
+
+    /** Update model config parameters without reloading. */
+    fun updateConfig(temperature: Float? = null, topP: Float? = null, topK: Int? = null, repeatPenalty: Float? = null, maxTokens: Int? = null, ctx: Int? = null) {
+        loadedConfig?.let { cfg ->
+            loadedConfig = cfg.copy(
+                temperature = temperature ?: cfg.temperature,
+                topP = topP ?: cfg.topP,
+                topK = topK ?: cfg.topK,
+                repeatPenalty = repeatPenalty ?: cfg.repeatPenalty,
+                maxTokens = maxTokens ?: cfg.maxTokens,
+                ctx = ctx ?: cfg.ctx,
+            )
+        }
+    }
 
     /** Get runtime status for UI display. */
     fun runtimeStatus(): LlamaCppManager.RuntimeStatus = cppManager.status()
