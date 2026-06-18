@@ -10,11 +10,13 @@ data class ChatMessage(
     val role: String,       // "user" or "assistant"
     val content: String,
     val timestamp: String = now(),
+    val imageBase64: String? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("role", role)
         put("content", content)
         put("timestamp", timestamp)
+        if (imageBase64 != null) put("imageBase64", imageBase64)
     }
 
     companion object {
@@ -22,6 +24,7 @@ data class ChatMessage(
             role = obj.optString("role", "user"),
             content = obj.optString("content", ""),
             timestamp = obj.optString("timestamp", ""),
+            imageBase64 = obj.optString("imageBase64", null),
         )
         fun now(): String = SimpleDateFormat("HH:mm", Locale.US).format(Date())
     }
@@ -32,9 +35,10 @@ data class ChatSession(
     var title: String,
     val created: String,  // "2026-06-13"
     val messages: MutableList<ChatMessage> = mutableListOf(),
+    val logs: MutableList<String> = mutableListOf(),
 ) {
-    fun addMessage(role: String, content: String): ChatMessage {
-        val msg = ChatMessage(role, content)
+    fun addMessage(role: String, content: String, imageBase64: String? = null): ChatMessage {
+        val msg = ChatMessage(role, content, imageBase64 = imageBase64)
         messages.add(msg)
         // Auto-title from first user message
         if (title == "New Chat" && role == "user" && messages.count { it.role == "user" } == 1) {
@@ -43,23 +47,72 @@ data class ChatSession(
         return msg
     }
 
-    fun buildPrompt(maxChars: Int = 8000): String {
+    fun addLog(entry: String) {
+        logs.add(entry)
+        if (logs.size > MAX_LOGS) {
+            val excess = logs.size - MAX_LOGS
+            repeat(excess) { logs.removeAt(0) }
+        }
+    }
+
+    /**
+     * Build OpenAI-compatible messages array for /v1/chat/completions.
+     * The server applies the model's chat template (e.g. SmolLM2's ChatML).
+     */
+    fun buildMessages(
+        systemPrompt: String = "You are a helpful AI assistant.",
+        maxChars: Int = 8000,
+    ): JSONArray {
         val recent = mutableListOf<ChatMessage>()
-        var used = 0
+        var used = systemPrompt.length
         for (m in messages.reversed()) {
             used += m.content.length
             if (used > maxChars) break
             recent.add(0, m)
         }
-        return buildString {
-            for (m in recent) {
-                when (m.role) {
-                    "user" -> append("User: ${m.content}\n")
-                    "assistant" -> append("Assistant: ${m.content}\n")
-                }
+        return JSONArray().apply {
+            put(JSONObject().apply {
+                put("role", "system")
+                put("content", systemPrompt)
+            })
+            recent.forEach { m ->
+                put(JSONObject().apply {
+                    put("role", m.role)
+                    if (m.imageBase64 != null) {
+                        put("content", JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("type", "text")
+                                put("text", m.content)
+                            })
+                            put(JSONObject().apply {
+                                put("type", "image_url")
+                                put("image_url", JSONObject().apply {
+                                    put("url", "data:image/jpeg;base64,${m.imageBase64}")
+                                })
+                            })
+                        })
+                    } else {
+                        put("content", m.content)
+                    }
+                })
             }
-            append("Assistant: ")
         }
+    }
+
+    /**
+     * Build the full request body for /v1/chat/completions.
+     */
+    fun buildRequestBody(
+        systemPrompt: String = "You are a helpful AI assistant.",
+        temperature: Float = 0.7f,
+        maxTokens: Int = 384,
+        maxChars: Int = 8000,
+    ): JSONObject = JSONObject().apply {
+        put("model", "phonolab-active")
+        put("messages", buildMessages(systemPrompt, maxChars))
+        put("temperature", temperature.toDouble())
+        put("max_tokens", maxTokens)
+        put("stream", true)
     }
 
     fun toJson(): JSONObject = JSONObject().apply {
@@ -69,9 +122,14 @@ data class ChatSession(
         put("messages", JSONArray().apply {
             messages.forEach { put(it.toJson()) }
         })
+        put("logs", JSONArray().apply {
+            logs.forEach { put(it) }
+        })
     }
 
     companion object {
+        private const val MAX_LOGS = 500
+
         fun new(title: String = "New Chat"): ChatSession {
             val now = Date()
             return ChatSession(
@@ -86,7 +144,15 @@ data class ChatSession(
             val arr = obj.optJSONArray("messages")
             if (arr != null) {
                 for (i in 0 until arr.length()) {
-                    msgs.add(ChatMessage.fromJson(arr.getJSONObject(i)))
+                    val msgObj = arr.optJSONObject(i) ?: continue
+                    msgs.add(ChatMessage.fromJson(msgObj))
+                }
+            }
+            val sessionLogs = mutableListOf<String>()
+            val logArr = obj.optJSONArray("logs")
+            if (logArr != null) {
+                for (i in 0 until logArr.length()) {
+                    sessionLogs.add(logArr.optString(i, ""))
                 }
             }
             return ChatSession(
@@ -94,6 +160,7 @@ data class ChatSession(
                 title = obj.optString("title", "Chat"),
                 created = obj.optString("created", ""),
                 messages = msgs,
+                logs = sessionLogs,
             )
         }
     }
