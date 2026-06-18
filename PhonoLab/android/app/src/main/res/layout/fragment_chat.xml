@@ -6,102 +6,6 @@
     android:orientation="vertical"
     android:background="@color/ph_window_bg">
 
-    <!-- Status bar -->
-    <LinearLayout
-        android:id="@+id/status_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="10dp"
-        android:background="@color/ph_surface">
-
-        <TextView
-            android:id="@+id/status_icon"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:text="●"
-            android:textSize="12sp"
-            android:textColor="@color/ph_txt3"
-            android:gravity="center" />
-
-        <TextView
-            android:id="@+id/status_text"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Ready"
-            android:textColor="@color/ph_txt2"
-            android:textSize="12sp"
-            android:paddingStart="8dp" />
-
-        <ProgressBar
-            android:id="@+id/progress_bar"
-            android:layout_width="60dp"
-            android:layout_height="4dp"
-            android:progressDrawable="@drawable/ph_progress_drawable"
-            android:max="100"
-            android:progress="0"
-            android:visibility="gone" />
-    </LinearLayout>
-
-    <!-- Model selector row -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:background="@color/ph_surface"
-        android:gravity="center_vertical">
-
-        <Spinner
-            android:id="@+id/model_spinner"
-            android:layout_width="0dp"
-            android:layout_height="40dp"
-            android:layout_weight="1"
-            android:background="@drawable/ph_spinner_bg"
-            android:popupBackground="@color/ph_surface" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_setup"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginStart="6dp"
-            android:text="Setup"
-            android:textSize="11sp"
-            app:cornerRadius="6dp"
-            xmlns:app="http://schemas.android.com/apk/res-auto" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_download_model"
-            style="@style/Widget.Material3.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginStart="4dp"
-            android:text="Download"
-            android:textSize="11sp"
-            app:cornerRadius="6dp"
-            xmlns:app="http://schemas.android.com/apk/res-auto" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_load_model"
-            style="@style/Widget.Material3.Button"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginStart="4dp"
-            android:text="Load"
-            android:textSize="11sp"
-            app:backgroundTint="@color/ph_accent"
-            app:cornerRadius="6dp"
-            xmlns:app="http://schemas.android.com/apk/res-auto" />
-    </LinearLayout>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/ph_divider" />
-
     <!-- Chat messages -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/rv_chat"
@@ -112,21 +16,185 @@
         android:padding="12dp"
         android:clipToPadding="false" />
 
-    <!-- Bottom input bar -->
+    <!-- Download progress bar (green, shown during model download) -->
+    <LinearLayout
+        android:id="@+id/download_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="6dp"
+        android:background="@color/ph_surface"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/download_label"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Downloading model…"
+            android:textColor="@color/ph_ok"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/download_progress"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/ph_progress_drawable" />
+    </LinearLayout>
+
+    <!-- Generating / Loading banner -->
+    <LinearLayout
+        android:id="@+id/generating_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp"
+        android:background="@color/ph_surface"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/gen_progress"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:indeterminate="true"
+            android:indeterminateTint="@color/ph_accent" />
+
+        <TextView
+            android:id="@+id/generating_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Generating…"
+            android:textColor="@color/ph_accent"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:paddingStart="8dp" />
+
+        <ImageButton
+            android:id="@+id/btn_stop"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Stop"
+            android:tint="@color/ph_err"
+            android:scaleType="centerInside" />
+    </LinearLayout>
+
+    <!-- RAG processing bar -->
+    <LinearLayout
+        android:id="@+id/rag_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="6dp"
+        android:background="@color/ph_surface"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tv_rag_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Processing document…"
+            android:textColor="@color/ph_accent"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <ProgressBar
+            android:id="@+id/progress_rag"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="6dp"
+            android:layout_marginTop="4dp"
+            android:max="100"
+            android:progress="0"
+            android:progressDrawable="@drawable/ph_progress_drawable" />
+    </LinearLayout>
+
+    <!-- Attachment preview chip -->
+    <LinearLayout
+        android:id="@+id/attachment_chip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:background="@color/ph_chat_input_bg"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tv_attachment_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text=""
+            android:textColor="@color/ph_accent"
+            android:textSize="12sp"
+            android:drawablePadding="6dp"
+            android:ellipsize="middle"
+            android:singleLine="true" />
+
+        <ImageButton
+            android:id="@+id/btn_clear_attachment"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Remove"
+            android:tint="@color/ph_err"
+            android:scaleType="centerInside" />
+    </LinearLayout>
+
+    <!-- Bottom input bar: [Model ▾] [Input] [Send] -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="10dp"
+        android:padding="8dp"
         android:background="@color/ph_chat_input_bg"
         android:gravity="center_vertical"
         android:elevation="8dp">
+
+        <ImageButton
+            android:id="@+id/btn_attach"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_add"
+            android:contentDescription="Attach"
+            android:tint="@color/ph_accent"
+            android:scaleType="centerInside" />
+
+        <TextView
+            android:id="@+id/btn_model_picker"
+            android:layout_width="wrap_content"
+            android:layout_height="44dp"
+            android:gravity="center"
+            android:paddingStart="10dp"
+            android:paddingEnd="4dp"
+            android:text="Model ▾"
+            android:textColor="@color/ph_accent"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:background="@drawable/ph_spinner_bg"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:minWidth="70dp" />
 
         <EditText
             android:id="@+id/prompt_input"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            android:layout_marginStart="6dp"
             android:minHeight="44dp"
             android:maxHeight="120dp"
             android:hint="Message PhonoLab…"
@@ -143,7 +211,7 @@
             android:id="@+id/btn_send"
             android:layout_width="44dp"
             android:layout_height="44dp"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:background="@drawable/ph_btn_primary"
             android:src="@android:drawable/ic_menu_send"
             android:contentDescription="Send"
