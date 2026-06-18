@@ -3,6 +3,9 @@ package org.nativelab.phonolab
 import android.content.Context
 import android.util.Log
 import org.json.JSONObject
+import org.nativelab.phonolab.data.ChatSession
+import org.nativelab.phonolab.data.ModelConfig
+import org.nativelab.phonolab.data.ModelManager
 import java.io.File
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -19,6 +22,7 @@ class LlamaRuntime(
     private val context: Context,
     private val store: PhonoLabStore,
     private val storageManager: StorageManager? = null,
+    private val modelManager: ModelManager? = null,
 ) {
     companion object {
         private const val TAG = "LlamaRuntime"
@@ -29,8 +33,10 @@ class LlamaRuntime(
     private var serverPid: Int = -1
     private var serverPort: Int = 8080
     private var loadedModelPath: String? = null
+    private var loadedConfig: ModelConfig? = null
     private var _isModelLoaded = false
     private var _isServerRunning = false
+    @Volatile private var _abort = false
 
     // ── Public API ──────────────────────────────────────────────────
 
@@ -59,91 +65,157 @@ class LlamaRuntime(
 
     /**
      * Start llama-server with a model.
+     * Looks up ModelConfig from ModelManager for per-model settings.
      * If server is already running with a different model, restarts it.
+     *
+     * @return null on success, error message on failure.
      */
-    fun load(model: File) {
-        require(model.exists()) { "Model file does not exist: ${model.absolutePath}" }
-        require(model.extension.equals("gguf", ignoreCase = true)) {
-            "Not a GGUF file: ${model.name}"
+    fun load(model: File): String? {
+        try {
+            if (!model.exists()) return "Model file not found: ${model.name}"
+            if (!model.extension.equals("gguf", ignoreCase = true)) return "Not a GGUF file: ${model.name}"
+            if (model.length() < 1000) return "Model file is too small: ${model.name}"
+
+            val server = findServer()
+                ?: return "llama-server not bundled. Run setup_binaries.sh and rebuild APK."
+
+            // If server is running with the same model, just return
+            if (isServerRunning() && loadedModelPath == model.absolutePath && _isModelLoaded) {
+                return null
+            }
+
+            val cfg = modelManager?.get(model.absolutePath)
+            loadedConfig = cfg
+
+            stopServer()
+            val startError = startServer(server, model, cfg)
+            if (startError != null) return startError
+            loadedModelPath = model.absolutePath
+            return null
+        } catch (e: Exception) {
+            Log.e(TAG, "load() failed", e)
+            cleanup()
+            return "Load failed: ${e.message}"
         }
-        require(model.length() > 1000) { "Model file is too small" }
+    }
 
-        val server = findServer() ?: error(
-            "llama-server not found in nativeLibraryDir.\n" +
-                "Run setup_binaries.sh and rebuild the APK.\n" +
-                "Path: ${context.applicationInfo.nativeLibraryDir}"
-        )
-
-        // If server is running with the same model, just return
-        if (isServerRunning() && loadedModelPath == model.absolutePath && _isModelLoaded) {
-            return
-        }
-
-        stopServer()
-        startServer(server, model)
-        loadedModelPath = model.absolutePath
+    /** Signal current generation to abort (does NOT kill server). */
+    fun abort() {
+        _abort = true
     }
 
     /** Unload model and stop server. */
     fun unload() {
-        stopServer()
+        _abort = true
+        try {
+            stopServer()
+        } catch (_: Exception) {}
         loadedModelPath = null
+        loadedConfig = null
         _isModelLoaded = false
     }
 
+    /** Emergency cleanup — reset all state. */
+    private fun cleanup() {
+        _abort = true
+        try { stopServer() } catch (_: Exception) {}
+        serverPid = -1
+        loadedModelPath = null
+        loadedConfig = null
+        _isModelLoaded = false
+        _isServerRunning = false
+    }
+
     /**
-     * Generate text via llama-server HTTP API.
+     * Generate text via llama-server /v1/chat/completions (SSE streaming).
+     * The server applies the model's chat template — no raw prompt needed.
+     *
+     * @return generated text, or error message prefixed with "[ERROR]".
      */
     fun generate(prompt: String, onToken: (String) -> Unit): String {
-        // Auto-start if needed
-        if (!isServerRunning() && loadedModelPath != null) {
-            val model = File(loadedModelPath!!)
-            val server = findServer()
-            if (server != null && model.exists()) {
-                startServer(server, model)
-            }
-        }
-
-        require(isServerRunning()) { "llama-server is not running. Load a model first." }
-        require(_isModelLoaded) { "No model loaded. Select and load a model first." }
-        require(prompt.length <= 18_000) { "Prompt too long (${prompt.length} chars). Max: 18,000." }
-
-        val requestBody = JSONObject().apply {
-            put("prompt", prompt)
-            put("n_predict", 384)
-            put("temperature", 0.7)
-            put("top_p", 0.9)
-            put("repeat_penalty", 1.1)
-            put("stream", false)
-        }
-
-        val url = URL("http://127.0.0.1:$serverPort/completion")
-        val conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "POST"
-        conn.setRequestProperty("Content-Type", "application/json")
-        conn.connectTimeout = 5_000
-        conn.readTimeout = 300_000
-        conn.doOutput = true
-
+        _abort = false
         try {
-            OutputStreamWriter(conn.outputStream).use { writer ->
-                writer.write(requestBody.toString())
-                writer.flush()
+            // Auto-start if needed
+            if (!isServerRunning() && loadedModelPath != null) {
+                val modelPath = loadedModelPath ?: return "[ERROR] No model loaded."
+                val model = File(modelPath)
+                val server = findServer()
+                if (server != null && model.exists()) {
+                    val startErr = startServer(server, model, loadedConfig)
+                    if (startErr != null) return "[ERROR] $startErr"
+                }
             }
 
-            val status = conn.responseCode
-            if (status != 200) {
-                val errBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
-                error("llama-server returned HTTP $status: $errBody")
-            }
+            if (!isServerRunning()) return "[ERROR] Server not running. Load a model first."
+            if (!_isModelLoaded) return "[ERROR] No model loaded."
+            if (prompt.length > 18_000) return "[ERROR] Prompt too long (${prompt.length} chars). Max: 18,000."
 
-            val responseBody = conn.inputStream.bufferedReader().readText()
-            val json = JSONObject(responseBody)
-            val content = json.optString("content", "")
-            onToken(content)
-            return content
-        } finally {
-            conn.disconnect()
+            val session = ChatSession.new()
+            session.addMessage("user", prompt)
+            val cfg = loadedConfig
+            val requestBody = session.buildRequestBody(
+                systemPrompt = "You are a helpful AI assistant.",
+                temperature = cfg?.temperature ?: 0.7f,
+                maxTokens = cfg?.maxTokens ?: 384,
+            )
+
+            val url = URL("http://127.0.0.1:$serverPort/v1/chat/completions")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.setRequestProperty("Accept", "text/event-stream")
+            conn.connectTimeout = 5_000
+            conn.readTimeout = 300_000
+            conn.doOutput = true
+
+            try {
+                OutputStreamWriter(conn.outputStream).use { writer ->
+                    writer.write(requestBody.toString())
+                    writer.flush()
+                }
+
+                val status = conn.responseCode
+                if (status != 200) {
+                    val errBody = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+                    return "[ERROR] Server returned HTTP $status: ${errBody.take(200)}"
+                }
+
+                val result = StringBuilder()
+                conn.inputStream.bufferedReader().use { reader ->
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        // Check abort flag — user stopped generation
+                        if (_abort) break
+
+                        val l = line ?: continue
+                        if (!l.startsWith("data: ")) continue
+                        val data = l.removePrefix("data: ").trim()
+                        if (data == "[DONE]") break
+                        try {
+                            val json = JSONObject(data)
+                            val choices = json.optJSONArray("choices") ?: continue
+                            if (choices.length() == 0) continue
+                            val delta = choices.getJSONObject(0).optJSONObject("delta") ?: continue
+                            if (delta.isNull("content")) continue
+                            val token = delta.optString("content", "")
+                            if (token.isNotEmpty()) {
+                                result.append(token)
+                                onToken(token)
+                            }
+                        } catch (_: Exception) { }
+                    }
+                }
+                return if (_abort && result.isEmpty()) "[ABORTED]" else result.toString()
+            } finally {
+                conn.disconnect()
+            }
+        } catch (e: java.io.EOFException) {
+            // Server was killed while reading — not a real error if user aborted
+            Log.w(TAG, "Stream closed (EOF)", e)
+            return if (_abort) "[ABORTED]" else "[ERROR] Server closed connection unexpectedly"
+        } catch (e: Exception) {
+            Log.e(TAG, "generate() failed", e)
+            return if (_abort) "[ABORTED]" else "[ERROR] ${e.message}"
         }
     }
 
@@ -155,24 +227,44 @@ class LlamaRuntime(
 
     // ── Server management ───────────────────────────────────────────
 
-    private fun startServer(serverBinary: File, model: File) {
+    /**
+     * Start llama-server.
+     * @return null on success, error message on failure.
+     */
+    private fun startServer(serverBinary: File, model: File, cfg: ModelConfig? = null): String? {
         stopServer()
 
-        val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val defaultThreads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val threads = cfg?.threads ?: defaultThreads
+        val ctxSize = cfg?.ctx ?: 2048
+        val nPredict = cfg?.maxTokens ?: 384
         serverPort = findFreePort()
+
+        val visionInfo = detectVisionModel(model.name)
+        val mmproj = if (visionInfo.isVision) detectMmprojForModel(model).ifEmpty { null } else null
 
         Log.d(TAG, "Starting server: ${serverBinary.absolutePath}")
         Log.d(TAG, "Model: ${model.absolutePath} (${model.length()} bytes)")
-        Log.d(TAG, "Port: $serverPort, Threads: $threads")
+        Log.d(TAG, "Port: $serverPort, Threads: $threads, Ctx: $ctxSize, nPredict: $nPredict")
+        if (mmproj != null) Log.d(TAG, "Vision model detected, mmproj: $mmproj")
+        cfg?.let {
+            Log.d(TAG, "Config: temp=${it.temperature}, topP=${it.topP}, topK=${it.topK}, rep=${it.repeatPenalty}")
+        }
 
         val pid = cppManager.startServer(
             serverBin = serverBinary,
             modelPath = model,
             port = serverPort,
             threads = threads,
-            ctxSize = 2048,
-            nPredict = 384,
+            ctxSize = ctxSize,
+            nPredict = nPredict,
+            mmproj = mmproj,
         )
+
+        if (pid <= 0) {
+            cleanup()
+            return "Failed to start llama-server process. The binary may be missing or incompatible."
+        }
 
         serverPid = pid
 
@@ -184,8 +276,8 @@ class LlamaRuntime(
         while (System.currentTimeMillis() - startTime < timeout && !ready) {
             val exitCode = cppManager.checkProcess(pid)
             if (exitCode > 0) {
-                serverPid = -1
-                error("llama-server exited immediately with code $exitCode")
+                cleanup()
+                return "llama-server exited immediately with code $exitCode. The model may be corrupted or too large."
             }
 
             try {
@@ -203,14 +295,15 @@ class LlamaRuntime(
         }
 
         if (!ready) {
-            stopServer()
-            error("llama-server failed to start within 60s. Model may be too large for device.")
+            cleanup()
+            return "llama-server failed to start within 60s. Model may be too large for device memory."
         }
 
         _isServerRunning = true
         _isModelLoaded = true
         loadedModelPath = model.absolutePath
         Log.d(TAG, "Server ready on port $serverPort")
+        return null
     }
 
     private fun stopServer() {

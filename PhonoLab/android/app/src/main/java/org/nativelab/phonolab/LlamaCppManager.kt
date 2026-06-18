@@ -34,8 +34,16 @@ class LlamaCppManager(
         private const val TAG = "LlamaCppManager"
         private const val SERVER_BINARY = "libllama_server.so"
 
+        var nativeLoaded = false
+            private set
+
         init {
-            System.loadLibrary("runner")
+            try {
+                System.loadLibrary("runner")
+                nativeLoaded = true
+            } catch (e: UnsatisfiedLinkError) {
+                Log.e(TAG, "Failed to load librunner.so", e)
+            }
         }
 
         /** Validate binary is a real ELF file. */
@@ -159,18 +167,29 @@ class LlamaCppManager(
         threads: Int = 4,
         ctxSize: Int = 2048,
         nPredict: Int = 384,
+        mmproj: String? = null,
     ): Int {
         val nativeDir = nativeLibraryDir()
 
-        check(serverBin.exists()) { "Server binary not found: ${serverBin.absolutePath}" }
-        check(modelPath.exists()) { "Model not found: ${modelPath.absolutePath}" }
+        if (!nativeLoaded) {
+            Log.e(TAG, "Cannot start server: librunner.so not loaded")
+            return -1
+        }
+        if (!serverBin.exists()) {
+            Log.e(TAG, "Server binary not found: ${serverBin.absolutePath}")
+            return -1
+        }
+        if (!modelPath.exists()) {
+            Log.e(TAG, "Model not found: ${modelPath.absolutePath}")
+            return -1
+        }
 
         Log.d(TAG, "nativeDir: $nativeDir")
         Log.d(TAG, "binary: ${serverBin.absolutePath} (${serverBin.length()} bytes)")
         Log.d(TAG, "model: ${modelPath.absolutePath} (${modelPath.length()} bytes)")
 
         // Args — do NOT put binary path here, runner.cpp prepends it as argv[0]
-        val args = arrayOf(
+        val args = mutableListOf(
             "-m", modelPath.absolutePath,
             "--port", port.toString(),
             "-t", threads.toString(),
@@ -178,6 +197,10 @@ class LlamaCppManager(
             "-n", nPredict.toString(),
             "--host", "127.0.0.1",
         )
+        if (!mmproj.isNullOrEmpty()) {
+            args.add("--mmproj")
+            args.add(mmproj)
+        }
 
         // env — LD_LIBRARY_PATH MUST be nativeLibraryDir and nothing else
         // All .so files live there; the stub dlopen()s impl from the same dir
@@ -190,8 +213,19 @@ class LlamaCppManager(
 
         Log.d(TAG, "Starting with LD_LIBRARY_PATH=$nativeDir")
 
-        val pid = nativeExec(serverBin.absolutePath, args, env)
-        check(pid > 0) { "nativeExec failed, returned pid=$pid" }
+        val pid = try {
+            nativeExec(serverBin.absolutePath, args.toTypedArray(), env)
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "JNI not loaded — runner.so missing?", e)
+            return -1
+        } catch (e: Exception) {
+            Log.e(TAG, "nativeExec failed", e)
+            return -1
+        }
+        if (pid <= 0) {
+            Log.e(TAG, "nativeExec returned invalid pid=$pid")
+            return -1
+        }
 
         Log.d(TAG, "Started PID: $pid")
         return pid
@@ -199,28 +233,36 @@ class LlamaCppManager(
 
     /** Kill server process gracefully. */
     fun killServer(pid: Int) {
-        if (pid <= 0) return
-        Log.d(TAG, "Killing PID: $pid")
-        nativeKill(pid)
-        Thread.sleep(500)
-        if (nativeWaitPid(pid) == 0) {
-            Log.d(TAG, "Force killing PID: $pid")
-            nativeKillForcibly(pid)
+        if (pid <= 0 || !nativeLoaded) return
+        try {
+            Log.d(TAG, "Killing PID: $pid")
+            nativeKill(pid)
+            Thread.sleep(500)
+            if (nativeWaitPid(pid) == 0) {
+                Log.d(TAG, "Force killing PID: $pid")
+                nativeKillForcibly(pid)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "killServer failed for pid=$pid", e)
         }
     }
 
     /** Check if process is still running. */
-    fun isRunning(pid: Int): Boolean = pid > 0 && nativeWaitPid(pid) == 0
+    fun isRunning(pid: Int): Boolean {
+        if (pid <= 0 || !nativeLoaded) return false
+        return try { nativeWaitPid(pid) == 0 } catch (_: Exception) { false }
+    }
 
     /** Get process exit code (0 = still running, >0 = exited). */
     fun checkProcess(pid: Int): Int {
-        if (pid <= 0) return -1
-        return nativeWaitPid(pid)
+        if (pid <= 0 || !nativeLoaded) return -1
+        return try { nativeWaitPid(pid) } catch (_: Exception) { -1 }
     }
 
     // ── Version check ───────────────────────────────────────────────
 
     private fun getBinaryVersion(server: File): String {
+        if (!nativeLoaded) return "native-not-loaded"
         return try {
             val env = arrayOf("LD_LIBRARY_PATH=${nativeLibraryDir()}")
             val pid = nativeExec(server.absolutePath, arrayOf("--version"), env)
@@ -242,6 +284,17 @@ class LlamaCppManager(
     // ── Download & Install (legacy — for runtime download fallback) ──
 
     fun downloadAndInstall(
+        progress: (done: Long, total: Long, label: String) -> Unit,
+    ): File? {
+        return try {
+            doDownloadAndInstall(progress)
+        } catch (e: Exception) {
+            Log.e(TAG, "downloadAndInstall failed", e)
+            null
+        }
+    }
+
+    private fun doDownloadAndInstall(
         progress: (done: Long, total: Long, label: String) -> Unit,
     ): File? {
         // With bundled binaries, this should not be needed.
@@ -314,14 +367,22 @@ class LlamaCppManager(
             conn.connectTimeout = 15_000
             conn.readTimeout = 15_000
             val status = conn.responseCode
-            if (status != 200) { conn.disconnect(); error("GitHub API returned HTTP $status") }
+            if (status != 200) {
+                conn.disconnect()
+                Log.e(TAG, "GitHub API returned HTTP $status")
+                return ""
+            }
             val body = conn.inputStream.bufferedReader().readText()
             conn.disconnect()
             val tag = JSONObject(body).optString("tag_name", "")
-            if (tag.isEmpty()) error("GitHub API returned empty tag_name")
+            if (tag.isEmpty()) {
+                Log.e(TAG, "GitHub API returned empty tag_name")
+                return ""
+            }
             return tag
         } catch (e: Exception) {
-            error("Could not fetch release info: ${e.message}")
+            Log.e(TAG, "Could not fetch release info", e)
+            return ""
         }
     }
 
@@ -400,7 +461,11 @@ class LlamaCppManager(
             }
             conn.disconnect()
             if (dest.exists()) dest.delete()
-            require(part.renameTo(dest)) { "Could not finalize download." }
+            if (!part.renameTo(dest)) {
+                Log.w(TAG, "renameTo failed, falling back to copy+delete")
+                copyFile(part, dest)
+                part.delete()
+            }
             return
         }
         error("Too many redirects")
