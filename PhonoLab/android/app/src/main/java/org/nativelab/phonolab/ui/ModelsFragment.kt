@@ -7,22 +7,28 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import org.nativelab.phonolab.ApiModelConfig
 import org.nativelab.phonolab.LlamaRuntime
+import org.nativelab.phonolab.PhonoLabApp
 import org.nativelab.phonolab.PhonoLabStore
 import org.nativelab.phonolab.R
+import org.nativelab.phonolab.adapter.ApiModelAdapter
 import org.nativelab.phonolab.adapter.ModelAdapter
 import org.nativelab.phonolab.data.ModelConfig
 import org.nativelab.phonolab.data.ModelManager
+import java.util.UUID
 
 class ModelsFragment : Fragment() {
 
     private lateinit var store: PhonoLabStore
     private lateinit var modelManager: ModelManager
     private lateinit var modelAdapter: ModelAdapter
+    private lateinit var apiModelAdapter: ApiModelAdapter
     private lateinit var runtime: LlamaRuntime
 
     // Param fields
@@ -45,9 +51,10 @@ class ModelsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        store = PhonoLabStore(requireContext())
-        modelManager = ModelManager(store)
-        runtime = LlamaRuntime(requireContext(), store)
+        val app = requireActivity().application as PhonoLabApp
+        store = app.store
+        modelManager = app.modelManager
+        runtime = app.runtime
 
         // Model list
         val rvModels = view.findViewById<RecyclerView>(R.id.rv_models)
@@ -74,6 +81,20 @@ class ModelsFragment : Fragment() {
         view.findViewById<MaterialButton>(R.id.btn_remove_model).setOnClickListener { removeSelected() }
         view.findViewById<MaterialButton>(R.id.btn_save_params).setOnClickListener { saveParams() }
 
+        // API Models
+        val rvApiModels = view.findViewById<RecyclerView>(R.id.rv_api_models)
+        apiModelAdapter = ApiModelAdapter(
+            onEdit = { model -> showApiModelDialog(model) },
+            onDelete = { model -> deleteApiModel(model) },
+        )
+        rvApiModels.apply {
+            layoutManager = LinearLayoutManager(context)
+            adapter = apiModelAdapter
+        }
+        view.findViewById<MaterialButton>(R.id.btn_add_api_model).setOnClickListener {
+            showApiModelDialog(null)
+        }
+
         refreshModelList()
     }
 
@@ -81,6 +102,65 @@ class ModelsFragment : Fragment() {
         modelManager.syncDiscovery()
         val activePath = runtime.loadedModelPath()
         modelAdapter.setModels(modelManager.all())
+        refreshApiModels()
+    }
+
+    private fun refreshApiModels() {
+        val models = store.getApiModels()
+        apiModelAdapter.setModels(models)
+        view?.findViewById<View>(R.id.api_models_empty)?.visibility =
+            if (models.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun showApiModelDialog(existing: ApiModelConfig?) {
+        val ctx = context ?: return
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_api_model, null)
+        val etProvider = dialogView.findViewById<EditText>(R.id.et_api_provider)
+        val etModelName = dialogView.findViewById<EditText>(R.id.et_api_model_name)
+        val etBaseUrl = dialogView.findViewById<EditText>(R.id.et_api_base_url)
+        val etApiKey = dialogView.findViewById<EditText>(R.id.et_api_key)
+
+        if (existing != null) {
+            etProvider.setText(existing.provider)
+            etModelName.setText(existing.modelName)
+            etBaseUrl.setText(existing.baseUrl)
+            etApiKey.setText(existing.apiKey)
+        }
+
+        AlertDialog.Builder(ctx)
+            .setTitle(if (existing != null) "Edit API Model" else "Add API Model")
+            .setView(dialogView)
+            .setPositiveButton("Save") { _, _ ->
+                val provider = etProvider.text.toString().trim()
+                val modelName = etModelName.text.toString().trim()
+                val baseUrl = etBaseUrl.text.toString().trim()
+                val apiKey = etApiKey.text.toString().trim()
+                if (provider.isEmpty() || modelName.isEmpty() || baseUrl.isEmpty()) {
+                    Toast.makeText(ctx, "Provider, model name, and base URL are required.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                val models = store.getApiModels().toMutableList()
+                val newModel = ApiModelConfig(
+                    id = existing?.id ?: UUID.randomUUID().toString(),
+                    provider = provider,
+                    modelName = modelName,
+                    baseUrl = baseUrl,
+                    apiKey = apiKey,
+                )
+                val idx = models.indexOfFirst { it.id == existing?.id }
+                if (idx >= 0) models[idx] = newModel else models.add(newModel)
+                store.saveApiModels(models)
+                refreshApiModels()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun deleteApiModel(model: ApiModelConfig) {
+        val models = store.getApiModels().toMutableList()
+        models.removeAll { it.id == model.id }
+        store.saveApiModels(models)
+        refreshApiModels()
     }
 
     private fun onModelSelected(model: ModelConfig) {

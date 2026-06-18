@@ -2,6 +2,8 @@ package org.nativelab.phonolab
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 
 /**
@@ -15,7 +17,7 @@ class PhonoLabStore(context: Context, storageManager: StorageManager? = null) {
         context.getSharedPreferences("phonolab_prefs", Context.MODE_PRIVATE)
 
     /** Base PhonoLab directory. */
-    val root: File = sm.getBaseDir() ?: File(context.filesDir, "PhonoLab").also { it.mkdirs() }
+    val root: File = sm.getBaseDir()
 
     /** llama-server binary + .so files. */
     val runtimeDir: File = sm.getLlamaServerDir()
@@ -79,5 +81,45 @@ class PhonoLabStore(context: Context, storageManager: StorageManager? = null) {
             .filter { it.isFile && it.extension.equals("gguf", ignoreCase = true) }
             .sortedBy { it.name.lowercase() }
             .toList()
+    }
+
+    fun getApiModels(): List<ApiModelConfig> {
+        val json = prefs.getString("api_models", null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(json)
+            (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let { obj -> ApiModelConfig.fromJson(obj) } }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    fun saveApiModels(models: List<ApiModelConfig>) {
+        val arr = JSONArray()
+        models.forEach { arr.put(it.toJson()) }
+        prefs.edit().putString("api_models", arr.toString()).apply()
+    }
+}
+
+data class ApiModelConfig(
+    val id: String,
+    val provider: String,
+    val modelName: String,
+    val baseUrl: String,
+    val apiKey: String = "",
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("id", id)
+        put("provider", provider)
+        put("modelName", modelName)
+        put("baseUrl", baseUrl)
+        put("apiKey", apiKey)
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject) = ApiModelConfig(
+            id = obj.optString("id", ""),
+            provider = obj.optString("provider", ""),
+            modelName = obj.optString("modelName", ""),
+            baseUrl = obj.optString("baseUrl", ""),
+            apiKey = obj.optString("apiKey", ""),
+        )
     }
 }
