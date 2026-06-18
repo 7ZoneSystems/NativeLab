@@ -37,6 +37,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
+        android:name=".PhonoLabApp"
         android:allowBackup="false"
         android:extractNativeLibs="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

@@ -16,6 +16,7 @@
         android:padding="12dp"
         android:maxWidth="320dp">
 
+        <!-- Plain text (shown when no math) -->
         <TextView
             android:id="@+id/msg_content"
             android:layout_width="wrap_content"
@@ -23,6 +24,14 @@
             android:textColor="@color/ph_txt"
             android:textSize="14sp"
             android:lineSpacingMultiplier="1.35" />
+
+        <!-- WebView for math rendering (shown when math detected) -->
+        <WebView
+            android:id="@+id/msg_math_webview"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            android:scrollbars="none" />
 
         <TextView
             android:id="@+id/msg_time"

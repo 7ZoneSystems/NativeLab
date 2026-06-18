@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 0;
+    color: #ededf5;
+    background: transparent;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  .katex { font-size: 1.05em; }
+  .katex-display { margin: 8px 0; overflow-x: auto; overflow-y: hidden; }
+  pre, code {
+    background: rgba(255,255,255,0.06);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 13px;
+  }
+  pre { padding: 8px; margin: 6px 0; overflow-x: auto; }
+  pre code { background: none; padding: 0; }
+  p { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div id="content"></div>
+<script>
+  var raw = decodeURIComponent("%%CONTENT%%");
+  // Escape HTML but preserve math delimiters
+  raw = raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  // Convert newlines
+  raw = raw.replace(/\n/g, '<br>');
+  document.getElementById('content').innerHTML = raw;
+  renderMathInElement(document.getElementById('content'), {
+    delimiters: [
+      {left: '$$', right: '$$', display: true},
+      {left: '$', right: '$', display: false},
+      {left: '\\(', right: '\\)', display: false},
+      {left: '\\[', right: '\\]', display: true},
+      {left: '\\begin{equation}', right: '\\end{equation}', display: true},
+      {left: '\\begin{align}', right: '\\end{align}', display: true}
+    ],
+    throwOnError: false,
+    trust: true
+  });
+  // Notify Android of content height
+  document.body.postHeight = function() {
+    var h = document.body.scrollHeight;
+    if (window.AndroidBridge) AndroidBridge.onHeight(h);
+  };
+  setTimeout(document.body.postHeight, 100);
+  new MutationObserver(function() { document.body.postHeight(); })
+    .observe(document.body, {childList: true, subtree: true});
+</script>
+</body>
+</html>

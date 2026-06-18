@@ -4,7 +4,7 @@ make three modes in current pipeline data
 2) /grep , allows agent to fetch particular line or browse fetched large site catalog 
 3) /query , allows agen to pass web query 
 4) /rag allows agent to make rag chunks nd access them with /grep when needed 
-5) /summarise , mosst important one , allows agent to drop current query , and work on summarisation of web pages nd then checking ram with existing pytodoc subsystem and then reloading model safely without breaking execution stream and maintaining streamer services , 
+5) /summarise , mosst important one , allows agent to drop current query , and work on summarisation of web pages nd then checking ram with existing pytodoc like centralised subsystem and then reloading model safely without breaking execution stream and maintaining streamer services , 
 
 
 2) Big task

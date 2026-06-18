@@ -176,6 +176,18 @@ def hf_resolve_url(repo_id: str, filename: str, revision: str = "main") -> str:
     return f"https://huggingface.co/{repo}/resolve/{quote(revision, safe='')}/{safe_name}"
 
 
+def _cleanup_duplicates(downloaded: Path) -> None:
+    """Remove smaller duplicate .gguf files in the same directory."""
+    parent = downloaded.parent
+    if not parent.exists():
+        return
+    for f in parent.iterdir():
+        if f == downloaded:
+            continue
+        if f.is_file() and f.suffix.lower() == ".gguf" and f.stat().st_size < downloaded.stat().st_size:
+            f.unlink(missing_ok=True)
+
+
 def download_candidate_model(
     candidate: MobileModelCandidate,
     *,
@@ -186,13 +198,23 @@ def download_candidate_model(
     files = fetch_hf_gguf_files(candidate.repo, cfg)
     selected = choose_gguf_file(files, candidate)
     dest = safe_child_path(MODELS_DIR / candidate.key, Path(selected.name).name)
+
+    # Skip download if identical file already exists
+    if dest.exists() and dest.stat().st_size == selected.size:
+        return dest, selected
+
     job = ResumableDownload(
         hf_resolve_url(candidate.repo, selected.name),
         dest,
         expected_size=selected.size,
         config=cfg,
     )
-    return job.run(progress), selected
+    result = job.run(progress)
+
+    # Clean up smaller duplicates
+    _cleanup_duplicates(result)
+
+    return result, selected
 
 
 def download_to_cache(url: str, filename: str, *, progress: ProgressCallback | None = None) -> Path:

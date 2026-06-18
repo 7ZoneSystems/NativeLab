@@ -35,9 +35,9 @@ class StorageManager(private val context: Context) {
     var folderUri: Uri? = null
         private set
 
-    /** Whether a folder has been selected. */
+    /** Whether a folder has been selected (or default was chosen). */
     val hasFolder: Boolean
-        get() = folderUri != null && getBaseDir() != null
+        get() = folderUri != null || isUsingDefault()
 
     /** Register the SAF launcher. Call in onCreate before any other init. */
     fun registerLauncher(activity: AppCompatActivity): ActivityResultLauncher<Uri?> {
@@ -69,12 +69,22 @@ class StorageManager(private val context: Context) {
     /** Callback when folder is selected. */
     var onFolderSelected: ((Uri) -> Unit)? = null
 
-    /** Load persisted folder URI. Returns true if found. */
+    /** Whether user chose "Use Default" storage. */
+    fun isUsingDefault(): Boolean = prefs.getBoolean("use_default", false)
+
+    /** Mark that user chose default storage. */
+    fun markUsingDefault() {
+        prefs.edit().putBoolean("use_default", true).apply()
+    }
+
+    /** Load persisted folder URI. Returns true if found or default was chosen. */
     fun loadPersistedUri(): Boolean {
+        // Check if default was chosen
+        if (prefs.getBoolean("use_default", false)) return true
+
         val uriStr = prefs.getString("folder_uri", null) ?: return false
         return try {
             val uri = Uri.parse(uriStr)
-            // Check we still have permission
             val persisted = context.contentResolver.persistedUriPermissions
             val hasPerm = persisted.any { it.uri == uri && it.isReadPermission && it.isWritePermission }
             if (hasPerm) {
@@ -95,55 +105,50 @@ class StorageManager(private val context: Context) {
         launcher.launch(initialUri)
     }
 
-    /** Get the base PhonoLab directory as a real File path (for binary execution). */
-    fun getBaseDir(): File? {
-        val uri = folderUri ?: return null
-        // Try to get real path from URI
-        val path = getRealPathFromUri(uri)
-        if (path != null) {
-            val dir = File(path, "PhonoLab")
-            dir.mkdirs()
-            return dir
+    /** Get the base PhonoLab directory. Never returns null — always resolves to a valid path. */
+    fun getBaseDir(): File {
+        val uri = folderUri
+        if (uri != null) {
+            val path = getRealPathFromUri(uri)
+            if (path != null) {
+                val dir = File(path, "PhonoLab")
+                dir.mkdirs()
+                return dir
+            }
         }
-        // Fallback: use app-private storage
+        // Default: app-private storage
+        return defaultBaseDir()
+    }
+
+    /** The canonical default base directory (app-private). */
+    private fun defaultBaseDir(): File {
         return File(context.filesDir, "PhonoLab").also { it.mkdirs() }
     }
 
     /** Get the llama-server directory (binary + .so files). */
-    fun getLlamaServerDir(): File {
-        val base = getBaseDir() ?: File(context.filesDir, "PhonoLab")
-        return File(base, "llama-server").also { it.mkdirs() }
-    }
+    fun getLlamaServerDir(): File = File(getBaseDir(), "llama-server").also { it.mkdirs() }
 
     /** Get the models directory. */
-    fun getModelsDir(): File {
-        val base = getBaseDir() ?: File(context.filesDir, "PhonoLab")
-        return File(base, "models").also { it.mkdirs() }
-    }
+    fun getModelsDir(): File = File(getBaseDir(), "models").also { it.mkdirs() }
 
     /** Get the sessions directory. */
-    fun getSessionsDir(): File {
-        val base = getBaseDir() ?: File(context.filesDir, "PhonoLab")
-        return File(base, "sessions").also { it.mkdirs() }
-    }
+    fun getSessionsDir(): File = File(getBaseDir(), "sessions").also { it.mkdirs() }
 
     /** Get the config directory. */
-    fun getConfigDir(): File {
-        val base = getBaseDir() ?: File(context.filesDir, "PhonoLab")
-        return File(base, "config").also { it.mkdirs() }
-    }
+    fun getConfigDir(): File = File(getBaseDir(), "config").also { it.mkdirs() }
 
     /** Get the downloads directory. */
-    fun getDownloadsDir(): File {
-        val base = getBaseDir() ?: File(context.filesDir, "PhonoLab")
-        return File(base, "downloads").also { it.mkdirs() }
-    }
+    fun getDownloadsDir(): File = File(getBaseDir(), "downloads").also { it.mkdirs() }
 
     /** Get the path shown to the user. */
     fun getDisplayPath(): String {
-        val uri = folderUri ?: return "Not set"
-        val path = getRealPathFromUri(uri)
-        return path ?: uri.lastPathSegment ?: "Unknown"
+        val uri = folderUri
+        if (uri != null) {
+            val path = getRealPathFromUri(uri)
+            return path ?: uri.lastPathSegment ?: "Custom folder"
+        }
+        if (isUsingDefault()) return "App-private storage"
+        return getBaseDir().absolutePath
     }
 
     /** Create subdirectories in the selected folder. */

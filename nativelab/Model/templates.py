@@ -1,5 +1,5 @@
 from nativelab.imports.import_global import Dict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from .model_family import ModelFamily
@@ -339,7 +339,7 @@ POPULAR_MODEL_PRESETS: Dict[str, list] = {
 }
 
 
-def popular_model_presets(kind: str = "") -> list:
+def popular_model_presets(kind: str = "") -> Union[list, Dict[str, list]]:
     """Return curated model download presets for the Download tab."""
     if not kind:
         return POPULAR_MODEL_PRESETS
