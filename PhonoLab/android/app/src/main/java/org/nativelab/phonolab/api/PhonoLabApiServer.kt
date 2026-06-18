@@ -27,6 +27,7 @@ import kotlin.concurrent.thread
  */
 class PhonoLabApiServer(
     private val config: ApiConfig,
+    private val context: android.content.Context? = null,
     private val onLog: (String) -> Unit = {},
     private val generateFn: (prompt: String, nPredict: Int, temperature: Float, topP: Float, topK: Int, repeatPenalty: Float) -> String,
     private val streamGenerateFn: ((prompt: String, nPredict: Int, temperature: Float, topP: Float, topK: Int, repeatPenalty: Float, onToken: (String) -> Unit) -> String)? = null,
@@ -284,6 +285,7 @@ class PhonoLabApiServer(
                 method == "GET" && path in listOf("/health", "/v1/health") -> handleHealth(clientIp)
                 method == "GET" && path == "/status" -> handleStatus(clientIp)
                 method == "GET" && path == "/runtime" -> handleRuntime(clientIp)
+                method == "GET" && path in listOf("/device", "/system") -> handleDevice(clientIp, authHeader)
                 method == "GET" && path in listOf("/models", "/v1/models") -> handleModels(clientIp, authHeader)
                 method == "GET" && path == "/capabilities" -> handleCapabilities(clientIp, authHeader)
                 method == "GET" && path == "/queue" -> handleQueueStatus(clientIp, authHeader)
@@ -342,10 +344,11 @@ class PhonoLabApiServer(
     private fun handleHealth(clientIp: String): JSONObject {
         val info = runtimeInfo()
         val isVision = getVisionModelFn?.invoke() ?: false
+        val rt = Runtime.getRuntime()
         return JSONObject().apply {
             put("ok", true)
             put("name", "PhonoLab API Server")
-            put("version", "2.0.0")
+            put("version", "2.1.0")
             put("status", status.name.lowercase())
             put("status_message", statusMessage)
             put("runtime", JSONObject().apply {
@@ -358,12 +361,18 @@ class PhonoLabApiServer(
                 put("active_generations", activeGenerations.get())
                 put("queue_size", requestQueue.size)
             })
+            put("device", JSONObject().apply {
+                put("model", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+                put("cpu_cores", rt.availableProcessors())
+                put("ram_mb", readMemInfo()?.get("total") ?: (rt.maxMemory() / (1024 * 1024)))
+            })
             put("endpoints", JSONObject().apply {
                 put("local_base_url", config.localBaseUrl)
                 put("lan_base_url", config.lanBaseUrl)
                 put("openai_chat", "${config.localBaseUrl}/chat/completions")
                 put("models", "${config.localBaseUrl}/models")
                 put("status", "${config.localBaseUrl.replace("/v1", "")}/status")
+                put("device", "${config.localBaseUrl.replace("/v1", "")}/device")
                 put("config", "${config.localBaseUrl.replace("/v1", "")}/config")
                 put("reload", "${config.localBaseUrl.replace("/v1", "")}/reload")
                 put("load", "${config.localBaseUrl.replace("/v1", "")}/load")
@@ -381,6 +390,7 @@ class PhonoLabApiServer(
                 put("parameter_editing", true)
                 put("request_queuing", true)
                 put("smart_reload", true)
+                put("device_info", true)
             })
         }
     }
@@ -474,10 +484,113 @@ class PhonoLabApiServer(
         }
     }
 
+    private fun handleDevice(clientIp: String, authHeader: String): JSONObject {
+        requireAuth(clientIp, authHeader)?.let { return it }
+        val rt = Runtime.getRuntime()
+        val maxMem = rt.maxMemory()
+        val totalMem = rt.totalMemory()
+        val freeMem = rt.freeMemory()
+        val usedMem = totalMem - freeMem
+
+        // Read /proc/meminfo for system RAM
+        val memInfo = readMemInfo()
+
+        return JSONObject().apply {
+            put("device", JSONObject().apply {
+                put("model", android.os.Build.MODEL)
+                put("manufacturer", android.os.Build.MANUFACTURER)
+                put("brand", android.os.Build.BRAND)
+                put("device", android.os.Build.DEVICE)
+                put("product", android.os.Build.PRODUCT)
+                put("hardware", android.os.Build.HARDWARE)
+                put("board", android.os.Build.BOARD)
+                put("android_version", android.os.Build.VERSION.RELEASE)
+                put("sdk_int", android.os.Build.VERSION.SDK_INT)
+                put("build_id", android.os.Build.ID)
+                put("fingerprint", android.os.Build.FINGERPRINT.take(80))
+            })
+            put("cpu", JSONObject().apply {
+                put("cores", rt.availableProcessors())
+                put("abis", android.os.Build.SUPPORTED_ABIS.toList())
+                put("primary_abi", android.os.Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown")
+                put("is_64bit", android.os.Build.SUPPORTED_ABIS.any { it.contains("64") })
+            })
+            put("memory", JSONObject().apply {
+                put("jvm_max_mb", maxMem / (1024 * 1024))
+                put("jvm_used_mb", usedMem / (1024 * 1024))
+                put("jvm_free_mb", freeMem / (1024 * 1024))
+                put("jvm_total_mb", totalMem / (1024 * 1024))
+                if (memInfo != null) {
+                    put("system_total_mb", memInfo["total"] ?: 0)
+                    put("system_available_mb", memInfo["available"] ?: 0)
+                    put("system_used_mb", (memInfo["total"] ?: 0) - (memInfo["available"] ?: 0))
+                }
+            })
+            put("storage", JSONObject().apply {
+                val dataDir = context?.filesDir
+                if (dataDir != null) {
+                    val stat = android.os.StatFs(dataDir.path)
+                    put("data_total_mb", stat.totalBytes / (1024 * 1024))
+                    put("data_free_mb", stat.availableBytes / (1024 * 1024))
+                }
+            })
+            put("runtime", JSONObject().apply {
+                put("status", status.name.lowercase())
+                put("status_message", statusMessage)
+                val info = runtimeInfo()
+                put("loaded", info["loaded"] ?: false)
+                put("model", info["model"] ?: "none")
+                put("is_vision", getVisionModelFn?.invoke() ?: false)
+                put("active_generations", activeGenerations.get())
+                put("queue_size", requestQueue.size)
+            })
+        }
+    }
+
+    private fun readMemInfo(): Map<String, Long>? {
+        return try {
+            val map = mutableMapOf<String, Long>()
+            java.io.File("/proc/meminfo").readLines().forEach { line ->
+                val parts = line.split(":")
+                if (parts.size == 2) {
+                    val key = parts[0].trim()
+                    val value = parts[1].trim().split("\\s+".toRegex())[0].toLongOrNull() ?: return@forEach
+                    when (key) {
+                        "MemTotal" -> map["total"] = value / 1024  // kB to MB
+                        "MemAvailable" -> map["available"] = value / 1024
+                        "MemFree" -> map["free"] = value / 1024
+                    }
+                }
+            }
+            map
+        } catch (_: Exception) { null }
+    }
+
     // ── Chat Completions (with vision + doc support) ──────────────
 
     private fun handleOpenAiChat(body: String, authHeader: String): JSONObject {
         try {
+            // Safety check: model must be loaded
+            val info = runtimeInfo()
+            if (info["loaded"] != true) {
+                return errorResponse(
+                    "No model loaded. Use POST /load to load a model first, or check /status for current state.",
+                    "model_not_loaded", 503
+                )
+            }
+            if (status == ServerStatus.ERROR) {
+                return errorResponse(
+                    "Server is in error state: $lastError. Try POST /reload to recover.",
+                    "server_error", 503
+                )
+            }
+            if (status == ServerStatus.LOADING || status == ServerStatus.RELOADING) {
+                return errorResponse(
+                    "Model is currently ${status.name.lowercase()}. Request queued or try again.",
+                    "model_loading", 503
+                )
+            }
+
             val payload = JSONObject(body)
             val messages = payload.optJSONArray("messages") ?: JSONArray()
             val nPredict = payload.optInt("max_tokens", payload.optInt("n_predict", 512))
@@ -529,6 +642,21 @@ class PhonoLabApiServer(
 
     private fun handleOpenAiChatStreaming(socket: Socket, body: String, authHeader: String): JSONObject? {
         try {
+            // Safety check: model must be loaded
+            val info = runtimeInfo()
+            if (info["loaded"] != true) {
+                return errorResponse(
+                    "No model loaded. Use POST /load to load a model first.",
+                    "model_not_loaded", 503
+                )
+            }
+            if (status == ServerStatus.ERROR) {
+                return errorResponse(
+                    "Server is in error state: $lastError. Try POST /reload to recover.",
+                    "server_error", 503
+                )
+            }
+
             val payload = JSONObject(body)
             val messages = payload.optJSONArray("messages") ?: JSONArray()
             val nPredict = payload.optInt("max_tokens", payload.optInt("n_predict", 512))
@@ -647,6 +775,14 @@ class PhonoLabApiServer(
 
     private fun handleOpenAiCompletion(body: String, authHeader: String): JSONObject {
         try {
+            // Safety check: model must be loaded
+            if (runtimeInfo()["loaded"] != true) {
+                return errorResponse("No model loaded. Use POST /load first.", "model_not_loaded", 503)
+            }
+            if (status == ServerStatus.ERROR) {
+                return errorResponse("Server error: $lastError", "server_error", 503)
+            }
+
             val payload = JSONObject(body)
             val prompt = payload.optString("prompt", "")
             val nPredict = payload.optInt("max_tokens", payload.optInt("n_predict", 512))
@@ -688,6 +824,14 @@ class PhonoLabApiServer(
 
     private fun handleAnthropicMessages(body: String, authHeader: String): JSONObject {
         try {
+            // Safety check: model must be loaded
+            if (runtimeInfo()["loaded"] != true) {
+                return errorResponse("No model loaded. Use POST /load first.", "model_not_loaded", 503)
+            }
+            if (status == ServerStatus.ERROR) {
+                return errorResponse("Server error: $lastError", "server_error", 503)
+            }
+
             val payload = JSONObject(body)
             val messages = payload.optJSONArray("messages") ?: JSONArray()
             val system = payload.optString("system", "")

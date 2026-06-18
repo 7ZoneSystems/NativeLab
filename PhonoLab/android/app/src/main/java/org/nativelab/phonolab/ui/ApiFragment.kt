@@ -141,6 +141,7 @@ class ApiFragment : Fragment() {
         // Create server
         server = PhonoLabApiServer(
             config = config,
+            context = requireContext().applicationContext,
             onLog = { msg -> runOnUi { appendLog(msg) } },
             generateFn = { prompt, nPredict, temperature, topP, topK, repeatPenalty ->
                 if (!capturedRuntime.isModelLoaded()) {

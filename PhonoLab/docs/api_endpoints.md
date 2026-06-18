@@ -67,7 +67,8 @@ curl http://127.0.0.1:8787/health
     "document_rag": true,
     "parameter_editing": true,
     "request_queuing": true,
-    "smart_reload": true
+    "smart_reload": true,
+    "device_info": true
   }
 }
 ```
@@ -134,6 +135,63 @@ curl -H "Authorization: Bearer {key}" http://127.0.0.1:8787/queue
   "status": "generating"
 }
 ```
+
+### GET /device
+Device hardware and system info. Requires auth.
+
+```bash
+curl -H "Authorization: Bearer {key}" http://127.0.0.1:8787/device
+```
+
+**Response:**
+```json
+{
+  "device": {
+    "model": "Pixel 8",
+    "manufacturer": "Google",
+    "brand": "google",
+    "device": "shiba",
+    "product": "shiba",
+    "hardware": "tensor",
+    "board": "tensor",
+    "android_version": "14",
+    "sdk_int": 34,
+    "build_id": "AP1A.240505.005",
+    "fingerprint": "google/shiba/shiba:14/..."
+  },
+  "cpu": {
+    "cores": 8,
+    "abis": ["arm64-v8a", "armeabi-v7a", "armeabi"],
+    "primary_abi": "arm64-v8a",
+    "is_64bit": true
+  },
+  "memory": {
+    "jvm_max_mb": 256,
+    "jvm_used_mb": 128,
+    "jvm_free_mb": 64,
+    "jvm_total_mb": 192,
+    "system_total_mb": 8192,
+    "system_available_mb": 4096,
+    "system_used_mb": 4096
+  },
+  "storage": {
+    "data_total_mb": 128000,
+    "data_free_mb": 64000
+  },
+  "runtime": {
+    "status": "ready",
+    "status_message": "Ready: model.gguf",
+    "loaded": true,
+    "model": "model.gguf",
+    "is_vision": false,
+    "active_generations": 0,
+    "queue_size": 0
+  }
+}
+```
+
+### GET /system
+Alias for `/device`.
 
 ---
 
@@ -427,6 +485,8 @@ All errors follow this format:
 | `not_found` | 404 | Unknown endpoint |
 | `payload_too_large` | 413 | Request body exceeds 1MB |
 | `conflict` | 409 | Reload already in progress |
+| `model_not_loaded` | 503 | No model loaded — use POST /load first |
+| `model_loading` | 503 | Model is currently loading/reloading |
 | `server_error` | 500 | Internal server error |
 | `server_busy` | 503 | Queue full (50 requests) |
 | `gateway_timeout` | 504 | Request timed out in queue (2 min) |
