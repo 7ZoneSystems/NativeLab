@@ -26,7 +26,7 @@ concurrency:
 jobs:
   # ── Python Analysis ──────────────────────────────────────────
   analyze-python:
-    name: "CodeQL — Python"
+    name: "CodeQL - Python"
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule' || github.repository_owner == '7ZoneSystems'
 
@@ -67,7 +67,7 @@ jobs:
 
   # ── Kotlin/Java Analysis (Android) ──────────────────────────
   analyze-kotlin:
-    name: "CodeQL — Kotlin/Java"
+    name: "CodeQL - Kotlin/Java"
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule' || github.repository_owner == '7ZoneSystems'
 
@@ -111,7 +111,7 @@ jobs:
 
   # ── JavaScript Analysis ─────────────────────────────────────
   analyze-javascript:
-    name: "CodeQL — JavaScript"
+    name: "CodeQL - JavaScript"
     runs-on: ubuntu-latest
     if: github.event_name != 'schedule' || github.repository_owner == '7ZoneSystems'
 

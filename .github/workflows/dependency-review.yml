@@ -1,4 +1,4 @@
-# Dependency Review — scans PRs for vulnerable or risky dependency changes
+# Dependency Review - scans PRs for vulnerable or risky dependency changes
 # https://github.com/actions/dependency-review-action
 
 name: "Dependency Review"
@@ -31,7 +31,3 @@ jobs:
           comment-summary-in-pr: always
           deny-licenses: GPL-3.0, AGPL-3.0
           allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, CC0-1.0, Unlicense
-          config: |
-            ignore-patterns:
-              - pattern: "nativelab/web_search/searxng/*"
-              - pattern: "PhonoLab/android/app/build/*"
