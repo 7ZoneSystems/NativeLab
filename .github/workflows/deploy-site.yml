@@ -36,15 +36,21 @@ jobs:
         working-directory: nativelab-site
         run: npm run build
 
-      - name: Copy sub-pages and assets into dist
-        working-directory: nativelab-site
+      - name: Copy assets to dist
         run: |
-          for f in features.html phonolab.html pipeline.html docs-user.html docs-dev.html compare.html setup.html site.css site.js; do
-            [ -f "$f" ] && cp "$f" dist/
-          done
-          [ -d images ] && cp -r images dist/
-          [ -d public/docs ] && cp -r public/docs dist/
-          [ -d public/PhonoLab ] && cp -r public/PhonoLab dist/
+          cd nativelab-site
+          cp -f features.html dist/ 2>/dev/null || true
+          cp -f phonolab.html dist/ 2>/dev/null || true
+          cp -f pipeline.html dist/ 2>/dev/null || true
+          cp -f docs-user.html dist/ 2>/dev/null || true
+          cp -f docs-dev.html dist/ 2>/dev/null || true
+          cp -f compare.html dist/ 2>/dev/null || true
+          cp -f setup.html dist/ 2>/dev/null || true
+          cp -f site.css dist/ 2>/dev/null || true
+          cp -f site.js dist/ 2>/dev/null || true
+          [ -d images ] && cp -r images dist/ || true
+          [ -d public/docs ] && cp -r public/docs dist/ || true
+          [ -d public/PhonoLab ] && cp -r public/PhonoLab dist/ || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
