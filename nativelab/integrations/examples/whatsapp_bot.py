@@ -104,11 +104,18 @@ async def run_queued(factory: Callable[[], Awaitable[str]]) -> str:
             log(f"Request finished; active/queued count is now {_queued}")
 
 
+def _safe_url(path: str) -> str:
+    """Validate path to prevent SSRF - must start with / and not contain scheme."""
+    if not path.startswith("/") or "://" in path:
+        raise ValueError(f"Invalid path for SSRF safety: {path}")
+    return f"{ENDPOINT_URL}{path}"
+
+
 async def post_native(path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     log(f"NativeLab POST {path}")
     timeout = aiohttp.ClientTimeout(total=LONG_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(f"{ENDPOINT_URL}{path}", json=payload) as response:
+        async with session.post(_safe_url(path), json=payload) as response:
             data = await response.json(content_type=None)
             if response.status >= 400:
                 raise RuntimeError(data.get("error", f"HTTP {response.status}"))
@@ -119,7 +126,7 @@ async def get_native(path: str) -> Dict[str, Any]:
     log(f"NativeLab GET {path}")
     timeout = aiohttp.ClientTimeout(total=LONG_TIMEOUT_SECONDS)
     async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.get(f"{ENDPOINT_URL}{path}") as response:
+        async with session.get(_safe_url(path)) as response:
             data = await response.json(content_type=None)
             if response.status >= 400:
                 raise RuntimeError(data.get("error", f"HTTP {response.status}"))
