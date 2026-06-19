@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Compare NativeLab with LM Studio, AnythingLLM, Jan, and GPT4All across local models, pipelines, documents, APIs, and developer workflows." />
+  <title>NativeLab - Compare</title>
+  <link rel="icon" type="image/png" href="/nativelab-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+</head>
+<body>
+  <nav class="site-nav">
+    <a class="nav-logo" href="/"><img src="/nativelab-icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
+    <div class="nav-links">
+      <a href="features.html">Features</a>
+      <a href="phonolab.html">PhonoLab</a>
+      <a href="pipeline.html">Pipelines</a>
+      <a href="docs-user.html">Docs</a>
+      <a href="compare.html">Compare</a>
+      <a href="setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank" rel="noreferrer">GitHub</a>
+    </div>
+  </nav>
+
+  <main>
+    <section class="hero hero-compact">
+      <div class="hero-media">
+        <img src="/images/dark_mode.png" alt="NativeLab dark interface" />
+      </div>
+      <div class="hero-inner">
+        <p class="eyebrow">Comparison - v0.3.7</p>
+        <h1>NativeLab vs the local AI field.</h1>
+        <p class="hero-copy">
+          NativeLab is not only a model launcher. It combines local chat,
+          document workflows, runtime controls, CLI access, Labs, and a visual
+          pipeline system with AI-assisted pipeline creation.
+        </p>
+        <div class="hero-actions">
+          <a class="btn primary" href="features.html">Feature tour</a>
+          <a class="btn ghost" href="setup.html">Setup guide</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="section-kicker">Positioning</p>
+          <h2>NativeLab focuses on workflows around models, not just loading models.</h2>
+        </div>
+        <div class="grid five">
+          <article class="card">
+            <span class="tag">NativeLab</span>
+            <h3>Workspace</h3>
+            <p>Local models, APIs, documents, Labs, CLI, and visual pipelines share one runtime layer.</p>
+          </article>
+          <article class="card">
+            <span class="tag">LM Studio</span>
+            <h3>Launcher</h3>
+            <p>Strong local model discovery, chat, and server controls for GGUF workflows.</p>
+          </article>
+          <article class="card">
+            <span class="tag">AnythingLLM</span>
+            <h3>Knowledge app</h3>
+            <p>Good document workspace and integrations, usually centered on knowledge bases.</p>
+          </article>
+          <article class="card">
+            <span class="tag">Jan</span>
+            <h3>Desktop chat</h3>
+            <p>Open local chat app with model management and a simpler workflow surface.</p>
+          </article>
+          <article class="card">
+            <span class="tag">GPT4All</span>
+            <h3>Offline chat</h3>
+            <p>Beginner-friendly local chat and model downloads with a narrower automation layer.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="section-kicker">Matrix</p>
+          <h2>Where NativeLab is different.</h2>
+        </div>
+        <div class="table-wrap">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>Capability</th>
+                <th>NativeLab</th>
+                <th>LM Studio</th>
+                <th>AnythingLLM</th>
+                <th>Jan</th>
+                <th>GPT4All</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Open source local-first desktop</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Partial</td>
+                <td class="yes">Yes</td>
+                <td class="yes">Yes</td>
+                <td class="yes">Yes</td>
+              </tr>
+              <tr>
+                <td>GUI and CLI surfaces</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="partial">Partial</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>Visual pipeline builder</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="partial">Limited</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>AI-assisted pipeline builder</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>LLM, logic, file, and context pipeline blocks</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="partial">Partial</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>Shared runtime for chat, docs, Labs, and pipelines</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+              </tr>
+              <tr>
+                <td>Hugging Face snapshot downloads and dependency installer</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+              <tr>
+                <td>llama.cpp, HF Transformers, Ollama, and API profiles</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Mostly local/API</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Local/API</td>
+                <td class="partial">Local only</td>
+              </tr>
+              <tr>
+                <td>Centralized context and engine error handling</td>
+                <td class="yes">Yes</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+                <td class="partial">Partial</td>
+              </tr>
+              <tr>
+                <td>C/Rust helper path for pipeline graph operations</td>
+                <td class="yes">Yes</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+                <td class="no">No</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="section dark">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="section-kicker">Backends</p>
+          <h2>How NativeLab connects to model runtimes.</h2>
+          <p class="lead">Every backend shares the same model selection layer, so chat, Labs, pipelines, and CLI status stay consistent.</p>
+        </div>
+        <div class="grid three">
+          <article class="card">
+            <h3>GGUF with llama.cpp</h3>
+            <p class="muted">NativeLab downloads or reuses llama.cpp, stores binaries under <code>llama/bin/</code>, and keeps downloaded models under <code>localllm/</code>. CUDA, Vulkan, ROCm, Metal, and CPU-only paths are selected according to detected hardware.</p>
+            <div class="tag-row"><span class="tag green">local</span><span class="tag">auto-detect GPU</span></div>
+          </article>
+          <article class="card">
+            <h3>Hugging Face Transformers</h3>
+            <p class="muted">The Hugging Face downloader supports snapshot downloads, resume controls, gated-repo tokens, and an in-app library installer for users who started with only the base NativeLab package.</p>
+            <div class="tag-row"><span class="tag green">snapshot</span><span class="tag">resume</span></div>
+          </article>
+          <article class="card">
+            <h3>Ollama and API profiles</h3>
+            <p class="muted">Existing Ollama daemons and cloud providers are registered as model entries, so chat, Labs, pipelines, and CLI status use the same model selection layer.</p>
+            <div class="tag-row"><span class="tag green">unified</span><span class="tag">Ollama + cloud</span></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap two-col">
+        <div>
+          <p class="section-kicker">Best fit</p>
+          <h2>Choose NativeLab when automation and inspection matter.</h2>
+          <p>
+            NativeLab is strongest when a user needs to inspect model state,
+            manage local runtimes, build repeatable workflows, and keep chat,
+            documents, and pipeline execution inside one app.
+          </p>
+        </div>
+        <div class="feature-list">
+          <div>
+            <strong>For model launch only</strong>
+            <p>LM Studio and similar launchers may be simpler.</p>
+          </div>
+          <div>
+            <strong>For repeatable workflows</strong>
+            <p>NativeLab adds graph editing, validation, native helpers, and AI-assisted pipeline generation.</p>
+          </div>
+          <div>
+            <strong>For developer control</strong>
+            <p>The CLI, Labs, plugin surface, and local-first files make NativeLab easier to inspect and extend.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>NativeLab</span>
+    <span>Comparison content is scoped to publicly visible product capabilities.</span>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>

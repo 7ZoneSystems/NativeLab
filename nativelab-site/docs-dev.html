@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NativeLab - Developer Documentation</title>
+  <meta name="description" content="NativeLab developer documentation. Architecture, contributing, API reference, and internals." />
+  <link rel="icon" type="image/png" href="/nativelab-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+  <style>
+    .doc-nav { display: grid; gap: 10px; }
+    .doc-nav a {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px; border: 1px solid var(--line); border-radius: 8px;
+      background: var(--surface); color: var(--ink); text-decoration: none; font-weight: 600;
+      transition: all 0.2s;
+    }
+    .doc-nav a:hover { border-color: var(--green); background: var(--surface-2); }
+    .doc-nav a::after { content: "→"; color: var(--green); }
+    .code-block {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+      padding: 20px; font-family: "DM Mono", monospace; font-size: 0.88rem;
+      line-height: 1.7; overflow-x: auto; color: var(--ink-2);
+    }
+    .code-block .comment { color: var(--soft); }
+    .code-block .keyword { color: var(--green); }
+    .code-block .string { color: var(--amber); }
+  </style>
+</head>
+<body class="grid-bg">
+
+  <nav class="site-nav">
+    <a class="nav-logo" href="/"><img src="/nativelab-icon.png" alt="NativeLab" />Native<span>Lab</span></a>
+    <div class="nav-links">
+      <a href="features.html">Features</a>
+      <a href="phonolab.html">PhonoLab</a>
+      <a href="pipeline.html">Pipelines</a>
+      <a href="docs-dev.html" class="active">Dev Docs</a>
+      <a href="compare.html">Compare</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+      <a href="https://pypi.org/project/nativelab/" target="_blank" class="nav-cta nav-keep">Install</a>
+    </div>
+  </nav>
+
+  <header class="hero hero-compact">
+    <div class="hero-inner">
+      <p class="eyebrow slide-up-3d">Developer Documentation</p>
+      <h1 class="slide-up-3d" style="animation-delay:0.1s">Architecture and internals.</h1>
+      <p class="hero-copy slide-up-3d" style="animation-delay:0.2s">
+        How NativeLab is built, how to contribute, and how the pieces fit together.
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <!-- ── Architecture ─────────────────────────────────────── -->
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Architecture</p>
+            <h2>Layered design.</h2>
+          </div>
+          <p class="lead">
+            NativeLab is a layered application. Each layer talks only to the one
+            beneath it, keeping GUI, CLI, and Labs frontends interchangeable.
+          </p>
+        </div>
+
+        <div class="code-block fade-up"><span class="comment">┌─────────────────────────────────────────────────────────┐</span>
+<span class="comment">│</span>  <span class="keyword">Frontends</span>                                               <span class="comment">│</span>
+<span class="comment">│</span>  MainWindow (PyQt6)  |  CLI ChatREPL  |  Lab Panels     <span class="comment">│</span>
+<span class="comment">├─────────────────────────────────────────────────────────┤</span>
+<span class="comment">│</span>  <span class="keyword">LabEndpoints</span> - shared single surface                    <span class="comment">│</span>
+<span class="comment">│</span>  call_llm() | request_load_model() | ensure_server()    <span class="comment">│</span>
+<span class="comment">├─────────────────────────────────────────────────────────┤</span>
+<span class="comment">│</span>  <span class="keyword">Centralized Backend</span> (core/backend.py)                   <span class="comment">│</span>
+<span class="comment">│</span>  NativeLabBackend | NativeLabHttpClient                  <span class="comment">│</span>
+<span class="comment">├─────────────────────────────────────────────────────────┤</span>
+<span class="comment">│</span>  <span class="keyword">Engine Layer</span>                                            <span class="comment">│</span>
+<span class="comment">│</span>  LlamaEngine (server/cli/ollama/hf) | ApiEngine          <span class="comment">│</span>
+<span class="comment">├─────────────────────────────────────────────────────────┤</span>
+<span class="comment">│</span>  <span class="keyword">Persistence</span>                                             <span class="comment">│</span>
+<span class="comment">│</span>  Session | ModelRegistry | ApiRegistry | AppConfig       <span class="comment">│</span>
+<span class="comment">└─────────────────────────────────────────────────────────┘</span></div>
+      </div>
+    </section>
+
+    <!-- ── Key Files ────────────────────────────────────────── -->
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Reference</p>
+            <h2>Key files and modules.</h2>
+          </div>
+          <p class="lead">Where things live and what they do.</p>
+        </div>
+
+        <div class="grid three">
+          <div class="doc-nav fade-up">
+            <a href="/docs/architecture.md">Architecture overview</a>
+            <a href="/docs/pipeline-builder.md">Pipeline builder internals</a>
+            <a href="/docs/labs.md">Labs layer</a>
+            <a href="/docs/models.md">Model registry</a>
+            <a href="/docs/integrations.md">Integration endpoints</a>
+          </div>
+          <div class="doc-nav fade-up" style="animation-delay:0.1s">
+            <a href="../CONTRIBUTING.md">Contributing guide</a>
+            <a href="../CODE_OF_CONDUCT.md">Code of conduct</a>
+            <a href="../SECURITY.md">Security policy</a>
+            <a href="/PhonoLab/docs/FILE_INDEX.md">PhonoLab file index</a>
+            <a href="/PhonoLab/docs/CONSTANTS.md">PhonoLab constants</a>
+          </div>
+          <article class="card fade-up" style="animation-delay:0.2s">
+            <h3>Core Modules</h3>
+            <ul class="feature-list" style="margin-top:12px">
+              <li>core/backend.py - unified facade</li>
+              <li>core/http_client.py - HTTP client</li>
+              <li>core/engine_status.py - engine state</li>
+              <li>core/llm_errors.py - error handling</li>
+              <li>Model/APImodels.py - API registry</li>
+              <li>Model/ModelRegistry.py - model registry</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Centralized Backend ──────────────────────────────── -->
+    <section class="section">
+      <div class="wrap perspective-container">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Backend</p>
+            <h2>Centralized API layer.</h2>
+          </div>
+          <p class="lead">
+            All network operations go through NativeLabHttpClient. All backend
+            operations go through NativeLabBackend. No raw urllib calls in new code.
+          </p>
+        </div>
+
+        <div class="grid two">
+          <article class="card card-3d fade-up">
+            <div class="card-3d-inner">
+              <h3>NativeLabBackend</h3>
+              <div class="code-block" style="margin-top:12px">
+<span class="keyword">from</span> nativelab.core.backend <span class="keyword">import</span> get_backend
+
+backend = get_backend()
+
+<span class="comment"># Model operations</span>
+result = backend.load_model(<span class="string">"/path/to/model.gguf"</span>)
+result = backend.generate(messages=[...])
+
+<span class="comment"># Device operations</span>
+devices = backend.scan_network()
+result = backend.register_device_as_model(device)
+</div>
+            </div>
+          </article>
+          <article class="card card-3d fade-up" style="animation-delay:0.1s">
+            <div class="card-3d-inner">
+              <h3>NativeLabHttpClient</h3>
+              <div class="code-block" style="margin-top:12px">
+<span class="keyword">from</span> nativelab.core.http_client <span class="keyword">import</span> get_http_client
+
+http = get_http_client()
+
+<span class="comment"># Basic requests</span>
+resp = http.get(<span class="string">"http://localhost:8080/health"</span>)
+resp = http.post(<span class="string">"http://..."</span>, body={...})
+
+<span class="comment"># Streaming</span>
+text = http.post_openai_stream(
+    url=<span class="string">"http://..."</span>,
+    messages=[...],
+    on_token=<span class="keyword">lambda</span> t: print(t),
+)
+</div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── PhonoLab Dev ─────────────────────────────────────── -->
+    <section class="section dark">
+      <div class="wrap perspective-container">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Android</p>
+            <h2>PhonoLab developer docs.</h2>
+          </div>
+          <p class="lead">Architecture, file index, constants, and contributing guide for the Android client.</p>
+        </div>
+        <div class="grid four">
+          <article class="card dark-card card-3d fade-up"><div class="card-3d-inner"><h3>Architecture</h3><p class="muted">17-layer error handling, singleton pattern, lifecycle protection.</p></div></article>
+          <article class="card dark-card card-3d fade-up" style="animation-delay:0.08s"><div class="card-3d-inner"><h3>File Index</h3><p class="muted">Every file - purpose, classes, functions, constants.</p></div></article>
+          <article class="card dark-card card-3d fade-up" style="animation-delay:0.16s"><div class="card-3d-inner"><h3>Constants</h3><p class="muted">All limits, defaults, colors, URLs, regex patterns.</p></div></article>
+          <article class="card dark-card card-3d fade-up" style="animation-delay:0.24s"><div class="card-3d-inner"><h3>API Endpoints</h3><p class="muted">Complete reference for LAN API server.</p></div></article>
+        </div>
+        <div class="actions" style="margin-top:28px">
+          <a class="btn primary" href="/PhonoLab/docs/ANDROID_APP.md">Architecture</a>
+          <a class="btn" href="/PhonoLab/docs/FILE_INDEX.md">File Index</a>
+          <a class="btn" href="/PhonoLab/docs/CONSTANTS.md">Constants</a>
+          <a class="btn" href="/PhonoLab/docs/api_endpoints.md">API Endpoints</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Standalone Server ────────────────────────────────── -->
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Server</p>
+            <h2>Standalone local server.</h2>
+          </div>
+          <p class="lead">
+            Turn any GGUF model into an OpenAI-compatible API server with one command.
+          </p>
+        </div>
+
+        <div class="grid two">
+          <pre class="codebox fade-up"><span class="dim">$</span> python -m nativelab.server --model models/llama-7b.gguf
+<span class="dim"># Hardware: 8 cores, 8192 MB RAM</span>
+<span class="dim"># Recommended: threads=4, ctx=2048, n_predict=512</span>
+<span class="dim"># Server running on 127.0.0.1:8787</span>
+<span class="dim"># Endpoints:</span>
+<span class="dim">#   /v1/chat/completions  (OpenAI)</span>
+<span class="dim">#   /v1/messages          (Anthropic)</span>
+<span class="dim">#   /health               (status)</span></pre>
+          <article class="card fade-up" style="animation-delay:0.1s">
+            <h3>Features</h3>
+            <ul class="feature-list" style="margin-top:12px">
+              <li>Interactive model picker</li>
+              <li>Hardware-aware auto-config</li>
+              <li>OpenAI + Anthropic compatible</li>
+              <li>API key authentication</li>
+              <li>Graceful shutdown on Ctrl+C</li>
+              <li>No dependencies beyond nativelab</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>NativeLab - AGPL v3 - local-first LLM workbench</span>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="docs-user.html">User Docs</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>
