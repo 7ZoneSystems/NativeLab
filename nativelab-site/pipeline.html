@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NativeLab - Pipeline Builder</title>
+  <meta name="description" content="NativeLab visual pipeline builder with 20+ block types, AI Pipeline Builder, example presets, live execution, validation, loops, and native graph helpers." />
+  <link rel="icon" type="image/png" href="/nativelab-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+</head>
+<body>
+  <nav class="site-nav">
+    <a class="nav-logo" href="/"><img src="/nativelab-icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
+    <div class="nav-links">
+      <a href="features.html">Features</a>
+      <a href="phonolab.html">PhonoLab</a>
+      <a href="pipeline.html">Pipelines</a>
+      <a href="docs-user.html">Docs</a>
+      <a href="compare.html">Compare</a>
+      <a href="setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+      <a href="https://pypi.org/project/nativelab/" target="_blank" class="nav-cta nav-keep">Install</a>
+    </div>
+  </nav>
+
+  <header class="hero hero-compact">
+    <div class="hero-media">
+      <img src="/images/pipeline.png" alt="NativeLab visual pipeline builder" />
+    </div>
+    <div class="hero-inner">
+      <p class="eyebrow">Visual Pipeline Builder</p>
+      <h1>Build LLM workflows as graphs.</h1>
+      <p class="hero-copy">
+        Place blocks, draw connections, preview flow, run the graph, and save it
+        as JSON. Use AI Builder when you want a loaded model to draft or revise
+        the pipeline for you.
+      </p>
+      <div class="hero-actions">
+        <a class="btn primary" href="/docs/pipeline-builder.md">Full docs</a>
+        <a class="btn" href="compare.html">Compare pipeline support</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Editor</p>
+            <h2>The canvas is the workflow.</h2>
+          </div>
+          <p class="lead">
+            The builder combines a block sidebar, auto-growing canvas, and a
+            right sidebar with Execution and AI Builder tabs. Sidebars resize,
+            scale text, and retract into reopen rails instead of disappearing.
+          </p>
+        </div>
+        <div class="grid three">
+          <article class="card fade-up"><h3>Manual editing</h3><p class="muted">Add blocks, drag models, connect port dots, pan blank canvas, preview flow, and save/load JSON.</p></article>
+          <article class="card fade-up"><h3>Example presets</h3><p class="muted">Packaged examples like quick answer, triage router, quality gate, draft review, and research synthesis.</p></article>
+          <article class="card fade-up"><h3>Safe graph state</h3><p class="muted">IDs normalize on load/generation, far blocks expand the canvas, duplicate edges are ignored, and direct model-to-model links are blocked.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">AI Builder</p>
+            <h2>Describe the pipeline. NativeLab validates the JSON.</h2>
+          </div>
+          <p class="lead">
+            The AI Builder tab sends a compact schema guide to the active model,
+            checks context before the call, extracts JSON, retries once if needed,
+            fills active-model placeholders, validates, saves, and lets you test.
+          </p>
+        </div>
+        <div class="grid two">
+          <article class="card fade-up">
+            <h3>Prompt workflow</h3>
+            <div class="steps">
+              <div class="step"><div><h3>Load a model</h3><p class="muted">Any active local, Ollama, HF, or API model can be used.</p></div></div>
+              <div class="step"><div><h3>Describe the graph</h3><p class="muted">Name the output JSON and ask for the workflow you need.</p></div></div>
+              <div class="step"><div><h3>Load and test</h3><p class="muted">Saved pipelines load back onto the canvas through normal persistence.</p></div></div>
+            </div>
+          </article>
+          <article class="card fade-up">
+            <h3>Smart context</h3>
+            <ul class="feature-list">
+              <li>Empty canvas prompts go as-is</li>
+              <li>Existing canvas is attached as JSON</li>
+              <li>History is stored under localllm</li>
+              <li>/get_data prints current canvas state</li>
+              <li>/context compacts builder history</li>
+              <li>Context overflow is blocked before sending</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Blocks</p>
+            <h2>20+ blocks across generation, context, and logic.</h2>
+          </div>
+          <p class="lead">Use deterministic blocks where possible and LLM logic where language judgment is useful.</p>
+        </div>
+        <div class="grid four">
+          <article class="card fade-up"><h3>I/O</h3><p class="muted">Input, Output, Model, Intermediate with live streaming output tabs.</p><div class="tag-row"><span class="tag green">required path</span></div></article>
+          <article class="card fade-up"><h3>Context</h3><p class="muted">Reference, Knowledge, and PDF Summary blocks inject reusable material.</p><div class="tag-row"><span class="tag blue">documents</span></div></article>
+          <article class="card fade-up"><h3>Deterministic logic</h3><p class="muted">IF/ELSE, SWITCH, FILTER, TRANSFORM, MERGE, SPLIT, and safe Custom Code.</p><div class="tag-row"><span class="tag">fast</span></div></article>
+          <article class="card fade-up"><h3>LLM logic</h3><p class="muted">LLM-IF, LLM-SWITCH, LLM-FILTER, LLM-TRANSFORM, and LLM-SCORE.</p><div class="tag-row"><span class="tag amber">agentic</span></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section dark">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Execution</p>
+            <h2>Same guardrails everywhere.</h2>
+          </div>
+          <p class="lead">
+            Manual, generated, loaded, and CLI-run pipelines share validation,
+            graph normalization, deterministic helpers, and centralized LLM error
+            handling.
+          </p>
+        </div>
+        <div class="grid three">
+          <article class="card dark-card fade-up"><h3>Validation layer</h3><p class="muted">Required blocks, valid endpoints, model refs, context/PDF metadata, LLM instructions, and custom code checks.</p></article>
+          <article class="card dark-card fade-up"><h3>Native graph core</h3><p class="muted">Optional C helpers accelerate ID normalization, loop checks, route selection, transforms, merges, and validation records.</p></article>
+          <article class="card dark-card fade-up"><h3>Error dialogs</h3><p class="muted">Context-window and engine errors surface as user-facing dialog text, not just logs.</p></article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>NativeLab - pipeline builder</span>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="features.html">Features</a>
+      <a href="docs-user.html">Docs</a>
+      <a href="compare.html">Compare</a>
+      <a href="setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>

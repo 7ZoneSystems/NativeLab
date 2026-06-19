@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NativeLab - Features</title>
+  <meta name="description" content="NativeLab feature overview: GUI, CLI, AI Pipeline Builder, Labs, documents, local/API backends, auto setup, native helpers, and integrations." />
+  <link rel="icon" type="image/png" href="/nativelab-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="site.css" />
+</head>
+<body>
+  <nav class="site-nav">
+    <a class="nav-logo" href="/"><img src="/nativelab-icon.png" alt="NativeLab icon" />Native<span>Lab</span></a>
+    <div class="nav-links">
+      <a href="features.html" class="active">Features</a>
+      <a href="phonolab.html">PhonoLab</a>
+      <a href="pipeline.html">Pipelines</a>
+      <a href="docs-user.html">Docs</a>
+      <a href="compare.html">Compare</a>
+      <a href="setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+      <a href="https://pypi.org/project/nativelab/" target="_blank" class="nav-cta nav-keep">Install</a>
+    </div>
+  </nav>
+
+  <header class="hero hero-compact">
+    <div class="hero-media">
+      <img src="/images/light_mode.png" alt="NativeLab light mode workspace" />
+    </div>
+    <div class="hero-inner">
+      <p class="eyebrow">Feature catalogue - v0.3.7</p>
+      <h1>Everything in one local workspace.</h1>
+      <p class="hero-copy">
+        NativeLab covers the full loop: install a runtime, register models, chat,
+        attach documents, build pipelines, run Labs, expose endpoints, and script
+        the same engine from a terminal.
+      </p>
+    </div>
+  </header>
+
+  <main>
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Latest</p>
+            <h2>Recent work focused on pipelines, setup, and stability.</h2>
+          </div>
+          <p class="lead">
+            v0.3.7 adds AI-assisted pipeline generation, native pipeline helper
+            paths, sidebar resizing, centralized LLM error dialogs, and refreshed
+            first-run setup flows.
+          </p>
+        </div>
+        <div class="grid four">
+          <article class="card fade-up"><h3>AI Pipeline Builder</h3><p class="muted">Generate validated pipeline JSON from a plain-English request, then load it for testing.</p><div class="tag-row"><span class="tag green">new</span></div></article>
+          <article class="card fade-up"><h3>Native helpers</h3><p class="muted">C/Rust acceleration for deterministic graph, validation, prompt, sampler, and detection hot paths.</p><div class="tag-row"><span class="tag blue">optional</span></div></article>
+          <article class="card fade-up"><h3>Auto setup</h3><p class="muted">Hardware-aware, resumable setup with llama.cpp or HF Transformers backend choices.</p><div class="tag-row"><span class="tag amber">resumable</span></div></article>
+          <article class="card fade-up"><h3>UI hardening</h3><p class="muted">MainWindow split, centralized QThread cleanup, context meter, and plain-language LLM errors.</p><div class="tag-row"><span class="tag">safer</span></div></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">App surfaces</p>
+            <h2>Use the same engine from GUI, CLI, Labs, and integrations.</h2>
+          </div>
+          <p class="lead">Every surface routes through shared runtime state so model loading, context, API profiles, and saved pipelines stay consistent.</p>
+        </div>
+        <div class="grid three">
+          <article class="card media-card fade-up">
+            <img src="/images/dev.png" alt="NativeLab dev workspace" />
+            <div class="media-caption"><h3>Dev workspace</h3><p class="muted">Labs, logs, integrations, pipelines, MCP, and skills live behind Developer Mode.</p></div>
+          </article>
+          <article class="card media-card fade-up">
+            <img src="/images/skill.png" alt="NativeLab skills tab" />
+            <div class="media-caption"><h3>Skills and Labs</h3><p class="muted">Shared skill injection plus drop-in Labs panels using one endpoint API.</p></div>
+          </article>
+          <article class="card media-card fade-up">
+            <img src="/images/server_controls.png" alt="NativeLab server controls" />
+            <div class="media-caption"><h3>Runtime controls</h3><p class="muted">llama.cpp paths, context, GPU offload, ports, and backend-specific settings.</p></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Core capabilities</p>
+            <h2>A concise map of what NativeLab does.</h2>
+          </div>
+          <p class="lead">The full technical details live in the project docs, but these are the surfaces most users touch first.</p>
+        </div>
+        <div class="grid three">
+          <article class="card fade-up">
+            <h3>Model runtime</h3>
+            <ul class="feature-list">
+              <li>Local GGUF models</li>
+              <li>llama-server and llama-cli</li>
+              <li>Ollama refs and pulls</li>
+              <li>HF Transformers snapshots</li>
+              <li>OpenAI-compatible APIs</li>
+              <li>Anthropic API profiles</li>
+            </ul>
+          </article>
+          <article class="card fade-up">
+            <h3>Documents and code</h3>
+            <ul class="feature-list">
+              <li>Session references</li>
+              <li>PDF summarization</li>
+              <li>Multi-PDF synthesis</li>
+              <li>Source parser for many languages</li>
+              <li>Py-to-Doc project mode</li>
+              <li>Checkpoint resume</li>
+            </ul>
+          </article>
+          <article class="card fade-up">
+            <h3>Workflow tooling</h3>
+            <ul class="feature-list">
+              <li>Visual pipeline canvas</li>
+              <li>AI Pipeline Builder</li>
+              <li>Labs endpoint API</li>
+              <li>MCP management</li>
+              <li>Integration HTTP endpoint</li>
+              <li>Discord and WhatsApp profiles</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section dark">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">CLI</p>
+            <h2>A terminal control center, not a separate app.</h2>
+          </div>
+          <p class="lead">The CLI can chat, load models, run saved pipelines, inspect endpoints, manage skills, run Labs helpers, and serve integration routes.</p>
+        </div>
+        <pre class="codebox fade-up"><span class="dim">$</span> nativelab --cli
+Chat / Models / API Models / Skills / Labs / Pipelines / Integrations / Status / Setup
+
+<span class="dim">$</span> nativelab --cli pipeline run research-synthesis --file prompt.txt
+<span class="dim">$</span> nativelab --cli endpoint /snapshot --json</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>NativeLab - feature overview</span>
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="pipeline.html">Pipelines</a>
+      <a href="docs-user.html">Docs</a>
+      <a href="compare.html">Compare</a>
+      <a href="setup.html">Setup</a>
+      <a href="https://github.com/7ZoneSystems/NativeLab" target="_blank">GitHub</a>
+    </div>
+  </footer>
+
+  <script src="site.js"></script>
+</body>
+</html>
