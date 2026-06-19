@@ -730,7 +730,7 @@ class McpServerEditorDialog(QDialog):
             client.shutdown()
 
             if ok:
-                self._set_status(True, f"Connected — {len(tools)} tool(s) found")
+                self._set_status(True, f"Connected - {len(tools)} tool(s) found")
                 self._tools = tools
                 self._populate_tools(tools)
             else:
@@ -758,7 +758,7 @@ class McpServerEditorDialog(QDialog):
         for i, t in enumerate(tools):
             name = t.get("name", "unknown")
             desc = t.get("description", "")[:60]
-            self.combo_tool.addItem(f"{name}  —  {desc}", name)
+            self.combo_tool.addItem(f"{name}  -  {desc}", name)
             if name == saved_tool:
                 sel = i
         self.combo_tool.setCurrentIndex(sel)

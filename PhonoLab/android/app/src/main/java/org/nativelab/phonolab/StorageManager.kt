@@ -105,7 +105,7 @@ class StorageManager(private val context: Context) {
         launcher.launch(initialUri)
     }
 
-    /** Get the base PhonoLab directory. Never returns null — always resolves to a valid path. */
+    /** Get the base PhonoLab directory. Never returns null - always resolves to a valid path. */
     fun getBaseDir(): File {
         val uri = folderUri
         if (uri != null) {

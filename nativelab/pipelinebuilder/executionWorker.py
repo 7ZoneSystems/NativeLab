@@ -1106,7 +1106,7 @@ class PipelineExecutionWorker(QThread):
             self.log_msg.emit(f"MCP block '{b.label}': no tool selected.")
             return None
 
-        # Build arguments — use configured arg name or default to "input"
+        # Build arguments - use configured arg name or default to "input"
         arguments = {}
         key = arg_name if arg_name else "input"
         arguments[key] = context

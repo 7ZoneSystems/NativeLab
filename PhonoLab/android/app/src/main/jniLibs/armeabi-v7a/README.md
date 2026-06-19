@@ -1,6 +1,6 @@
-# jniLibs/armeabi-v7a — 32-bit llama.cpp binaries
+# jniLibs/armeabi-v7a - 32-bit llama.cpp binaries
 
-## Optional — for older/budget devices
+## Optional - for older/budget devices
 
 Only needed if you want to support 32-bit ARM devices.
 

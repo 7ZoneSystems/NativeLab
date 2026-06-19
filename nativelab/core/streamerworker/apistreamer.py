@@ -42,7 +42,7 @@ class ApiStreamWorker(QThread):
         n  = 0
         try:
             self.log.emit(
-                f"[API] Request started — format={self.api_format.upper()}"
+                f"[API] Request started - format={self.api_format.upper()}"
                 f"  model={self.model_id}  url={self.base_url}"
             )
             # Apply custom prompt wrapping when requested
@@ -146,7 +146,7 @@ class ApiStreamWorker(QThread):
             elapsed = time.time() - t0
             tps = n / elapsed if elapsed > 0 else 0.0
             self.log.emit(
-                f"[API] Done — {n} tokens in {elapsed:.1f}s ({tps:.1f} tok/s)"
+                f"[API] Done - {n} tokens in {elapsed:.1f}s ({tps:.1f} tok/s)"
             )
             self.done.emit(tps)
         except urllib.error.HTTPError as e:

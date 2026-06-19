@@ -51,7 +51,7 @@ class McpClient:
                         auth_env: Optional[Dict[str, str]] = None) -> Tuple[bool, Any]:
         """
         Connect to MCP server, list tools, return (True, tools_list) or (False, error_string).
-        Does NOT leave the connection open — call shutdown() after.
+        Does NOT leave the connection open - call shutdown() after.
         """
         try:
             ok = self._connect(transport, url, auth_token=auth_token, auth_env=auth_env)
@@ -418,7 +418,7 @@ class McpClient:
         try:
             import select
             if self._proc.poll() is not None:
-                # Process exited — check stderr
+                # Process exited - check stderr
                 stderr = stderr_stream.read()
             else:
                 # Non-blocking read of available stderr

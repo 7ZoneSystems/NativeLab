@@ -13,10 +13,10 @@ All hardcoded values, limits, paths, colors, and magic numbers.
 | `n_predict` / `maxTokens` | 384 | 32 | 4096 | |
 | `temperature` | 0.7 | 0.0 | 2.0 | |
 | `top_p` | 0.9 | 0.05 | 1.0 | |
-| `top_k` | 40 | 0 | — | Android only |
-| `min_p` | 0.0 | 0.0 | — | Android only |
+| `top_k` | 40 | 0 | - | Android only |
+| `min_p` | 0.0 | 0.0 | - | Android only |
 | `repeat_penalty` | 1.1 | 0.8 | 2.0 | |
-| `seed` | -1 | -1 | — | -1 = random |
+| `seed` | -1 | -1 | - | -1 = random |
 | `max_prompt_chars` | 18000 | 1000 | 300000 | Python safety |
 | `max_download_bytes` | 7 GB | 50 MB | 50 GB | |
 | `stream_timeout_seconds` | 180 | 10 | 1200 | |
@@ -83,7 +83,7 @@ All hardcoded values, limits, paths, colors, and magic numbers.
 | phonolab_storage | StorageManager | folder_uri, use_default |
 | phonolab_theme | ThemeManager | theme ("dark"/"light") |
 | phonolab_api_server | ApiConfig | host, port, protocol, local_api_key, lan_api_key |
-| llama_cpp_manager | LlamaCppManager | — |
+| llama_cpp_manager | LlamaCppManager | - |
 
 ---
 

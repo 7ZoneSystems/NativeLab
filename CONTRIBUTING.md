@@ -61,9 +61,9 @@ Do not open PRs directly against `main` without a linked issue or prior discussi
 - Follow Kotlin coding conventions
 - Use `runOnUi {}` for UI updates in fragments (lifecycle-safe)
 - Use `optJSONObject()` / `optString()` for JSON parsing (never `getJSONObject()`)
-- Use `PhonoLabApp` singletons — never create private instances in fragments
+- Use `PhonoLabApp` singletons - never create private instances in fragments
 - Use `ThreadLocal<SimpleDateFormat>` for date formatting in multi-threaded code
-- API endpoints return structured errors (model_not_loaded, server_busy, etc.) — never blank responses
+- API endpoints return structured errors (model_not_loaded, server_busy, etc.) - never blank responses
 
 ## Project-Specific Rules
 

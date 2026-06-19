@@ -43,13 +43,13 @@ What to edit when you need to change specific things.
 - **Android store:** `PhonoLabStore.kt` → directory properties
 
 ### Change llama-server startup args
-- **Android:** `LlamaRuntime.kt` → `startServer()` — reads from ModelConfig
+- **Android:** `LlamaRuntime.kt` → `startServer()` - reads from ModelConfig
 - **Python:** `engine/llama_cpp.py` → `_command()`
 
 ### Change math detection
 - `util/MathHelper.kt` → regex patterns (DELIMITED_MATH, LATEX_CMD, EXPONENT, etc.)
-- `wrapAutoMath()` — lambda replacements, NOT backreferences (Android ICU)
-- NEVER use literal `{` or `}` in regex — use `[{]` and `[}]`
+- `wrapAutoMath()` - lambda replacements, NOT backreferences (Android ICU)
+- NEVER use literal `{` or `}` in regex - use `[{]` and `[}]`
 
 ### Change crash handling
 - **Global:** `PhonoLabApp.kt` → `installCrashHandler()`
@@ -58,7 +58,7 @@ What to edit when you need to change specific things.
 - **Fragment:** `ChatFragment.kt` → `showError()`, `sendPrompt()` error handling
 
 ### Change model picker
-- `ui/ChatFragment.kt` → `showModelPicker()` — AlertDialog with custom adapter
+- `ui/ChatFragment.kt` → `showModelPicker()` - AlertDialog with custom adapter
 - Layout: `res/layout/ph_spinner_dropdown_item.xml`
 
 ### Add a new Android fragment
@@ -74,18 +74,18 @@ What to edit when you need to change specific things.
 3. For streaming: use `handleOpenAiChatStreaming()` pattern (guard socket writes)
 
 ### Change attachment handling
-- **Picker UI**: `ui/AttachmentBottomSheet.kt` — add options to `bottom_sheet_attachment.xml`
+- **Picker UI**: `ui/AttachmentBottomSheet.kt` - add options to `bottom_sheet_attachment.xml`
 - **Image picker**: `ChatFragment.kt` → `imagePickerLauncher` (PickVisualMedia fallback GetContent)
 - **Document picker**: `ChatFragment.kt` → `documentPickerLauncher` (OpenDocument)
-- **RAG processing**: `RagProcessor.kt` — extraction, chunking, retrieval
+- **RAG processing**: `RagProcessor.kt` - extraction, chunking, retrieval
 - **Preview chip**: `fragment_chat.xml` → `attachment_chip` layout
-- **Message injection**: `ChatFragment.sendPrompt()` — RAG chunks prepended to message
+- **Message injection**: `ChatFragment.sendPrompt()` - RAG chunks prepended to message
 
 ### Change error handling
-- **Fatal errors**: `PhonoLabApp.kt` → `installCrashHandler()` — AlertDialog with Restart/Exit
+- **Fatal errors**: `PhonoLabApp.kt` → `installCrashHandler()` - AlertDialog with Restart/Exit
 - **Non-fatal errors**: `PhonoLabApp.showError()` → `ErrorBannerView` (red, auto-dismiss 5s)
-- **State errors**: `PhonoLabApp.safeRunState()` — catches ISE/IAE, shows banner
-- **Lifecycle guards**: `runOnUi {}` in fragments — `isAdded` check before UI ops
+- **State errors**: `PhonoLabApp.safeRunState()` - catches ISE/IAE, shows banner
+- **Lifecycle guards**: `runOnUi {}` in fragments - `isAdded` check before UI ops
 
 ---
 
@@ -119,8 +119,8 @@ MainActivity ← PhonoLabApp singletons, implements ChatFragment.Host
        ├─ DownloadsFragment → LlamaRuntime, SafeDownloader, worker.shutdown()
        └─ ApiFragment → PhonoLabApiServer, LlamaRuntime (captured lambdas)
 
-util/UiHelpers — calcPercent() shared helper
-ui/ErrorBannerView — non-fatal error banner (auto-dismiss)
+util/UiHelpers - calcPercent() shared helper
+ui/ErrorBannerView - non-fatal error banner (auto-dismiss)
 ```
 
 ---
@@ -140,23 +140,23 @@ python -m pytest tests/test_android_project.py -v
 
 ## Common Gotchas
 
-1. **Android ICU regex** — NEVER use literal `{`/`}` in patterns. Use `[{]`/`[}]`. Use lambda replacements, not `$1`.
-2. **Singletons** — `PhonoLabApp` holds singletons. Don't create new instances in fragments. Use `(requireActivity().application as PhonoLabApp).store` etc.
-3. **load() returns String?** — null=success, non-null=error. Don't use try-catch for control flow.
-4. **generate() returns String** — check for `[ERROR]` or `[ABORTED]` prefix.
-5. **abort() vs unload()** — abort() stops generation but keeps model loaded. unload() kills server.
-6. **Theme switch** — `recreate()` is safe because PhonoLabApp singletons survive.
-7. **Default directory** — `StorageManager.markUsingDefault()` must be called for persistence.
-8. **Model dedup** — `ModelManager.syncDiscovery()` uses `canonicalPath` to avoid double entries.
-9. **JNI argv[0]** — runner.cpp prepends binary path automatically.
-10. **LD_LIBRARY_PATH** — MUST be exactly nativeLibraryDir.
-11. **Lifecycle guards** — Always use `runOnUi {}` (checks `isAdded`) instead of raw `main.post {}`.
-12. **Thread safety** — Use `ThreadLocal<SimpleDateFormat>` for date formatting in multi-threaded code.
-13. **JSON parsing** — Use `optJSONObject()` / `optString()` instead of `getJSONObject()` / `getString()` to avoid crashes on corrupt data.
-14. **Cross-routing** — Use `ChatFragment.Host` interface, never cast directly to `MainActivity`.
-15. **Session logs** — Capped at 500 entries via `ChatSession.addLog()`. Don't append to `logs` directly.
-16. **renameTo()** — Can fail on Android cross-filesystem. Use copy+delete fallback.
-17. **nativeLoaded** — Check `LlamaCppManager.nativeLoaded` before JNI calls. It's false if librunner.so failed to load.
-18. **API body limit** — PhonoLabApiServer rejects bodies > 1MB (413 response).
-19. **Executor shutdown** — Always call `worker.shutdown()` in `onDestroyView()` for fragment executors.
-20. **Error reporting** — Use `PhonoLabApp.showError(msg, fatal)` for app-wide errors. Fatal shows dialog, non-fatal shows banner.
+1. **Android ICU regex** - NEVER use literal `{`/`}` in patterns. Use `[{]`/`[}]`. Use lambda replacements, not `$1`.
+2. **Singletons** - `PhonoLabApp` holds singletons. Don't create new instances in fragments. Use `(requireActivity().application as PhonoLabApp).store` etc.
+3. **load() returns String?** - null=success, non-null=error. Don't use try-catch for control flow.
+4. **generate() returns String** - check for `[ERROR]` or `[ABORTED]` prefix.
+5. **abort() vs unload()** - abort() stops generation but keeps model loaded. unload() kills server.
+6. **Theme switch** - `recreate()` is safe because PhonoLabApp singletons survive.
+7. **Default directory** - `StorageManager.markUsingDefault()` must be called for persistence.
+8. **Model dedup** - `ModelManager.syncDiscovery()` uses `canonicalPath` to avoid double entries.
+9. **JNI argv[0]** - runner.cpp prepends binary path automatically.
+10. **LD_LIBRARY_PATH** - MUST be exactly nativeLibraryDir.
+11. **Lifecycle guards** - Always use `runOnUi {}` (checks `isAdded`) instead of raw `main.post {}`.
+12. **Thread safety** - Use `ThreadLocal<SimpleDateFormat>` for date formatting in multi-threaded code.
+13. **JSON parsing** - Use `optJSONObject()` / `optString()` instead of `getJSONObject()` / `getString()` to avoid crashes on corrupt data.
+14. **Cross-routing** - Use `ChatFragment.Host` interface, never cast directly to `MainActivity`.
+15. **Session logs** - Capped at 500 entries via `ChatSession.addLog()`. Don't append to `logs` directly.
+16. **renameTo()** - Can fail on Android cross-filesystem. Use copy+delete fallback.
+17. **nativeLoaded** - Check `LlamaCppManager.nativeLoaded` before JNI calls. It's false if librunner.so failed to load.
+18. **API body limit** - PhonoLabApiServer rejects bodies > 1MB (413 response).
+19. **Executor shutdown** - Always call `worker.shutdown()` in `onDestroyView()` for fragment executors.
+20. **Error reporting** - Use `PhonoLabApp.showError(msg, fatal)` for app-wide errors. Fatal shows dialog, non-fatal shows banner.

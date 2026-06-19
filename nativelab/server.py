@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-NativeLab Local Server — Standalone local LLM server.
+NativeLab Local Server - Standalone local LLM server.
 
 Turn any GGUF model into an OpenAI-compatible API server.
 No account, no cloud, runs entirely on your machine.
@@ -195,7 +195,7 @@ def start_server(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="NativeLab Local Server — turn any GGUF model into an API server",
+        description="NativeLab Local Server - turn any GGUF model into an API server",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

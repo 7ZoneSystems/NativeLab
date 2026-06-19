@@ -1,5 +1,5 @@
 """
-NativeLab Web Search — in-process SearXNG wrapper for pipeline builder.
+NativeLab Web Search - in-process SearXNG wrapper for pipeline builder.
 
 Usage:
     from nativelab.web_search import web_search

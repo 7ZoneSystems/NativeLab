@@ -15,7 +15,7 @@ import java.net.URL
  * Runtime engine backed by llama-server (persistent HTTP).
  *
  * Binary is bundled in APK → extracted to nativeLibraryDir at install.
- * Server started via JNI fork()+execve() — no W^X issues.
+ * Server started via JNI fork()+execve() - no W^X issues.
  * Chat via HTTP POST to localhost.
  */
 class LlamaRuntime(
@@ -132,7 +132,7 @@ class LlamaRuntime(
         _isModelLoaded = false
     }
 
-    /** Emergency cleanup — reset all state. */
+    /** Emergency cleanup - reset all state. */
     private fun cleanup() {
         _abort = true
         try { stopServer() } catch (_: Exception) {}
@@ -145,7 +145,7 @@ class LlamaRuntime(
 
     /**
      * Generate text via llama-server /v1/chat/completions (SSE streaming).
-     * The server applies the model's chat template — no raw prompt needed.
+     * The server applies the model's chat template - no raw prompt needed.
      *
      * @return generated text, or error message prefixed with "[ERROR]".
      */
@@ -201,7 +201,7 @@ class LlamaRuntime(
                 conn.inputStream.bufferedReader().use { reader ->
                     var line: String?
                     while (reader.readLine().also { line = it } != null) {
-                        // Check abort flag — user stopped generation
+                        // Check abort flag - user stopped generation
                         if (_abort) break
 
                         val l = line ?: continue
@@ -227,7 +227,7 @@ class LlamaRuntime(
                 conn.disconnect()
             }
         } catch (e: java.io.EOFException) {
-            // Server was killed while reading — not a real error if user aborted
+            // Server was killed while reading - not a real error if user aborted
             Log.w(TAG, "Stream closed (EOF)", e)
             return if (_abort) "[ABORTED]" else "[ERROR] Server closed connection unexpectedly"
         } catch (e: Exception) {

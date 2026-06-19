@@ -386,7 +386,7 @@ class LabEndpoints(QObject):
         raw = r.read().decode("utf-8", errors="replace")
 
         if r.status != 200:
-            self._log("ERROR", f"llama-server HTTP {r.status} — {raw[:120]}")
+            self._log("ERROR", f"llama-server HTTP {r.status} - {raw[:120]}")
             self._raise_backend_error(r.status, raw, "llama-server")
 
         try:

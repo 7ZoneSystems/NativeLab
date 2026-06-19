@@ -1060,7 +1060,7 @@ class PipelineCanvas(QWidget):
         temp_slider = QSlider(Qt.Orientation.Horizontal)
         temp_slider.setRange(0, 200)
         temp_slider.setValue(int(cfg.temperature * 100))
-        temp_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        temp_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg2']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
         temp_slider.valueChanged.connect(lambda v: temp_label.setText(f"Temperature: {v/100:.2f}"))
         layout.addWidget(temp_slider)
 
@@ -1071,7 +1071,7 @@ class PipelineCanvas(QWidget):
         topp_slider = QSlider(Qt.Orientation.Horizontal)
         topp_slider.setRange(0, 100)
         topp_slider.setValue(90)
-        topp_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        topp_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg2']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
         topp_slider.valueChanged.connect(lambda v: topp_label.setText(f"Top-P: {v/100:.2f}"))
         layout.addWidget(topp_slider)
 
@@ -1082,7 +1082,7 @@ class PipelineCanvas(QWidget):
         topk_slider = QSlider(Qt.Orientation.Horizontal)
         topk_slider.setRange(0, 200)
         topk_slider.setValue(40)
-        topk_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        topk_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg2']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
         topk_slider.valueChanged.connect(lambda v: topk_label.setText(f"Top-K: {v}"))
         layout.addWidget(topk_slider)
 
@@ -1093,7 +1093,7 @@ class PipelineCanvas(QWidget):
         rep_slider = QSlider(Qt.Orientation.Horizontal)
         rep_slider.setRange(100, 200)
         rep_slider.setValue(110)
-        rep_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        rep_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg2']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
         rep_slider.valueChanged.connect(lambda v: rep_label.setText(f"Repeat Penalty: {v/100:.2f}"))
         layout.addWidget(rep_slider)
 
@@ -1104,7 +1104,7 @@ class PipelineCanvas(QWidget):
         tokens_slider = QSlider(Qt.Orientation.Horizontal)
         tokens_slider.setRange(64, 4096)
         tokens_slider.setValue(512)
-        tokens_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        tokens_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg2']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
         tokens_slider.valueChanged.connect(lambda v: tokens_label.setText(f"Max Tokens: {v}"))
         layout.addWidget(tokens_slider)
 
@@ -1115,7 +1115,7 @@ class PipelineCanvas(QWidget):
         ctx_slider = QSlider(Qt.Orientation.Horizontal)
         ctx_slider.setRange(512, 32768)
         ctx_slider.setValue(getattr(cfg, 'ctx_limit', 2048))
-        ctx_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        ctx_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg2']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
         ctx_slider.valueChanged.connect(lambda v: ctx_label.setText(f"Context: {v}"))
         layout.addWidget(ctx_slider)
 

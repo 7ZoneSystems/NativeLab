@@ -150,11 +150,11 @@ class ChatFragment : Fragment() {
         rvChat.layoutManager = lm
         rvChat.adapter = chatAdapter
 
-        // Detect when user scrolls up manually — pause auto-scroll
+        // Detect when user scrolls up manually - pause auto-scroll
         rvChat.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
                 if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                    // User is dragging — check if they scrolled away from bottom
+                    // User is dragging - check if they scrolled away from bottom
                     val lastVisible = lm.findLastCompletelyVisibleItemPosition()
                     val total = chatAdapter.itemCount
                     userScrolledUp = total > 0 && lastVisible < total - 1
@@ -220,7 +220,7 @@ class ChatFragment : Fragment() {
 
         val items = mutableListOf<PickerItem>()
 
-        // Catalog models — mark which are downloaded
+        // Catalog models - mark which are downloaded
         for (cat in ModelCatalog.items) {
             val localMatch = localModels.find { m ->
                 m.path.contains(cat.key, ignoreCase = true) || m.repo == cat.repo
@@ -541,7 +541,7 @@ class ChatFragment : Fragment() {
     private fun stopGeneration() {
         logSession("Stopped by user")
         isGenerating = false
-        // Abort generation without killing server — model stays loaded
+        // Abort generation without killing server - model stays loaded
         runtime.abort()
         setStatus("warn", "Stopped")
     }
@@ -673,7 +673,7 @@ class ChatFragment : Fragment() {
     }
 
     override fun onDestroyView() {
-        // Don't kill worker during generation — server keeps running via PhonoLabApp
+        // Don't kill worker during generation - server keeps running via PhonoLabApp
         if (!isGenerating) {
             worker.shutdown()
         }

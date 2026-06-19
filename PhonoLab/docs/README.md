@@ -9,11 +9,11 @@ Read these instead of scanning the whole repo.
 
 | File | What It Covers |
 |------|----------------|
-| [FILE_INDEX.md](FILE_INDEX.md) | Every file — purpose, classes, functions, constants, dependencies |
+| [FILE_INDEX.md](FILE_INDEX.md) | Every file - purpose, classes, functions, constants, dependencies |
 | [CONSTANTS.md](CONSTANTS.md) | All limits, defaults, paths, colors, URLs, regex patterns |
 | [ANDROID_APP.md](ANDROID_APP.md) | Android architecture, JNI, crash handling, math, build |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | "I want to change X" → which file, dependency chains |
-| [api_endpoints.md](api_endpoints.md) | Complete API reference — all endpoints, curl examples, device info |
+| [api_endpoints.md](api_endpoints.md) | Complete API reference - all endpoints, curl examples, device info |
 
 ---
 

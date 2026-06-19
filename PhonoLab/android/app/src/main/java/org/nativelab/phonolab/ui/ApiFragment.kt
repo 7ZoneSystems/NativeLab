@@ -234,7 +234,7 @@ class ApiFragment : Fragment() {
 
     override fun onDestroyView() {
         main.removeCallbacks(logUpdater)
-        // Don't stop server on view destroy — keep it running in background
+        // Don't stop server on view destroy - keep it running in background
         super.onDestroyView()
     }
 }

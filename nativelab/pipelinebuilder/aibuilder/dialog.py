@@ -229,7 +229,7 @@ class AiPipelineBuildWorker(QThread):
         mcp_blocks = extract_mcp_blocks(blocks)
 
         if not mcp_blocks:
-            # No MCP blocks — proceed normally
+            # No MCP blocks - proceed normally
             return self._save_or_retry(raw)
 
         self.status.emit(
@@ -290,7 +290,7 @@ class AiPipelineBuildWorker(QThread):
             self._auth_updates = {}
 
         if report.all_ok:
-            # All MCP servers verified — update blocks with verified tools
+            # All MCP servers verified - update blocks with verified tools
             for block in blocks:
                 bid = block.get("bid", 0)
                 for r in report.results:
@@ -315,7 +315,7 @@ class AiPipelineBuildWorker(QThread):
                 connections=connections,
             )
 
-        # Some MCP servers failed — fix blocks and try to regenerate
+        # Some MCP servers failed - fix blocks and try to regenerate
         self.status.emit("Some MCP servers failed verification. Fixing pipeline...")
 
         fixed_blocks, fix_messages = fix_mcp_blocks_after_verification(
@@ -388,7 +388,7 @@ class AiPipelineBuildWorker(QThread):
                     connections=connections,
                 )
 
-        # All MCP blocks were fixed (not removed) — save with fixed data
+        # All MCP blocks were fixed (not removed) - save with fixed data
         data["blocks"] = fixed_blocks
         from .planner import apply_active_model, pipeline_data_to_blocks
         from ..validation import validate_pipeline
@@ -1206,8 +1206,8 @@ class AiPipelineBuilderPanel(QWidget):
             if self._worker:
                 self._worker.provide_auth(updates)
         else:
-            # User skipped — pass empty auth (blocks will be removed/kept as-is)
-            self._log("Auth skipped — servers without credentials will be handled.")
+            # User skipped - pass empty auth (blocks will be removed/kept as-is)
+            self._log("Auth skipped - servers without credentials will be handled.")
             if self._worker:
                 self._worker.provide_auth({})
 

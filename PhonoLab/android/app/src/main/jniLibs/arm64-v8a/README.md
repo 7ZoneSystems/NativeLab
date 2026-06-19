@@ -1,4 +1,4 @@
-# jniLibs/arm64-v8a — llama.cpp binaries
+# jniLibs/arm64-v8a - llama.cpp binaries
 
 ## Setup
 
@@ -30,7 +30,7 @@ ls -lh app/src/main/jniLibs/arm64-v8a/
 ## Expected files
 
 ```
-libllama_server.so          ~7KB    (stub launcher — dlopen()s impl)
+libllama_server.so          ~7KB    (stub launcher - dlopen()s impl)
 libllama-server-impl.so     ~62MB   (real server)
 libllama-common.so          ~82MB   (common utilities)
 libllama.so                 ~32MB   (core library)
@@ -46,7 +46,7 @@ libggml-cpu-android_*.so    ~4-5MB  (CPU variants)
 1. Gradle packages all `lib*.so` into the APK
 2. Android installer extracts them to `/data/app/<pkg>/lib/arm64/` (nativeLibraryDir)
 3. App calls `exec(nativeLibraryDir/libllama_server.so)` via JNI
-4. Stub dlopen()s impl .so from the same directory — no permissions needed
+4. Stub dlopen()s impl .so from the same directory - no permissions needed
 
 ## Troubleshooting
 

@@ -29,7 +29,7 @@ Java_org_nativelab_phonolab_LlamaCppManager_nativeExec(
 
     const char *binary = env->GetStringUTFChars(jBinary, nullptr);
 
-    // argv[0] MUST be the binary itself — prepend it explicitly
+    // argv[0] MUST be the binary itself - prepend it explicitly
     std::vector<std::string> args_storage;
     args_storage.emplace_back(binary);  // argv[0] = binary path (required by execve)
 
@@ -69,7 +69,7 @@ Java_org_nativelab_phonolab_LlamaCppManager_nativeExec(
 
     pid_t pid = fork();
     if (pid == 0) {
-        // Child process — exec the binary with full env
+        // Child process - exec the binary with full env
         execve(binary, argv.data(), envp.data());
         // If we get here, execve failed
         LOGE("execve FAILED for %s: errno=%d (%s)", binary, errno, strerror(errno));

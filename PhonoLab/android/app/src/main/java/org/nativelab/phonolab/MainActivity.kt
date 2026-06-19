@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity(), ChatFragment.Host {
         val denied = results.filter { !it.value }.keys
         if (denied.isNotEmpty()) {
             val names = denied.map { it.substringAfterLast(".") }.joinToString()
-            Toast.makeText(this, "Denied: $names — some features may not work", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Denied: $names - some features may not work", Toast.LENGTH_LONG).show()
         }
     }
 

@@ -9,7 +9,7 @@ package org.nativelab.phonolab.util
  */
 object MathHelper {
 
-    // Explicit LaTeX delimiters — split into simple alternation
+    // Explicit LaTeX delimiters - split into simple alternation
     private val DELIMITED_MATH = Regex(
         """\$\$[\s\S]+?\$\$|\$[^\$\n]+?\$|\\\(.*?\\\)|\\\[.*?\\\]"""
     )

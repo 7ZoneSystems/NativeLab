@@ -94,7 +94,7 @@ def _install_npm_package(package: str, log_cb: Optional[Callable[[str], None]] =
         return False
     except FileNotFoundError:
         if log_cb:
-            log_cb("  ✗ npm not found — cannot auto-install packages")
+            log_cb("  ✗ npm not found - cannot auto-install packages")
         return False
     except subprocess.TimeoutExpired:
         if log_cb:
@@ -468,7 +468,7 @@ def verify_mcp_block(
         result.success = True
         result.tools_found = tools
         if log_cb:
-            log_cb(f"  ✓ '{label}' connected — {len(tools)} tool(s) found")
+            log_cb(f"  ✓ '{label}' connected - {len(tools)} tool(s) found")
         return result
 
     # Check for auth-specific errors
@@ -503,7 +503,7 @@ def verify_mcp_block(
                     result.success = True
                     result.tools_found = tools2
                     if log_cb:
-                        log_cb(f"  ✓ '{label}' connected after install — {len(tools2)} tool(s)")
+                        log_cb(f"  ✓ '{label}' connected after install - {len(tools2)} tool(s)")
                     return result
                 if log_cb:
                     log_cb(f"  ✗ Still failed after install: {_extract_error_detail(err2)}")
@@ -527,7 +527,7 @@ def verify_mcp_block(
             result.success = True
             result.tools_found = tools_r
             if log_cb:
-                log_cb(f"  ✓ '{label}' connected on retry — {len(tools_r)} tool(s)")
+                log_cb(f"  ✓ '{label}' connected on retry - {len(tools_r)} tool(s)")
             return result
         err = err_r
         # Check for auth error on retry too
@@ -664,24 +664,24 @@ def fix_mcp_blocks_after_verification(
 
             fixed.append(block)
         elif result.auth_needed:
-            # Server needs auth — keep block but mark it unconfigured
+            # Server needs auth - keep block but mark it unconfigured
             block["metadata"]["mcp_connected"] = False
             block["metadata"]["mcp_auth_required"] = True
             messages.append(
-                f"MCP '{result.block_label}' needs authentication — "
+                f"MCP '{result.block_label}' needs authentication - "
                 f"configure token/env vars before running"
             )
             if log_cb:
-                log_cb(f"  🔒 MCP block '{result.block_label}' kept — needs auth setup")
+                log_cb(f"  🔒 MCP block '{result.block_label}' kept - needs auth setup")
             fixed.append(block)
         else:
-            # Server failed verification — remove the block
+            # Server failed verification - remove the block
             report.removed_blocks.append(bid)
             messages.append(
                 f"MCP '{result.block_label}' removed: server unreachable "
                 f"({result.error[:80]})"
             )
             if log_cb:
-                log_cb(f"  Removed MCP block '{result.block_label}' — server failed verification")
+                log_cb(f"  Removed MCP block '{result.block_label}' - server failed verification")
 
     return fixed, messages

@@ -1,7 +1,7 @@
 # SearXNG Embedded Core
 
 SearXNG search engine stripped for in-process use inside NativeLab.
-No Docker, no web UI, no templates, no translations — pure Python search.
+No Docker, no web UI, no templates, no translations - pure Python search.
 
 ## Install
 
@@ -35,6 +35,6 @@ result = web_search_text(text, max_results=5)
 
 ## Key Settings (searx/settings.yml)
 
-- `engines` — enable/disable individual search engines
-- `search.default_lang` — default language
-- `outgoing.request_timeout` — HTTP timeout for engine requests
+- `engines` - enable/disable individual search engines
+- `search.default_lang` - default language
+- `outgoing.request_timeout` - HTTP timeout for engine requests

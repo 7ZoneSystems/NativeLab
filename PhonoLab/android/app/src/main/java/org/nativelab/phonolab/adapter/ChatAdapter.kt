@@ -133,7 +133,7 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
                     null
                 )
             } else {
-                // Plain text — show TextView
+                // Plain text - show TextView
                 holder.content.visibility = View.VISIBLE
                 holder.webView.visibility = View.GONE
                 holder.content.text = msg.content

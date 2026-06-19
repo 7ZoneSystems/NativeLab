@@ -126,7 +126,7 @@ class LlamaCppManager(
 
     // ── Find binary ─────────────────────────────────────────────────
 
-    /** nativeLibraryDir — the only directory Android allows exec() from. */
+    /** nativeLibraryDir - the only directory Android allows exec() from. */
     private fun nativeLibraryDir(): String = context.applicationInfo.nativeLibraryDir
 
     /**
@@ -149,7 +149,7 @@ class LlamaCppManager(
     }
 
     /**
-     * LD_LIBRARY_PATH — only nativeLibraryDir needed.
+     * LD_LIBRARY_PATH - only nativeLibraryDir needed.
      * All .so files live there; the stub dlopen()s impl from the same dir.
      */
     fun buildLdLibraryPath(): String = nativeLibraryDir()
@@ -188,7 +188,7 @@ class LlamaCppManager(
         Log.d(TAG, "binary: ${serverBin.absolutePath} (${serverBin.length()} bytes)")
         Log.d(TAG, "model: ${modelPath.absolutePath} (${modelPath.length()} bytes)")
 
-        // Args — do NOT put binary path here, runner.cpp prepends it as argv[0]
+        // Args - do NOT put binary path here, runner.cpp prepends it as argv[0]
         val args = mutableListOf(
             "-m", modelPath.absolutePath,
             "--port", port.toString(),
@@ -202,7 +202,7 @@ class LlamaCppManager(
             args.add(mmproj)
         }
 
-        // env — LD_LIBRARY_PATH MUST be nativeLibraryDir and nothing else
+        // env - LD_LIBRARY_PATH MUST be nativeLibraryDir and nothing else
         // All .so files live there; the stub dlopen()s impl from the same dir
         val env = arrayOf(
             "LD_LIBRARY_PATH=$nativeDir",
@@ -216,7 +216,7 @@ class LlamaCppManager(
         val pid = try {
             nativeExec(serverBin.absolutePath, args.toTypedArray(), env)
         } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "JNI not loaded — runner.so missing?", e)
+            Log.e(TAG, "JNI not loaded - runner.so missing?", e)
             return -1
         } catch (e: Exception) {
             Log.e(TAG, "nativeExec failed", e)
@@ -281,7 +281,7 @@ class LlamaCppManager(
         }
     }
 
-    // ── Download & Install (legacy — for runtime download fallback) ──
+    // ── Download & Install (legacy - for runtime download fallback) ──
 
     fun downloadAndInstall(
         progress: (done: Long, total: Long, label: String) -> Unit,

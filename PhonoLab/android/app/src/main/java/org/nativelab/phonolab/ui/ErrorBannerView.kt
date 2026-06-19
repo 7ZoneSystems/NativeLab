@@ -16,7 +16,7 @@ import org.nativelab.phonolab.R
 
 /**
  * Red exclamation banner that appears top-right, auto-dismisses after timeout.
- * Non-fatal errors — the app keeps running, user sees a brief notification.
+ * Non-fatal errors - the app keeps running, user sees a brief notification.
  */
 class ErrorBannerView @JvmOverloads constructor(
     context: Context,

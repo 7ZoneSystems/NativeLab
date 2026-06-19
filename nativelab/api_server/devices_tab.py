@@ -66,6 +66,16 @@ class DevicesTab(QWidget):
         self._refresh_timer.timeout.connect(self._refresh_statuses)
         self._refresh_timer.start(30_000)  # Refresh every 30s
 
+    @staticmethod
+    def _section(text: str) -> QLabel:
+        label = QLabel(text)
+        label.setStyleSheet("font-size:10px;font-weight:bold;letter-spacing:0.08em;")
+        return label
+
+    def _set_status(self, text: str, color_key: str = "txt2"):
+        self.lbl_status.setText(text)
+        self.lbl_status.setStyleSheet(f"color:{C[color_key]};font-size:12px;")
+
     def _build(self):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -83,7 +93,6 @@ class DevicesTab(QWidget):
         scroll.setWidget(body)
         outer.addWidget(scroll)
 
-        # Header
         hdr = QLabel("LAN Devices")
         set_label_icon(hdr, "network", "LAN Devices", 18)
         hdr.setStyleSheet("font-size:16px;font-weight:bold;margin-bottom:2px;")
@@ -91,69 +100,55 @@ class DevicesTab(QWidget):
 
         sub = QLabel("Discover PhonoLab Android devices on your local network. Register them as API model endpoints for distributed inference.")
         sub.setWordWrap(True)
-        sub.setStyleSheet(f"color:{C['txt2']};font-size:12px;margin-bottom:8px;")
+        sub.setObjectName("txt2_small")
         root.addWidget(sub)
 
-        # Scan controls
+        # ── Scan card ──────────────────────────────────────────
+        scan_card = QFrame()
+        scan_card.setObjectName("tab_card")
+        scan_layout = QVBoxLayout(scan_card)
+        scan_layout.setContentsMargins(16, 14, 16, 14)
+        scan_layout.setSpacing(10)
+        scan_layout.addWidget(self._section("SCAN"))
+
         scan_row = QHBoxLayout()
         scan_row.setSpacing(8)
 
         self.btn_scan = QPushButton("  Scan Network")
         set_button_icon(self.btn_scan, "search")
-        self.btn_scan.setMinimumHeight(34)
-        self.btn_scan.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['acc']};color:#fff;border:none;border-radius:6px;
-                font-weight:bold;font-size:13px;padding:0 16px;
-            }}
-            QPushButton:hover {{ background:{C['acc2']}; }}
-            QPushButton:disabled {{ background:{C['txt3']}; }}
-        """)
+        self.btn_scan.setFixedHeight(30)
+        self.btn_scan.setObjectName("btn_send")
         self.btn_scan.clicked.connect(self._start_scan)
         scan_row.addWidget(self.btn_scan)
 
         self.btn_refresh_all = QPushButton("  Refresh All")
         set_button_icon(self.btn_refresh_all, "refresh-cw")
-        self.btn_refresh_all.setMinimumHeight(34)
-        self.btn_refresh_all.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                font-weight:bold;font-size:13px;padding:0 16px;
-            }}
-            QPushButton:hover {{ border-color:{C['acc']}; }}
-        """)
+        self.btn_refresh_all.setFixedHeight(30)
         self.btn_refresh_all.clicked.connect(self._refresh_statuses)
         scan_row.addWidget(self.btn_refresh_all)
 
         self.lbl_subnet = QLabel(f"Subnet: {detect_lan_ip().rsplit('.', 1)[0]}.0/24")
-        self.lbl_subnet.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.lbl_subnet.setObjectName("txt2_small")
         scan_row.addWidget(self.lbl_subnet)
 
         self.lbl_status = QLabel("")
-        self.lbl_status.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+        self.lbl_status.setObjectName("txt2_small")
         scan_row.addWidget(self.lbl_status, 1)
 
-        root.addLayout(scan_row)
+        scan_layout.addLayout(scan_row)
+        root.addWidget(scan_card)
 
-        # Device list
-        list_hdr = QLabel("DISCOVERED DEVICES")
-        list_hdr.setStyleSheet(f"color:{C['txt3']};font-size:10px;font-weight:bold;letter-spacing:0.08em;margin-top:8px;")
-        root.addWidget(list_hdr)
+        # ── Device list card ───────────────────────────────────
+        list_card = QFrame()
+        list_card.setObjectName("tab_card")
+        list_layout = QVBoxLayout(list_card)
+        list_layout.setContentsMargins(16, 14, 16, 14)
+        list_layout.setSpacing(10)
+        list_layout.addWidget(self._section("DISCOVERED DEVICES"))
 
         self.device_list = QListWidget()
         self.device_list.setMinimumHeight(200)
-        self.device_list.setStyleSheet(f"""
-            QListWidget {{
-                background:{C['bg']};border:1px solid {C['bdr']};border-radius:6px;
-            }}
-            QListWidget::item {{
-                padding:8px;border-bottom:1px solid {C['divider']};
-            }}
-            QListWidget::item:selected {{
-                background:{C['sel']};
-            }}
-        """)
-        root.addWidget(self.device_list, 1)
+        list_layout.addWidget(self.device_list, 1)
 
         # Action buttons - row 1
         btn_row = QHBoxLayout()
@@ -161,50 +156,27 @@ class DevicesTab(QWidget):
 
         self.btn_register = QPushButton("  Register as API Model")
         set_button_icon(self.btn_register, "plus")
-        self.btn_register.setMinimumHeight(34)
+        self.btn_register.setFixedHeight(30)
         self.btn_register.setEnabled(False)
-        self.btn_register.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['acc']};color:#fff;border:none;border-radius:6px;
-                font-weight:bold;font-size:13px;padding:0 16px;
-            }}
-            QPushButton:hover {{ background:{C['acc2']}; }}
-            QPushButton:disabled {{ background:{C['txt3']};color:{C['txt2']}; }}
-        """)
+        self.btn_register.setObjectName("btn_send")
         self.btn_register.clicked.connect(self._register_selected)
         btn_row.addWidget(self.btn_register)
 
         self.btn_set_key = QPushButton("  Set API Key")
         set_button_icon(self.btn_set_key, "clipboard-list")
-        self.btn_set_key.setMinimumHeight(34)
+        self.btn_set_key.setFixedHeight(30)
         self.btn_set_key.setEnabled(False)
-        self.btn_set_key.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                font-weight:bold;font-size:13px;padding:0 16px;
-            }}
-            QPushButton:hover {{ border-color:{C['acc']}; }}
-            QPushButton:disabled {{ background:{C['txt3']};color:{C['txt2']}; }}
-        """)
         self.btn_set_key.clicked.connect(self._set_api_key)
         btn_row.addWidget(self.btn_set_key)
 
         self.btn_test = QPushButton("  Test")
         set_button_icon(self.btn_test, "circle-check")
-        self.btn_test.setMinimumHeight(34)
+        self.btn_test.setFixedHeight(30)
         self.btn_test.setEnabled(False)
-        self.btn_test.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                font-weight:bold;font-size:13px;padding:0 16px;
-            }}
-            QPushButton:hover {{ border-color:{C['acc']}; }}
-            QPushButton:disabled {{ background:{C['txt3']};color:{C['txt2']}; }}
-        """)
         self.btn_test.clicked.connect(self._test_connection)
         btn_row.addWidget(self.btn_test)
 
-        root.addLayout(btn_row)
+        list_layout.addLayout(btn_row)
 
         # Action buttons - row 2
         btn_row2 = QHBoxLayout()
@@ -212,72 +184,49 @@ class DevicesTab(QWidget):
 
         self.btn_refresh = QPushButton("  Refresh")
         set_button_icon(self.btn_refresh, "refresh")
-        self.btn_refresh.setMinimumHeight(34)
+        self.btn_refresh.setFixedHeight(30)
         self.btn_refresh.setEnabled(False)
-        self.btn_refresh.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                font-weight:bold;font-size:13px;padding:0 16px;
-            }}
-            QPushButton:hover {{ border-color:{C['acc']}; }}
-            QPushButton:disabled {{ background:{C['txt3']};color:{C['txt2']}; }}
-        """)
         self.btn_refresh.clicked.connect(self._refresh_selected)
         btn_row2.addWidget(self.btn_refresh)
 
         self.btn_load_model = QPushButton("  Load Model")
         set_button_icon(self.btn_load_model, "blocks")
-        self.btn_load_model.setMinimumHeight(34)
+        self.btn_load_model.setFixedHeight(30)
         self.btn_load_model.setEnabled(False)
-        self.btn_load_model.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                font-weight:bold;font-size:13px;padding:0 16px;
-            }}
-            QPushButton:hover {{ border-color:{C['acc']}; }}
-            QPushButton:disabled {{ background:{C['txt3']};color:{C['txt2']}; }}
-        """)
         self.btn_load_model.clicked.connect(self._load_model_on_device)
         btn_row2.addWidget(self.btn_load_model)
 
         self.btn_remove = QPushButton("  Remove")
         set_button_icon(self.btn_remove, "trash")
-        self.btn_remove.setMinimumHeight(34)
+        self.btn_remove.setFixedHeight(30)
         self.btn_remove.setEnabled(False)
-        self.btn_remove.setStyleSheet(f"""
-            QPushButton {{
-                background:transparent;color:{C['err']};border:1px solid {C['err']};border-radius:6px;
-                font-weight:bold;font-size:13px;padding:0 16px;
-            }}
-            QPushButton:hover {{ background:{C['err']};color:#fff; }}
-            QPushButton:disabled {{ background:transparent;color:{C['txt3']};border-color:{C['txt3']}; }}
-        """)
+        self.btn_remove.setObjectName("btn_stop")
         self.btn_remove.clicked.connect(self._remove_selected)
         btn_row2.addWidget(self.btn_remove)
 
-        root.addLayout(btn_row2)
+        list_layout.addLayout(btn_row2)
+        root.addWidget(list_card)
 
-        # Device details panel
-        detail_hdr = QLabel("DEVICE DETAILS")
-        detail_hdr.setStyleSheet(f"color:{C['txt3']};font-size:10px;font-weight:bold;letter-spacing:0.08em;margin-top:8px;")
-        root.addWidget(detail_hdr)
+        # ── Device details card ────────────────────────────────
+        detail_card = QFrame()
+        detail_card.setObjectName("tab_card")
+        detail_layout = QVBoxLayout(detail_card)
+        detail_layout.setContentsMargins(16, 14, 16, 14)
+        detail_layout.setSpacing(10)
+        detail_layout.addWidget(self._section("DEVICE DETAILS"))
 
         self.detail_text = QTextEdit()
         self.detail_text.setReadOnly(True)
         self.detail_text.setMaximumHeight(160)
-        self.detail_text.setStyleSheet(f"""
-            QTextEdit {{
-                background:{C['bg']};border:1px solid {C['bdr']};border-radius:6px;
-                color:{C['txt']};font-size:12px;font-family:'DM Mono',monospace;padding:8px;
-            }}
-        """)
+        self.detail_text.setObjectName("log_te")
         self.detail_text.setPlainText("No device selected.")
-        root.addWidget(self.detail_text)
+        detail_layout.addWidget(self.detail_text)
 
-        # Status bar
         self.lbl_info = QLabel(f"My IP: {detect_lan_ip()}  ·  PhonoLab devices advertise on port 8787")
-        self.lbl_info.setStyleSheet(f"color:{C['txt3']};font-size:11px;margin-top:4px;")
-        root.addWidget(self.lbl_info)
+        self.lbl_info.setObjectName("txt2_xs")
+        detail_layout.addWidget(self.lbl_info)
+
+        root.addWidget(detail_card)
 
         # Selection handler
         self.device_list.currentRowChanged.connect(self._on_selection_changed)
@@ -293,8 +242,7 @@ class DevicesTab(QWidget):
             return
         self._scanning = True
         self.btn_scan.setEnabled(False)
-        self.lbl_status.setText("Scanning...")
-        self.lbl_status.setStyleSheet(f"color:{C['acc']};font-size:12px;")
+        self._set_status("Scanning...", "acc")
 
         def _scan():
             found = scan_network(
@@ -332,11 +280,9 @@ class DevicesTab(QWidget):
         self._populate_list()
         count = len(devices)
         if count > 0:
-            self.lbl_status.setText(f"Found {count} device{'s' if count != 1 else ''}")
-            self.lbl_status.setStyleSheet(f"color:{C['ok']};font-size:12px;")
+            self._set_status(f"Found {count} device{'s' if count != 1 else ''}", "ok")
         else:
-            self.lbl_status.setText("No devices found")
-            self.lbl_status.setStyleSheet(f"color:{C['txt2']};font-size:12px;")
+            self._set_status("No devices found", "txt2")
 
     def _populate_list(self):
         """Populate the device list widget."""
@@ -436,7 +382,7 @@ class DevicesTab(QWidget):
         # Check if already registered
         existing = registry.get(device.display_name)
         if existing:
-            # Already registered — check if key needs update
+            # Already registered - check if key needs update
             if existing.api_key == device.api_key:
                 reply = QMessageBox.question(
                     self, "Already Registered",
@@ -445,7 +391,7 @@ class DevicesTab(QWidget):
                 )
                 if reply != QMessageBox.StandardButton.Yes:
                     return
-            # Key changed or user wants to update — prompt for new key
+            # Key changed or user wants to update - prompt for new key
             api_key = self._prompt_api_key(device)
             if api_key is None:
                 return
@@ -454,13 +400,11 @@ class DevicesTab(QWidget):
             # Update existing config
             existing = existing.copy(api_key=api_key)
             registry.add(existing)
-            self.lbl_status.setText(f"Key updated for {device.display_name}")
-            self.lbl_status.setStyleSheet(f"color:{C['ok']};font-size:12px;")
+            self._set_status(f"Key updated for {device.display_name}", "ok")
             return
 
-        # New registration — try auto-connect first
-        self.lbl_status.setText(f"Connecting to {device.ip}...")
-        self.lbl_status.setStyleSheet(f"color:{C['acc']};font-size:12px;")
+        # New registration - try auto-connect first
+        self._set_status(f"Connecting to {device.ip}...", "acc")
 
         def _do_connect():
             ok, msg = auto_connect_device(device)
@@ -552,33 +496,18 @@ class DevicesTab(QWidget):
 
         info = QLabel(info_text)
         info.setWordWrap(True)
-        info.setStyleSheet(f"color:{C['txt']};font-size:13px;")
         layout.addWidget(info)
 
         key_input = QLineEdit()
         key_input.setPlaceholderText("nl-xxxxxxxxxxxx...")
         key_input.setText(device.api_key or "")
-        key_input.setStyleSheet(f"""
-            QLineEdit {{
-                background:{C['bg']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                padding:8px;font-size:13px;font-family:'DM Mono',monospace;
-            }}
-            QLineEdit:focus {{ border-color:{C['acc']}; }}
-        """)
         layout.addWidget(key_input)
 
         # Test button
         test_btn = QPushButton("  Test Connection")
         set_button_icon(test_btn, "circle-check")
-        test_btn.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                font-weight:bold;font-size:12px;padding:6px 12px;
-            }}
-            QPushButton:hover {{ border-color:{C['acc']}; }}
-        """)
         test_result = QLabel("")
-        test_result.setStyleSheet(f"font-size:12px;")
+        test_result.setObjectName("txt2_small")
 
         def _test():
             ok, msg = test_connection(device, key_input.text().strip())
@@ -592,20 +521,9 @@ class DevicesTab(QWidget):
         # Buttons
         btn_box = QHBoxLayout()
         ok_btn = QPushButton("OK")
-        ok_btn.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['acc']};color:#fff;border:none;border-radius:6px;
-                font-weight:bold;font-size:13px;padding:8px 20px;
-            }}
-        """)
+        ok_btn.setObjectName("btn_send")
         ok_btn.clicked.connect(dlg.accept)
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                font-weight:bold;font-size:13px;padding:8px 20px;
-            }}
-        """)
         cancel_btn.clicked.connect(dlg.reject)
         btn_box.addWidget(ok_btn)
         btn_box.addWidget(cancel_btn)
@@ -627,8 +545,7 @@ class DevicesTab(QWidget):
             device.api_key = api_key
             save_devices(self._devices)
             self._show_device_detail(device)
-            self.lbl_status.setText(f"API key set for {device.ip}")
-            self.lbl_status.setStyleSheet(f"color:{C['ok']};font-size:12px;")
+            self._set_status(f"API key set for {device.ip}", "ok")
 
     def _test_connection(self):
         """Test connection to selected device."""
@@ -637,8 +554,7 @@ class DevicesTab(QWidget):
             return
 
         device = self._devices[row]
-        self.lbl_status.setText(f"Testing {device.ip}...")
-        self.lbl_status.setStyleSheet(f"color:{C['acc']};font-size:12px;")
+        self._set_status(f"Testing {device.ip}...", "acc")
 
         def _do_test():
             ok, msg = test_connection(device)
@@ -650,11 +566,9 @@ class DevicesTab(QWidget):
 
     def _on_test_result(self, ok: bool, msg: str):
         if ok:
-            self.lbl_status.setText(f"Connected: {msg}")
-            self.lbl_status.setStyleSheet(f"color:{C['ok']};font-size:12px;")
+            self._set_status(f"Connected: {msg}", "ok")
         else:
-            self.lbl_status.setText(f"Failed: {msg}")
-            self.lbl_status.setStyleSheet(f"color:{C['err']};font-size:12px;")
+            self._set_status(f"Failed: {msg}", "err")
 
     def _load_model_on_device(self):
         """Show dialog to load a model on the selected device."""
@@ -681,7 +595,6 @@ class DevicesTab(QWidget):
         layout = QVBoxLayout(dlg)
 
         info = QLabel(f"Select a model to load on {device.ip}:")
-        info.setStyleSheet(f"color:{C['txt']};font-size:13px;")
         layout.addWidget(info)
 
         combo = QComboBox()
@@ -690,30 +603,13 @@ class DevicesTab(QWidget):
             active = m.get("active", False)
             label = f"[active] {mid}" if active else mid
             combo.addItem(icon("circle-check" if active else "circle"), label, mid)
-        combo.setStyleSheet(f"""
-            QComboBox {{
-                background:{C['bg']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                padding:8px;font-size:13px;
-            }}
-        """)
         layout.addWidget(combo)
 
         btn_box = QHBoxLayout()
         ok_btn = QPushButton("Load")
-        ok_btn.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['acc']};color:#fff;border:none;border-radius:6px;
-                font-weight:bold;font-size:13px;padding:8px 20px;
-            }}
-        """)
+        ok_btn.setObjectName("btn_send")
         ok_btn.clicked.connect(dlg.accept)
         cancel_btn = QPushButton("Cancel")
-        cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;
-                font-weight:bold;font-size:13px;padding:8px 20px;
-            }}
-        """)
         cancel_btn.clicked.connect(dlg.reject)
         btn_box.addWidget(ok_btn)
         btn_box.addWidget(cancel_btn)
@@ -722,8 +618,7 @@ class DevicesTab(QWidget):
         if dlg.exec() == QDialog.DialogCode.Accepted:
             model_path = combo.currentData()
             if model_path:
-                self.lbl_status.setText(f"Loading {model_path} on {device.ip}...")
-                self.lbl_status.setStyleSheet(f"color:{C['acc']};font-size:12px;")
+                self._set_status(f"Loading {model_path} on {device.ip}...", "acc")
 
                 def _do_load():
                     ok, msg = load_model_on_device(device, model_path)
@@ -740,8 +635,7 @@ class DevicesTab(QWidget):
             return
 
         device = self._devices[row]
-        self.lbl_status.setText(f"Refreshing {device.ip}...")
-        self.lbl_status.setStyleSheet(f"color:{C['acc']};font-size:12px;")
+        self._set_status(f"Refreshing {device.ip}...", "acc")
 
         def _do_refresh():
             updated = refresh_device(device)
@@ -757,11 +651,9 @@ class DevicesTab(QWidget):
             save_devices(self._devices)
             self._populate_list()
             self._show_device_detail(updated)
-            self.lbl_status.setText(f"Refreshed: {updated.ip}")
-            self.lbl_status.setStyleSheet(f"color:{C['ok']};font-size:12px;")
+            self._set_status(f"Refreshed: {updated.ip}", "ok")
         else:
-            self.lbl_status.setText("Refresh failed — device may be offline")
-            self.lbl_status.setStyleSheet(f"color:{C['err']};font-size:12px;")
+            self._set_status("Refresh failed - device may be offline", "err")
 
     def _remove_selected(self):
         """Remove selected device from the list."""

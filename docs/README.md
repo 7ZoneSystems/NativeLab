@@ -36,7 +36,7 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 
 ---
 
-## 📱 PhonoLab — Android Client
+## 📱 PhonoLab - Android Client
 
 PhonoLab is the official NativeLab Android client. Same local-first philosophy, runs llama.cpp on-device.
 
@@ -44,10 +44,10 @@ PhonoLab is the official NativeLab Android client. Same local-first philosophy, 
 |---|---|
 | [PhonoLab README](../PhonoLab/docs/README.md) | Documentation index for the Android app. |
 | [ANDROID_APP.md](../PhonoLab/docs/ANDROID_APP.md) | Android architecture, error handling, singleton pattern, lifecycle protection. |
-| [FILE_INDEX.md](../PhonoLab/docs/FILE_INDEX.md) | Every file in the Android project — purpose, classes, constants. |
+| [FILE_INDEX.md](../PhonoLab/docs/FILE_INDEX.md) | Every file in the Android project - purpose, classes, constants. |
 | [CONSTANTS.md](../PhonoLab/docs/CONSTANTS.md) | All Android constants, limits, colors, URLs. |
 | [CONTRIBUTING.md](../PhonoLab/docs/CONTRIBUTING.md) | What to edit for specific Android changes. |
-| [api_endpoints.md](../PhonoLab/docs/api_endpoints.md) | Complete PhonoLab API reference — all endpoints, curl examples, vision, RAG, config. |
+| [api_endpoints.md](../PhonoLab/docs/api_endpoints.md) | Complete PhonoLab API reference - all endpoints, curl examples, vision, RAG, config. |
 
 ---
 
@@ -81,7 +81,7 @@ PhonoLab is the official NativeLab Android client. Same local-first philosophy, 
 → [PhonoLab docs](../PhonoLab/docs/README.md) and the [PhonoLab web page](../web_page/phonolab.html).
 
 **"I want to use my phone as a LAN AI server from NativeLab."**
-→ [PhonoLab API endpoints](../PhonoLab/docs/api_endpoints.md) — scan and register devices in Dev → Devices tab. Smart auth handles key management automatically.
+→ [PhonoLab API endpoints](../PhonoLab/docs/api_endpoints.md) - scan and register devices in Dev → Devices tab. Smart auth handles key management automatically.
 
 ---
 

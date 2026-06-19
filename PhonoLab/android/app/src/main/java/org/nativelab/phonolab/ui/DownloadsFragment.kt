@@ -151,7 +151,7 @@ class DownloadsFragment : Fragment() {
                 runOnUi {
                     runtimeProgress.visibility = View.GONE
                     val sizeMb = model.length() / (1024 * 1024)
-                    runtimeStatus.text = "✅ ${model.name} ($sizeMb MB) — ready to load"
+                    runtimeStatus.text = "✅ ${model.name} ($sizeMb MB) - ready to load"
                     runtimeStatus.setTextColor(resources.getColor(R.color.ph_ok, null))
                     Toast.makeText(context, "Model ready! Go to Chat and tap Load.", Toast.LENGTH_SHORT).show()
                 }

@@ -485,7 +485,7 @@ All errors follow this format:
 | `not_found` | 404 | Unknown endpoint |
 | `payload_too_large` | 413 | Request body exceeds 1MB |
 | `conflict` | 409 | Reload already in progress |
-| `model_not_loaded` | 503 | No model loaded — use POST /load first |
+| `model_not_loaded` | 503 | No model loaded - use POST /load first |
 | `model_loading` | 503 | Model is currently loading/reloading |
 | `server_error` | 500 | Internal server error |
 | `server_busy` | 503 | Queue full (50 requests) |

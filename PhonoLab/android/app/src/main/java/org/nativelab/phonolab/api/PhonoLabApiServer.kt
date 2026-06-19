@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
 /**
- * HTTP API server for PhonoLab — OpenAI and Anthropic compatible.
+ * HTTP API server for PhonoLab - OpenAI and Anthropic compatible.
  *
  * Features:
  * - Live status reporting (idle/loading/generating/stable/reloading)
@@ -146,7 +146,7 @@ class PhonoLabApiServer(
         status = newStatus
         statusMessage = message
         if (newStatus != ServerStatus.ERROR) lastError = null
-        addLog("Status: ${newStatus.name} — $message")
+        addLog("Status: ${newStatus.name} - $message")
     }
 
     // ── Request Queue ─────────────────────────────────────────────

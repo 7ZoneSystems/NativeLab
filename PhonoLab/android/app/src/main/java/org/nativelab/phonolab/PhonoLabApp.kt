@@ -56,7 +56,7 @@ class PhonoLabApp : Application() {
     }
 
     /**
-     * Global crash handler — catches any uncaught exception.
+     * Global crash handler - catches any uncaught exception.
      * Logs it, cleans up server processes, and shows a restart dialog.
      * Does NOT force-kill the app (lets Android handle lifecycle).
      */
@@ -203,7 +203,7 @@ class PhonoLabApp : Application() {
     }
 
     /**
-     * Safe execute — runs a block and catches any exception.
+     * Safe execute - runs a block and catches any exception.
      * Returns null on failure, logs the error.
      */
     fun <T> safeRun(tag: String, block: () -> T): T? {

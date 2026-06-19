@@ -12,8 +12,8 @@ PhonoLab Android runs llama.cpp models on-device via a bundled `llama-server` bi
 ┌─────────────────────────────────────────────────────────┐
 │  PhonoLabApp (Application singleton)                    │
 │    store, sessionManager, modelManager, runtime          │
-│    showError(fatal) — banner or restart dialog           │
-│    safeRunState() — IllegalStateException handler        │
+│    showError(fatal) - banner or restart dialog           │
+│    safeRunState() - IllegalStateException handler        │
 │    └─ survives recreate() (theme switch, config change)  │
 ├─────────────────────────────────────────────────────────┤
 │  MainActivity (implements ChatFragment.Host)             │
@@ -91,7 +91,7 @@ This ensures model loading in `ModelsFragment` is visible to `ChatFragment`, and
 ### Document Attachment (RAG)
 1. User taps attach button → `AttachmentBottomSheet` (Image | Document)
 2. Document → `OpenDocument` picker (.pdf, .txt, .doc, .docx)
-3. `RagProcessor.processDocument()` — extracts text, chunks (1500 chars, 200 overlap)
+3. `RagProcessor.processDocument()` - extracts text, chunks (1500 chars, 200 overlap)
 4. Progress bar shown during processing
 5. On send → `retrieveChunks(query, chunks, topK=3)` → prepended to message
 
@@ -119,7 +119,7 @@ This ensures model loading in `ModelsFragment` is visible to `ChatFragment`, and
 
 ### Non-Fatal Errors (operation failed, app continues)
 - `PhonoLabApp.showError(message, fatal=false)` → red `ErrorBannerView` top-right, auto-dismisses 5s
-- `safeRunState(tag, operation, block)` — catches `IllegalStateException`/`IllegalArgumentException`, shows banner
+- `safeRunState(tag, operation, block)` - catches `IllegalStateException`/`IllegalArgumentException`, shows banner
 - `ChatFragment.showError()` → error as assistant message with ⚠️
 
 ### Error Reporting Layers
@@ -158,8 +158,8 @@ Prevents crashes when fragment view is destroyed before posted runnable executes
 - `ChatFragment.onDestroyView()` → conditional shutdown (not during generation)
 
 ### Session Log Capping
-- `ChatSession.addLog()` — caps at 500 entries, trims oldest
-- `ChatFragment.sessionLogs` — capped at 500
+- `ChatSession.addLog()` - caps at 500 entries, trims oldest
+- `ChatFragment.sessionLogs` - capped at 500
 
 ---
 
@@ -176,7 +176,7 @@ Prevents crashes when fragment view is destroyed before posted runnable executes
 - Theme colors passed to HTML (txt color, code bg)
 
 ### Android ICU Note
-- NEVER use literal `{` or `}` in regex — use `[{]` and `[}]`
+- NEVER use literal `{` or `}` in regex - use `[{]` and `[}]`
 - Use lambda replacements, not backreferences (`$1`)
 
 ---

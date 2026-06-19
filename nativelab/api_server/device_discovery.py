@@ -287,8 +287,8 @@ def test_connection(device: DiscoveredDevice, api_key: str = "") -> tuple[bool, 
             device.auth_status = "failed"
             device.require_key_changed = time.time()
             if not key:
-                return False, "Authentication required — enter API key from PhonoLab"
-            return False, "API key rejected — key may have changed on device"
+                return False, "Authentication required - enter API key from PhonoLab"
+            return False, "API key rejected - key may have changed on device"
         return False, f"HTTP {e.code}: {e.reason}"
     except Exception as e:
         return False, f"Connection failed: {e}"
