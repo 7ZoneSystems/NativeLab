@@ -204,6 +204,15 @@ body {
   background: #dddddd;
 }
 
+.nav-download {
+  color: #fff !important;
+  background: #55C2A4 !important;
+}
+
+.nav-download:hover {
+  background: #45a88a !important;
+}
+
 /* ── Text Layer ──────────────────────────────────────────────── */
 
 #text-layer {

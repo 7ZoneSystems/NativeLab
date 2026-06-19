@@ -48,6 +48,7 @@ jobs:
           cp -f setup.html dist/ 2>/dev/null || true
           cp -f site.css dist/ 2>/dev/null || true
           cp -f site.js dist/ 2>/dev/null || true
+          cp -f Phonolabv*.apk dist/ 2>/dev/null || true
           [ -d images ] && cp -r images dist/ || true
           [ -d public/docs ] && cp -r public/docs dist/ || true
           [ -d public/PhonoLab ] && cp -r public/PhonoLab dist/ || true
