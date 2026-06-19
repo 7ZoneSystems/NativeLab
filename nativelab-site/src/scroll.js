@@ -18,7 +18,7 @@ let currentStep = 0
 let isMoving = false
 let walkTween = null
 let beamFired = false
-let scrollStopTimer = null
+let pendingTarget = -1
 
 // Text thresholds: { sec, scrollAt } - text reveals at this scroll %
 const TEXT_MAP = [
@@ -54,11 +54,23 @@ export function initScroll(opts) {
 function moveRobotToStep(targetIndex) {
   if (!stairPositions || !avatar) return
   if (targetIndex < 0 || targetIndex >= stairPositions.length) return
-  if (targetIndex === currentStep || isMoving) return
+  if (targetIndex === currentStep && !isMoving) return
 
-  if (walkTween) { walkTween.kill(); walkTween = null }
+  // If already moving, just update the target — don't kill walk
+  if (isMoving) {
+    pendingTarget = targetIndex
+    return
+  }
+
   isMoving = true
+  pendingTarget = targetIndex
   if (avatarAnim) avatarAnim.playWalk()
+
+  walkToTarget(targetIndex)
+}
+
+function walkToTarget(targetIndex) {
+  if (walkTween) { walkTween.kill(); walkTween = null }
 
   const waypoints = []
   const dir = targetIndex > currentStep ? 1 : -1
@@ -69,17 +81,29 @@ function moveRobotToStep(targetIndex) {
   const final = stairPositions[targetIndex]
   waypoints.push({ x: final.x, y: final.y - feetOffset, z: final.z })
 
+  // Scale speed: more steps = faster per step, clamped
+  const stepCount = Math.abs(targetIndex - currentStep)
+  const perStepDuration = Math.max(0.08, Math.min(0.3, 0.6 / stepCount))
+
   // Face first direction
   if (waypoints.length > 1) {
     const dx = waypoints[1].x - waypoints[0].x
     const dz = waypoints[1].z - waypoints[0].z
     if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
-      gsap.to(avatar.rotation, { y: Math.atan2(dx, dz), duration: 0.2, ease: 'power2.out' })
+      gsap.to(avatar.rotation, { y: Math.atan2(dx, dz), duration: 0.15, ease: 'power2.out' })
     }
   }
 
   let wpIdx = 0
   function nextWP() {
+    // Check if a new target was set while walking
+    if (pendingTarget !== targetIndex && pendingTarget !== currentStep) {
+      // Redirect to new target without stopping
+      currentStep = targetIndex
+      walkToTarget(pendingTarget)
+      return
+    }
+
     if (wpIdx >= waypoints.length) {
       isMoving = false
       currentStep = targetIndex
@@ -91,7 +115,7 @@ function moveRobotToStep(targetIndex) {
 
     walkTween = gsap.to(avatar.position, {
       x: wp.x, y: wp.y, z: wp.z,
-      duration: 0.35, ease: 'none',
+      duration: perStepDuration, ease: 'none',
       onComplete: nextWP
     })
 
@@ -100,38 +124,11 @@ function moveRobotToStep(targetIndex) {
       const dx = next.x - wp.x
       const dz = next.z - wp.z
       if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
-        gsap.to(avatar.rotation, { y: Math.atan2(dx, dz), duration: 0.15 })
+        gsap.to(avatar.rotation, { y: Math.atan2(dx, dz), duration: 0.1 })
       }
     }
   }
   nextWP()
-}
-
-// Force robot to stop and go idle at current position
-function stopAndIdle() {
-  if (walkTween) { walkTween.kill(); walkTween = null }
-  isMoving = false
-  if (avatarAnim) avatarAnim.playIdle()
-}
-
-// Snap robot to the correct step for a given scroll position
-function snapToScrollStep(sp) {
-  if (sp < WALK_START || sp > WALK_END) return
-  const walkProgress = (sp - WALK_START) / (WALK_END - WALK_START)
-  const targetStep = Math.min(TOTAL_STEPS - 1, Math.floor(walkProgress * TOTAL_STEPS))
-  if (targetStep >= 0 && targetStep < stairPositions.length) {
-    const s = stairPositions[targetStep]
-    avatar.position.set(s.x, s.y - feetOffset, s.z)
-    currentStep = targetStep
-    // Face next step
-    const nextIdx = Math.min(targetStep + 1, stairPositions.length - 1)
-    const next = stairPositions[nextIdx]
-    const dx = next.x - s.x
-    const dz = next.z - s.z
-    if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
-      avatar.rotation.y = Math.atan2(dx, dz)
-    }
-  }
 }
 
 // Determine which text section should be active at this scroll position
@@ -213,19 +210,11 @@ function buildTimeline() {
           TOTAL_STEPS - 1,
           Math.floor(walkProgress * TOTAL_STEPS)
         )
-        if (targetStep !== prevStep && targetStep !== currentStep && !isMoving) {
+        if (targetStep !== prevStep) {
           moveRobotToStep(targetStep)
           prevStep = targetStep
         }
       }
-
-      // ── SCROLL STOP: force idle after 200ms of no scroll ─────
-      if (scrollStopTimer) clearTimeout(scrollStopTimer)
-      scrollStopTimer = setTimeout(() => {
-        // Scroll stopped — snap to correct position and go idle
-        stopAndIdle()
-        snapToScrollStep(sp)
-      }, 200)
     }
   })
 }
