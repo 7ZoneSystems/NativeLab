@@ -11,6 +11,8 @@ from nativelab.imports.import_global import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QSlider,
+    Qt,
     QTextEdit,
     QThread,
     QTimer,
@@ -603,6 +605,10 @@ class AiPipelineBuilderPanel(QWidget):
         self.request_edit.textChanged.connect(self._refresh_budget)
         root.addWidget(self.request_edit, 1)
 
+        # ── Device Capabilities Panel ──
+        self._device_panel = self._build_device_panel()
+        root.addWidget(self._device_panel)
+
         self.budget_lbl = QLabel("")
         self.budget_lbl.setObjectName("status_badge")
         self.budget_lbl.setProperty("state", "idle")
@@ -683,6 +689,191 @@ class AiPipelineBuilderPanel(QWidget):
         except Exception:
             pass
         self._adaptive_fields.append(field)
+
+    def _build_device_panel(self) -> QWidget:
+        """Build collapsible device capabilities panel."""
+        from nativelab.Model.APImodels import getapi_registry, is_phonolab_device
+        from nativelab.UI.icons import icon
+
+        panel = QWidget()
+        outer = QVBoxLayout(panel)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(4)
+
+        # Header row (clickable to expand/collapse)
+        hdr_row = QHBoxLayout()
+        hdr_row.setSpacing(6)
+        hdr_icon = QLabel()
+        hdr_icon.setPixmap(icon("globe").pixmap(14, 14))
+        hdr_row.addWidget(hdr_icon)
+        hdr_label = QLabel("Device Capabilities")
+        hdr_label.setStyleSheet(f"font-size:11px;font-weight:bold;color:{C.get('txt2', '#7a7a9a')};")
+        hdr_row.addWidget(hdr_label, 1)
+        self._device_expand_btn = QPushButton("+")
+        self._device_expand_btn.setFixedSize(20, 20)
+        self._device_expand_btn.setStyleSheet(f"QPushButton {{ background:transparent;color:{C.get('txt2', '#7a7a9a')};border:none;font-weight:bold; }}")
+        hdr_row.addWidget(self._device_expand_btn)
+        outer.addLayout(hdr_row)
+
+        # Content (hidden by default)
+        self._device_content = QWidget()
+        content_layout = QVBoxLayout(self._device_content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(8)
+        self._device_content.setVisible(False)
+
+        # Device list
+        registry = getapi_registry()
+        devices = [cfg for cfg in registry.all() if is_phonolab_device(cfg)]
+
+        if not devices:
+            no_dev = QLabel("No PhonoLab devices registered. Use Dev > Devices to scan and register.")
+            no_dev.setWordWrap(True)
+            no_dev.setStyleSheet(f"color:{C.get('txt3', '#48485e')};font-size:11px;")
+            content_layout.addWidget(no_dev)
+        else:
+            self._device_sliders = {}
+            for cfg in devices:
+                dev_frame = QFrame()
+                dev_frame.setStyleSheet(f"QFrame {{ background:{C.get('bg', '#09090d')};border:1px solid {C.get('bdr', '#252538')};border-radius:6px; padding:6px; }}")
+                dev_layout = QVBoxLayout(dev_frame)
+                dev_layout.setContentsMargins(8, 6, 8, 6)
+                dev_layout.setSpacing(4)
+
+                # Device name + live status
+                name_row = QHBoxLayout()
+                name_row.setSpacing(6)
+                name_lbl = QLabel(cfg.name)
+                name_lbl.setStyleSheet(f"font-size:12px;font-weight:bold;color:{C.get('txt', '#ededf5')};")
+                name_row.addWidget(name_lbl, 1)
+
+                status_lbl = QLabel(getattr(cfg, "device_status", "unknown").upper())
+                status_lbl.setStyleSheet(f"font-size:10px;color:{C.get('txt2', '#7a7a9a')};")
+                name_row.addWidget(status_lbl)
+                dev_layout.addLayout(name_row)
+
+                # Live model info
+                info_lbl = QLabel(f"Model: {cfg.model_id} | {getattr(cfg, 'cpu_cores', 0)} cores | {getattr(cfg, 'ram_mb', 0)}MB")
+                info_lbl.setStyleSheet(f"font-size:10px;color:{C.get('txt3', '#48485e')};")
+                dev_layout.addWidget(info_lbl)
+
+                sliders = {}
+
+                # Temperature
+                temp_row, temp_slider, temp_val = self._make_slider(
+                    "Temperature", 0, 200, int(cfg.temperature * 100), f"{cfg.temperature:.2f}")
+                dev_layout.addLayout(temp_row)
+                sliders["temperature"] = (temp_slider, 100)
+
+                # Top-P
+                topp_row, topp_slider, topp_val = self._make_slider(
+                    "Top-P", 0, 100, 90, "0.90")
+                dev_layout.addLayout(topp_row)
+                sliders["top_p"] = (topp_slider, 100)
+
+                # Top-K
+                topk_row, topk_slider, topk_val = self._make_slider(
+                    "Top-K", 0, 200, 40, "40")
+                dev_layout.addLayout(topk_row)
+                sliders["top_k"] = (topk_slider, 1)
+
+                # Repeat Penalty
+                rep_row, rep_slider, rep_val = self._make_slider(
+                    "Repeat Penalty", 100, 200, 110, "1.10")
+                dev_layout.addLayout(rep_row)
+                sliders["repeat_penalty"] = (rep_slider, 100)
+
+                # Max Tokens
+                tok_row, tok_slider, tok_val = self._make_slider(
+                    "Max Tokens", 64, 4096, 512, "512")
+                dev_layout.addLayout(tok_row)
+                sliders["max_tokens"] = (tok_slider, 1)
+
+                # Apply button
+                apply_btn = QPushButton(f"Apply to {cfg.name}")
+                apply_btn.setFixedHeight(26)
+                apply_btn.setStyleSheet(f"QPushButton {{ background:{C.get('acc', '#55C2A4')};color:#fff;border:none;border-radius:4px;font-weight:bold;font-size:11px; }} QPushButton:hover {{ background:{C.get('acc2', '#3da88a')}; }}")
+                apply_btn.clicked.connect(lambda checked, c=cfg, s=sliders: self._apply_device_config(c, s))
+                dev_layout.addWidget(apply_btn)
+
+                content_layout.addWidget(dev_frame)
+                self._device_sliders[cfg.name] = sliders
+
+        outer.addWidget(self._device_content)
+
+        # Toggle expand/collapse
+        self._device_expand_btn.clicked.connect(self._toggle_device_panel)
+
+        return panel
+
+    def _make_slider(self, label: str, min_val: int, max_val: int, default: int, fmt: str):
+        """Helper to create a labeled slider row."""
+        row = QHBoxLayout()
+        row.setSpacing(6)
+
+        lbl = QLabel(f"{label}: {fmt}")
+        lbl.setFixedWidth(110)
+        lbl.setStyleSheet(f"font-size:11px;color:{C.get('txt', '#ededf5')};")
+        row.addWidget(lbl)
+
+        slider = QSlider(Qt.Orientation.Horizontal)
+        slider.setRange(min_val, max_val)
+        slider.setValue(default)
+        slider.setStyleSheet(
+            f"QSlider::groove:horizontal {{ background:{C.get('bg', '#09090d')};height:4px;border-radius:2px; }}"
+            f"QSlider::handle:horizontal {{ background:{C.get('acc', '#55C2A4')};width:12px;height:12px;margin:-4px 0;border-radius:6px; }}"
+        )
+        row.addWidget(slider, 1)
+
+        val_lbl = QLabel(fmt)
+        val_lbl.setFixedWidth(40)
+        val_lbl.setStyleSheet(f"font-size:11px;color:{C.get('txt2', '#7a7a9a')};")
+        row.addWidget(val_lbl)
+
+        def _update(v):
+            if label == "Temperature" or label == "Top-P" or label == "Repeat Penalty":
+                val_lbl.setText(f"{v/100:.2f}")
+            else:
+                val_lbl.setText(str(v))
+
+        slider.valueChanged.connect(_update)
+
+        return row, slider, val_lbl
+
+    def _toggle_device_panel(self):
+        visible = not self._device_content.isVisible()
+        self._device_content.setVisible(visible)
+        self._device_expand_btn.setText("-" if visible else "+")
+
+    def _apply_device_config(self, cfg, sliders: dict):
+        """Apply slider values to a device via the backend."""
+        from nativelab.core.backend import get_backend
+        from nativelab.api_server.device_discovery import DiscoveredDevice
+
+        config = {}
+        for key, (slider, divisor) in sliders.items():
+            val = slider.value()
+            if divisor > 1:
+                config[key] = val / divisor
+            else:
+                config[key] = val
+
+        device = DiscoveredDevice(
+            ip=cfg.base_url.split("//")[1].split(":")[0],
+            port=int(cfg.base_url.split(":")[-1].split("/")[0]) if ":" in cfg.base_url else 8787,
+            api_key=cfg.api_key,
+        )
+
+        backend = get_backend()
+        result = backend.update_device_config(device, config)
+        if result.ok:
+            self._append_status(f"Config applied to {cfg.name}")
+        else:
+            self._append_status(f"Failed to apply config to {cfg.name}: {result.error}")
+
+    def _append_status(self, msg: str):
+        """Append a message to the status text edit."""
+        self.status_edit.append(msg)
 
     def set_sidebar_width(self, width: int):
         self._sidebar_width = max(0, int(width or 0))

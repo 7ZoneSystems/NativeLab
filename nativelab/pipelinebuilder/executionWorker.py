@@ -759,11 +759,22 @@ class PipelineExecutionWorker(QThread):
             "secondary":     "You are a versatile general-purpose assistant.",
         }
         system = ROLE_SYSTEM.get(b.role, ROLE_SYSTEM["general"])
+
+        # Use device-specific params from metadata if available (set by AI Builder)
+        device_params = b.metadata.get("device_params", {})
+        temperature = float(device_params.get("temperature", getattr(cfg, "temperature", 0.7)))
+        top_p = float(device_params.get("top_p", getattr(cfg, "top_p", 0.9)))
+        top_k = int(device_params.get("top_k", getattr(cfg, "top_k", 40)))
+        repeat_penalty = float(device_params.get("repeat_penalty", getattr(cfg, "repeat_penalty", 1.1)))
+
         return self._api_query_sync(
             system,
             context,
             max_tokens=0,
-            temperature=float(getattr(cfg, "temperature", 0.7)),
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            repeat_penalty=repeat_penalty,
             token_cb=lambda tok: self.step_token.emit(b.bid, tok),
         )
 
@@ -845,6 +856,7 @@ class PipelineExecutionWorker(QThread):
 
     def _api_query_sync(self, system_prompt: str, user_prompt: str,
                         max_tokens: int = 512, temperature: float = 0.7,
+                        top_p: float = 0.9, top_k: int = 0, repeat_penalty: float = 1.1,
                         token_cb=None) -> Optional[str]:
         eng = self.primary_engine
         cfg = getattr(eng, "_config", None)
@@ -903,6 +915,12 @@ class PipelineExecutionWorker(QThread):
                     "temperature": temperature,
                     "stream": False,
                 }
+                if top_p > 0:
+                    payload["top_p"] = top_p
+                if top_k > 0:
+                    payload["top_k"] = top_k
+                if repeat_penalty > 1.0:
+                    payload["repeat_penalty"] = repeat_penalty
                 max_tokens = int(max_tokens or 0)
                 if max_tokens > 0:
                     payload["max_tokens"] = max_tokens

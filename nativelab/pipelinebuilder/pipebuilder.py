@@ -908,8 +908,17 @@ class PipelineBuilderTab(QWidget):
             item.setData(Qt.ItemDataRole.UserRole + 1, m.get("role", "general"))
             self.model_list.addItem(item)
         for cfg in getapi_registry().all():
-            item = QListWidgetItem(f"{cfg.name}\n    API · {cfg.provider} · {cfg.model_id}")
-            item.setIcon(icon("api"))
+            from nativelab.Model.APImodels import is_phonolab_device, device_spec_label
+            if is_phonolab_device(cfg):
+                specs = device_spec_label(cfg)
+                status = getattr(cfg, "device_status", "")
+                status_icon = {"ready": "circle-check", "idle": "circle", "generating": "loader-circle"}.get(status, "circle")
+                vision_label = " [vision]" if getattr(cfg, "is_vision", False) else ""
+                item = QListWidgetItem(icon(status_icon), f"{cfg.name}\n    PhonoLab | {cfg.model_id}{vision_label} | {specs}")
+                item.setIcon(icon("globe"))
+            else:
+                item = QListWidgetItem(f"{cfg.name}\n    API | {cfg.provider} | {cfg.model_id}")
+                item.setIcon(icon("api"))
             item.setData(Qt.ItemDataRole.UserRole, api_model_ref(cfg.name))
             item.setData(Qt.ItemDataRole.UserRole + 1, "general")
             self.model_list.addItem(item)

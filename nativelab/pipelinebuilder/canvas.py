@@ -1,4 +1,5 @@
 from nativelab.imports.import_global import HAS_PDF,QMenu,Path,QColor,QFileDialog, QPainter, QPen, QBrush, QPainterPath, QPointF, QPolygonF, Qt, pyqtSignal, QWidget, QFont, QDataStream, QIODevice, QVariant, QInputDialog, QMessageBox, List, Optional
+from nativelab.imports.qt_compat import QDialog, QSlider, QHBoxLayout, QVBoxLayout, QLabel, QPushButton
 from .pipblck import PipelineBlock, PipelineBlockType
 from .blck_typ import PipelineConnection
 from nativelab.Server.server_global import detect_model_family
@@ -1017,6 +1018,149 @@ class PipelineCanvas(QWidget):
                                 f"Failed to open Web Search configuration:\n\n{e}")
         self.update()
 
+    def _configure_device_block(self, b: "PipelineBlock"):
+        """Open advanced configuration dialog for a PhonoLab device model block."""
+        from nativelab.Model.APImodels import getapi_registry, api_model_name_from_ref, is_api_model_ref
+        from nativelab.UI.UI_const import C
+
+        if not is_api_model_ref(b.model_path):
+            return
+
+        cfg_name = api_model_name_from_ref(b.model_path)
+        registry = getapi_registry()
+        cfg = registry.get(cfg_name)
+        if cfg is None:
+            QMessageBox.warning(self, "Device Not Found", f"API model '{cfg_name}' not found.")
+            return
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"Configure Device: {cfg_name}")
+        dlg.setMinimumWidth(420)
+        dlg.setStyleSheet(f"QDialog {{ background:{C['surface']}; }}")
+
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(10)
+        layout.setContentsMargins(18, 18, 18, 18)
+
+        # Header
+        hdr = QLabel(f"Device: {cfg_name}")
+        hdr.setStyleSheet(f"font-size:14px;font-weight:bold;color:{C['txt']};")
+        layout.addWidget(hdr)
+
+        specs = QLabel(f"Provider: {cfg.provider} | Model: {cfg.model_id}")
+        specs.setStyleSheet(f"font-size:12px;color:{C['txt2']};")
+        layout.addWidget(specs)
+
+        layout.addWidget(QLabel(""))  # spacer
+
+        # Temperature slider
+        temp_label = QLabel(f"Temperature: {cfg.temperature:.2f}")
+        temp_label.setStyleSheet(f"color:{C['txt']};font-size:12px;font-weight:bold;")
+        layout.addWidget(temp_label)
+        temp_slider = QSlider(Qt.Orientation.Horizontal)
+        temp_slider.setRange(0, 200)
+        temp_slider.setValue(int(cfg.temperature * 100))
+        temp_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        temp_slider.valueChanged.connect(lambda v: temp_label.setText(f"Temperature: {v/100:.2f}"))
+        layout.addWidget(temp_slider)
+
+        # Top-P slider
+        topp_label = QLabel(f"Top-P: 0.90")
+        topp_label.setStyleSheet(f"color:{C['txt']};font-size:12px;font-weight:bold;")
+        layout.addWidget(topp_label)
+        topp_slider = QSlider(Qt.Orientation.Horizontal)
+        topp_slider.setRange(0, 100)
+        topp_slider.setValue(90)
+        topp_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        topp_slider.valueChanged.connect(lambda v: topp_label.setText(f"Top-P: {v/100:.2f}"))
+        layout.addWidget(topp_slider)
+
+        # Top-K slider
+        topk_label = QLabel(f"Top-K: 40")
+        topk_label.setStyleSheet(f"color:{C['txt']};font-size:12px;font-weight:bold;")
+        layout.addWidget(topk_label)
+        topk_slider = QSlider(Qt.Orientation.Horizontal)
+        topk_slider.setRange(0, 200)
+        topk_slider.setValue(40)
+        topk_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        topk_slider.valueChanged.connect(lambda v: topk_label.setText(f"Top-K: {v}"))
+        layout.addWidget(topk_slider)
+
+        # Repeat Penalty slider
+        rep_label = QLabel(f"Repeat Penalty: 1.10")
+        rep_label.setStyleSheet(f"color:{C['txt']};font-size:12px;font-weight:bold;")
+        layout.addWidget(rep_label)
+        rep_slider = QSlider(Qt.Orientation.Horizontal)
+        rep_slider.setRange(100, 200)
+        rep_slider.setValue(110)
+        rep_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        rep_slider.valueChanged.connect(lambda v: rep_label.setText(f"Repeat Penalty: {v/100:.2f}"))
+        layout.addWidget(rep_slider)
+
+        # Max Tokens slider
+        tokens_label = QLabel(f"Max Tokens: 512")
+        tokens_label.setStyleSheet(f"color:{C['txt']};font-size:12px;font-weight:bold;")
+        layout.addWidget(tokens_label)
+        tokens_slider = QSlider(Qt.Orientation.Horizontal)
+        tokens_slider.setRange(64, 4096)
+        tokens_slider.setValue(512)
+        tokens_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        tokens_slider.valueChanged.connect(lambda v: tokens_label.setText(f"Max Tokens: {v}"))
+        layout.addWidget(tokens_slider)
+
+        # Context slider
+        ctx_label = QLabel(f"Context: {getattr(cfg, 'ctx_limit', 2048)}")
+        ctx_label.setStyleSheet(f"color:{C['txt']};font-size:12px;font-weight:bold;")
+        layout.addWidget(ctx_label)
+        ctx_slider = QSlider(Qt.Orientation.Horizontal)
+        ctx_slider.setRange(512, 32768)
+        ctx_slider.setValue(getattr(cfg, 'ctx_limit', 2048))
+        ctx_slider.setStyleSheet(f"QSlider::groove:horizontal {{ background:{C['bg']}; height:6px; border-radius:3px; }} QSlider::handle:horizontal {{ background:{C['acc']}; width:16px; height:16px; margin:-5px 0; border-radius:8px; }}")
+        ctx_slider.valueChanged.connect(lambda v: ctx_label.setText(f"Context: {v}"))
+        layout.addWidget(ctx_slider)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+
+        apply_btn = QPushButton("Apply to Device")
+        apply_btn.setStyleSheet(f"QPushButton {{ background:{C['acc']};color:#fff;border:none;border-radius:6px;font-weight:bold;padding:8px 16px; }} QPushButton:hover {{ background:{C.get('acc2', C['acc'])}; }}")
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet(f"QPushButton {{ background:{C['surface']};color:{C['txt']};border:1px solid {C['bdr']};border-radius:6px;font-weight:bold;padding:8px 16px; }}")
+
+        def _apply():
+            from nativelab.core.backend import get_backend
+            from nativelab.api_server.device_discovery import DiscoveredDevice
+
+            device = DiscoveredDevice(
+                ip=cfg.base_url.split("//")[1].split(":")[0],
+                port=int(cfg.base_url.split(":")[-1].split("/")[0]) if ":" in cfg.base_url else 8787,
+                api_key=cfg.api_key,
+            )
+            backend = get_backend()
+            result = backend.update_device_config(device, {
+                "temperature": temp_slider.value() / 100,
+                "top_p": topp_slider.value() / 100,
+                "top_k": topk_slider.value(),
+                "repeat_penalty": rep_slider.value() / 100,
+                "max_tokens": tokens_slider.value(),
+                "ctx": ctx_slider.value(),
+            })
+            if result.ok:
+                QMessageBox.information(dlg, "Success", "Device configuration updated.")
+                dlg.accept()
+            else:
+                QMessageBox.warning(dlg, "Error", f"Failed to update: {result.error}")
+
+        apply_btn.clicked.connect(_apply)
+        cancel_btn.clicked.connect(dlg.reject)
+
+        btn_row.addWidget(apply_btn)
+        btn_row.addWidget(cancel_btn)
+        layout.addLayout(btn_row)
+
+        dlg.exec()
+
     def _would_form_loop(self, from_bid: int, to_bid: int) -> bool:
         """Return True if to_bid can already reach from_bid (i.e. adding this edge creates a cycle)."""
         return would_form_loop(self.connections, from_bid, to_bid)
@@ -1062,11 +1206,18 @@ class PipelineCanvas(QWidget):
         act_ren = None
         act_role = None
         act_cfg  = None
+        act_device_cfg = None
         if target:
             act_del = add_menu_action(menu, f"Delete '{target.label}'", "delete")
             act_ren = add_menu_action(menu, "Rename block", "pencil")
             if target.btype == PipelineBlockType.MODEL:
                 act_role = add_menu_action(menu, "Change Role", "wrench")
+                from nativelab.Model.APImodels import is_phonolab_device, getapi_registry, api_model_name_from_ref, is_api_model_ref
+                if is_api_model_ref(target.model_path):
+                    cfg_name = api_model_name_from_ref(target.model_path)
+                    cfg = getapi_registry().get(cfg_name)
+                    if cfg and is_phonolab_device(cfg):
+                        act_device_cfg = add_menu_action(menu, "Configure Device...", "settings")
             _CONFIGURABLE = {
                 PipelineBlockType.REFERENCE, PipelineBlockType.KNOWLEDGE,
                 PipelineBlockType.PDF_SUMMARY, PipelineBlockType.INTERMEDIATE,
@@ -1113,6 +1264,9 @@ class PipelineCanvas(QWidget):
                 if ok:
                     target.role = r
                     self.update()
+                return
+            elif act_device_cfg and chosen == act_device_cfg:
+                self._configure_device_block(target)
                 return
             elif act_cfg and chosen == act_cfg:
                 _LOGIC_TYPES = {

@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from nativelab.GlobalConfig.config_global import DEFAULT_CTX
 from nativelab.Model.model_global import model_ref_display_name
+from nativelab.Model.APImodels import getapi_registry, is_phonolab_device, device_spec_label, api_model_ref
 from nativelab.core.context_meter import estimate_tokens, messages_text
 
 from ..blck_typ import PipelineBlockType, PipelineConnection
@@ -123,6 +124,11 @@ Rules:
 - llm_* metadata: llm_instruction, llm_max_tokens, llm_temp, llm_passthrough_on_err.
 - mcp_server metadata: mcp_transport ("sse" or "stdio"), mcp_url (URL for SSE, shell command for stdio), mcp_name (display name), mcp_tool_name (exact tool name to call), mcp_arg_name (input argument name, default "input"). Use mcp_server when the user needs to call external tools, access files, databases, web APIs, or any MCP-compatible server. For npx packages use stdio transport with mcp_url like "npx -y @modelcontextprotocol/server-filesystem /path".
 - web_search metadata: ws_categories (list of category strings from: general, images, videos, news, science, it, files, music, social media), ws_language (language code like "en"), ws_max_results (1-50, default 10), ws_timeout (seconds, default 10), ws_output_format ("text" for formatted text or "json" for structured data). Use web_search when the user needs to find current information from the internet, research a topic, or fact-check. The incoming text is used as the search query.
+- For PhonoLab device models (listed as @api/DeviceName), use the device's capabilities to assign tasks:
+  - Vision-capable devices should handle image analysis tasks
+  - Devices with more RAM/cores should handle heavy reasoning or coding tasks
+  - Smaller devices are suitable for simple classification, filtering, or scoring
+  - Match the device's context limit (ctx) to the expected input length
 - Keep the graph simple enough to run, but include all blocks needed to satisfy the requested workflow.
 """
 
@@ -187,6 +193,10 @@ def build_ai_builder_messages(
     safe_name = sanitize_pipeline_name(pipeline_name)
     request = str(user_request or "").strip()
     active_line = active_model_label.strip() or "NativeLab active model"
+
+    # Build device catalog for AI
+    device_catalog = _build_device_catalog()
+
     return [
         {
             "role": "system",
@@ -196,13 +206,37 @@ def build_ai_builder_messages(
             "role": "user",
             "content": (
                 f"Pipeline output JSON file name: {safe_name}\n"
-                f"Active model available for empty model_path placeholders: {active_line}\n\n"
+                f"Active model available for empty model_path placeholders: {active_line}\n"
+                f"{device_catalog}\n\n"
                 "Build a NativeLab pipeline for this request:\n"
                 f"{request}\n\n"
                 "Return only the JSON object."
             ),
         },
     ]
+
+
+def _build_device_catalog() -> str:
+    """Build a catalog of available devices for the AI Builder prompt."""
+    registry = getapi_registry()
+    devices = [cfg for cfg in registry.all() if is_phonolab_device(cfg)]
+    if not devices:
+        return ""
+
+    lines = ["Available PhonoLab LAN devices (use @api/Name as model_path):"]
+    for cfg in devices:
+        specs = device_spec_label(cfg)
+        status = getattr(cfg, "device_status", "")
+        vision = "vision-capable" if getattr(cfg, "is_vision", False) else "text-only"
+        ref = api_model_ref(cfg.name)
+        lines.append(f"  - {ref}: {specs}, {vision}, status:{status}")
+    lines.append("")
+    lines.append("Device assignment guidelines:")
+    lines.append("  - Use vision-capable devices for image analysis tasks")
+    lines.append("  - Use devices with more RAM/cores for heavy reasoning tasks")
+    lines.append("  - Use smaller devices for simple classification/filtering")
+    lines.append("  - Match context limit (ctx) to expected input length")
+    return "\n".join(lines)
 
 
 def build_ai_builder_retry_messages(
@@ -587,15 +621,123 @@ def apply_active_model(
     if not model_ref:
         return data
     label = model_ref_display_name(model_ref)[:18] or "Active model"
+
+    # Get available PhonoLab devices for smart assignment
+    devices = _get_available_devices()
+
     for block in data.get("blocks", []):
         if not isinstance(block, dict):
             continue
-        if block.get("btype") in _MODEL_BACKED_TYPES and not block.get("model_path"):
+        if block.get("btype") not in _MODEL_BACKED_TYPES:
+            continue
+        if block.get("model_path"):
+            continue  # Already assigned by AI Builder
+
+        # Try smart device assignment
+        assigned = _assign_device_for_block(block, devices)
+        if assigned:
+            block["model_path"] = assigned["ref"]
+            block["label"] = assigned["label"]
+            # Store recommended device params in metadata for execution
+            if "params" in assigned:
+                block.setdefault("metadata", {})["device_params"] = assigned["params"]
+        else:
             block["model_path"] = model_ref
             block["role"] = active_model_role or block.get("role") or "general"
             if str(block.get("label") or "") in {"", "Model", "Your model", "LLM", "AI model"}:
                 block["label"] = label
     return data
+
+
+def _get_available_devices() -> List[Dict[str, Any]]:
+    """Get available PhonoLab devices with their specs."""
+    registry = getapi_registry()
+    devices = []
+    for cfg in registry.all():
+        if not is_phonolab_device(cfg):
+            continue
+        devices.append({
+            "ref": api_model_ref(cfg.name),
+            "name": cfg.name,
+            "cpu_cores": getattr(cfg, "cpu_cores", 0),
+            "ram_mb": getattr(cfg, "ram_mb", 0),
+            "is_vision": getattr(cfg, "is_vision", False),
+            "ctx_limit": getattr(cfg, "ctx_limit", 2048),
+            "status": getattr(cfg, "device_status", ""),
+            "model_id": cfg.model_id,
+        })
+    return devices
+
+
+def _assign_device_for_block(block: Dict[str, Any], devices: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Assign the best device for a block based on task requirements.
+    Returns dict with 'ref', 'label', and 'params' (recommended config)."""
+    if not devices:
+        return None
+
+    label = str(block.get("label", "")).lower()
+    role = str(block.get("role", "general")).lower()
+    btype = str(block.get("btype", "")).lower()
+
+    # Filter to ready/active devices
+    ready = [d for d in devices if d["status"] in ("ready", "idle", "")]
+    if not ready:
+        ready = devices  # Fallback to all devices
+
+    # Vision tasks → vision-capable devices, lower temperature for accuracy
+    if any(kw in label for kw in ("image", "vision", "visual", "photo", "picture")):
+        vision_devices = [d for d in ready if d["is_vision"]]
+        if vision_devices:
+            best = max(vision_devices, key=lambda d: d["ram_mb"])
+            return {
+                "ref": best["ref"],
+                "label": f"{best['name']} (vision)",
+                "params": {"temperature": 0.3, "top_p": 0.9, "top_k": 40, "repeat_penalty": 1.1},
+            }
+
+    # Heavy reasoning/coding tasks → high-RAM devices, lower temp for precision
+    if role in ("reasoning", "coding") or any(kw in label for kw in ("reason", "code", "complex", "analyze")):
+        high_ram = [d for d in ready if d["ram_mb"] >= 4096]
+        if high_ram:
+            best = max(high_ram, key=lambda d: d["ram_mb"])
+            return {
+                "ref": best["ref"],
+                "label": f"{best['name']} ({best['ram_mb']//1024}GB)",
+                "params": {"temperature": 0.2, "top_p": 0.85, "top_k": 20, "repeat_penalty": 1.15},
+            }
+
+    # Simple tasks (filter, classify, score) → any device, higher temp for variety
+    if btype in ("llm_filter", "llm_if", "llm_score") or any(kw in label for kw in ("filter", "classify", "score", "simple")):
+        small = sorted(ready, key=lambda d: d["ram_mb"])
+        if small:
+            best = small[0]
+            return {
+                "ref": best["ref"],
+                "label": f"{best['name']} (light)",
+                "params": {"temperature": 0.5, "top_p": 0.9, "top_k": 40, "repeat_penalty": 1.0},
+            }
+
+    # Summarization → high context limit, moderate temp
+    if role == "summarization" or any(kw in label for kw in ("summar", "long", "document")):
+        high_ctx = [d for d in ready if d["ctx_limit"] >= 4096]
+        if high_ctx:
+            best = max(high_ctx, key=lambda d: d["ctx_limit"])
+            return {
+                "ref": best["ref"],
+                "label": f"{best['name']} (ctx:{best['ctx_limit']})",
+                "params": {"temperature": 0.4, "top_p": 0.9, "top_k": 30, "repeat_penalty": 1.1},
+            }
+
+    # Default: use the device with most RAM
+    if ready:
+        best = max(ready, key=lambda d: d["ram_mb"])
+        return {
+            "ref": best["ref"],
+            "label": best["name"],
+            "params": {"temperature": 0.7, "top_p": 0.9, "top_k": 40, "repeat_penalty": 1.1},
+        }
+
+    return None
 
 
 def pipeline_data_to_blocks(data: Dict[str, Any]) -> Tuple[List[PipelineBlock], List[PipelineConnection]]:
