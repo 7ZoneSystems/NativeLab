@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="nativelab/icon.png" alt="NativeLab" width="160" height="160" />
+<img src="nativelab-site/icon.png" alt="NativeLab" width="160" height="160" />
 
 # NativeLab
 
@@ -45,7 +45,7 @@ python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0
     <table>
       <tr>
         <td align="center" width="46"><a href="#slide-ui"><b>‹</b></a></td>
-        <td align="center"><img src="images/light_mode.png" alt="NativeLab light mode chat workspace" width="860" /></td>
+        <td align="center"><img src="nativelab-site/images/light_mode.png" alt="NativeLab light mode chat workspace" width="860" /></td>
         <td align="center" width="46"><a href="#slide-dark"><b>›</b></a></td>
       </tr>
     </table>
@@ -55,7 +55,7 @@ python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0
     <table>
       <tr>
         <td align="center" width="46"><a href="#slide-light"><b>‹</b></a></td>
-        <td align="center"><img src="images/dark_mode.png" alt="NativeLab dark mode chat workspace" width="860" /></td>
+        <td align="center"><img src="nativelab-site/images/dark_mode.png" alt="NativeLab dark mode chat workspace" width="860" /></td>
         <td align="center" width="46"><a href="#slide-dev"><b>›</b></a></td>
       </tr>
     </table>
@@ -65,7 +65,7 @@ python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0
     <table>
       <tr>
         <td align="center" width="46"><a href="#slide-dark"><b>‹</b></a></td>
-        <td align="center"><img src="images/dev.png" alt="NativeLab Dev workspace with labs and tools" width="860" /></td>
+        <td align="center"><img src="nativelab-site/images/dev.png" alt="NativeLab Dev workspace with labs and tools" width="860" /></td>
         <td align="center" width="46"><a href="#slide-pipeline"><b>›</b></a></td>
       </tr>
     </table>
@@ -75,7 +75,7 @@ python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0
     <table>
       <tr>
         <td align="center" width="46"><a href="#slide-dev"><b>‹</b></a></td>
-        <td align="center"><img src="images/pipeline.png" alt="NativeLab visual pipeline builder" width="860" /></td>
+        <td align="center"><img src="nativelab-site/images/pipeline.png" alt="NativeLab visual pipeline builder" width="860" /></td>
         <td align="center" width="46"><a href="#slide-server"><b>›</b></a></td>
       </tr>
     </table>
@@ -85,7 +85,7 @@ python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0
     <table>
       <tr>
         <td align="center" width="46"><a href="#slide-pipeline"><b>‹</b></a></td>
-        <td align="center"><img src="images/server_controls.png" alt="NativeLab server and model controls" width="860" /></td>
+        <td align="center"><img src="nativelab-site/images/server_controls.png" alt="NativeLab server and model controls" width="860" /></td>
         <td align="center" width="46"><a href="#slide-skills"><b>›</b></a></td>
       </tr>
     </table>
@@ -95,7 +95,7 @@ python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0
     <table>
       <tr>
         <td align="center" width="46"><a href="#slide-server"><b>‹</b></a></td>
-        <td align="center"><img src="images/skill.png" alt="NativeLab skill management tab" width="860" /></td>
+        <td align="center"><img src="nativelab-site/images/skill.png" alt="NativeLab skill management tab" width="860" /></td>
         <td align="center" width="46"><a href="#slide-appearance"><b>›</b></a></td>
       </tr>
     </table>
@@ -105,7 +105,7 @@ python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0
     <table>
       <tr>
         <td align="center" width="46"><a href="#slide-skills"><b>‹</b></a></td>
-        <td align="center"><img src="images/appearance.png" alt="NativeLab appearance and theme controls" width="860" /></td>
+        <td align="center"><img src="nativelab-site/images/appearance.png" alt="NativeLab appearance and theme controls" width="860" /></td>
         <td align="center" width="46"><a href="#slide-ui"><b>›</b></a></td>
       </tr>
     </table>
@@ -115,7 +115,7 @@ python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0
     <table>
       <tr>
         <td align="center" width="46"><a href="#slide-appearance"><b>‹</b></a></td>
-        <td align="center"><img src="images/image%20copy.png" alt="NativeLab app screenshot" width="860" /></td>
+        <td align="center"><img src="nativelab-site/images/image%20copy.png" alt="NativeLab app screenshot" width="860" /></td>
         <td align="center" width="46"><a href="#slide-light"><b>›</b></a></td>
       </tr>
     </table>
