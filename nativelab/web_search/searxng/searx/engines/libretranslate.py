@@ -3,6 +3,7 @@
 
 import random
 import json
+import urllib.parse
 from searx.result_types import EngineResults
 
 about = {
@@ -24,7 +25,7 @@ api_key = ""
 def request(_query, params):
     request_url = random.choice(base_url) if isinstance(base_url, list) else base_url
 
-    if request_url.startswith("https://libretranslate.com") and not api_key:
+    if urllib.parse.urlparse(request_url).hostname == "libretranslate.com" and not api_key:
         return None
     params['url'] = f"{request_url}/translate"
 

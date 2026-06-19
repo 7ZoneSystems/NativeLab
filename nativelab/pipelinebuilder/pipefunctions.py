@@ -111,6 +111,8 @@ def save_pipeline(name: str, blocks: list, connections: list):
 
 def load_pipeline(name: str):
     path = pipeline_path(name)
+    if not path.resolve().is_relative_to(PIPELINES_DIR.resolve()):
+        raise ValueError(f"Invalid pipeline name: {name}")
     data = json.loads(path.read_text(encoding="utf-8"))
     return _pipeline_from_dict(data)
 

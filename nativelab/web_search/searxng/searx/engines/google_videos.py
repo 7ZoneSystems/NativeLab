@@ -142,7 +142,7 @@ def response(resp):
         video_id = eval_xpath_getindex(result, './/div[@jscontroller="rTuANe"]/@data-vid', 0, default=None)
 
         # Fallback for video_id from URL if not found via XPath
-        if not video_id and url and 'youtube.com' in url:
+        if not video_id and url and urlparse(url).hostname in ('youtube.com', 'www.youtube.com'):
             parsed_url = urlparse(url)
             video_id = parse_qs(parsed_url.query).get('v', [None])[0]
 

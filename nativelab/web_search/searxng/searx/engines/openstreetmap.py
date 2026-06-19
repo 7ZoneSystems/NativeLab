@@ -359,7 +359,7 @@ def get_links(result, user_language):
         if not raw_value:
             continue
         url, url_label = mapping_function(raw_value)
-        if url.startswith('https://wikidata.org'):
+        if urllib.parse.urlparse(url).hostname == 'wikidata.org':
             url_label = result.get('wikidata', {}).get('itemLabel') or url_label
         links.append(
             {

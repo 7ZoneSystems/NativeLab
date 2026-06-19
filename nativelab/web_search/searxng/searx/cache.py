@@ -251,7 +251,8 @@ class ExpireCacheSQLite(sqlitedb.SQLiteAppl, ExpireCache):
         if not ret_val:
             return False
 
-        new = hashlib.sha256(self.cfg.password).hexdigest()
+        password_bytes = self.cfg.password if isinstance(self.cfg.password, bytes) else self.cfg.password.encode('utf-8')
+        new = hashlib.pbkdf2_hmac('sha256', password_bytes, b'searx-cache-token', 100000).hex()
         old = self.properties(self.hash_token)
         if old != new:
             if old is not None:

@@ -74,7 +74,7 @@ class ProxyFix:
 
             for net in trusted_proxies:
                 if addr.version == net.version and addr in net:
-                    logger.debug("trust proxy %s (member of %s)", addr, net)
+                    logger.debug("trust proxy (member of %s)", net)
                     trust = True
                     break
 

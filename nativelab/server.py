@@ -137,8 +137,8 @@ def start_server(
     )
     config.save()
 
-    print(f"Local API Key: {config.local_api_key}")
-    print(f"LAN API Key:   {config.lan_api_key}")
+    print(f"Local API Key: ...{config.local_api_key[-4:]}")
+    print(f"LAN API Key:   ...{config.lan_api_key[-4:]}")
     print(f"\nEndpoints:")
     print(f"  http://{host}:{port}/v1/chat/completions  (OpenAI)")
     print(f"  http://{host}:{port}/v1/messages           (Anthropic)")

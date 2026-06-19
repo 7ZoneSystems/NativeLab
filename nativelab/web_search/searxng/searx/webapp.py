@@ -1333,8 +1333,8 @@ def run():
 
     if searx.sxng_debug:
         logger.debug("run local development server (DEBUG) on %s:%s", host, port)
+        app.debug = True
         app.run(
-            debug=True,
             port=port,
             host=host,
             threaded=True,

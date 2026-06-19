@@ -7,7 +7,7 @@
 
 """
 
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from lxml import html
 
@@ -111,7 +111,7 @@ def response(resp):
         imagelink = eval_xpath_getindex(newsitem, './/a[@class="imagelink"]//img', 0, None)
         if imagelink is not None:
             thumbnail = imagelink.attrib.get("src")
-            if not thumbnail.startswith("https://www.bing.com"):
+            if urlparse(thumbnail).hostname not in ("www.bing.com", "bing.com"):
                 thumbnail = "https://www.bing.com/" + thumbnail
 
         results.append(
