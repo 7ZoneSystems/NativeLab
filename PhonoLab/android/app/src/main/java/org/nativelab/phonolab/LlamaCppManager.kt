@@ -473,7 +473,12 @@ class LlamaCppManager(
 
     private fun extractTarGz(archive: File, destDir: File) {
         destDir.mkdirs()
-        val proc = ProcessBuilder("tar", "xzf", archive.absolutePath, "-C", destDir.absolutePath)
+        // Validate paths to prevent command injection
+        val archivePath = archive.canonicalPath
+        val destPath = destDir.canonicalPath
+        require(archivePath.startsWith(store.downloadsDir.canonicalPath)) { "Archive path outside downloads dir" }
+        require(destPath.startsWith(store.runtimeDir.canonicalPath)) { "Dest path outside runtime dir" }
+        val proc = ProcessBuilder("tar", "xzf", archivePath, "-C", destPath)
             .redirectErrorStream(true).start()
         val output = proc.inputStream.bufferedReader().readText()
         val exitCode = proc.waitFor()
