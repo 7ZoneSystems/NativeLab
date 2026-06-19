@@ -18,6 +18,7 @@ let currentStep = 0
 let isMoving = false
 let walkTween = null
 let beamFired = false
+let scrollStopTimer = null
 
 // Text thresholds: { sec, scrollAt } - text reveals at this scroll %
 const TEXT_MAP = [
@@ -106,6 +107,33 @@ function moveRobotToStep(targetIndex) {
   nextWP()
 }
 
+// Force robot to stop and go idle at current position
+function stopAndIdle() {
+  if (walkTween) { walkTween.kill(); walkTween = null }
+  isMoving = false
+  if (avatarAnim) avatarAnim.playIdle()
+}
+
+// Snap robot to the correct step for a given scroll position
+function snapToScrollStep(sp) {
+  if (sp < WALK_START || sp > WALK_END) return
+  const walkProgress = (sp - WALK_START) / (WALK_END - WALK_START)
+  const targetStep = Math.min(TOTAL_STEPS - 1, Math.floor(walkProgress * TOTAL_STEPS))
+  if (targetStep >= 0 && targetStep < stairPositions.length) {
+    const s = stairPositions[targetStep]
+    avatar.position.set(s.x, s.y - feetOffset, s.z)
+    currentStep = targetStep
+    // Face next step
+    const nextIdx = Math.min(targetStep + 1, stairPositions.length - 1)
+    const next = stairPositions[nextIdx]
+    const dx = next.x - s.x
+    const dz = next.z - s.z
+    if (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001) {
+      avatar.rotation.y = Math.atan2(dx, dz)
+    }
+  }
+}
+
 // Determine which text section should be active at this scroll position
 function getActiveSection(scrollProgress) {
   let active = null
@@ -190,6 +218,14 @@ function buildTimeline() {
           prevStep = targetStep
         }
       }
+
+      // ── SCROLL STOP: force idle after 200ms of no scroll ─────
+      if (scrollStopTimer) clearTimeout(scrollStopTimer)
+      scrollStopTimer = setTimeout(() => {
+        // Scroll stopped — snap to correct position and go idle
+        stopAndIdle()
+        snapToScrollStep(sp)
+      }, 200)
     }
   })
 }
