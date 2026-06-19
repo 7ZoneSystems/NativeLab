@@ -6,7 +6,7 @@ export function createAvatar(onProgress) {
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader()
 
-    loader.load('/models/avatar.glb', (gltf) => {
+    loader.load('models/avatar.glb', (gltf) => {
       const avatar = gltf.scene
 
       const boxRaw = new THREE.Box3().setFromObject(avatar)
@@ -19,7 +19,7 @@ export function createAvatar(onProgress) {
       const feetOffset = boxScaled.min.y
 
       // Load NativeLab logo
-      const logoTex = new THREE.TextureLoader().load('/nativelab-icon.png')
+      const logoTex = new THREE.TextureLoader().load('nativelab-icon.png')
       logoTex.colorSpace = THREE.SRGBColorSpace
 
       // Metallic green-violet suit - dark, reflective, picks up env map

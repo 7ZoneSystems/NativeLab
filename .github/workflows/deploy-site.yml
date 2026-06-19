@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: nativelab-site/package-lock.json
 
@@ -36,19 +36,15 @@ jobs:
         working-directory: nativelab-site
         run: npm run build
 
-      - name: Copy sub-pages into dist
-        run: |
-          cp features.html dist/ 2>/dev/null || true
-          cp phonolab.html dist/ 2>/dev/null || true
-          cp pipeline.html dist/ 2>/dev/null || true
-          cp docs-user.html dist/ 2>/dev/null || true
-          cp docs-dev.html dist/ 2>/dev/null || true
-          cp compare.html dist/ 2>/dev/null || true
-          cp setup.html dist/ 2>/dev/null || true
-          cp site.css dist/ 2>/dev/null || true
-          cp site.js dist/ 2>/dev/null || true
-          cp -r images dist/ 2>/dev/null || true
+      - name: Copy sub-pages and assets into dist
         working-directory: nativelab-site
+        run: |
+          for f in features.html phonolab.html pipeline.html docs-user.html docs-dev.html compare.html setup.html site.css site.js; do
+            [ -f "$f" ] && cp "$f" dist/
+          done
+          [ -d images ] && cp -r images dist/
+          [ -d public/docs ] && cp -r public/docs dist/
+          [ -d public/PhonoLab ] && cp -r public/PhonoLab dist/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

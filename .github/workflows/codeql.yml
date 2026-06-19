@@ -126,11 +126,12 @@ jobs:
           queries: security-extended
           config: |
             paths:
-              - web_page/
+              - nativelab-site/
               - nativelab/
             paths-ignore:
               - "**/node_modules"
               - "**/searxng/"
+              - "**/dist/"
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
