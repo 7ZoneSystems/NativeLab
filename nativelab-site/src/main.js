@@ -122,4 +122,9 @@ async function init() {
   gsap.ticker.lagSmoothing(0)
 }
 
-init()
+init().catch(err => {
+  console.error('Scene init failed:', err)
+  // Dismiss loading screen anyway so the page is usable
+  setProgress(100)
+  dismissLoading()
+})
