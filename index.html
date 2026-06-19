@@ -155,6 +155,72 @@
       </div>
     </section>
 
+    <section class="section alt">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Distributed</p>
+            <h2>LAN device discovery. Phone-powered inference.</h2>
+          </div>
+          <p class="lead">
+            Scan your local network for PhonoLab Android devices. Register them
+            as API model endpoints. Route inference to phones and tablets over
+            WiFi. The AI Pipeline Builder assigns tasks to devices based on
+            CPU, RAM, and vision capabilities.
+          </p>
+        </div>
+        <div class="grid three">
+          <article class="card fade-up">
+            <h3>Device scanning</h3>
+            <p class="muted">Multithreaded subnet scan discovers PhonoLab devices on port 8787. Shows device name, model, status, CPU cores, and RAM.</p>
+            <div class="tag-row"><span class="tag green">auto-discover</span><span class="tag">LAN</span></div>
+          </article>
+          <article class="card fade-up">
+            <h3>Smart assignment</h3>
+            <p class="muted">AI Pipeline Builder assigns model blocks to devices based on task type: vision tasks to vision devices, heavy reasoning to high-RAM devices.</p>
+            <div class="tag-row"><span class="tag blue">AI Builder</span><span class="tag">device-aware</span></div>
+          </article>
+          <article class="card fade-up">
+            <h3>Remote control</h3>
+            <p class="muted">Load models, update parameters (temperature, top_k, top_p), and monitor queue status on remote devices via API.</p>
+            <div class="tag-row"><span class="tag amber">API</span><span class="tag">real-time</span></div>
+          </article>
+        </div>
+        <div class="actions" style="margin-top:22px">
+          <a class="btn primary" href="PhonoLab/docs/api_endpoints.md">API reference</a>
+          <a class="btn" href="web_page/phonolab.html">PhonoLab docs</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="wrap">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">Architecture</p>
+            <h2>Centralized backend. Consistent everywhere.</h2>
+          </div>
+          <p class="lead">
+            All network operations go through a unified HTTP client. All backend
+            operations go through a single facade. Consistent error handling,
+            authentication, timeouts, and retry logic across every feature.
+          </p>
+        </div>
+        <div class="grid two">
+          <article class="card fade-up">
+            <h3>NativeLabBackend</h3>
+            <p class="muted">Single entry point for model loading, generation, device management, and HuggingFace operations. Returns structured results with error notices.</p>
+            <div class="tag-row"><span class="tag green">core/backend.py</span></div>
+          </article>
+          <article class="card fade-up">
+            <h3>NativeLabHttpClient</h3>
+            <p class="muted">Centralized HTTP client with consistent timeouts, retries, and authentication. Supports GET, POST, SSE streaming, OpenAI and Anthropic formats.</p>
+            <div class="tag-row"><span class="tag blue">core/http_client.py</span></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section class="section">
       <div class="wrap">
         <div class="section-head">

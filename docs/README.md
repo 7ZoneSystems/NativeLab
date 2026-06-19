@@ -27,7 +27,7 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 |---|---|
 | [features.md](features.md) | Full feature catalogue. Latest release notes live in `changelog.txt`. |
 | [pipeline-builder.md](pipeline-builder.md) | Visual pipeline builder, AI Builder, example presets, JSON schema, and native pipeline core. |
-| [architecture.md](architecture.md) | Layered design, engine layer, project structure. |
+| [architecture.md](architecture.md) | Layered design, centralized backend, engine layer, project structure. |
 | [labs.md](labs.md) | The Labs experimentation layer + how to add a feature. |
 | [integrations.md](integrations.md) | External endpoint routes, local HTTP bridge, and Discord/WhatsApp bot connectors. |
 | [models.md](models.md) | Model registry, family detection, quants, API models. |
@@ -47,6 +47,7 @@ PhonoLab is the official NativeLab Android client. Same local-first philosophy, 
 | [FILE_INDEX.md](../PhonoLab/docs/FILE_INDEX.md) | Every file in the Android project — purpose, classes, constants. |
 | [CONSTANTS.md](../PhonoLab/docs/CONSTANTS.md) | All Android constants, limits, colors, URLs. |
 | [CONTRIBUTING.md](../PhonoLab/docs/CONTRIBUTING.md) | What to edit for specific Android changes. |
+| [api_endpoints.md](../PhonoLab/docs/api_endpoints.md) | Complete PhonoLab API reference — all endpoints, curl examples, vision, RAG, config. |
 
 ---
 
@@ -78,6 +79,9 @@ PhonoLab is the official NativeLab Android client. Same local-first philosophy, 
 
 **"I want to run NativeLab on my Android phone."**
 → [PhonoLab docs](../PhonoLab/docs/README.md) and the [PhonoLab web page](../web_page/phonolab.html).
+
+**"I want to use my phone as a LAN AI server from NativeLab."**
+→ [PhonoLab API endpoints](../PhonoLab/docs/api_endpoints.md) — scan and register devices in Dev → Devices tab. Smart auth handles key management automatically.
 
 ---
 

@@ -63,6 +63,7 @@ Do not open PRs directly against `main` without a linked issue or prior discussi
 - Use `optJSONObject()` / `optString()` for JSON parsing (never `getJSONObject()`)
 - Use `PhonoLabApp` singletons — never create private instances in fragments
 - Use `ThreadLocal<SimpleDateFormat>` for date formatting in multi-threaded code
+- API endpoints return structured errors (model_not_loaded, server_busy, etc.) — never blank responses
 
 ## Project-Specific Rules
 
@@ -75,6 +76,12 @@ Do not open PRs directly against `main` without a linked issue or prior discussi
 **New inference engines go in `core/engines/`.** Follow the pattern of existing engines.
 
 **New UI components go in `UI/Qt6widgets/`.** Keep UI logic separate from business logic.
+
+**LAN device discovery lives in `api_server/`.** Device scanning, connection testing, and the Devices tab UI are in `api_server/device_discovery.py` and `api_server/devices_tab.py`. Uses existing `ApiRegistry` and `ApiConfig` for registration. Smart auth flow: auto-connects without key first, prompts only when auth required or key changed.
+
+**All network operations go through `core/http_client.py`.** Use `get_http_client()` for HTTP requests. Never use raw `urllib.request` or `http.client` directly in new code.
+
+**All backend operations go through `core/backend.py`.** Use `get_backend()` for model loading, generation, device management. Returns `BackendResult` with structured error handling.
 
 ### PhonoLab (Android)
 

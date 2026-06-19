@@ -15,6 +15,7 @@ NativeLab is a layered application. Each layer talks only to the one beneath it,
 │  │  • Pipeline / Server │   │                  │   │                │   │
 │  │  • MCP / Download    │   │                  │   │                │   │
 │  │  • Labs / Logs       │   │                  │   │                │   │
+│  │  • Devices (LAN)     │   │                  │   │                │   │
 │  └──────────────────────┘   └──────────────────┘   └────────────────┘   │
 │              │                       │                    │             │
 │              └───────────┬───────────┴────────────────────┘             │
@@ -25,6 +26,19 @@ NativeLab is a layered application. Each layer talks only to the one beneath it,
 │              │   • call_llm() sync       │                              │
 │              │   • request_*() reverse   │                              │
 │              └───────────────────────────┘                              │
+└──────────────────────────────────┬──────────────────────────────────────┘
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     Centralized Backend (core/)                         │
+│  NativeLabBackend    - unified facade for all operations                │
+│   • load_model / unload_model / generate                                │
+│   • scan_network / test_device / register_device                        │
+│   • fetch_hf_gguf_files / fetch_llama_cpp_releases                      │
+│  NativeLabHttpClient - all HTTP operations with retries/timeouts        │
+│   • get / post / stream                                                 │
+│   • post_openai_stream / post_anthropic_stream                          │
+│  EngineStatus        - normalized engine state                          │
+│  LlmErrorNotice      - structured error reporting                       │
 └──────────────────────────────────┬──────────────────────────────────────┘
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -103,6 +117,108 @@ endpoints.status_changed.connect(handler)   # str
 ```
 
 The host (`MainWindow` for the GUI, `cli.chat._build_endpoints` for the CLI) wires the engine providers and reverse-route hooks once at startup. Everything downstream just uses the same instance.
+
+---
+
+## Centralized Backend (`core/backend.py`)
+
+The centralized backend provides a unified interface for all NativeLab operations. It sits between the frontends/engines and the network layer, ensuring consistent error handling, authentication, and timeouts.
+
+### NativeLabBackend
+
+Single entry point for all backend operations:
+
+```python
+from nativelab.core.backend import get_backend
+
+backend = get_backend()
+
+# Model operations
+result = backend.load_model("/path/to/model.gguf")
+result = backend.load_api_model(api_config)
+result = backend.unload_model()
+models = backend.list_models()
+api_models = backend.list_api_models()
+
+# Generation
+result = backend.generate(
+    messages=[{"role": "user", "content": "..."}],
+    model_ref="@api/MyAPI",  # or local model path
+    n_predict=512,
+    temperature=0.7,
+    on_token=lambda t: print(t, end=""),
+)
+
+# Device operations
+devices = backend.scan_network()
+result = backend.test_device(device, api_key="nl-...")
+result = backend.register_device_as_model(device)
+result = backend.load_model_on_device(device, "/path/to/model.gguf")
+
+# HuggingFace
+result = backend.fetch_hf_gguf_files("bartowski/SmolLM2-360M-Instruct-GGUF")
+result = backend.fetch_llama_cpp_releases()
+```
+
+### NativeLabHttpClient
+
+All HTTP operations go through the centralized client:
+
+```python
+from nativelab.core.http_client import get_http_client
+
+http = get_http_client()
+
+# Basic requests
+resp = http.get("http://localhost:8080/health")
+resp = http.post("http://api.openai.com/v1/chat/completions", body={...})
+
+# Streaming
+for line in http.stream("http://...", body={...}):
+    process(line)
+
+# OpenAI-compatible streaming
+text = http.post_openai_stream(
+    url="http://localhost:8080/v1/chat/completions",
+    messages=[...],
+    model="model.gguf",
+    on_token=lambda t: print(t, end=""),
+)
+
+# Anthropic-compatible streaming
+text = http.post_anthropic_stream(
+    url="https://api.anthropic.com/v1/messages",
+    messages=[...],
+    model="claude-3-sonnet",
+    api_key="sk-...",
+)
+```
+
+### BackendResult
+
+All operations return `BackendResult`:
+
+```python
+result = backend.load_model("/path/to/model.gguf")
+if result.ok:
+    print(result.data)  # {"model_path": "/path/to/model.gguf"}
+else:
+    print(result.error)  # "Model file not found"
+    if result.error_notice:
+        print(result.error_notice.user_message)  # Human-readable error with action steps
+```
+
+### EngineStatus
+
+Normalized engine state:
+
+```python
+status = backend.get_engine_status()
+print(status.status_text)  # "Server  :8612"
+print(status.is_loaded)    # True
+print(status.model_name)   # "mistral-7b-Q4_K_M.gguf"
+print(status.backend)      # "server"
+```
 
 ---
 

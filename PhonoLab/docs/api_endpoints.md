@@ -588,10 +588,23 @@ while (true) {
 
 PhonoLab's API is compatible with NativeLab's API model profiles. Add it as an OpenAI-compatible endpoint:
 
-1. In NativeLab, go to **Settings > API Models**
-2. Add new profile:
-   - **Name:** PhonoLab (Android)
-   - **Base URL:** `http://192.168.1.100:8787/v1`
-   - **API Key:** Your LAN API key
-   - **Model:** Leave blank (uses active model)
-3. Select the profile in chat to use your phone as a local AI server
+1. In NativeLab, go to **Dev > Devices**
+2. Click **Scan Network** to discover PhonoLab devices on your LAN
+3. Select a device and click **Register as API Model**
+4. If the device requires authentication, enter the LAN API key from PhonoLab's Dev > API Server tab
+5. The device appears as an API model in the pipeline builder and chat
+
+### Smart Auth Flow
+
+- **First connection**: NativeLab tries connecting without a key. If 401, it prompts for the key.
+- **Stored key**: On subsequent connections, the stored key is used automatically.
+- **Key change**: If the key changes on PhonoLab, NativeLab detects the 401 and prompts for the new key.
+- **No auth**: If PhonoLab has `require_api_key` disabled, NativeLab connects without a key.
+
+### Device Capabilities
+
+When registered, PhonoLab devices are available in:
+- **Pipeline builder**: as model blocks with device-specific parameters
+- **AI Pipeline Builder**: auto-assigned based on task type (vision, reasoning, etc.)
+- **Chat**: as API model endpoints in the model picker
+- **Config editing**: temperature, top_k, top_p, repeat_penalty via GUI sliders

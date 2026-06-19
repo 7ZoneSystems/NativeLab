@@ -31,6 +31,9 @@ NativeLab is a desktop and terminal client for running large language models ent
 pip install nativelab
 nativelab            # GUI
 nativelab --cli      # terminal control center (setup, chat, models, labs, integrations)
+
+# Standalone local server (turn any GGUF into an API)
+python -m nativelab.server --model models/llama-7b.gguf --port 8787 --host 0.0.0.0
 ```
 
 ---
@@ -130,10 +133,12 @@ nativelab --cli      # terminal control center (setup, chat, models, labs, integ
 - 🔌  **Integrations** - Local JSON endpoint, route browser, and saved Discord/WhatsApp bot connector profiles.
 - 🔗  **Visual Pipeline Builder** - 20+ node types, shipped example presets, resizable sidebars, AI-assisted pipeline generation, native-accelerated graph helpers, live execution log, save/load.
 - 🌐  **Backend mixing** - Local GGUF, running Ollama models, optional Hugging Face Transformers models, OpenAI-compatible APIs, and Anthropic endpoints share the same app state.
+- 📱  **LAN Device Discovery** - Scan your local network for PhonoLab Android devices, register them as API model endpoints, route inference to phones and tablets over WiFi.
 - 🔐  **Hugging Face login** - One-click browser login for gated/private repos, with access-token paste as an advanced fallback.
 - ⚡  **Parallel + pipeline mode** - Run reasoning + coding engines simultaneously and chain them automatically.
 - 🧠  **Auto family detection** - 20+ model families recognised from filename; correct prompt template applied.
 - 📦  **Downloaders** - Pick popular presets or custom IDs for GGUFs, full HF Transformers snapshots, Ollama models, and llama.cpp binaries without leaving the app.
+- 🖧  **Local server app** - `python -m nativelab.server` turns any GGUF model into an OpenAI/Anthropic compatible API server. Hardware-aware auto-configuration.
 
 > See [changelog.txt](changelog.txt) for the latest release notes and [docs/architecture.md](docs/architecture.md) for the layered design.
 
@@ -156,7 +161,11 @@ nativelab --cli      # terminal control center (setup, chat, models, labs, integ
 | Document attachments | PDF, text, DOCX — RAG chunking + keyword retrieval |
 | Image attachments | Gallery picker, vision model support (Llama 3.2 Vision, etc.) |
 | Model catalog | Built-in small models: SmolLM2, Qwen, Llama 3.2, TinyLlama |
-| LAN API server | OpenAI + Anthropic compatible, SSE streaming |
+| LAN API server | OpenAI + Anthropic compatible, SSE streaming, request queuing |
+| Device reporting | CPU, RAM, storage, model status via /device endpoint |
+| Parameter editing | Temperature, top_k, top_p, repeat_penalty via /config endpoint |
+| Smart reload | Queue requests during model switch, auto-drain on ready |
+| Error safety | model_not_loaded, server_busy, gateway_timeout — never blank |
 | Themes | Dark (NativeLab Studio) + Light (Cream & Sage) |
 | Error handling | 17-layer error system, restart dialog, red banner notifications |
 | Free forever | AGPL v3 — same as NativeLab |
