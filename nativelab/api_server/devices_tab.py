@@ -8,6 +8,7 @@ shows their status, and registers them as API model endpoints.
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 from typing import Optional
 
 from nativelab.imports.qt_compat import (
@@ -398,7 +399,7 @@ class DevicesTab(QWidget):
             device.api_key = api_key
             save_devices(self._devices)
             # Update existing config
-            existing = existing.copy(api_key=api_key)
+            existing = replace(existing, api_key=api_key)
             registry.add(existing)
             self._set_status(f"Key updated for {device.display_name}", "ok")
             return
