@@ -22,6 +22,13 @@ class ApiConfig:
     prompt_template:     str  = "default"   # "default"|"chatml"|"llama2"|"alpaca"|"custom"
     # ── custom provider display ──────────────────────────────────────────────
     custom_provider_name: str = ""
+    # ── device metadata (for PhonoLab LAN devices) ──────────────────────────
+    cpu_cores:    int  = 0
+    ram_mb:       int  = 0
+    is_vision:    bool = False
+    ctx_limit:    int  = 2048
+    android_ver:  str  = ""
+    device_status: str = ""     # ready/idle/generating/error
 
     def to_dict(self) -> Dict:
         return {k: getattr(self, k) for k in self.__dataclass_fields__}
@@ -99,3 +106,25 @@ def is_api_model_ref(ref: str) -> bool:
 def api_model_label(cfg: ApiConfig) -> str:
     provider = getattr(cfg, "custom_provider_name", "") or cfg.provider
     return f"API: {cfg.name} ({provider} / {cfg.model_id})"
+
+
+def is_phonolab_device(cfg: ApiConfig) -> bool:
+    """Check if this API config represents a PhonoLab LAN device."""
+    return getattr(cfg, "provider", "") == "PhonoLab" or getattr(cfg, "custom_provider_name", "") == "PhonoLab"
+
+
+def device_spec_label(cfg: ApiConfig) -> str:
+    """Get a short spec label for a device (e.g., '4 cores · 8GB · vision')."""
+    parts = []
+    cores = getattr(cfg, "cpu_cores", 0)
+    ram = getattr(cfg, "ram_mb", 0)
+    if cores > 0:
+        parts.append(f"{cores} cores")
+    if ram > 0:
+        parts.append(f"{ram // 1024}GB RAM")
+    if getattr(cfg, "is_vision", False):
+        parts.append("vision")
+    ctx = getattr(cfg, "ctx_limit", 0)
+    if ctx > 0:
+        parts.append(f"ctx:{ctx}")
+    return " · ".join(parts) if parts else ""

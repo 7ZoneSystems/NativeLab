@@ -63,6 +63,8 @@ class UiBuildMixin:
         self.mcp_tab = McpTab()
         self.skills_tab = SkillsTab()
         self.skills_tab.skills_changed.connect(lambda: self._log("INFO", "Skill library updated."))
+        from nativelab.api_server.devices_tab import DevicesTab
+        self.devices_tab = DevicesTab()
 
         # ── API Models tab ──
         self.api_tab = ApiModelsTab()
@@ -492,6 +494,7 @@ class UiBuildMixin:
         self.left_sidebar_stack.addWidget(self.dev_sidebar)
 
         self._dev_pages = [
+            ("Devices", "globe", self.devices_tab),
             ("Labs", "labs", self.labs_tab),
             ("Logs", "logs", self.log_console),
             ("Integrations", "integrations", self.integrations_tab),
