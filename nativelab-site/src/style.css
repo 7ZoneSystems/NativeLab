@@ -99,6 +99,16 @@ body {
   text-transform: uppercase;
 }
 
+.loader-error {
+  display: block;
+  margin-top: 16px;
+  color: #f36f6f;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+
 /* ── Cut Overlay ─────────────────────────────────────────────── */
 
 #cut-overlay {

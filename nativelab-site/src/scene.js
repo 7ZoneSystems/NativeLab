@@ -3,7 +3,22 @@ import gsap from 'gsap'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
 
 export function createScene() {
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('webgl2', {
+    antialias: true,
+    powerPreference: 'high-performance'
+  }) || canvas.getContext('webgl', {
+    antialias: true,
+    powerPreference: 'high-performance'
+  })
+
+  if (!context) {
+    throw new Error('WebGL is unavailable. Please enable WebGL or use a modern browser.')
+  }
+
   const renderer = new THREE.WebGLRenderer({
+    canvas,
+    context,
     antialias: true,
     alpha: false,
     powerPreference: 'high-performance'

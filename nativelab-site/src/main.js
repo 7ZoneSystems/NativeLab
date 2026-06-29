@@ -8,7 +8,7 @@ import { createAvatar } from './avatar.js'
 import { CameraFollow } from './camera.js'
 import { createPostFX } from './postfx.js'
 import { initScroll } from './scroll.js'
-import { initText, hideAll } from './text.js'
+import { initText, hideAll, forceShow } from './text.js'
 import { initFeatures } from './features.js'
 import { isMobile } from './mobile.js'
 
@@ -28,12 +28,30 @@ function yieldFrame() {
   return new Promise(resolve => requestAnimationFrame(resolve))
 }
 
-function dismissLoading() {
+function dismissLoading(immediate = false) {
   if (!loadingScreen) return
   gsap.to(loadingScreen, {
-    opacity: 0, duration: 0.8, delay: 0.15,
+    opacity: 0,
+    duration: immediate ? 0 : 0.8,
+    delay: immediate ? 0 : 0.15,
     onComplete: () => loadingScreen.remove()
   })
+}
+
+function showLoadingError(message) {
+  if (!loadingScreen) return
+  const info = loadingScreen.querySelector('.loader-info')
+  if (info) {
+    info.innerHTML = `<span class="loader-error">${message}</span>`
+  }
+  if (loadingBar) {
+    loadingBar.style.width = '100%'
+    loadingBar.style.background = '#f36f6f'
+  }
+  if (loadingPct) {
+    loadingPct.textContent = 'Error'
+  }
+  loadingScreen.classList.add('error')
 }
 
 async function init() {
@@ -79,6 +97,7 @@ async function init() {
 
   initText()
   hideAll()
+  forceShow('s1')
   initFeatures(isMobile)
 
   initScroll({
@@ -124,7 +143,10 @@ async function init() {
 
 init().catch(err => {
   console.error('Scene init failed:', err)
-  // Dismiss loading screen anyway so the page is usable
+  const message = err?.message?.includes('WebGL')
+    ? 'WebGL is unavailable. Please enable hardware acceleration or try a different browser.'
+    : 'An unexpected error occurred while loading the page. Please refresh.'
+  showLoadingError(message)
   setProgress(100)
-  dismissLoading()
+  dismissLoading(true)
 })

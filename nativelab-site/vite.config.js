@@ -19,6 +19,7 @@ function copyStaticFiles() {
         'docs-dev.html',
         'site.css',
         'site.js',
+        'Phonolabv0.9.apk'
       ]
 
       for (const file of filesToCopy) {
