@@ -49,7 +49,8 @@ function copyStaticFiles() {
 }
 
 export default defineConfig({
-  base: './',
+  // './' for local dev, '/NativeLab/' for GitHub Pages production build
+  base: process.env.NODE_ENV === 'production' ? '/NativeLab/' : './',
   server: {
     fs: {
       allow: ['..']
