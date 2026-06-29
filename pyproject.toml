@@ -12,7 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "psutil==7.2.2",
     "pypdf>=6.13.0",
-    "PyQt6==6.10.2"
+    "PyQt6==6.11.0"
 ]
 
 [project.optional-dependencies]
@@ -23,7 +23,7 @@ cli = [
 labs = [
     "psutil==7.2.2",
     "pypdf>=6.13.0",
-    "PyQt6==6.10.2"
+    "PyQt6==6.11.0"
 ]
 
 [dependency-groups]
@@ -33,7 +33,7 @@ cli = [
 ]
 labs = [
     { include-group = "cli" },
-    "PyQt6==6.10.2"
+    "PyQt6==6.11.0"
 ]
 
 [project.scripts]
