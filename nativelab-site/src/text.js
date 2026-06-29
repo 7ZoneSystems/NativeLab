@@ -76,8 +76,9 @@ function hideLine(id) {
   })
 }
 
-// Hide all lines in a section
-function hideSectionLines(sec) {
+// Hide all lines in a section (animated fade-out — use this for section
+// transitions instead of forceHide, which snaps instantly with no animation)
+export function hideSectionLines(sec) {
   const lines = SECTIONS[sec]
   if (!lines) return
   lines.forEach(id => hideLine(id))

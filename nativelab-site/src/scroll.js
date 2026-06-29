@@ -1,6 +1,6 @@
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { scrubSection, forceShow, forceHide, hideAll } from './text.js'
+import { scrubSection, forceShow, hideSectionLines, hideAll } from './text.js'
 import { showFeatureTag, hideAllFeatureTags } from './features.js'
 
 gsap.registerPlugin(ScrollTrigger)
@@ -21,19 +21,22 @@ let beamFired = false
 let pendingTarget = -1
 
 // Text thresholds: { sec, scrollAt } - text reveals at this scroll %
+// NOTE: s8 was given ~150vh more room than before (see body height below) so
+// its lines, and especially the closing line, aren't cut off rushed. Every
+// other section keeps its original absolute scroll position.
 const TEXT_MAP = [
-  { sec: 's1', at: 0.01 },   // "NativeLab" title
-  { sec: 's2', at: 0.05 },   // "Hi, I'm Hrirake" - beam drops, extra room for subtitle
-  { sec: 's3', at: 0.14 },   // "I have been using AI tools."
-  { sec: 's4', at: 0.26 },   // "Your AI should belong to you."
-  { sec: 's6', at: 0.46 },   // Mission statement
-  { sec: 's7', at: 0.54 },   // Desktop / Android split (compressed)
-  { sec: 's8', at: 0.60 },   // "free. fast. yours." (closer to s6)
-  { sec: 's9', at: 0.76 }    // CTA + logo
+  { sec: 's1', at: 0.009 },  // "NativeLab" title
+  { sec: 's2', at: 0.044 },  // "Hi, I'm Hrirake" - beam drops, extra room for subtitle
+  { sec: 's3', at: 0.123 },  // "I have been using AI tools."
+  { sec: 's4', at: 0.229 },  // "Your AI should belong to you."
+  { sec: 's6', at: 0.405 },  // Mission statement
+  { sec: 's7', at: 0.475 },  // Desktop / Android split (compressed)
+  { sec: 's8', at: 0.528 },  // "not just another app..." - extended span, more breathing room
+  { sec: 's9', at: 0.789 }   // CTA + logo
 ]
 
-const WALK_START = 0.04
-const WALK_END = 0.88
+const WALK_START = 0.035
+const WALK_END = 0.894
 const TOTAL_STEPS = 40
 
 export function initScroll(opts) {
@@ -46,7 +49,7 @@ export function initScroll(opts) {
   feetOffset = opts.feetOffset || 0
   activateBeam = opts.activateBeam
 
-  document.body.style.height = '1200vh'
+  document.body.style.height = '1350vh'
   buildTimeline()
 }
 
@@ -165,8 +168,8 @@ function buildTimeline() {
       // ── TEXT: determine active section, switch if changed ─────
       const activeSec = getActiveSection(sp)
       if (activeSec !== prevSection) {
-        // Fade out previous section
-        if (prevSection) forceHide(prevSection)
+        // Fade out previous section (animated, no abrupt cut)
+        if (prevSection) hideSectionLines(prevSection)
         prevSection = activeSec
       }
 
@@ -185,9 +188,9 @@ function buildTimeline() {
         if (activateBeam) activateBeam()
       }
 
-      // ── FEATURE TAGS: show during 38-46% ─────────────────────
-      if (sp >= 0.38 && sp <= 0.46) {
-        const featProgress = (sp - 0.38) / 0.08
+      // ── FEATURE TAGS: show during 33.4-40.5% (same absolute scroll spot as before) ─
+      if (sp >= 0.334 && sp <= 0.405) {
+        const featProgress = (sp - 0.334) / 0.071
         const featIdx = Math.floor(featProgress * 8)
         for (let i = 0; i < 8; i++) {
           if (i <= featIdx) showFeatureTag(i)
@@ -196,8 +199,8 @@ function buildTimeline() {
         hideAllFeatureTags()
       }
 
-      // ── TIE GLOW: fire at 85% ────────────────────────────────
-      if (sp >= 0.85 && avatarAnim) {
+      // ── TIE GLOW: fire at same absolute spot as before (now 86.8%) ───
+      if (sp >= 0.868 && avatarAnim) {
         avatarAnim.glowPatch()
         if (postfx) postfx.pulseGreenBloom()
         avatarAnim = null // only fire once
