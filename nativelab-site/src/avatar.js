@@ -5,8 +5,9 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 export function createAvatar(onProgress) {
   return new Promise((resolve, reject) => {
     const loader = new GLTFLoader()
+    const modelUrl = new URL('../models/avatar.glb', import.meta.url).href
 
-    loader.load('models/avatar.glb', (gltf) => {
+    loader.load(modelUrl, (gltf) => {
       const avatar = gltf.scene
 
       const boxRaw = new THREE.Box3().setFromObject(avatar)
