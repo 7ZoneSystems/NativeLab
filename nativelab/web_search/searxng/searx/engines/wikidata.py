@@ -509,6 +509,10 @@ def request(query: str, params: "OnlineParams") -> None:
 
 def response(resp: "SXNG_Response") -> list[dict[str, t.Any]]:
 
+    if resp.status_code != 200:
+        logger.warning("Wikidata SPARQL endpoint returned HTTP %d: %s", resp.status_code, resp.content.decode()[:200])
+        return []
+
     results: list[dict[str, t.Any]] = []
     jsonresponse = loads(resp.content.decode())
 
