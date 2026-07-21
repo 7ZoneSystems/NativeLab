@@ -8,6 +8,7 @@ Some implementations are shared from :ref:`wikipedia engine`.
 import typing as t
 
 import os
+import re
 from hashlib import md5
 from urllib.parse import urlencode, unquote
 from json import loads
@@ -469,11 +470,19 @@ def get_label_for_entity(entity_id: str, language: str) -> str:
 
 def send_wikidata_query(query: str, method: str = "GET", **kwargs: dict[str, t.Any]) -> dict[str, t.Any]:
     if method == "GET":
-        # query will be cached by wikidata
         http_response = get(SPARQL_ENDPOINT_URL + "?" + urlencode({"query": query}), headers=get_headers(), **kwargs)
     else:
-        # query won't be cached by wikidata
         http_response = post(SPARQL_ENDPOINT_URL, data={"query": query}, headers=get_headers(), **kwargs)
+    if http_response.status_code == 403:
+        content = http_response.content.decode()
+        logger.warning("Wikidata SPARQL endpoint rate limited: %s", content)
+        if "suspended_time" in content:
+            import re
+            match = re.search(r"suspended_time[=:]\s*(\d+)", content)
+            if match:
+                suspended_time = int(match.group(1))
+                logger.warning("Wikidata SPARQL endpoint suspended for %d seconds", suspended_time)
+        raise RuntimeError(f"Wikidata SPARQL endpoint rate limited (403): {content}")
     if http_response.status_code != 200:
         logger.debug("SPARQL endpoint error %s", http_response.content.decode())
     logger.debug("request time %s", str(http_response.elapsed))
@@ -863,15 +872,19 @@ def init_wikidata_properties():
                 wikidata_property_names.append("wd:" + attribute.name)
     query = QUERY_PROPERTY_NAMES.replace("%ATTRIBUTES%", " ".join(wikidata_property_names))
     kwargs: dict[str, t.Any] = {"timeout": 20}
-    jsonresponse = send_wikidata_query(query, **kwargs)
-    for result in jsonresponse.get("results", {}).get("bindings", {}):
-        name_field = result.get("name")
-        if not name_field:
-            continue
-        name = name_field["value"]
-        lang = name_field["xml:lang"]
-        entity_id = result["item"]["value"].replace("http://www.wikidata.org/entity/", "")
-        WIKIDATA_PROPERTIES[(entity_id, lang)] = name.capitalize()
+    try:
+        jsonresponse = send_wikidata_query(query, **kwargs)
+        for result in jsonresponse.get("results", {}).get("bindings", {}):
+            name_field = result.get("name")
+            if not name_field:
+                continue
+            name = name_field["value"]
+            lang = name_field["xml:lang"]
+            entity_id = result["item"]["value"].replace("http://www.wikidata.org/entity/", "")
+            WIKIDATA_PROPERTIES[(entity_id, lang)] = name.capitalize()
+    except Exception as e:
+        logger.warning("Failed to fetch Wikidata property names: %s", e)
+        # Continue with just unit symbols, property labels will be fetched on next init
 
     CACHE.set(key="WIKIDATA_PROPERTIES", value=WIKIDATA_PROPERTIES)
 
