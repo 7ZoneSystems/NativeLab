@@ -70,7 +70,8 @@ class NativeLabApiServer:
             def do_POST(self):
                 owner._handle(self, "POST")
 
-            def log_message(self, fmt, *args):
+            def log_message(self, format: str, *args: Any) -> None:
+                _ = format, args
                 return
 
             def _read_json(self) -> dict[str, Any]:
@@ -125,7 +126,10 @@ class NativeLabApiServer:
         self._server = None
         self._thread = None
 
-    def _handle(self, handler: BaseHTTPRequestHandler, method: str) -> None:
+    # The request handler is a dynamically-created subclass that adds the
+    # private JSON/SSE helpers below.  ``Any`` is intentional at this boundary:
+    # typeshed only knows about the standard-library base class.
+    def _handle(self, handler: Any, method: str) -> None:
         path = urlparse(handler.path).path.rstrip("/") or "/"
         if method == "GET" and path in ("/", "/health", "/v1/health"):
             if self.config.require_api_key and not self._authorized(handler):
@@ -150,7 +154,7 @@ class NativeLabApiServer:
         except Exception as exc:
             handler._send_json(error_payload(str(exc), "server_error", 500), 500)
 
-    def _handle_get(self, handler: BaseHTTPRequestHandler, path: str) -> None:
+    def _handle_get(self, handler: Any, path: str) -> None:
         if path in ("/models", "/v1/models"):
             if self.config.supports_openai():
                 handler._send_json(openai_model_list())
@@ -167,7 +171,7 @@ class NativeLabApiServer:
             return
         handler._send_json(error_payload(f"Unknown endpoint: {path}", "not_found", 404), 404)
 
-    def _handle_post(self, handler: BaseHTTPRequestHandler, path: str) -> None:
+    def _handle_post(self, handler: Any, path: str) -> None:
         payload = handler._read_json()
         if path in ("/chat/completions", "/v1/chat/completions"):
             if not self.config.supports_openai():

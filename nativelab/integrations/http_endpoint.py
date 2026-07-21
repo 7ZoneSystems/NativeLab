@@ -87,7 +87,8 @@ class IntegrationHttpEndpoint:
                 except Exception as e:
                     self._send_json({"error": str(e)}, 500)
 
-            def log_message(self, fmt, *args):
+            def log_message(self, format: str, *args) -> None:
+                _ = format, args
                 return
 
             def _read_json(self) -> Dict[str, Any]:

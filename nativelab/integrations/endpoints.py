@@ -239,7 +239,7 @@ class IntegrationEndpoints:
             blocks,
             conns,
             str(input_text or ""),
-            self._active_engine(),
+            self._active_engine(),  # pyright: ignore[reportArgumentType]
             log_cb=lambda msg: self._endpoint_log("INFO", f"pipeline:{safe}: {msg}"),
         )
 

@@ -1,4 +1,5 @@
-from nativelab.imports.import_global import Optional, List, Dict, json, QThread
+from nativelab.imports.import_global import Optional, List, Dict, json
+from nativelab.imports.qt_compat import QThread
 from nativelab.core.streamer_global import ApiStreamWorker
 from nativelab.core.engine_status import engine_status
 from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED, LONG_TIMEOUT_SECONDS

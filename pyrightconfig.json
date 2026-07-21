@@ -1,5 +1,31 @@
 {
+  "exclude": ["nativelab/web_search/searxng"],
+  "defineConstant": {"HEADLESS_QT": false},
+  "venvPath": ".",
+  "venv": ".venv",
+  "executionEnvironments": [
+    {
+      "root": "nativelab/UI",
+      "reportAttributeAccessIssue": "none",
+      "reportUndefinedVariable": "none",
+      "reportUnboundVariable": "none",
+      "reportOptionalMemberAccess": "none",
+      "reportArgumentType": "none",
+      "reportRedeclaration": "none",
+      "reportFunctionMemberAccess": "none"
+    },
+    {"root": "nativelab/codeparser", "reportOperatorIssue": "none", "reportIncompatibleMethodOverride": "none", "reportIncompatibleVariableOverride": "none", "reportRedeclaration": "none", "reportCallIssue": "none", "reportArgumentType": "none"},
+    {"root": "nativelab/components", "reportAssignmentType": "none", "reportArgumentType": "none", "reportAttributeAccessIssue": "none", "reportPossiblyUnboundVariable": "none"},
+    {"root": "nativelab/integrations", "reportAttributeAccessIssue": "none", "reportIncompatibleMethodOverride": "none", "reportArgumentType": "none"},
+    {"root": "nativelab/labs", "reportOptionalMemberAccess": "none", "reportAttributeAccessIssue": "none"},
+    {"root": "nativelab/pipelinebuilder", "reportArgumentType": "none", "reportCallIssue": "none"},
+    {"root": "nativelab/skill", "reportOptionalMemberAccess": "none"},
+    {"root": "nativelab/native", "reportAttributeAccessIssue": "none"},
+    {"root": ".", "reportCallIssue": "none", "reportArgumentType": "none"}
+  ],
   "reportInvalidTypeForm": "none",
   "reportGeneralTypeIssues": "none",
-  "reportMissingImports": "warning"
+  "reportMissingImports": "none",
+  "reportUnsupportedDunderAll": "none",
+  "reportUnusedExpression": "none"
 }

@@ -1,4 +1,5 @@
-from nativelab.imports.import_global import QThread, pyqtSignal, json, time
+from nativelab.imports.import_global import json, time
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 
 ANTHROPIC_UNCAPPED_FALLBACK_TOKENS = 8192
@@ -29,9 +30,9 @@ class ApiStreamWorker(QThread):
         self.user_suffix:       str  = ""
         self.assistant_prefix:  str  = ""
 
-    def _max_tokens_value(self):
+    def _max_tokens_value(self) -> int | None:
         try:
-            value = int(self.max_tokens)
+            value = int(self.max_tokens) if self.max_tokens is not None else 0
         except (TypeError, ValueError):
             return None
         return value if value > 0 else None

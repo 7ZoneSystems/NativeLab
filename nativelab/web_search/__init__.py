@@ -137,15 +137,21 @@ def web_search(
 
     ordered = result_container.get_ordered_results()
 
+    def _field(result: t.Any, name: str, default: t.Any = "") -> t.Any:
+        """Read both SearXNG mapping results and typed MainResult objects."""
+        if isinstance(result, dict):
+            return result.get(name, default)
+        return getattr(result, name, default)
+
     results: list[dict[str, t.Any]] = []
     for r in ordered[:max_results]:
         results.append({
-            "title": r.get("title", ""),
-            "url": r.get("url", ""),
-            "content": r.get("content", ""),
-            "engine": r.get("engine", ""),
-            "score": r.get("score", 0),
-            "category": r.get("category", ""),
+            "title": _field(r, "title"),
+            "url": _field(r, "url"),
+            "content": _field(r, "content"),
+            "engine": _field(r, "engine"),
+            "score": _field(r, "score", 0),
+            "category": _field(r, "category"),
         })
 
     return results

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Optional, Type
 
-from nativelab.imports.import_global import (
+from nativelab.imports.qt_compat import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QStackedWidget,
     QListWidget, QListWidgetItem, Qt,
 )

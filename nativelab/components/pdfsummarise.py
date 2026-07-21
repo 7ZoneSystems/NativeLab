@@ -1,4 +1,5 @@
-from nativelab.imports.import_global import List, Optional, QThread, pyqtSignal, subprocess, time, datetime, json
+from nativelab.imports.import_global import List, Optional, subprocess, time, datetime, json
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.components.components_global import detect_model_family, load_paused_job, save_paused_job, delete_paused_job
 from nativelab.core.context_meter import context_meter
 from nativelab.Model.model_global import MODE_SECTION_INSTRUCTIONS, MODE_FINAL_INSTRUCTIONS, model_ref_payload

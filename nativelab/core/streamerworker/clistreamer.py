@@ -1,4 +1,5 @@
-from nativelab.imports.import_global import QThread, pyqtSignal, time, subprocess, Optional
+from nativelab.imports.import_global import time, subprocess, Optional
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 class CliStreamWorker(QThread):
     token  = pyqtSignal(str)

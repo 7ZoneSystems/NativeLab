@@ -7,7 +7,7 @@ import sys
 import threading
 from typing import Iterable, Sequence
 
-from nativelab.imports.import_global import QThread, pyqtSignal
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 
 
 HF_TRANSFORMERS_DEP_PACKAGES = (

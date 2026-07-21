@@ -1,5 +1,7 @@
 import sys
-from nativelab.imports.import_global import Optional, subprocess, time, json, Path, QThread, HAS_PSUTIL, psutil
+from typing import Any, cast
+from nativelab.imports.import_global import Optional, subprocess, time, json, Path, HAS_PSUTIL, psutil
+from nativelab.imports.qt_compat import QThread
 from nativelab.Model.model_global import (
     detect_mmproj_for_model,
     detect_model_family,
@@ -713,7 +715,10 @@ class LlamaEngine:
 
     def _hf_inputs_to_device(self, inputs):
         try:
-            device = next(self._hf_model.parameters()).device
+            model = self._hf_model
+            if model is None:
+                return inputs
+            device = next(model.parameters()).device
             return {k: v.to(device) if hasattr(v, "to") else v for k, v in inputs.items()}
         except Exception:
             return inputs
@@ -721,6 +726,7 @@ class LlamaEngine:
     def _generate_hf(self, messages, n_predict, temperature, top_p, token_cb=None, abort_cb=None, image_data=None, raw_prompt: bool = False, top_k: int = 40, min_p: float = 0.0, typical_p: float = 1.0, seed: int = -1) -> str:
         if self._hf_model is None:
             raise RuntimeError("HF Transformers model is not loaded")
+        model = self._hf_model
         try:
             import base64
             import threading
@@ -741,7 +747,7 @@ class LlamaEngine:
         if self._hf_is_vision:
             if not images:
                 raise RuntimeError("This HF vision model needs at least one image input")
-            processor = self._hf_processor
+            processor = cast(Any, self._hf_processor)
             text = "\n".join(str(m.get("content", "")) for m in messages if m.get("role") != "assistant")
             vision_messages = [{
                 "role": "user",
@@ -759,7 +765,7 @@ class LlamaEngine:
                 inputs = processor(text=[prompt_text], images=images, return_tensors="pt")
         else:
             prompt_text = self._raw_prompt_text(messages) if raw_prompt else self._hf_prompt_text(messages)
-            inputs = tokenizer(prompt_text, return_tensors="pt")
+            inputs = cast(Any, tokenizer)(prompt_text, return_tensors="pt")
 
         inputs = self._hf_inputs_to_device(inputs)
         gen_kwargs = {
@@ -794,7 +800,7 @@ class LlamaEngine:
 
             def _run_generate():
                 try:
-                    self._hf_model.generate(**gen_kwargs)
+                    model.generate(**gen_kwargs)
                 except Exception as exc:
                     error.append(exc)
 
@@ -812,8 +818,9 @@ class LlamaEngine:
                 raise error[0]
             return "".join(out).strip()
 
-        output = self._hf_model.generate(**gen_kwargs)
-        input_len = int(inputs.get("input_ids").shape[-1]) if "input_ids" in inputs else 0
+        output = model.generate(**gen_kwargs)
+        input_ids = inputs.get("input_ids")
+        input_len = int(cast(Any, input_ids).shape[-1]) if input_ids is not None else 0
         generated = output[0][input_len:] if input_len else output[0]
         if tokenizer is None:
             return str(generated)

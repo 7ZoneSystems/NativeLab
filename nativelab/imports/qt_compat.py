@@ -10,7 +10,30 @@ from __future__ import annotations
 import os
 import sys
 import threading
-from typing import Any, Callable
+from typing import Any, Callable, TYPE_CHECKING, overload
+
+if TYPE_CHECKING:
+    # The runtime branch below intentionally supports headless CLI execution;
+    # these imports give Pyright the real Qt symbol surface for GUI modules.
+    from PyQt6.QtCore import (
+        QCoreApplication, QDataStream, QEasingCurve, QEvent, QEventLoop,
+        QIODevice, QObject, QPointF, QPropertyAnimation, QRect, QRectF, QSize,
+        Qt, QThread, QTimer, QVariant, pyqtProperty, pyqtSignal,  # pyright: ignore[reportAttributeAccessIssue]
+    )
+    from PyQt6.QtGui import (
+        QAction, QBrush, QColor, QFont, QIcon, QKeySequence, QLinearGradient,
+        QMouseEvent, QPainter, QPainterPath, QPalette, QPen, QPolygonF,
+        QTextCharFormat, QTextCursor, QTextFormat,
+    )
+    from PyQt6.QtWidgets import (
+        QAbstractItemView, QApplication, QCheckBox, QColorDialog, QComboBox,
+        QDialog, QFileDialog, QFrame, QGraphicsOpacityEffect, QGroupBox,
+        QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
+        QListWidgetItem, QMainWindow, QMenu, QMessageBox, QProgressBar,
+        QPushButton, QScrollArea, QSizePolicy, QSlider, QSpinBox, QSplitter,
+        QStackedWidget, QTabWidget, QTextBrowser, QTextEdit, QVBoxLayout,
+        QWidget,
+    )
 
 
 def _env_truthy(name: str) -> bool:
@@ -42,7 +65,7 @@ if not HEADLESS_QT:
         QThread,
         QTimer,
         QVariant,
-        pyqtProperty,
+        pyqtProperty,  # pyright: ignore[reportAttributeAccessIssue]
         pyqtSignal,
     )
     from PyQt6.QtGui import (  # type: ignore
@@ -128,7 +151,13 @@ else:
         def __set_name__(self, owner, name):
             self._name = f"__qt_signal_{name}"
 
-        def __get__(self, instance, owner=None):
+        @overload
+        def __get__(self, instance: None, owner: type | None = None) -> "_SignalDescriptor": ...
+
+        @overload
+        def __get__(self, instance: object, owner: type | None = None) -> "_Signal": ...
+
+        def __get__(self, instance: object | None, owner: type | None = None) -> "_SignalDescriptor | _Signal":
             if instance is None:
                 return self
             signal = instance.__dict__.get(self._name)

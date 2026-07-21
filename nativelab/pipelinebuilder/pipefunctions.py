@@ -71,9 +71,9 @@ def _pipeline_from_dict(data: dict):
     connections = []
     for cd in data.get("connections", []):
         connections.append(PipelineConnection(
-            from_block_id=id_map.get(cd["from_block_id"], cd["from_block_id"]),
+            from_block_id=id_map.get(cd["from_block_id"], cd["from_block_id"]) or 0,
             from_port=cd["from_port"],
-            to_block_id=id_map.get(cd["to_block_id"],   cd["to_block_id"]),
+            to_block_id=id_map.get(cd["to_block_id"],   cd["to_block_id"]) or 0,
             to_port=cd["to_port"],
             is_loop=cd.get("is_loop", False),
             loop_times=cd.get("loop_times", 1),

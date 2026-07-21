@@ -7,7 +7,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING, cast
 from urllib.parse import quote
 
 from nativelab.integrations import IntegrationEndpoints
@@ -41,6 +41,7 @@ from . import onboarding, ui
 
 if TYPE_CHECKING:
     from .runtime import CliRuntime
+    from nativelab.core.engines.llamaengine import LlamaEngine
 
 
 SECRET_KEYS = {"api_key", "token", "access_token"}
@@ -435,7 +436,7 @@ def pipeline_run(runtime: CliRuntime, name: str, text: str) -> int:
             blocks,
             conns,
             text,
-            runtime.endpoints.active_engine(),
+            cast("LlamaEngine", runtime.endpoints.active_engine()),
             log_cb=lambda msg: print(ui.dim(f"[pipeline] {msg}")),
             step_cb=lambda step: ui.info(f"step {step['id']}: {step['label']}"),
             token_cb=lambda tok: (sys.stdout.write(tok), sys.stdout.flush()),

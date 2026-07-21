@@ -1,4 +1,5 @@
-from nativelab.imports.import_global import QThread, pyqtSignal, time
+from nativelab.imports.import_global import time
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 
 
 class BackendStreamWorker(QThread):

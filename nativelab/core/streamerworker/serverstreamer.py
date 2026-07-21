@@ -1,4 +1,5 @@
-from nativelab.imports.import_global import QThread, pyqtSignal, json, time, List, Optional
+from nativelab.imports.import_global import json, time, List, Optional
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.GlobalConfig.config_global import DEFAULT_N_PRED, APP_CONFIG, LONG_TIMEOUT_SECONDS
 
 class ServerStreamWorker(QThread):

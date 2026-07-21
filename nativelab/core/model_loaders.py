@@ -1,5 +1,5 @@
 """Background loader threads used by the GUI."""
-from nativelab.imports.import_global import QThread, pyqtSignal
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.core.engine_global import ApiEngine
 
 

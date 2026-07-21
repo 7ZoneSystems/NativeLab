@@ -46,14 +46,16 @@ class PipelineOutputRenderer(QTextEdit):
 
     def _render(self):
         html  = self._to_html(self._raw)
-        cur   = self.verticalScrollBar().value()
-        at_bt = cur >= self.verticalScrollBar().maximum() - 40
+        scrollbar = self.verticalScrollBar()
+        if scrollbar is None:
+            return
+        cur   = scrollbar.value()
+        at_bt = cur >= scrollbar.maximum() - 40
         self.setHtml(html)
         if at_bt:
-            self.verticalScrollBar().setValue(
-                self.verticalScrollBar().maximum())
+            scrollbar.setValue(scrollbar.maximum())
         else:
-            self.verticalScrollBar().setValue(cur)
+            scrollbar.setValue(cur)
 
     def _to_html(self, text: str) -> str:
         """Convert raw pipeline text to HTML using the shared chat renderer."""

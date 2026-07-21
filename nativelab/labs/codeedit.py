@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from nativelab.imports.import_global import (
+from nativelab.imports.qt_compat import (
     QThread, pyqtSignal,
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit,
     QTextEdit, QFrame, QScrollArea, QFileDialog, QMessageBox,

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import replace
-from typing import Optional
+from typing import Optional, cast
 
 from nativelab.imports.qt_compat import (
     QApplication,
@@ -64,7 +64,7 @@ class DevicesTab(QWidget):
         self._build()
         self._load_cached()
         self._refresh_timer = QTimer(self)
-        self._refresh_timer.timeout.connect(self._refresh_statuses)
+        self._refresh_timer.timeout.connect(self._refresh_statuses)  # pyright: ignore[reportAttributeAccessIssue]
         self._refresh_timer.start(30_000)  # Refresh every 30s
 
     @staticmethod
@@ -76,6 +76,13 @@ class DevicesTab(QWidget):
     def _set_status(self, text: str, color_key: str = "txt2"):
         self.lbl_status.setText(text)
         self.lbl_status.setStyleSheet(f"color:{C[color_key]};font-size:12px;")
+
+    @staticmethod
+    def _post_event(target: QWidget, event: QEvent) -> None:
+        """Post an event when a Qt application is available (also CLI-safe)."""
+        app = QApplication.instance()
+        if app is not None:
+            app.postEvent(target, event)
 
     def _build(self):
         outer = QVBoxLayout(self)
@@ -247,16 +254,12 @@ class DevicesTab(QWidget):
 
         def _scan():
             found = scan_network(
-                on_found=lambda d: QApplication.instance().postEvent(
-                    self, _DeviceFoundEvent(d)
-                ) if QApplication.instance() else None,
-                progress_cb=lambda done, total: QApplication.instance().postEvent(
+                on_found=lambda d: self._post_event(self, _DeviceFoundEvent(d)),
+                progress_cb=lambda done, total: self._post_event(
                     self, _ScanProgressEvent(done, total)
-                ) if QApplication.instance() else None,
+                ),
             )
-            QApplication.instance().postEvent(
-                self, _ScanCompleteEvent(found)
-            ) if QApplication.instance() else None
+            self._post_event(self, _ScanCompleteEvent(found))
 
         threading.Thread(target=_scan, daemon=True).start()
 
@@ -319,13 +322,17 @@ class DevicesTab(QWidget):
             self.detail_text.setPlainText("No device selected.")
 
     def _update_buttons(self):
-        has_selection = self.device_list.currentRow() >= 0
+        has_selection = self._current_row() >= 0
         self.btn_register.setEnabled(has_selection)
         self.btn_set_key.setEnabled(has_selection)
         self.btn_test.setEnabled(has_selection)
         self.btn_refresh.setEnabled(has_selection)
         self.btn_load_model.setEnabled(has_selection)
         self.btn_remove.setEnabled(has_selection)
+
+    def _current_row(self) -> int:
+        """Return QListWidget's current row as an integer in real and stub Qt."""
+        return cast(int, self.device_list.currentRow())
 
     def _show_device_detail(self, device: DiscoveredDevice):
         """Show detailed info for a device with live runtime config."""
@@ -365,15 +372,13 @@ class DevicesTab(QWidget):
                     f"Live Status: {live.get('status', 'unknown')}",
                     f"Context:     {live.get('ctx', '?')}",
                 ]
-                QApplication.instance().postEvent(
-                    self, _DetailUpdateEvent("\n".join(lines + live_lines))
-                ) if QApplication.instance() else None
+                self._post_event(self, _DetailUpdateEvent("\n".join(lines + live_lines)))
 
         threading.Thread(target=_fetch_live, daemon=True).start()
 
     def _register_selected(self):
         """Register selected device as an API model in ApiRegistry."""
-        row = self.device_list.currentRow()
+        row = self._current_row()
         if row < 0 or row >= len(self._devices):
             return
 
@@ -409,9 +414,7 @@ class DevicesTab(QWidget):
 
         def _do_connect():
             ok, msg = auto_connect_device(device)
-            QApplication.instance().postEvent(
-                self, _AutoConnectEvent(device, ok, msg)
-            ) if QApplication.instance() else None
+            self._post_event(self, _AutoConnectEvent(device, ok, msg))
 
         threading.Thread(target=_do_connect, daemon=True).start()
 
@@ -511,7 +514,7 @@ class DevicesTab(QWidget):
         test_result.setObjectName("txt2_small")
 
         def _test():
-            ok, msg = test_connection(device, key_input.text().strip())
+            ok, msg = test_connection(device, str(key_input.text()).strip())
             test_result.setText(msg)
             test_result.setStyleSheet(f"color:{C['ok'] if ok else C['err']};font-size:12px;")
 
@@ -531,12 +534,12 @@ class DevicesTab(QWidget):
         layout.addLayout(btn_box)
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            return key_input.text().strip()
+            return str(key_input.text()).strip()
         return None
 
     def _set_api_key(self):
         """Set/update API key for selected device."""
-        row = self.device_list.currentRow()
+        row = self._current_row()
         if row < 0 or row >= len(self._devices):
             return
 
@@ -550,7 +553,7 @@ class DevicesTab(QWidget):
 
     def _test_connection(self):
         """Test connection to selected device."""
-        row = self.device_list.currentRow()
+        row = self._current_row()
         if row < 0 or row >= len(self._devices):
             return
 
@@ -559,9 +562,7 @@ class DevicesTab(QWidget):
 
         def _do_test():
             ok, msg = test_connection(device)
-            QApplication.instance().postEvent(
-                self, _TestResultEvent(ok, msg)
-            ) if QApplication.instance() else None
+            self._post_event(self, _TestResultEvent(ok, msg))
 
         threading.Thread(target=_do_test, daemon=True).start()
 
@@ -573,7 +574,7 @@ class DevicesTab(QWidget):
 
     def _load_model_on_device(self):
         """Show dialog to load a model on the selected device."""
-        row = self.device_list.currentRow()
+        row = self._current_row()
         if row < 0 or row >= len(self._devices):
             return
 
@@ -617,21 +618,19 @@ class DevicesTab(QWidget):
         layout.addLayout(btn_box)
 
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            model_path = combo.currentData()
+            model_path = cast(str | None, combo.currentData())
             if model_path:
                 self._set_status(f"Loading {model_path} on {device.ip}...", "acc")
 
                 def _do_load():
                     ok, msg = load_model_on_device(device, model_path)
-                    QApplication.instance().postEvent(
-                        self, _TestResultEvent(ok, msg)
-                    ) if QApplication.instance() else None
+                    self._post_event(self, _TestResultEvent(ok, msg))
 
                 threading.Thread(target=_do_load, daemon=True).start()
 
     def _refresh_selected(self):
         """Refresh the selected device's status."""
-        row = self.device_list.currentRow()
+        row = self._current_row()
         if row < 0 or row >= len(self._devices):
             return
 
@@ -640,9 +639,7 @@ class DevicesTab(QWidget):
 
         def _do_refresh():
             updated = refresh_device(device)
-            QApplication.instance().postEvent(
-                self, _DeviceRefreshedEvent(row, updated)
-            ) if QApplication.instance() else None
+            self._post_event(self, _DeviceRefreshedEvent(row, updated))
 
         threading.Thread(target=_do_refresh, daemon=True).start()
 
@@ -658,7 +655,7 @@ class DevicesTab(QWidget):
 
     def _remove_selected(self):
         """Remove selected device from the list."""
-        row = self.device_list.currentRow()
+        row = self._current_row()
         if row < 0 or row >= len(self._devices):
             return
         device = self._devices[row]
@@ -683,9 +680,7 @@ class DevicesTab(QWidget):
             for d in self._devices:
                 result = refresh_device(d)
                 updated.append(result if result else d)
-            QApplication.instance().postEvent(
-                self, _BatchRefreshEvent(updated)
-            ) if QApplication.instance() else None
+            self._post_event(self, _BatchRefreshEvent(updated))
 
         threading.Thread(target=_do_refresh, daemon=True).start()
 
@@ -696,7 +691,8 @@ class DevicesTab(QWidget):
 
     # ── Custom event handling ──────────────────────────────────────
 
-    def event(self, event) -> bool:
+    def event(self, a0: QEvent) -> bool:  # pyright: ignore[reportIncompatibleMethodOverride]
+        event = a0
         if isinstance(event, _DeviceFoundEvent):
             self._on_device_found(event.device)
             return True
@@ -721,19 +717,20 @@ class DevicesTab(QWidget):
         if isinstance(event, _AutoConnectEvent):
             self._on_auto_connect(event.device, event.ok, event.msg)
             return True
-        return super().event(event)
+        return super().event(event)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 # ── Custom events for thread-safe UI updates ──────────────────────
 
-_DEVICE_FOUND_EVENT = QEvent.Type(QEvent.Type.User + 1)
-_SCAN_PROGRESS_EVENT = QEvent.Type(QEvent.Type.User + 2)
-_SCAN_COMPLETE_EVENT = QEvent.Type(QEvent.Type.User + 3)
-_DEVICE_REFRESHED_EVENT = QEvent.Type(QEvent.Type.User + 4)
-_BATCH_REFRESH_EVENT = QEvent.Type(QEvent.Type.User + 5)
-_TEST_RESULT_EVENT = QEvent.Type(QEvent.Type.User + 6)
-_DETAIL_UPDATE_EVENT = QEvent.Type(QEvent.Type.User + 7)
-_AUTO_CONNECT_EVENT = QEvent.Type(QEvent.Type.User + 8)
+_USER_EVENT = cast(int, QEvent.Type.User)
+_DEVICE_FOUND_EVENT = QEvent.Type(_USER_EVENT + 1)
+_SCAN_PROGRESS_EVENT = QEvent.Type(_USER_EVENT + 2)
+_SCAN_COMPLETE_EVENT = QEvent.Type(_USER_EVENT + 3)
+_DEVICE_REFRESHED_EVENT = QEvent.Type(_USER_EVENT + 4)
+_BATCH_REFRESH_EVENT = QEvent.Type(_USER_EVENT + 5)
+_TEST_RESULT_EVENT = QEvent.Type(_USER_EVENT + 6)
+_DETAIL_UPDATE_EVENT = QEvent.Type(_USER_EVENT + 7)
+_AUTO_CONNECT_EVENT = QEvent.Type(_USER_EVENT + 8)
 
 
 class _DeviceFoundEvent(QEvent):

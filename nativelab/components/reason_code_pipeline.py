@@ -1,4 +1,5 @@
-from nativelab.imports.import_global import QThread, pyqtSignal, subprocess, time, json
+from nativelab.imports.import_global import subprocess, time, json
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.Model.model_global import detect_model_family, get_model_registry, model_ref_payload
 from nativelab.core.context_meter import context_meter
 from nativelab.GlobalConfig.config_global import LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_SECONDS

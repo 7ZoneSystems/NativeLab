@@ -46,7 +46,7 @@ class ApiServerTab(QWidget):
         self.refresh_models()
         self._refresh_status()
         self._timer = QTimer(self)
-        self._timer.timeout.connect(self._refresh_status)
+        self._timer.timeout.connect(self._refresh_status)  # pyright: ignore[reportAttributeAccessIssue]
         self._timer.start(1800)
 
     def set_endpoints(self, endpoints) -> None:
@@ -204,7 +204,7 @@ class ApiServerTab(QWidget):
         self.local_url.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.btn_copy_local = QPushButton("Copy Local")
         set_button_icon(self.btn_copy_local, "copy", "Copy Local")
-        self.btn_copy_local.clicked.connect(lambda: self._copy(self.local_url.text()))
+        self.btn_copy_local.clicked.connect(lambda: self._copy(str(self.local_url.text())))
         local_row.addWidget(QLabel("Local:"))
         local_row.addWidget(self.local_url, 1)
         local_row.addWidget(self.btn_copy_local)
@@ -215,7 +215,7 @@ class ApiServerTab(QWidget):
         self.lan_url.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.btn_copy_lan = QPushButton("Copy WiFi/LAN")
         set_button_icon(self.btn_copy_lan, "copy", "Copy WiFi/LAN")
-        self.btn_copy_lan.clicked.connect(lambda: self._copy(self.lan_url.text()))
+        self.btn_copy_lan.clicked.connect(lambda: self._copy(str(self.lan_url.text())))
         lan_row.addWidget(QLabel("WiFi/LAN:"))
         lan_row.addWidget(self.lan_url, 1)
         lan_row.addWidget(self.btn_copy_lan)
@@ -474,7 +474,9 @@ class ApiServerTab(QWidget):
     def _copy(text: str):
         value = str(text or "").strip()
         if value:
-            QApplication.clipboard().setText(value)
+            clipboard = QApplication.clipboard()
+            if clipboard is not None:
+                clipboard.setText(value)
 
 
 def COLOR_OK():

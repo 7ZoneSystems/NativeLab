@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
-from nativelab.imports.import_global import (
+from nativelab.imports.qt_compat import (
     QApplication,
     QComboBox,
     QFrame,

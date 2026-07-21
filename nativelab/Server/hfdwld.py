@@ -1,5 +1,6 @@
 # hfwld.py - HuggingFace GGUF download workers
-from nativelab.imports.import_global import QThread, pyqtSignal, Path
+from nativelab.imports.import_global import Path
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.GlobalConfig.config_global import LONG_TIMEOUT_SECONDS
 from nativelab.Server.hfauth import hf_auth_headers, normalize_hf_exception
 from nativelab.Server.ollama_helpers import normalize_ollama_exception, normalize_ollama_host

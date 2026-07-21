@@ -63,6 +63,8 @@ def pipeline_digest(data: Optional[Dict[str, Any]]) -> str:
         return "Pipeline saved."
     blocks = data.get("blocks") if isinstance(data.get("blocks"), list) else []
     conns = data.get("connections") if isinstance(data.get("connections"), list) else []
+    blocks = list(blocks)
+    conns = list(conns)
     labels = []
     for block in blocks[:12]:
         if not isinstance(block, dict):

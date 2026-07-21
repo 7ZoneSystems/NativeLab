@@ -245,6 +245,10 @@ class ExpireCacheSQLite(sqlitedb.SQLiteAppl, ExpireCache):
         if cfg.db_url == ":memory:":
             log.critical("don't use SQLite DB in :memory: in production!!")
         super().__init__(cfg.db_url)
+        # Initialize the properties schema eagerly.  Engine initialization can
+        # query ``table_names`` before the first cache write, so lazy schema
+        # creation otherwise raises ``no such table: properties``.
+        self.connect()
 
     def init(self, conn: sqlite3.Connection) -> bool:
         ret_val = super().init(conn)

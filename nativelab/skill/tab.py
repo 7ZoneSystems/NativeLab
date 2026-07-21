@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nativelab.imports.import_global import (
+from nativelab.imports.qt_compat import (
     QFrame,
     QHBoxLayout,
     QLabel,

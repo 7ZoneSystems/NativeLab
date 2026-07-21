@@ -1,4 +1,5 @@
-from nativelab.imports.import_global import List, Tuple, Dict, Optional, Path, QThread, pyqtSignal, subprocess, time, datetime, json
+from nativelab.imports.import_global import List, Tuple, Dict, Optional, Path, subprocess, time, datetime, json
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.GlobalConfig.config_global import simple_hash, APP_CONFIG, REF_CACHE_DIR, LLAMA_CLI, DEFAULT_THREADS, DEFAULT_CTX, LONG_TIMEOUT_NONE
 from nativelab.core.context_meter import context_meter
 from nativelab.GlobalConfig.hardwareUtil import RamWatchdog, get_ref_store

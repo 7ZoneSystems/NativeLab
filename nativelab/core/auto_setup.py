@@ -8,7 +8,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from nativelab.imports.import_global import HAS_PSUTIL, QThread, pyqtSignal
+from nativelab.imports.import_global import HAS_PSUTIL
+from nativelab.imports.qt_compat import QThread, pyqtSignal
 from nativelab.GlobalConfig.config_global import (
     APP_CONFIG,
     MAX_CONTEXT_TOKENS,
