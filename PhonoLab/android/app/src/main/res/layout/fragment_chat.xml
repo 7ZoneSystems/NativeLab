@@ -16,6 +16,19 @@
         android:padding="12dp"
         android:clipToPadding="false" />
 
+    <TextView
+        android:id="@+id/context_usage"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/ph_surface"
+        android:paddingStart="12dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="12dp"
+        android:paddingBottom="4dp"
+        android:text="Context: 0 / 2048 tokens"
+        android:textColor="@color/ph_txt2"
+        android:textSize="10sp" />
+
     <!-- Download progress bar (green, shown during model download) -->
     <LinearLayout
         android:id="@+id/download_bar"

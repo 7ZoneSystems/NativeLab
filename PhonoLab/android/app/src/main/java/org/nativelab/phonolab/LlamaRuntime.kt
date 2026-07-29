@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import org.json.JSONObject
 import org.nativelab.phonolab.data.ChatSession
+import org.nativelab.phonolab.data.ContextWindowManager
 import org.nativelab.phonolab.data.ModelConfig
 import org.nativelab.phonolab.data.ModelManager
 import java.io.File
@@ -80,6 +81,12 @@ class LlamaRuntime(
     /** Get runtime status for UI display. */
     fun runtimeStatus(): LlamaCppManager.RuntimeStatus = cppManager.status()
 
+    /** The active model's configured context window and output reservation. */
+    fun contextLimit(): Int = loadedConfig?.ctx ?: 2048
+    fun maxOutputTokens(): Int = loadedConfig?.maxTokens ?: 384
+    fun contextUsage(session: ChatSession): ContextWindowManager.Usage =
+        ContextWindowManager.usage(session, contextLimit(), maxOutputTokens())
+
     /**
      * Start llama-server with a model.
      * Looks up ModelConfig from ModelManager for per-model settings.
@@ -101,7 +108,10 @@ class LlamaRuntime(
                 return null
             }
 
-            val cfg = modelManager?.get(model.absolutePath)
+            // Snapshot settings at server start. In particular, --ctx-size
+            // cannot change until llama-server is reloaded, so the chat usage
+            // indicator must continue to reflect the running server's limit.
+            val cfg = modelManager?.get(model.absolutePath)?.copy()
             loadedConfig = cfg
 
             stopServer()
@@ -150,6 +160,12 @@ class LlamaRuntime(
      * @return generated text, or error message prefixed with "[ERROR]".
      */
     fun generate(prompt: String, onToken: (String) -> Unit): String {
+        val oneShot = ChatSession.new().apply { addMessage("user", prompt) }
+        return generate(oneShot, onToken)
+    }
+
+    /** Generate against the complete active session, compacted by the central context manager. */
+    fun generate(session: ChatSession, onToken: (String) -> Unit): String {
         _abort = false
         try {
             // Auto-start if needed
@@ -165,15 +181,12 @@ class LlamaRuntime(
 
             if (!isServerRunning()) return "[ERROR] Server not running. Load a model first."
             if (!_isModelLoaded) return "[ERROR] No model loaded."
-            if (prompt.length > 18_000) return "[ERROR] Prompt too long (${prompt.length} chars). Max: 18,000."
-
-            val session = ChatSession.new()
-            session.addMessage("user", prompt)
             val cfg = loadedConfig
             val requestBody = session.buildRequestBody(
-                systemPrompt = "You are a helpful AI assistant.",
+                systemPrompt = ContextWindowManager.DEFAULT_SYSTEM_PROMPT,
                 temperature = cfg?.temperature ?: 0.7f,
                 maxTokens = cfg?.maxTokens ?: 384,
+                contextLimit = cfg?.ctx ?: 2048,
             )
 
             val url = URL("http://127.0.0.1:$serverPort/v1/chat/completions")

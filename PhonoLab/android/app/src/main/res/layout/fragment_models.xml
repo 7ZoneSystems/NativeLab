@@ -185,7 +185,7 @@
                     <TextView
                         android:layout_width="110dp"
                         android:layout_height="wrap_content"
-                        android:text="Context (tokens):"
+                        android:text="Context limit:"
                         android:textColor="@color/ph_txt2"
                         android:textSize="12sp" />
                     <EditText
@@ -200,6 +200,14 @@
                         android:background="@drawable/ph_input_bg"
                         android:padding="6dp" />
                 </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="8dp"
+                    android:text="Maximum conversation context in tokens. Older turns are compacted automatically; reload the model after changing this value."
+                    android:textColor="@color/ph_txt3"
+                    android:textSize="10sp" />
 
                 <!-- Threads -->
                 <LinearLayout

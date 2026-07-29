@@ -54,6 +54,7 @@ class ChatFragment : Fragment() {
     private lateinit var downloadBar: View
     private lateinit var downloadLabel: TextView
     private lateinit var downloadProgress: ProgressBar
+    private lateinit var contextUsage: TextView
 
     private var activeSession: ChatSession? = null
     private var selectedModelPath: String = ""
@@ -135,6 +136,7 @@ class ChatFragment : Fragment() {
         downloadBar = view.findViewById(R.id.download_bar)
         downloadLabel = view.findViewById(R.id.download_label)
         downloadProgress = view.findViewById(R.id.download_progress)
+        contextUsage = view.findViewById(R.id.context_usage)
 
         ragProcessor = RagProcessor(requireContext())
         ragBar = view.findViewById(R.id.rag_bar)
@@ -182,6 +184,7 @@ class ChatFragment : Fragment() {
 
         refreshModels()
         refreshRuntimeStatus()
+        updateContextUsage()
     }
 
     // ── Logging ──────────────────────────────────────────────────────
@@ -300,6 +303,7 @@ class ChatFragment : Fragment() {
         sessionLogs.clear()
         activeSession?.let { sessionManager.save(it) }
         chatAdapter.clear()
+        updateContextUsage()
         logSession("New chat started")
     }
 
@@ -309,6 +313,7 @@ class ChatFragment : Fragment() {
         sessionLogs.addAll(session.logs)
         chatAdapter.setMessages(session.messages)
         logSession("Loaded session: ${session.title}")
+        updateContextUsage()
         scrollToBottom()
     }
 
@@ -380,6 +385,7 @@ class ChatFragment : Fragment() {
                 runOnUi {
                     generatingBanner.visibility = View.GONE
                     refreshModels()
+                    updateContextUsage()
                     setStatus("ok", "Ready · ${model.name}")
                 }
             } else {
@@ -447,6 +453,7 @@ class ChatFragment : Fragment() {
         chatAdapter.addMessage(ChatMessage("user", text))
         session.addMessage("assistant", "")
         chatAdapter.addMessage(ChatMessage("assistant", ""))
+        updateContextUsage()
         scrollToBottom()
 
         logSession("User: ${text.take(80)}${if (text.length > 80) "…" else ""}")
@@ -485,7 +492,7 @@ class ChatFragment : Fragment() {
                 }
 
                 val t0 = System.currentTimeMillis()
-                val result = runtime.generate(text) { token ->
+                val result = runtime.generate(session) { token ->
                     runOnUi {
                         val updated = chatAdapter.appendToLast(token)
                         if (updated != null) {
@@ -523,6 +530,7 @@ class ChatFragment : Fragment() {
                 runOnUi {
                     isGenerating = false
                     setStatus("ok", "Ready")
+                    updateContextUsage()
                     (activity as? Host)?.onSessionChanged()
                 }
             } catch (e: Exception) {
@@ -560,6 +568,18 @@ class ChatFragment : Fragment() {
             promptInput.isEnabled = true
             btnSend.isEnabled = true
         }
+    }
+
+    private fun updateContextUsage() {
+        if (!::contextUsage.isInitialized) return
+        val session = activeSession
+        if (session == null) {
+            contextUsage.text = "Context: 0 / ${runtime.contextLimit()} tokens"
+            return
+        }
+        val usage = runtime.contextUsage(session)
+        val compacted = if (usage.compactedMessages > 0) " · older turns compacted" else ""
+        contextUsage.text = "Context: ${usage.inputTokens} / ${usage.contextLimit} tokens$compacted"
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
