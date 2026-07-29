@@ -178,23 +178,23 @@ The docs are split into short, focused files so you can jump straight to what yo
 
 | Page | What's inside |
 |---|---|
-| [docs/README.md](docs/README.md) | Documentation index with one-line summaries. |
-| [docs/installation.md](docs/installation.md) | Install, llama.cpp setup, first-time workspace. |
-| [docs/cli.md](docs/cli.md) | `nativelab --cli` - quick reference + link to the beginner guide. |
-| [docs/features.md](docs/features.md) | Full feature catalogue; latest release notes are in `changelog.txt`. |
-| [docs/pipeline-builder.md](docs/pipeline-builder.md) | Visual pipeline builder, AI Builder, examples, JSON schema, native pipeline core. |
-| [docs/architecture.md](docs/architecture.md) | Layered architecture, project structure, data flow. |
-| [docs/labs.md](docs/labs.md) | The Labs experimentation layer + how to add a feature. |
-| [docs/integrations.md](docs/integrations.md) | Integration endpoint routes, local HTTP bridge, Discord and WhatsApp bot connectors. |
-| [docs/models.md](docs/models.md) | Model registry, families, quantization, API models. |
-| [docs/workflows.md](docs/workflows.md) | Pipelines, references, summarization, MCP, model/runtime downloads. |
-| [docs/ui.md](docs/ui.md) | GUI tour, theming, shortcuts, data persistence. |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Common errors and their fixes. |
+| [docs/README.md](docs/english/README.md) | Documentation index with one-line summaries. |
+| [docs/installation.md](docs/english/installation.md) | Install, llama.cpp setup, first-time workspace. |
+| [docs/cli.md](docs/english/cli.md) | `nativelab --cli` - quick reference + link to the beginner guide. |
+| [docs/features.md](docs/english/features.md) | Full feature catalogue; latest release notes are in `changelog.txt`. |
+| [docs/pipeline-builder.md](docs/english/pipeline-builder.md) | Visual pipeline builder, AI Builder, examples, JSON schema, native pipeline core. |
+| [docs/architecture.md](docs/english/architecture.md) | Layered architecture, project structure, data flow. |
+| [docs/labs.md](docs/english/labs.md) | The Labs experimentation layer + how to add a feature. |
+| [docs/integrations.md](docs/english/integrations.md) | Integration endpoint routes, local HTTP bridge, Discord and WhatsApp bot connectors. |
+| [docs/models.md](docs/english/models.md) | Model registry, families, quantization, API models. |
+| [docs/workflows.md](docs/english/workflows.md) | Pipelines, references, summarization, MCP, model/runtime downloads. |
+| [docs/ui.md](docs/english/ui.md) | GUI tour, theming, shortcuts, data persistence. |
+| [docs/troubleshooting.md](docs/english/troubleshooting.md) | Common errors and their fixes. |
 
 Beginner-friendly walkthroughs:
 
-- 🆕 **Never used a terminal LLM tool?** Start with [nativelab/cli/cli_guide.md](nativelab/cli/cli_guide.md).
-- 🆕 **Want to add a lab feature?** Read [docs/labs.md](docs/labs.md).
+- 🆕 **Never used a terminal LLM tool?** Start with [nativelab/cli/cli_guide.md](nativelab/english/cli/cli_guide.md).
+- 🆕 **Want to add a lab feature?** Read [docs/labs.md](docs/english/labs.md).
 
 ---
 
@@ -231,7 +231,7 @@ nativelab --cli endpoint /snapshot --json
 nativelab --cli chat
 ```
 
-Full beginner walkthrough: [nativelab/cli/cli_guide.md](nativelab/cli/cli_guide.md).
+Full beginner walkthrough: [nativelab/cli/cli_guide.md](nativelab/english/cli/cli_guide.md).
 
 ---
 
@@ -256,7 +256,7 @@ endpoints.request_context(8192)
 endpoints.request_unload()
 ```
 
-Add a lab feature by dropping `nativelab/labs/<feature>.py` with a `QWidget` panel that has `LAB_NAME`, `LAB_ICON`, and a `set_endpoints(...)` method, then appending it to `LAB_FEATURES`. Full guide in [docs/labs.md](docs/labs.md).
+Add a lab feature by dropping `nativelab/labs/<feature>.py` with a `QWidget` panel that has `LAB_NAME`, `LAB_ICON`, and a `set_endpoints(...)` method, then appending it to `LAB_FEATURES`. Full guide in [docs/labs.md](docs/english/labs.md).
 
 ---
 
@@ -268,7 +268,7 @@ Add a lab feature by dropping `nativelab/labs/<feature>.py` with a `QWidget` pan
 - Optional: `psutil` (RAM monitor), `pypdf` (PDF summarization), `pyflakes` / `flake8` / `pylint` (CLI lint).
 - Optional HF backend: use the HF Transformers downloader's **Install Libraries** action, or install the displayed Transformers/Torch/safetensors/Accelerate/SentencePiece/Pillow command manually.
 
-Detailed instructions in [docs/installation.md](docs/installation.md).
+Detailed instructions in [docs/installation.md](docs/english/installation.md).
 
 ---
 

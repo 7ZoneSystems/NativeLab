@@ -178,23 +178,23 @@ La documentación está dividida en archivos cortos y enfocados para que puedas 
 
 | Página | Qué hay dentro |
 |---|---|
-| [docs/README.md](docs/README.md) | Índice de documentación con resúmenes de una línea. |
-| [docs/installation.md](docs/installation.md) | Instalación, configuración de llama.cpp, primer espacio de trabajo. |
-| [docs/cli.md](docs/cli.md) | `nativelab --cli` - referencia rápida + enlace a la guía para principiantes. |
-| [docs/features.md](docs/features.md) | Catálogo completo de funciones; las notas de la versión más reciente están en `changelog.txt`. |
-| [docs/pipeline-builder.md](docs/pipeline-builder.md) | Constructor visual de pipelines, AI Builder, ejemplos, esquema JSON, núcleo de pipeline nativo. |
-| [docs/architecture.md](docs/architecture.md) | Arquitectura por capas, estructura del proyecto, flujo de datos. |
-| [docs/labs.md](docs/labs.md) | La capa de experimentación Labs + cómo añadir una función. |
-| [docs/integrations.md](docs/integrations.md) | Rutas de endpoints de integración, puente HTTP local, conectores de bots de Discord y WhatsApp. |
-| [docs/models.md](docs/models.md) | Registro de modelos, familias, cuantización, modelos de API. |
-| [docs/workflows.md](docs/workflows.md) | Pipelines, referencias, resúmenes, MCP, descargas de modelos/runtime. |
-| [docs/ui.md](docs/ui.md) | Recorrido por la GUI, temas, atajos, persistencia de datos. |
-| [docs/troubleshooting.md](docs/troubleshooting.md) | Errores comunes y sus soluciones. |
+| [docs/README.md](docs/spanish/README.md) | Índice de documentación con resúmenes de una línea. |
+| [docs/installation.md](docs/spanish/installation.md) | Instalación, configuración de llama.cpp, primer espacio de trabajo. |
+| [docs/cli.md](docs/spanish/cli.md) | `nativelab --cli` - referencia rápida + enlace a la guía para principiantes. |
+| [docs/features.md](docs/spanish/features.md) | Catálogo completo de funciones; las notas de la versión más reciente están en `changelog.txt`. |
+| [docs/pipeline-builder.md](docs/spanish/pipeline-builder.md) | Constructor visual de pipelines, AI Builder, ejemplos, esquema JSON, núcleo de pipeline nativo. |
+| [docs/architecture.md](docs/spanish/architecture.md) | Arquitectura por capas, estructura del proyecto, flujo de datos. |
+| [docs/labs.md](docs/spanish/labs.md) | La capa de experimentación Labs + cómo añadir una función. |
+| [docs/integrations.md](docs/spanish/integrations.md) | Rutas de endpoints de integración, puente HTTP local, conectores de bots de Discord y WhatsApp. |
+| [docs/models.md](docs/spanish/models.md) | Registro de modelos, familias, cuantización, modelos de API. |
+| [docs/workflows.md](docs/spanish/workflows.md) | Pipelines, referencias, resúmenes, MCP, descargas de modelos/runtime. |
+| [docs/ui.md](docs/spanish/ui.md) | Recorrido por la GUI, temas, atajos, persistencia de datos. |
+| [docs/troubleshooting.md](docs/spanish/troubleshooting.md) | Errores comunes y sus soluciones. |
 
 Guías paso a paso para principiantes:
 
-- 🆕 **¿Nunca has usado una herramienta de LLM en terminal?** Comienza con [nativelab/cli/cli_guide.md](nativelab/cli/cli_guide.md).
-- 🆕 **¿Quieres añadir una función de lab?** Lee [docs/labs.md](docs/labs.md).
+- 🆕 **¿Nunca has usado una herramienta de LLM en terminal?** Comienza con [nativelab/cli/cli_guide.md](nativelab/spanish/cli/cli_guide.md).
+- 🆕 **¿Quieres añadir una función de lab?** Lee [docs/labs.md](docs/spanish/labs.md).
 
 ---
 
@@ -231,7 +231,7 @@ nativelab --cli endpoint /snapshot --json
 nativelab --cli chat
 ```
 
-Recorrido completo para principiantes: [nativelab/cli/cli_guide.md](nativelab/cli/cli_guide.md).
+Recorrido completo para principiantes: [nativelab/cli/cli_guide.md](nativelab/spanish/cli/cli_guide.md).
 
 ---
 
@@ -256,7 +256,7 @@ endpoints.request_context(8192)
 endpoints.request_unload()
 ```
 
-Añade una función de lab colocando un archivo `nativelab/labs/<feature>.py` con un panel `QWidget` que tenga `LAB_NAME`, `LAB_ICON` y un método `set_endpoints(...)`, y luego añádelo a `LAB_FEATURES`. Guía completa en [docs/labs.md](docs/labs.md).
+Añade una función de lab colocando un archivo `nativelab/labs/<feature>.py` con un panel `QWidget` que tenga `LAB_NAME`, `LAB_ICON` y un método `set_endpoints(...)`, y luego añádelo a `LAB_FEATURES`. Guía completa en [docs/labs.md](docs/spanish/labs.md).
 
 ---
 
@@ -268,7 +268,7 @@ Añade una función de lab colocando un archivo `nativelab/labs/<feature>.py` co
 - Opcional: `psutil` (monitor de RAM), `pypdf` (resúmenes de PDF), `pyflakes` / `flake8` / `pylint` (lint de CLI).
 - Backend de HF opcional: usa la acción **Install Libraries** del descargador de HF Transformers, o instala manualmente el comando de Transformers/Torch/safetensors/Accelerate/SentencePiece/Pillow mostrado.
 
-Instrucciones detalladas en [docs/installation.md](docs/installation.md).
+Instrucciones detalladas en [docs/installation.md](docs/spanish/installation.md).
 
 ---
 
