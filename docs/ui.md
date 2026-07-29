@@ -44,7 +44,10 @@ See [pipeline-builder.md](pipeline-builder.md) for the full workflow.
 
 ### `ChatArea` & `MessageWidget`
 
-A `QScrollArea` holding a vertical stack of `MessageWidget` instances. Each wraps a `RichTextEdit` (`QTextBrowser` subclass) that renders Markdown to HTML through a custom `_md_to_html()` renderer:
+A `QScrollArea` holding a vertical stack of `MessageWidget` instances. Each wraps a `RichTextEdit` (`QTextBrowser` subclass) that renders Markdown to HTML through a custom `_md_to_html()` renderer (enhanced in commit `65efa045` with:
+- Improved code block formatting
+- Consistent inline element rendering
+- Android-specific layout fixes
 
 - Fenced code blocks → two-row table (toolbar with language tag + line count + "⧉ Copy" link, then the code body with monospace + keyword colouring).
 - Inline code, headers, bold/italic, horizontal rules, bullet lists, numbered lists.
