@@ -786,6 +786,53 @@ NativeLab/
 
 ---
 
+## Cross-Platform Integration
+
+NativeLab and PhonoLab form a unified cross-platform ecosystem for local AI development and usage:
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          NativeLab Desktop                              │
+│  • PyQt6 GUI with pipeline builder, labs, and advanced features        │
+│  • CLI client for terminal users                                       │
+│  • Local llama.cpp server or CLI inference                             │
+│  • API integrations (OpenAI, Anthropic, Ollama)                        │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          PhonoLab Android                               │
+│  • On-device llama.cpp inference via bundled binaries                   │
+│  • Vision model support (LLaVA, Qwen-VL, etc.)                         │
+│  • RAG document processing for PDFs, docs, and text files              │
+│  • LAN API server for desktop-to-mobile communication                   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Integration Points
+
+- **LAN Device Discovery**: NativeLab's "Devices" tab automatically scans for PhonoLab API servers on the same local network
+- **Smart Authentication**: Automatic key exchange and management between NativeLab and PhonoLab
+- **Unified API Standards**: Both platforms implement OpenAI and Anthropic API standards for seamless interoperability
+- **Shared Model Ecosystem**: Identical GGUF model format and quantization level support across platforms
+- **Cross-Platform Workflows**: Create pipelines that span desktop and mobile devices
+
+### Integration Architecture
+
+The integration follows NativeLab's layered architecture:
+
+- **Frontends**: NativeLab desktop GUI and CLI can use PhonoLab as a remote API server
+- **LabEndpoints**: The same `LabEndpoints` surface is used for both local and remote inference
+- **Centralized Backend**: `NativeLabBackend` supports PhonoLab devices as API models
+- **Engine Layer**: `ApiEngine` handles communication with PhonoLab's API server
+- **Persistence**: Device registrations and API configurations are stored in the same persistence layer
+
+This architecture ensures that PhonoLab devices appear as first-class citizens in the NativeLab ecosystem, with the same user experience and capabilities as local models and API integrations.
+
+---
+
 ## Threading model
 
 - All inference (streaming tokens, summarization, pipeline stages, downloads, MCP probes) runs on `QThread` subclasses with PyQt signals for cross-thread updates. The main thread never blocks.

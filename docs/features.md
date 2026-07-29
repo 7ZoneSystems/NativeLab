@@ -6,6 +6,17 @@ NativeLab is built around four pillars: **local-first inference**, **multi-engin
 
 ## What's new in v0.3.7
 
+### PhonoLab Android Client
+
+The official NativeLab Android client is now available. It runs llama.cpp models on-device with advanced mobile-specific features:
+
+- **On-device inference**: Uses bundled llama-server binaries with JNI wrapper to bypass Android's W^X restrictions.
+- **Vision model support**: Auto-detection of vision models (LLaVA, Qwen-VL, InternVL, etc.) with automatic mmproj pairing.
+- **RAG document processing**: Native PDF, text, and document extraction and chunking for context-aware chat.
+- **LAN API server**: OpenAI/Anthropic-compatible HTTP server for desktop-to-mobile communication.
+- **Cross-platform integration**: NativeLab desktop can discover and use PhonoLab devices as remote AI servers.
+- **Shared model ecosystem**: Same GGUF model format and quantization level support across desktop and mobile platforms.
+
 ### Pipeline Builder AI and editor upgrades
 The pipeline builder now includes an **AI Builder** tab beside Execution. A
 loaded model can generate NativeLab pipeline JSON from a plain-English request,
@@ -112,11 +123,17 @@ Manage **Model Context Protocol** servers from a dedicated tab. Configure stdio 
 - Live RAM and context-usage indicators in the status bar.
 - Pause/resume of long summarization jobs.
 
-### Cross-platform
+### PhonoLab Android Client
 
-- Windows binary paths get `.exe` automatically.
-- macOS GitHub Actions workflow for building app bundles.
-- Frozen builds (PyInstaller) supported via `sys._MEIPASS` resolution.
+- **On-device inference**: Runs llama.cpp models directly on Android devices using bundled binaries and JNI wrapper.
+- **Vision model support**: Auto-detection of vision models (LLaVA, Qwen-VL, InternVL, etc.) with automatic mmproj pairing.
+- **RAG document processing**: Native PDF, text, and document extraction and chunking for context-aware chat.
+- **LAN API server**: OpenAI/Anthropic-compatible HTTP server for desktop-to-mobile communication.
+- **Storage management**: SAF-based storage selection with default fallback for model storage.
+- **Theme system**: Dark/light theme toggle with proper lifecycle handling.
+- **Math rendering**: KaTeX-based math formula rendering in chat messages.
+- **Enhanced error handling**: Multi-layer error handling with fatal/non-fatal distinctions.
+- **Cross-platform workflows**: Create pipelines that span desktop and mobile devices.
 
 ---
 

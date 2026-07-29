@@ -38,7 +38,7 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 
 ## 📱 PhonoLab - Android Client
 
-PhonoLab is the official NativeLab Android client. Same local-first philosophy, runs llama.cpp on-device.
+PhonoLab is the official NativeLab Android client. Same local-first philosophy, runs llama.cpp on-device with advanced mobile-specific features.
 
 | Page | Topic |
 |---|---|
@@ -48,6 +48,18 @@ PhonoLab is the official NativeLab Android client. Same local-first philosophy, 
 | [CONSTANTS.md](../PhonoLab/docs/CONSTANTS.md) | All Android constants, limits, colors, URLs. |
 | [CONTRIBUTING.md](../PhonoLab/docs/CONTRIBUTING.md) | What to edit for specific Android changes. |
 | [api_endpoints.md](../PhonoLab/docs/api_endpoints.md) | Complete PhonoLab API reference - all endpoints, curl examples, vision, RAG, config. |
+| [cross-platform.md](cross-platform.md) | How NativeLab and PhonoLab work together across platforms. |
+
+## 🌐 Cross-Platform Integration
+
+NativeLab and PhonoLab are designed to work together seamlessly across desktop and mobile platforms:
+
+- **LAN Device Discovery**: NativeLab can discover and use PhonoLab devices as remote AI servers
+- **Shared Model Ecosystem**: Same GGUF model format and quantization levels
+- **Unified API Standards**: OpenAI/Anthropic-compatible endpoints on both platforms
+- **Cross-Platform Workflows**: Create pipelines that span desktop and mobile devices
+
+Learn more in the [cross-platform documentation](cross-platform.md).
 
 ---
 
@@ -82,6 +94,12 @@ PhonoLab is the official NativeLab Android client. Same local-first philosophy, 
 
 **"I want to use my phone as a LAN AI server from NativeLab."**
 → [PhonoLab API endpoints](../PhonoLab/docs/api_endpoints.md) - scan and register devices in Dev → Devices tab. Smart auth handles key management automatically.
+
+**"I want to create cross-platform workflows that use both desktop and mobile devices."**
+→ [cross-platform.md](cross-platform.md) - How NativeLab and PhonoLab work together across platforms.
+
+**"I want to create cross-platform workflows that use both desktop and mobile devices."**
+→ [cross-platform.md](cross-platform.md) - How NativeLab and PhonoLab work together across platforms.
 
 ---
 
