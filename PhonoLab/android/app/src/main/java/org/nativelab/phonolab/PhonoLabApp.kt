@@ -9,6 +9,7 @@ import android.widget.FrameLayout
 import android.widget.Toast
 import org.nativelab.phonolab.data.ModelManager
 import org.nativelab.phonolab.data.SessionManager
+import org.nativelab.phonolab.theme.ThemeManager
 import org.nativelab.phonolab.ui.ErrorBannerView
 import kotlin.system.exitProcess
 
@@ -32,6 +33,12 @@ class PhonoLabApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Apply the persisted night mode before the first Activity is created.
+        // AppCompat then owns configuration changes and resource replacement;
+        // no activity-level colour overlay or manual recreation is needed.
+        ThemeManager.init(this)
+        ThemeManager.applyTheme()
 
         // Install global crash handler BEFORE anything else
         installCrashHandler()

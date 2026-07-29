@@ -16,7 +16,7 @@
         android:padding="12dp"
         android:maxWidth="320dp">
 
-        <!-- Plain text (shown when no math) -->
+        <!-- Accessibility fallback; formatted assistant output is rendered below. -->
         <TextView
             android:id="@+id/msg_content"
             android:layout_width="wrap_content"
@@ -25,11 +25,12 @@
             android:textSize="14sp"
             android:lineSpacingMultiplier="1.35" />
 
-        <!-- WebView for math rendering (shown when math detected) -->
+        <!-- Stable HTML surface for Markdown, tables, code and math. -->
         <WebView
             android:id="@+id/msg_math_webview"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:overScrollMode="never"
             android:visibility="gone"
             android:scrollbars="none" />
 

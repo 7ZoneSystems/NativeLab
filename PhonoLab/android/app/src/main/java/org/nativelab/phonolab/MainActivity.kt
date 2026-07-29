@@ -62,8 +62,6 @@ class MainActivity : AppCompatActivity(), ChatFragment.Host {
         if (Build.VERSION.SDK_INT >= 35) {
             enableEdgeToEdge()
         }
-        ThemeManager.init(this)
-        ThemeManager.applyTheme()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -116,8 +114,9 @@ class MainActivity : AppCompatActivity(), ChatFragment.Host {
         drawerLayout = findViewById(R.id.drawer_layout)
         toolbar = findViewById(R.id.toolbar)
 
-        // Set scrim overlay color
-        drawerLayout.setScrimColor(android.graphics.Color.parseColor("#60000000"))
+        // Resolve the scrim from the active day/night resources.  It is part of
+        // the theme, rather than a fixed dark overlay left on top of light mode.
+        drawerLayout.setScrimColor(ContextCompat.getColor(this, R.color.ph_scrim))
 
         setupToolbar()
         setupSidebar()
@@ -212,7 +211,6 @@ class MainActivity : AppCompatActivity(), ChatFragment.Host {
         }
         findViewById<View>(R.id.nav_theme_toggle).setOnClickListener {
             ThemeManager.toggleTheme()
-            recreate()
         }
     }
 

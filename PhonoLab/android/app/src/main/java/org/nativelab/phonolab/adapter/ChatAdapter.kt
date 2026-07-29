@@ -1,6 +1,7 @@
 package org.nativelab.phonolab.adapter
 
 import android.annotation.SuppressLint
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,7 +11,9 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import org.nativelab.phonolab.R
 import org.nativelab.phonolab.data.ChatMessage
-import org.nativelab.phonolab.util.MathHelper
+import org.nativelab.phonolab.util.MarkdownRenderer
+import android.os.Handler
+import android.os.Looper
 
 class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
 
@@ -20,6 +23,13 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
     }
 
     private val messages = mutableListOf<ChatMessage>()
+    private val renderHandler = Handler(Looper.getMainLooper())
+    private var pendingRenderedPosition = RecyclerView.NO_POSITION
+    private val renderLastAssistantMessage = Runnable {
+        val position = pendingRenderedPosition
+        pendingRenderedPosition = RecyclerView.NO_POSITION
+        if (position in messages.indices) notifyItemChanged(position)
+    }
 
     fun addMessage(msg: ChatMessage) {
         messages.add(msg)
@@ -36,17 +46,25 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
         val last = messages[idx]
         val updated = last.copy(content = last.content + text)
         messages[idx] = updated
-        notifyItemChanged(idx)
+        // Reloading a WebView for every token visibly flashes.  Coalesce token
+        // invalidations; the holder patches its already-loaded document below.
+        pendingRenderedPosition = idx
+        renderHandler.removeCallbacks(renderLastAssistantMessage)
+        renderHandler.postDelayed(renderLastAssistantMessage, 50)
         return updated
     }
 
     fun clear() {
+        renderHandler.removeCallbacks(renderLastAssistantMessage)
+        pendingRenderedPosition = RecyclerView.NO_POSITION
         val size = messages.size
         messages.clear()
         notifyItemRangeRemoved(0, size)
     }
 
     fun setMessages(msgs: List<ChatMessage>) {
+        renderHandler.removeCallbacks(renderLastAssistantMessage)
+        pendingRenderedPosition = RecyclerView.NO_POSITION
         messages.clear()
         messages.addAll(msgs)
         notifyDataSetChanged()
@@ -67,77 +85,12 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
         val msg = messages[position]
 
         if (holder.webView != null && msg.role != "user") {
-            val hasMath = MathHelper.hasMath(msg.content)
-            if (hasMath && msg.content.isNotEmpty()) {
-                // Show WebView with KaTeX rendering
-                holder.content.visibility = View.GONE
-                holder.webView.visibility = View.VISIBLE
-                holder.webView.settings.javaScriptEnabled = true
-                holder.webView.settings.domStorageEnabled = true
-                holder.webView.settings.loadWithOverviewMode = true
-                holder.webView.settings.useWideViewPort = true
-                holder.webView.setBackgroundColor(0x00000000) // transparent
-
-                // Wrap auto-detected math in $...$ for KaTeX
-                val processedContent = MathHelper.wrapAutoMath(msg.content)
-
-                val safeContent = processedContent
-                    .replace("\\", "\\\\")
-                    .replace("\"", "\\\"")
-                    .replace("'", "\\'")
-                    .replace("\n", "\\n")
-                    .replace("\r", "")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-
-                val html = """
-                    <!DOCTYPE html>
-                    <html><head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-                    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-                    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
-                    <style>
-                      * { margin:0; padding:0; }
-                      body { font-family:sans-serif; font-size:14px; line-height:1.5; color:#ededf5; background:transparent; word-wrap:break-word; }
-                      .katex { font-size:1.05em; }
-                      .katex-display { margin:8px 0; overflow-x:auto; }
-                      pre,code { background:rgba(255,255,255,0.06); border-radius:4px; padding:1px 4px; font-size:13px; }
-                      pre { padding:8px; margin:6px 0; overflow-x:auto; }
-                      pre code { background:none; padding:0; }
-                      p { margin:4px 0; }
-                    </style></head><body>
-                    <div id="c">$safeContent</div>
-                    <script>
-                      var el=document.getElementById('c');
-                      el.innerHTML=el.innerHTML.replace(/\n/g,'<br>');
-                      renderMathInElement(el,{
-                        delimiters:[
-                          {left:'\$\$',right:'\$\$',display:true},
-                          {left:'\$',right:'\$',display:false},
-                          {left:'\\\\(',right:'\\\\)',display:false},
-                          {left:'\\\\[',right:'\\\\]',display:true}
-                        ],
-                        throwOnError:false
-                      });
-                    </script>
-                    </body></html>
-                """.trimIndent()
-
-                holder.webView.loadDataWithBaseURL(
-                    "file:///android_asset/",
-                    html,
-                    "text/html",
-                    "UTF-8",
-                    null
-                )
-            } else {
-                // Plain text - show TextView
-                holder.content.visibility = View.VISIBLE
-                holder.webView.visibility = View.GONE
-                holder.content.text = msg.content
-            }
+            holder.content.visibility = View.GONE
+            holder.webView.visibility = View.VISIBLE
+            holder.renderMarkdown(
+                key = "$position:${msg.role}:${msg.timestamp}",
+                markdown = msg.content,
+            )
         } else {
             holder.content.text = msg.content
         }
@@ -151,5 +104,67 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
         val content: TextView = view.findViewById(R.id.msg_content)
         val time: TextView = view.findViewById(R.id.msg_time)
         val webView: WebView? = view.findViewById(R.id.msg_math_webview)
+        private var boundKey: String? = null
+        private var latestMarkdown = ""
+        private var pageReady = false
+
+        init {
+            webView?.apply {
+                setBackgroundColor(Color.TRANSPARENT)
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = false
+                settings.loadWithOverviewMode = false
+                settings.useWideViewPort = false
+                settings.builtInZoomControls = false
+                settings.displayZoomControls = false
+                isVerticalScrollBarEnabled = false
+                isHorizontalScrollBarEnabled = false
+                webViewClient = object : WebViewClient() {
+                    override fun onPageFinished(view: WebView, url: String) {
+                        pageReady = true
+                        applyLatestMarkdown()
+                    }
+                }
+            }
+        }
+
+        fun renderMarkdown(key: String, markdown: String) {
+            val view = webView ?: return
+            latestMarkdown = markdown
+            if (boundKey != key) {
+                boundKey = key
+                pageReady = false
+                view.loadDataWithBaseURL(
+                    "file:///android_asset/",
+                    MarkdownRenderer.document(view.context, markdown),
+                    "text/html",
+                    "UTF-8",
+                    null,
+                )
+            } else if (pageReady) {
+                applyLatestMarkdown()
+            }
+        }
+
+        private fun applyLatestMarkdown() {
+            val view = webView ?: return
+            if (!pageReady) return
+            view.evaluateJavascript(MarkdownRenderer.updateScript(view.context, latestMarkdown), null)
+            // WebView content does not participate in wrap_content measurement.
+            // Resize after the DOM has been patched without recreating its surface.
+            view.postDelayed({ measureWebContent() }, 32)
+            view.postDelayed({ measureWebContent() }, 160)
+        }
+
+        private fun measureWebContent() {
+            val view = webView ?: return
+            view.evaluateJavascript("Math.ceil(document.documentElement.scrollHeight)") { result ->
+                val cssPixels = result.trim().trim('"').toIntOrNull() ?: return@evaluateJavascript
+                val height = (cssPixels * view.resources.displayMetrics.density).toInt().coerceAtLeast(1)
+                if (view.layoutParams.height != height) {
+                    view.layoutParams = view.layoutParams.apply { this.height = height }
+                }
+            }
+        }
     }
 }
