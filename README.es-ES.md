@@ -193,7 +193,7 @@ La documentación está dividida en archivos cortos y enfocados para que puedas 
 
 Guías paso a paso para principiantes:
 
-- 🆕 **¿Nunca has usado una herramienta de LLM en terminal?** Comienza con [nativelab/cli/cli_guide.md](nativelab/spanish/cli/cli_guide.md).
+- 🆕 **¿Nunca has usado una herramienta de LLM en terminal?** Comienza con [nativelab/cli/cli_guide.md](nativelab//cli/cli_guide.md).
 - 🆕 **¿Quieres añadir una función de lab?** Lee [docs/labs.md](docs/spanish/labs.md).
 
 ---
@@ -231,7 +231,7 @@ nativelab --cli endpoint /snapshot --json
 nativelab --cli chat
 ```
 
-Recorrido completo para principiantes: [nativelab/cli/cli_guide.md](nativelab/spanish/cli/cli_guide.md).
+Recorrido completo para principiantes: [nativelab/cli/cli_guide.md](nativelab//cli/cli_guide.md).
 
 ---
 

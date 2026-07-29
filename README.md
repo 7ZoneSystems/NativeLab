@@ -193,7 +193,7 @@ The docs are split into short, focused files so you can jump straight to what yo
 
 Beginner-friendly walkthroughs:
 
-- 🆕 **Never used a terminal LLM tool?** Start with [nativelab/cli/cli_guide.md](nativelab/english/cli/cli_guide.md).
+- 🆕 **Never used a terminal LLM tool?** Start with [nativelab/cli/cli_guide.md](nativelab//cli/cli_guide.md).
 - 🆕 **Want to add a lab feature?** Read [docs/labs.md](docs/english/labs.md).
 
 ---
@@ -231,7 +231,7 @@ nativelab --cli endpoint /snapshot --json
 nativelab --cli chat
 ```
 
-Full beginner walkthrough: [nativelab/cli/cli_guide.md](nativelab/english/cli/cli_guide.md).
+Full beginner walkthrough: [nativelab/cli/cli_guide.md](nativelab//cli/cli_guide.md).
 
 ---
 
