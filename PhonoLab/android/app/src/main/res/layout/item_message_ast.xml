@@ -8,13 +8,13 @@
     android:paddingRight="48dp">
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="start"
         android:orientation="vertical"
         android:background="@drawable/ph_bubble_ast"
         android:padding="12dp"
-        android:maxWidth="320dp">
+        android:layout_marginEnd="48dp">
 
         <!-- Accessibility fallback; formatted assistant output is rendered below. -->
         <TextView
