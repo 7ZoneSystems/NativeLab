@@ -459,6 +459,7 @@ class ChatFragment : Fragment() {
         logSession("User: ${text.take(80)}${if (text.length > 80) "…" else ""}")
         isGenerating = true
         userScrolledUp = false
+        chatAdapter.setStreaming(true)
         setStatus("generating", "Generating…")
 
         worker.execute {
@@ -509,6 +510,7 @@ class ChatFragment : Fragment() {
                     activeSession?.let { sessionManager.save(it) }
                     runOnUi {
                         isGenerating = false
+                        chatAdapter.setStreaming(false)
                         setStatus("warn", "Stopped")
                     }
                     return@execute
@@ -519,6 +521,7 @@ class ChatFragment : Fragment() {
                     logSession("ERROR: $errMsg")
                     runOnUi {
                         isGenerating = false
+                        chatAdapter.setStreaming(false)
                         setStatus("err", errMsg)
                         showError(errMsg)
                     }
@@ -529,6 +532,7 @@ class ChatFragment : Fragment() {
                 activeSession?.let { sessionManager.save(it) }
                 runOnUi {
                     isGenerating = false
+                    chatAdapter.setStreaming(false)
                     setStatus("ok", "Ready")
                     updateContextUsage()
                     (activity as? Host)?.onSessionChanged()
@@ -539,6 +543,7 @@ class ChatFragment : Fragment() {
                 try { runtime.unload() } catch (_: Exception) {}
                 runOnUi {
                     isGenerating = false
+                    chatAdapter.setStreaming(false)
                     setStatus("err", "Crash: ${e.message}")
                     showError("Generation crashed: ${e.message}")
                 }
@@ -549,6 +554,7 @@ class ChatFragment : Fragment() {
     private fun stopGeneration() {
         logSession("Stopped by user")
         isGenerating = false
+        chatAdapter.setStreaming(false)
         // Abort generation without killing server - model stays loaded
         runtime.abort()
         setStatus("warn", "Stopped")
@@ -597,7 +603,11 @@ class ChatFragment : Fragment() {
         if (userScrolledUp || chatAdapter.itemCount == 0) return
         // Use instant scroll during generation to avoid jitter
         if (isGenerating) {
-            rvChat.scrollToPosition(chatAdapter.itemCount - 1)
+            rvChat.post {
+                if (isAdded && !userScrolledUp) {
+                    rvChat.scrollToPosition(chatAdapter.itemCount - 1)
+                }
+            }
         } else {
             rvChat.smoothScrollToPosition(chatAdapter.itemCount - 1)
         }

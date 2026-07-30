@@ -30,9 +30,11 @@
             android:id="@+id/msg_math_webview"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:minHeight="48dp"
             android:overScrollMode="never"
             android:visibility="gone"
-            android:scrollbars="none" />
+            android:scrollbars="none"
+            android:layerType="software" />
 
         <TextView
             android:id="@+id/msg_time"

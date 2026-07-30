@@ -21,7 +21,7 @@ object MathHelper {
 
     // LaTeX commands that indicate math content
     private val LATEX_CMD = Regex(
-        """\\(frac|sqrt|sin|cos|tan|sec|csc|cot|log|ln|exp|lim|sum|int|prod|partial|nabla|infty|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|omega|phi|psi|rho|pi|tau|xi|zeta|eta|kappa|nu|varphi|varepsilon)\b"""
+        """\\(frac|sqrt|sin|cos|tan|sec|csc|cot|log|ln|exp|lim|sum|int|prod|partial|nabla|infty|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|sigma|omega|phi|psi|rho|pi|tau|xi|zeta|eta|kappa|nu|varphi|varepsilon|neq|leq|geq|approx|equiv|pm|mp|times|div|cdot|ldots|cdots|forall|exists|neg|land|lor|implies|iff|rightarrow|leftarrow|leftrightarrow|Rightarrow|Leftarrow|Leftrightarrow)\b"""
     )
 
     // Exponents: x^2, x^{n+1}, a^b

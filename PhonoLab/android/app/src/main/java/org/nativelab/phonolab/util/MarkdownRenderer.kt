@@ -18,6 +18,7 @@ object MarkdownRenderer {
     private val unordered = Regex("^\\s*[-*+]\\s+(.+)$")
     private val ordered = Regex("^\\s*\\d+[.)]\\s+(.+)$")
 
+    /** Full document load with KaTeX for initial page load. */
     fun document(context: Context, markdown: String): String {
         val colors = Colors(
             text = color(context, R.color.ph_txt),
@@ -27,10 +28,25 @@ object MarkdownRenderer {
             codeSurface = color(context, R.color.ph_bg2),
             border = color(context, R.color.ph_bdr),
         )
-        return page(render(markdown, colors), colors)
+        val processed = MathHelper.wrapAutoMath(markdown)
+        return page(render(processed, colors), colors)
     }
 
-    /** JavaScript invocation used to update an already-loaded streamed bubble. */
+    /** Lightweight update during streaming - no KaTeX, just markdown rendering. */
+    fun streamingUpdateScript(context: Context, markdown: String): String {
+        val colors = Colors(
+            text = color(context, R.color.ph_txt),
+            subdued = color(context, R.color.ph_txt2),
+            accent = color(context, R.color.ph_accent),
+            surface = color(context, R.color.ph_surface),
+            codeSurface = color(context, R.color.ph_bg2),
+            border = color(context, R.color.ph_bdr),
+        )
+        val html = render(markdown, colors)
+        return "window.PhonolabChat.renderStream(${JSONObject.quote(html)});"
+    }
+
+    /** Full update with KaTeX after streaming completes. */
     fun updateScript(context: Context, markdown: String): String {
         val colors = Colors(
             text = color(context, R.color.ph_txt),
@@ -40,7 +56,8 @@ object MarkdownRenderer {
             codeSurface = color(context, R.color.ph_bg2),
             border = color(context, R.color.ph_bdr),
         )
-        return "window.PhonolabChat.render(${JSONObject.quote(render(markdown, colors))});"
+        val processed = MathHelper.wrapAutoMath(markdown)
+        return "window.PhonolabChat.renderFinal(${JSONObject.quote(render(processed, colors))});"
     }
 
     private fun render(markdown: String, c: Colors): String {
@@ -193,6 +210,25 @@ object MarkdownRenderer {
         }
 
         var value = escape(source)
+
+        // Protect LaTeX math expressions before other inline processing
+        // Display math: $$...$$
+        value = Regex("\\$\\$[\\s\\S]+?\\$\\$").replace(value) { match ->
+            protect(match.value)
+        }
+        // Inline math: $...$
+        value = Regex("\\$[^$\\n]+?\\$").replace(value) { match ->
+            protect(match.value)
+        }
+        // \(...\) inline math
+        value = Regex("\\\\\\(.*?\\\\\\)").replace(value) { match ->
+            protect(match.value)
+        }
+        // \[...\] display math
+        value = Regex("\\\\\\[.*?\\\\\\]").replace(value) { match ->
+            protect(match.value)
+        }
+
         value = Regex("`([^`\\n]+)`").replace(value) { match ->
             protect("<code class=\"inline-code\">${match.groupValues[1]}</code>")
         }
@@ -210,6 +246,9 @@ object MarkdownRenderer {
     private fun page(content: String, c: Colors): String = """
         <!doctype html><html><head>
         <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
         <style>
           *{box-sizing:border-box} html,body{margin:0;padding:0;background:transparent}
           body{color:${c.text};font-family:sans-serif;font-size:14px;line-height:1.5;overflow-wrap:anywhere}
@@ -222,8 +261,38 @@ object MarkdownRenderer {
           .code-head{background:${c.surface};border-bottom:1px solid ${c.border};padding:5px 10px}.language{color:${c.accent};font-family:monospace;font-size:10px;font-weight:700;letter-spacing:.05em}
           pre{margin:0;overflow-x:auto;padding:10px 12px;white-space:pre;font-family:monospace;font-size:12px;line-height:1.55}pre code{color:${c.text};font-family:inherit}
           .table-wrap{border:1px solid ${c.border};border-radius:7px;margin:9px 0;overflow-x:auto}table{border-collapse:collapse;min-width:100%;width:max-content;font-size:12px}th{background:${c.codeSurface};color:${c.text};font-weight:700}th,td{border-bottom:1px solid ${c.border};padding:6px 8px;vertical-align:top}td{color:${c.subdued}}tbody tr:last-child td{border-bottom:0}
+          .katex{font-size:1.1em} .katex-display{margin:8px 0;overflow-x:auto;overflow-y:hidden}
         </style></head><body><main id="content">$content</main>
-        <script>window.PhonolabChat={render:function(html){document.getElementById('content').innerHTML=html;}};</script>
+        <script>
+        var _renderLock=false;
+        function renderAllMath(){
+          if(typeof renderMathInElement!=='undefined'){
+            renderMathInElement(document.getElementById('content'),{
+              delimiters:[
+                {left:'$$',right:'$$',display:true},
+                {left:'$',right:'$',display:false},
+                {left:'\\(',right:'\\)',display:false},
+                {left:'\\[',right:'\\]',display:true}
+              ],
+              throwOnError:false
+            });
+          }
+        }
+        window.PhonolabChat={
+          renderStream:function(html){
+            if(_renderLock)return;
+            _renderLock=true;
+            document.getElementById('content').innerHTML=html;
+            setTimeout(function(){_renderLock=false;},16);
+          },
+          renderFinal:function(html){
+            document.getElementById('content').innerHTML=html;
+            renderAllMath();
+            window.PhonolabChat._notifyReady&&window.PhonolabChat._notifyReady();
+          }
+        };
+        document.addEventListener('DOMContentLoaded',function(){renderAllMath();});
+        </script>
         </body></html>
     """.trimIndent()
 

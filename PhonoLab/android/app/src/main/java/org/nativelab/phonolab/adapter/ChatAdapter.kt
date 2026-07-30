@@ -20,15 +20,36 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
     companion object {
         private const val TYPE_USER = 0
         private const val TYPE_AST = 1
+        private const val STREAM_DEBOUNCE_MS = 60L
+        private const val HEIGHT_SETTLE_MS = 150L
     }
 
     private val messages = mutableListOf<ChatMessage>()
     private val renderHandler = Handler(Looper.getMainLooper())
     private var pendingRenderedPosition = RecyclerView.NO_POSITION
+    private var isStreaming = false
+    private var streamingPosition = RecyclerView.NO_POSITION
+
     private val renderLastAssistantMessage = Runnable {
         val position = pendingRenderedPosition
         pendingRenderedPosition = RecyclerView.NO_POSITION
         if (position in messages.indices) notifyItemChanged(position)
+    }
+
+    fun setStreaming(streaming: Boolean) {
+        isStreaming = streaming
+        if (!streaming && streamingPosition != RecyclerView.NO_POSITION) {
+            val pos = streamingPosition
+            streamingPosition = RecyclerView.NO_POSITION
+            if (pos in messages.indices) {
+                pendingRenderedPosition = pos
+                renderHandler.postDelayed({
+                    val p = pendingRenderedPosition
+                    pendingRenderedPosition = RecyclerView.NO_POSITION
+                    if (p in messages.indices) notifyItemChanged(p)
+                }, 100)
+            }
+        }
     }
 
     fun addMessage(msg: ChatMessage) {
@@ -36,27 +57,27 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
         notifyItemInserted(messages.size - 1)
     }
 
-    /**
-     * Append streamed token to the last message AND return it for session sync.
-     * Returns the updated message, or null if adapter is empty.
-     */
     fun appendToLast(text: String): ChatMessage? {
         if (messages.isEmpty()) return null
         val idx = messages.size - 1
         val last = messages[idx]
         val updated = last.copy(content = last.content + text)
         messages[idx] = updated
-        // Reloading a WebView for every token visibly flashes.  Coalesce token
-        // invalidations; the holder patches its already-loaded document below.
-        pendingRenderedPosition = idx
-        renderHandler.removeCallbacks(renderLastAssistantMessage)
-        renderHandler.postDelayed(renderLastAssistantMessage, 50)
+        if (isStreaming) {
+            streamingPosition = idx
+            notifyItemChanged(idx)
+        } else {
+            pendingRenderedPosition = idx
+            renderHandler.removeCallbacks(renderLastAssistantMessage)
+            renderHandler.postDelayed(renderLastAssistantMessage, STREAM_DEBOUNCE_MS)
+        }
         return updated
     }
 
     fun clear() {
         renderHandler.removeCallbacks(renderLastAssistantMessage)
         pendingRenderedPosition = RecyclerView.NO_POSITION
+        streamingPosition = RecyclerView.NO_POSITION
         val size = messages.size
         messages.clear()
         notifyItemRangeRemoved(0, size)
@@ -65,6 +86,7 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
     fun setMessages(msgs: List<ChatMessage>) {
         renderHandler.removeCallbacks(renderLastAssistantMessage)
         pendingRenderedPosition = RecyclerView.NO_POSITION
+        streamingPosition = RecyclerView.NO_POSITION
         messages.clear()
         messages.addAll(msgs)
         notifyDataSetChanged()
@@ -90,6 +112,7 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
             holder.renderMarkdown(
                 key = "$position:${msg.role}:${msg.timestamp}",
                 markdown = msg.content,
+                streaming = isStreaming && position == streamingPosition,
             )
         } else {
             holder.content.text = msg.content
@@ -107,6 +130,8 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
         private var boundKey: String? = null
         private var latestMarkdown = ""
         private var pageReady = false
+        private var lastHeight = 0
+        private var heightStable = false
 
         init {
             webView?.apply {
@@ -122,18 +147,21 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
                 webViewClient = object : WebViewClient() {
                     override fun onPageFinished(view: WebView, url: String) {
                         pageReady = true
-                        applyLatestMarkdown()
+                        applyLatestMarkdown(false)
+                        view.evaluateJavascript("renderAllMath()", null)
                     }
                 }
             }
         }
 
-        fun renderMarkdown(key: String, markdown: String) {
+        fun renderMarkdown(key: String, markdown: String, streaming: Boolean) {
             val view = webView ?: return
             latestMarkdown = markdown
             if (boundKey != key) {
                 boundKey = key
                 pageReady = false
+                lastHeight = 0
+                heightStable = false
                 view.loadDataWithBaseURL(
                     "file:///android_asset/",
                     MarkdownRenderer.document(view.context, markdown),
@@ -142,29 +170,60 @@ class ChatAdapter : RecyclerView.Adapter<ChatAdapter.ViewHolder>() {
                     null,
                 )
             } else if (pageReady) {
-                applyLatestMarkdown()
+                applyLatestMarkdown(streaming)
             }
         }
 
-        private fun applyLatestMarkdown() {
+        private fun applyLatestMarkdown(streaming: Boolean) {
             val view = webView ?: return
             if (!pageReady) return
-            view.evaluateJavascript(MarkdownRenderer.updateScript(view.context, latestMarkdown), null)
-            // WebView content does not participate in wrap_content measurement.
-            // Resize after the DOM has been patched without recreating its surface.
-            view.postDelayed({ measureWebContent() }, 32)
-            view.postDelayed({ measureWebContent() }, 160)
+            if (streaming) {
+                view.evaluateJavascript(MarkdownRenderer.streamingUpdateScript(view.context, latestMarkdown), null)
+            } else {
+                view.evaluateJavascript(MarkdownRenderer.updateScript(view.context, latestMarkdown), null)
+            }
+            scheduleHeightMeasurement(streaming)
         }
 
-        private fun measureWebContent() {
+        private fun scheduleHeightMeasurement(streaming: Boolean) {
+            val view = webView ?: return
+            view.postDelayed({ measureWebContent(streaming) }, 30)
+            if (!streaming) {
+                view.postDelayed({ measureWebContent(false) }, 100)
+                view.postDelayed({ measureWebContent(false) }, 300)
+                view.postDelayed({ measureWebContent(false) }, 600)
+            }
+        }
+
+        private fun measureWebContent(streaming: Boolean) {
             val view = webView ?: return
             view.evaluateJavascript("Math.ceil(document.documentElement.scrollHeight)") { result ->
                 val cssPixels = result.trim().trim('"').toIntOrNull() ?: return@evaluateJavascript
-                val height = (cssPixels * view.resources.displayMetrics.density).toInt().coerceAtLeast(1)
-                if (view.layoutParams.height != height) {
-                    view.layoutParams = view.layoutParams.apply { this.height = height }
+                val density = view.resources.displayMetrics.density
+                val height = (cssPixels * density).toInt().coerceAtLeast(1)
+                if (height == lastHeight) {
+                    heightStable = true
+                    return@evaluateJavascript
+                }
+                lastHeight = height
+                if (streaming) {
+                    if (height > (view.layoutParams.height ?: 0)) {
+                        view.layoutParams = view.layoutParams.apply { this.height = height }
+                    }
+                } else {
+                    if (view.layoutParams.height != height) {
+                        view.layoutParams = view.layoutParams.apply { this.height = height }
+                    }
                 }
             }
+        }
+
+        fun resetForReuse() {
+            boundKey = null
+            latestMarkdown = ""
+            pageReady = false
+            lastHeight = 0
+            heightStable = false
         }
     }
 }
