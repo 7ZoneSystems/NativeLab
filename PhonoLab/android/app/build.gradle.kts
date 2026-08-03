@@ -68,7 +68,7 @@ dependencies {
     implementation("androidx.cardview:cardview:1.0.0")
 
     // Material Design 3
-    implementation("com.google.android.material:material:1.13.0")
+    implementation("com.google.android.material:material:1.14.0")
 
     // JSON
     implementation("org.json:json:20250517")
