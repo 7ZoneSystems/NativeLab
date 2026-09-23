@@ -366,8 +366,8 @@ NativeLab/
 │   ├── nativelab-0.3.3.tar.gz
 │   ├── nativelab-0.3.4-py3-none-any.whl
 │   ├── nativelab-0.3.4.tar.gz
-│   ├── nativelab-0.3.7-py3-none-any.whl
-│   └── nativelab-0.3.7.tar.gz
+│   ├── nativelab-0.3.8-py3-none-any.whl
+│   └── nativelab-0.3.8.tar.gz
 ├── docs
 │   ├── architecture.md
 │   ├── cli.md

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nativelab"
-version = "0.3.7"
+version = "0.3.8"
 description = "NativeLab AI framework"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -59,4 +59,9 @@ nativelab = [
     "pipelinebuilder/aibuilder/*.rs",
     "native/*.rs",
     "native/pipeline_core.c",
+    "web_search/searxng/*.txt",
+    "web_search/searxng/*.md",
+    "web_search/searxng/searx/*.yml",
+    "web_search/searxng/searx/*.toml",
+    "web_search/searxng/searx/data/*",
 ]

@@ -4,7 +4,7 @@ NativeLab is built around four pillars: **local-first inference**, **multi-engin
 
 ---
 
-## What's new in v0.3.7
+## What's new in v0.3.8
 
 ### PhonoLab Android Client
 
@@ -44,7 +44,7 @@ modules, QThread shutdown was centralized, context-limit errors are surfaced via
 normal user dialogs, and the first-run auto-setup path is resumable with
 hardware-aware llama.cpp or HF Transformers backend choices.
 
-### v0.3.7 additions still current
+### v0.3.8 additions still current
 
 ### Labs - the experimentation layer
 A new `nativelab/labs/` package and a dedicated GUI tab. Every lab feature receives a single `LabEndpoints` instance and uses it for engine status, model swap, context change, and synchronous LLM calls (auto-routing API → server → CLI). Adding a feature is dropping one file and registering it. See [labs.md](labs.md).
@@ -67,7 +67,7 @@ separate model runner.
 
 ---
 
-## Catalogue (everything in v0.3.7)
+## Catalogue (everything in v0.3.8)
 
 ### Inference
 

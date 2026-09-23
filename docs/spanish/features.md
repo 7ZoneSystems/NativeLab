@@ -4,7 +4,7 @@ NativeLab está construido sobre cuatro pilares: **inferencia local (local-first
 
 ---
 
-## Novedades de la versión v0.3.7
+## Novedades de la versión v0.3.8
 
 ### Cliente Android PhonoLab
 
@@ -47,7 +47,7 @@ Los wrappers de Python mantienen el mismo comportamiento cuando la extensión na
 
 El punto de entrada principal de la interfaz se dividió en módulos especializados dentro de `nativelab/UI/mainwindow/`, el cierre de `QThread` se centralizó, los errores por límite de contexto ahora se muestran mediante diálogos normales para el usuario y el proceso de configuración inicial puede reanudarse, ofreciendo opciones adaptadas al hardware entre llama.cpp y Hugging Face Transformers.
 
-### Funciones incorporadas en la v0.3.7 que siguen vigentes
+### Funciones incorporadas en la v0.3.8 que siguen vigentes
 
 ### Labs: la capa de experimentación
 
@@ -86,7 +86,7 @@ La página **Dev → API Server** utiliza el mismo catálogo. El menú **Hosted 
 
 ---
 
-# Catálogo (todo lo incluido en la v0.3.7)
+# Catálogo (todo lo incluido en la v0.3.8)
 
 ## Inferencia
 

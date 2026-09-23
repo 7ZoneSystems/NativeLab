@@ -105,7 +105,7 @@ class IntegrationEndpoints:
     def catalog(self) -> Dict[str, Any]:
         return {
             "name": "NativeLab Integrations",
-            "version": "v0.3.7",
+            "version": "v0.3.8",
             "routes": self.routes(),
             "http": {
                 "default_host": "127.0.0.1",

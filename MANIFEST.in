@@ -3,3 +3,4 @@ include nativelab/native/pipeline_core.c
 include nativelab/native/rust_model.rs
 include nativelab/pipelinebuilder/aibuilder/aibuilder_core.c
 include nativelab/pipelinebuilder/aibuilder/aibuilder_core.rs
+recursive-include nativelab/web_search/searxng *
