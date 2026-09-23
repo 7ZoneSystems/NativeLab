@@ -93,13 +93,15 @@ NativeLab expands the canvas automatically so the full graph remains reachable.
 | Model | Runs a loaded local/API/Ollama/HF model. |
 | Intermediate | Captures and streams mid-pipeline output. |
 
-### Context
+### Context and External Tools
 
 | Block | Use |
 | --- | --- |
 | Reference | Inject static reference text. |
 | Knowledge | Inject reusable knowledge text. |
 | PDF Summary | Load a PDF and summarize or inject it depending on settings. |
+| Web Search | In-process SearXNG search; queries the web and outputs text or JSON. See [web-search.md](web-search.md). |
+| MCP Server | Calls a tool on an attached Model Context Protocol (MCP) server. |
 
 ### Deterministic logic
 
@@ -170,8 +172,32 @@ single JSON object. NativeLab extracts the JSON, normalizes it, attaches the
 active model to empty model-backed blocks when possible, validates it, and saves
 through the normal pipeline subsystem.
 
-If the first model response is not valid JSON, NativeLab retries once with a
-stricter JSON-only prompt and logs a preview of the invalid response.
+If the first model response is not valid JSON or fails graph validation, NativeLab's
+autonomous retry engine analyzes the failure, provides diagnostic feedback to the model,
+and retries generation. If minor structural defects remain, an autonomous graph-repair
+heuristic automatically heals the pipeline (e.g. inserting intermediate blocks between
+forbidden direct model-to-model connections, bridging gaps, and ensuring connectivity).
+
+### Tool Calling, Concurrent Verification & Autonomous Retry
+
+When the generated pipeline includes tool blocks (**MCP Server** or **Web Search**):
+
+1. **Concurrent Probes**: All tool blocks are verified concurrently using a thread pool
+   worker, cutting verification time down from tens of seconds to mere moments.
+2. **Intelligent & Semantic Tool Matching**: When the model configures a tool name on an MCP
+   server, NativeLab performs multi-tier matching (exact, case-insensitive, punctuation-normalized,
+   substring containment, and token overlap fuzzy similarity) to pair the block with the server's
+   actual discovered tools. It also inspects tool parameter schemas to auto-detect and populate
+   the correct argument name (`mcp_arg_name`, such as `query`, `prompt`, or `file_path`).
+3. **Web Search Category Normalization**: Web Search blocks are validated with synonym
+   mapping (e.g., `tech` -> `it`, `finance` -> `news`, `academic` -> `science`) and clamped limits.
+4. **Auto-Healed Connections**: If an MCP server is unreachable and unrecoverable, the
+   unreachable block is pruned and upstream connections are automatically bridged to downstream
+   blocks, keeping the pipeline graph connected and runnable.
+5. **Execution-Time Anti-Failure Retries**: During pipeline execution (`PipelineExecutionWorker`),
+   tool calls execute with autonomous exponential backoff retries. If a tool remains unavailable,
+   the pipeline gracefully passes through an informative tool notice rather than aborting the
+   entire workflow.
 
 ### Context preflight
 

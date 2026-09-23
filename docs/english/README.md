@@ -32,6 +32,7 @@ Welcome. The docs are organised so each page covers a single concern - pick the 
 | [integrations.md](integrations.md) | External endpoint routes, local HTTP bridge, and Discord/WhatsApp bot connectors. |
 | [models.md](models.md) | Model registry, family detection, quants, API models. |
 | [workflows.md](workflows.md) | Pipelines, references, summarization, MCP, model/runtime downloads. |
+| [web-search.md](web-search.md) | In-process SearXNG web search, pipeline integration, and licensing. |
 | [ui.md](ui.md) | GUI components, theming, shortcuts, persistence. |
 
 ---
@@ -86,6 +87,9 @@ Learn more in the [cross-platform documentation](cross-platform.md).
 **"I want to connect NativeLab to Discord, WhatsApp, webhooks, or a local script."**
 → [integrations.md](integrations.md).
 
+**"I want to search the web or give my pipelines real-time web research capabilities."**
+→ [web-search.md](web-search.md).
+
 **"I want to understand how the codebase is organised."**
 → [architecture.md](architecture.md).
 
@@ -94,9 +98,6 @@ Learn more in the [cross-platform documentation](cross-platform.md).
 
 **"I want to use my phone as a LAN AI server from NativeLab."**
 → [PhonoLab API endpoints](../PhonoLab/docs/api_endpoints.md) - scan and register devices in Dev → Devices tab. Smart auth handles key management automatically.
-
-**"I want to create cross-platform workflows that use both desktop and mobile devices."**
-→ [cross-platform.md](cross-platform.md) - How NativeLab and PhonoLab work together across platforms.
 
 **"I want to create cross-platform workflows that use both desktop and mobile devices."**
 → [cross-platform.md](cross-platform.md) - How NativeLab and PhonoLab work together across platforms.

@@ -38,19 +38,27 @@ from .planner import (
     AI_BUILDER_RETRY_N_PREDICT,
     GeneratedPipeline,
     PipelineJsonError,
+    apply_active_model,
+    auto_repair_pipeline_graph,
+    build_ai_builder_diagnostic_retry_messages,
     build_ai_builder_messages,
     estimate_ai_builder_budget,
+    estimate_ai_builder_diagnostic_retry_budget,
     estimate_ai_builder_retry_budget,
     normalize_pipeline_data,
     extract_json_object,
+    pipeline_data_to_blocks,
     sanitize_pipeline_name,
     save_generated_pipeline,
 )
 from .mcp_verify import (
     McpVerificationReport,
     extract_mcp_blocks,
+    extract_tool_blocks,
     verify_all_mcp_blocks,
+    verify_all_tool_blocks,
     fix_mcp_blocks_after_verification,
+    heal_connections_after_removal,
 )
 
 
@@ -169,28 +177,73 @@ class AiPipelineBuildWorker(QThread):
                 active_model_ref=self._active_model_ref,
                 active_model_role=self._active_model_role,
             )
-        except PipelineJsonError as first_error:
-            self.status.emit(
-                "The first model response was not valid pipeline JSON. "
-                "Retrying once with a stricter JSON-only prompt..."
-            )
-            self.status.emit("First raw response preview:\n" + self._raw_preview(first_error.raw_response))
-            retry_budget = estimate_ai_builder_retry_budget(
-                self._engine,
-                self._pipeline_name,
-                self._user_request,
-                active_model_label=self._active_model_label,
-                previous_response=first_error.raw_response,
-                n_predict=AI_BUILDER_RETRY_N_PREDICT,
-            )
+        except (PipelineJsonError, ValueError) as first_error:
+            is_json_err = isinstance(first_error, PipelineJsonError)
+            err_msg = str(first_error)
+            raw_resp = first_error.raw_response if is_json_err else raw
+
+            if is_json_err:
+                self.status.emit(
+                    "The first model response was not valid pipeline JSON. "
+                    "Retrying autonomously with a stricter JSON-only prompt..."
+                )
+                self.status.emit("First raw response preview:\n" + self._raw_preview(raw_resp))
+                retry_budget = estimate_ai_builder_retry_budget(
+                    self._engine,
+                    self._pipeline_name,
+                    self._user_request,
+                    active_model_label=self._active_model_label,
+                    previous_response=raw_resp,
+                    n_predict=AI_BUILDER_RETRY_N_PREDICT,
+                )
+            else:
+                self.status.emit(
+                    f"Generated pipeline had validation issues ({err_msg[:120]}). "
+                    "Retrying autonomously with diagnostic guidance..."
+                )
+                retry_budget = estimate_ai_builder_diagnostic_retry_budget(
+                    self._engine,
+                    self._pipeline_name,
+                    self._user_request,
+                    err_msg,
+                    active_model_label=self._active_model_label,
+                    previous_response=raw_resp,
+                    n_predict=AI_BUILDER_RETRY_N_PREDICT,
+                )
+
             if retry_budget.overflow:
+                if not is_json_err:
+                    try:
+                        data = normalize_pipeline_data(extract_json_object(raw))
+                        data = apply_active_model(data, self._active_model_ref, self._active_model_role)
+                        repaired_b, repaired_c, _ = auto_repair_pipeline_graph(
+                            data.get("blocks", []), data.get("connections", [])
+                        )
+                        data["blocks"] = repaired_b
+                        data["connections"] = repaired_c
+                        b_final, c_final = pipeline_data_to_blocks(data)
+                        from ..validation import validate_pipeline
+                        if not validate_pipeline(b_final, c_final):
+                            from ..pipefunctions import save_pipeline as _save
+                            _save(self._pipeline_name, b_final, c_final)
+                            self.status.emit("Pipeline autonomously repaired and validated.")
+                            return GeneratedPipeline(
+                                name=self._pipeline_name,
+                                raw_response=raw,
+                                data=data,
+                                blocks=b_final,
+                                connections=c_final,
+                            )
+                    except Exception:
+                        pass
                 raise PipelineJsonError(
-                    "The model did not return JSON, and the stricter retry prompt would exceed "
+                    "The model response required retry, but the retry prompt would exceed "
                     f"the current context limit ({retry_budget.projected_tokens} / "
                     f"{retry_budget.limit_tokens} tokens). Increase context and reload the model, "
                     "or shorten the request.",
-                    first_error.raw_response,
+                    raw_resp,
                 ) from first_error
+
             retry_raw = generate_pipeline_response(
                 self._engine,
                 retry_budget.messages,
@@ -207,38 +260,72 @@ class AiPipelineBuildWorker(QThread):
                     active_model_ref=self._active_model_ref,
                     active_model_role=self._active_model_role,
                 )
-            except PipelineJsonError as retry_error:
-                self.status.emit("Retry raw response preview:\n" + self._raw_preview(retry_error.raw_response))
-                raise PipelineJsonError(
-                    "The model still did not return valid pipeline JSON after a strict retry. "
-                    "Try a more direct request, for example: 'Make a 3 block input -> model -> output pipeline'.",
-                    retry_error.raw_response,
-                ) from retry_error
+            except (PipelineJsonError, ValueError) as retry_error:
+                # Heuristic auto-repair fallback before failing
+                try:
+                    data = normalize_pipeline_data(extract_json_object(retry_raw))
+                    data = apply_active_model(data, self._active_model_ref, self._active_model_role)
+                    repaired_b, repaired_c, _ = auto_repair_pipeline_graph(
+                        data.get("blocks", []), data.get("connections", [])
+                    )
+                    data["blocks"] = repaired_b
+                    data["connections"] = repaired_c
+                    b_final, c_final = pipeline_data_to_blocks(data)
+                    from ..validation import validate_pipeline
+                    if not validate_pipeline(b_final, c_final):
+                        from ..pipefunctions import save_pipeline as _save
+                        _save(self._pipeline_name, b_final, c_final)
+                        self.status.emit("Pipeline autonomously repaired and validated after retry.")
+                        return GeneratedPipeline(
+                            name=self._pipeline_name,
+                            raw_response=retry_raw,
+                            data=data,
+                            blocks=b_final,
+                            connections=c_final,
+                        )
+                except Exception:
+                    pass
+
+                self.status.emit("Retry raw response preview:\n" + self._raw_preview(retry_raw))
+                if isinstance(retry_error, PipelineJsonError):
+                    raise PipelineJsonError(
+                        "The model still did not return valid pipeline JSON after an autonomous retry. "
+                        "Try a more direct request, for example: 'Make a 3 block input -> model -> output pipeline'.",
+                        retry_error.raw_response,
+                    ) from retry_error
+                else:
+                    raise ValueError(
+                        f"The generated pipeline could not pass validation after an autonomous retry: {retry_error}"
+                    ) from retry_error
 
     def _verify_and_fix_mcp(self, raw: str) -> GeneratedPipeline:
         """
-        Parse generated JSON, verify MCP servers, fix/remove failed blocks,
-        then save. If MCP blocks were removed, asks the AI to regenerate
-        with the failure info so it can adapt.
+        Parse generated JSON, concurrently verify MCP servers and Web Search tools,
+        fix/remove failed blocks, auto-heal connections, then save.
+        If tool blocks were removed, autonomously asks the AI to adapt the pipeline.
         """
         # Parse the raw JSON
         data = extract_json_object(raw)
         data = normalize_pipeline_data(data)
 
         blocks = data.get("blocks", [])
-        mcp_blocks = extract_mcp_blocks(blocks)
+        tool_blocks = extract_tool_blocks(blocks)
 
-        if not mcp_blocks:
-            # No MCP blocks - proceed normally
+        if not tool_blocks:
+            # No tool blocks - proceed normally
             return self._save_or_retry(raw)
 
-        self.status.emit(
-            f"Found {len(mcp_blocks)} MCP server block(s). "
-            f"Verifying connections before saving..."
-        )
+        mcp_count = len(extract_mcp_blocks(blocks))
+        web_count = len([b for b in blocks if b.get("btype") == "web_search"])
+        parts = []
+        if mcp_count:
+            parts.append(f"{mcp_count} MCP server(s)")
+        if web_count:
+            parts.append(f"{web_count} Web Search block(s)")
+        self.status.emit(f"Found {', '.join(parts)}. Verifying tools concurrently...")
 
-        # Verify all MCP servers
-        report = verify_all_mcp_blocks(
+        # Concurrently verify all tool blocks (MCP & Web Search)
+        report = verify_all_tool_blocks(
             blocks,
             max_retries=2,
             auto_install=True,
@@ -247,7 +334,7 @@ class AiPipelineBuildWorker(QThread):
         )
 
         if self._abort:
-            raise PipelineJsonError("AI pipeline build was cancelled during MCP verification.", raw)
+            raise PipelineJsonError("AI pipeline build was cancelled during tool verification.", raw)
 
         # Handle servers that need authentication
         if report.auth_needed and not self._abort:
@@ -278,7 +365,7 @@ class AiPipelineBuildWorker(QThread):
                         block["metadata"].update(self._auth_updates[bid])
                 self.status.emit("Auth credentials received. Re-verifying MCP servers...")
                 # Re-run verification with updated auth
-                report = verify_all_mcp_blocks(
+                report = verify_all_tool_blocks(
                     blocks,
                     max_retries=1,
                     auto_install=False,
@@ -290,21 +377,26 @@ class AiPipelineBuildWorker(QThread):
             self._auth_updates = {}
 
         if report.all_ok:
-            # All MCP servers verified - update blocks with verified tools
+            # All tools verified - update blocks with verified tools
             for block in blocks:
                 bid = block.get("bid", 0)
                 for r in report.results:
-                    if r.block_bid == bid and r.success:
+                    if r.block_bid == bid and r.success and r.block_type == "mcp_server":
                         block["metadata"]["mcp_connected"] = True
                         block["metadata"]["mcp_tools"] = r.tools_found
             # Save with verified data
-            from .planner import apply_active_model, pipeline_data_to_blocks, save_pipeline
             from ..validation import validate_pipeline
             data = apply_active_model(data, self._active_model_ref, self._active_model_role)
             blocks_final, connections = pipeline_data_to_blocks(data)
             err = validate_pipeline(blocks_final, connections)
             if err:
-                raise ValueError(f"Generated pipeline did not pass validation:\n\n{err}")
+                repaired_b, repaired_c, _ = auto_repair_pipeline_graph(data.get("blocks", []), data.get("connections", []))
+                data["blocks"] = repaired_b
+                data["connections"] = repaired_c
+                blocks_final, connections = pipeline_data_to_blocks(data)
+                err = validate_pipeline(blocks_final, connections)
+                if err:
+                    raise ValueError(f"Generated pipeline did not pass validation:\n\n{err}")
             from ..pipefunctions import save_pipeline as _save
             _save(self._pipeline_name, blocks_final, connections)
             return GeneratedPipeline(
@@ -315,41 +407,43 @@ class AiPipelineBuildWorker(QThread):
                 connections=connections,
             )
 
-        # Some MCP servers failed - fix blocks and try to regenerate
-        self.status.emit("Some MCP servers failed verification. Fixing pipeline...")
+        # Some tool servers failed - fix blocks, heal connections, and try to regenerate
+        self.status.emit("Some tool blocks failed verification. Auto-healing pipeline...")
 
         fixed_blocks, fix_messages = fix_mcp_blocks_after_verification(
-            blocks, report, log_cb=lambda m: self.status.emit(m),
+            blocks, report, connections=data.get("connections"), log_cb=lambda m: self.status.emit(m),
         )
 
         for msg in fix_messages:
             self.status.emit(f"  → {msg}")
 
         if report.removed_blocks:
-            # Ask AI to regenerate with info about which MCP servers failed
+            # Ask AI to regenerate with info about which tool servers failed
             failed_info = "; ".join(
                 f"'{r.block_label}' ({r.url[:40]}): {r.error[:60]}"
                 for r in report.failed
             )
             self.status.emit(
-                f"Removed {len(report.removed_blocks)} MCP block(s). "
+                f"Removed {len(report.removed_blocks)} unreachable tool block(s). "
                 f"Asking AI to adapt the pipeline..."
             )
 
-            # Build a retry request that tells the AI what failed
+            # Build an adaptive retry request that tells the AI what failed
             retry_request = (
                 f"{self._user_request}\n\n"
-                f"IMPORTANT: The following MCP servers were unreachable and have been removed: "
+                f"IMPORTANT: The following tools/servers were unreachable and removed: "
                 f"{failed_info}. "
-                f"Rebuild the pipeline WITHOUT those MCP blocks. "
-                f"Use alternative approaches (local model, custom code, etc.) "
+                f"Rebuild the pipeline WITHOUT those failed tool blocks. "
+                f"Use alternative approaches (local model, web search, custom code, etc.) "
                 f"to accomplish the same goal."
             )
 
-            retry_messages = build_ai_builder_messages(
-                retry_request,
+            retry_messages = build_ai_builder_diagnostic_retry_messages(
+                self._user_request,
                 self._pipeline_name,
+                f"Unreachable tools removed: {failed_info}. Rebuild without them.",
                 active_model_label=self._active_model_label,
+                previous_response=raw,
             )
 
             try:
@@ -363,18 +457,18 @@ class AiPipelineBuildWorker(QThread):
                 if self._abort:
                     raise PipelineJsonError("AI pipeline build was cancelled.", retry_raw)
 
-                # Save the regenerated pipeline (no more MCP verification needed
-                # since we told the AI not to use MCP)
                 return self._save_or_retry(retry_raw)
 
-            except PipelineJsonError:
-                # If regeneration fails, save with fixed blocks
-                self.status.emit("AI regeneration failed. Saving pipeline with fixed blocks...")
+            except (PipelineJsonError, ValueError):
+                # If regeneration fails, save with fixed and healed blocks
+                self.status.emit("AI regeneration failed. Saving pipeline with healed connections...")
                 data["blocks"] = fixed_blocks
-                from .planner import apply_active_model, pipeline_data_to_blocks
                 from ..validation import validate_pipeline
                 from ..pipefunctions import save_pipeline as _save
                 data = apply_active_model(data, self._active_model_ref, self._active_model_role)
+                repaired_b, repaired_c, _ = auto_repair_pipeline_graph(data.get("blocks", []), data.get("connections", []))
+                data["blocks"] = repaired_b
+                data["connections"] = repaired_c
                 blocks_final, connections = pipeline_data_to_blocks(data)
                 err = validate_pipeline(blocks_final, connections)
                 if err:
@@ -388,12 +482,14 @@ class AiPipelineBuildWorker(QThread):
                     connections=connections,
                 )
 
-        # All MCP blocks were fixed (not removed) - save with fixed data
+        # All tool blocks were fixed (not removed) - save with fixed data
         data["blocks"] = fixed_blocks
-        from .planner import apply_active_model, pipeline_data_to_blocks
         from ..validation import validate_pipeline
         from ..pipefunctions import save_pipeline as _save
         data = apply_active_model(data, self._active_model_ref, self._active_model_role)
+        repaired_b, repaired_c, _ = auto_repair_pipeline_graph(data.get("blocks", []), data.get("connections", []))
+        data["blocks"] = repaired_b
+        data["connections"] = repaired_c
         blocks_final, connections = pipeline_data_to_blocks(data)
         err = validate_pipeline(blocks_final, connections)
         if err:

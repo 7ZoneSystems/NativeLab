@@ -88,13 +88,15 @@ Cuando un ejemplo o un JSON cargado contiene bloques fuera del área visible del
 | Model        | Ejecuta un modelo local, API, Ollama o HF cargado.     |
 | Intermediate | Captura y transmite la salida intermedia del pipeline. |
 
-### Contexto
+### Contexto y herramientas externas
 
-| Bloque      | Uso                                                           |
-| ----------- | ------------------------------------------------------------- |
-| Reference   | Inserta texto de referencia estático.                         |
-| Knowledge   | Inserta conocimiento reutilizable.                            |
-| PDF Summary | Carga un PDF y lo resume o lo inserta según la configuración. |
+| Bloque      | Uso                                                                                                                   |
+| ----------- | --------------------------------------------------------------------------------------------------------------------- |
+| Reference   | Inserta texto de referencia estático.                                                                                 |
+| Knowledge   | Inserta conocimiento reutilizable.                                                                                    |
+| PDF Summary | Carga un PDF y lo resume o lo inserta según la configuración.                                                         |
+| Web Search  | Búsqueda web in-process mediante SearXNG; consulta la web y genera texto o JSON. Ver [web-search.md](web-search.md). |
+| MCP Server  | Invoca una herramienta en un servidor MCP (Model Context Protocol) conectado.                                        |
 
 ### Lógica determinista
 
@@ -174,7 +176,17 @@ La respuesta debe ser un único objeto JSON.
 
 NativeLab extrae el JSON, lo normaliza, asigna automáticamente el modelo activo a los bloques de modelo vacíos cuando es posible, lo valida y lo guarda utilizando el sistema normal de pipelines.
 
-Si la primera respuesta del modelo no contiene un JSON válido, NativeLab realiza automáticamente un segundo intento utilizando un prompt más estricto que solo acepta JSON y registra una vista previa de la respuesta inválida.
+Si la primera respuesta del modelo no contiene un JSON válido o no pasa la validación estructural del grafo, el motor de reintento autónomo de NativeLab analiza el fallo, genera un prompt con diagnóstico específico para el modelo y reintenta la generación. Si persisten pequeños defectos estructurales, una heurística de autorreparación conecta automáticamente las brechas (por ejemplo, insertando bloques intermedios entre modelos consecutivos, asegurando la conectividad y validando el pipeline).
+
+### Invocación de herramientas, verificación concurrente y reintentos autónomos
+
+Cuando el pipeline generado incluye bloques de herramientas (**MCP Server** o **Web Search**):
+
+1. **Verificación concurrente**: Todos los bloques de herramientas se verifican en paralelo mediante un grupo de subprocesos (thread pool), reduciendo el tiempo de espera de decenas de segundos a instantes.
+2. **Emparejamiento inteligente y semántico de herramientas**: Al configurar un nombre de herramienta MCP generado por el modelo, NativeLab realiza una correspondencia por niveles (exacta, insensible a mayúsculas/minúsculas, puntuación normalizada, inclusión por subcadena y similitud difusa por solapamiento de tokens). Además, inspecciona los esquemas de parámetros para detectar y asignar automáticamente el nombre de argumento correcto (`mcp_arg_name`, como `query`, `prompt` o `file_path`).
+3. **Normalización de categorías de búsqueda web**: Los bloques de Web Search se validan con mapeo de sinónimos (por ejemplo, `tech` -> `it`, `finance` -> `news`, `academic` -> `science`) y límites acotados.
+4. **Conexiones autorreparadas**: Si un servidor MCP resulta inaccesible de forma irreversible, el bloque se elimina y las conexiones entrantes y salientes se puentean automáticamente, manteniendo el pipeline íntegro y ejecutable.
+5. **Reintentos y tolerancia a fallos en tiempo de ejecución**: Al ejecutarse el pipeline (`PipelineExecutionWorker`), las llamadas a herramientas se reintentan de forma autónoma con retroceso exponencial. Si una herramienta falla definitivamente, se inyecta un aviso informativo en el contexto en lugar de interrumpir fatalmente el flujo de trabajo.
 
 ### Comprobación previa del contexto
 

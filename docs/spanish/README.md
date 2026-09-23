@@ -32,6 +32,7 @@ Bienvenido. La documentación está organizada para que cada página cubra un ú
 | [integrations.md](integrations.md)         | Rutas de endpoints externos, puente HTTP local y conectores para bots de Discord y WhatsApp.                   |
 | [models.md](models.md)                     | Registro de modelos, detección de familias, cuantizaciones y modelos API.                                      |
 | [workflows.md](workflows.md)               | Pipelines, referencias, resumen de documentos, MCP y descarga de modelos/runtime.                              |
+| [web-search.md](web-search.md)             | Búsqueda web embebida con SearXNG, integración en pipelines y licenciamiento.                                  |
 | [ui.md](ui.md)                             | Componentes de la interfaz gráfica, temas, atajos y persistencia.                                              |
 
 ---
@@ -85,6 +86,9 @@ Más información en la documentación de [cross-platform.md](cross-platform.md)
 
 **"Quiero conectar NativeLab con Discord, WhatsApp, webhooks o un script local."**
 → [integrations.md](integrations.md).
+
+**"Quiero realizar búsquedas en la web o dotar a mis pipelines de capacidad de investigación en tiempo real."**
+→ [web-search.md](web-search.md).
 
 **"Quiero entender cómo está organizado el código del proyecto."**
 → [architecture.md](architecture.md).

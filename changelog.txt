@@ -20,6 +20,14 @@ v0.3.8
 19) Added auth pause in AI Builder workflow that detects when MCP servers need credentials, opens a per-server auth configuration dialog, waits for user input, and retries verification with provided credentials.
 20) Added auth credential pass-through in MCP client for both SSE (HTTP Authorization header) and stdio (environment variable injection into subprocess) transports.
 21) Added auth-needed blocks are kept in the pipeline (not removed) so users can configure credentials before first run.
+22) Added concurrent multi-tool verification in `nativelab/pipelinebuilder/aibuilder/mcp_verify.py` supporting parallel testing of MCP servers and Web Search tool blocks.
+23) Added multi-tier intelligent tool name matching (exact, case-insensitive, normalized punctuation, substring, and token overlap fuzzy matching) with automatic MCP parameter schema inspection and argument name inference (`mcp_arg_name`).
+24) Added Web Search block verification, parameter clamping, and synonym normalization for categories (e.g. tech -> it, finance -> news, academic -> science).
+25) Added connection auto-healing (`heal_connections_after_removal`) that bridges predecessors directly to successors when unreachable tool blocks are pruned from a pipeline graph.
+26) Added heuristic graph auto-repair (`auto_repair_pipeline_graph`) in the AI pipeline builder that automatically inserts Intermediate blocks between forbidden direct model-to-model connections, adds missing Input/Output blocks, and heals disconnected components.
+27) Added diagnostic-guided autonomous retry loop in `AiPipelineBuildWorker` that catches both `PipelineJsonError` and `ValueError` graph validation failures, feeding specific diagnostic error feedback back into the model prompt.
+28) Added fail-safe execution-time retries with exponential backoff for MCP tool calls in `PipelineExecutionWorker`, with graceful diagnostic notice passthrough when tools remain unavailable (`mcp_passthrough_on_err`).
+29) Added autonomous fallback to category 'general' and graceful context notice for Web Search blocks during pipeline execution.
 
 v0.3.7
 1) Refactored the pipeline subsystem so deterministic performance-critical work now has a native C acceleration path while preserving Python as the public orchestration and UI layer.

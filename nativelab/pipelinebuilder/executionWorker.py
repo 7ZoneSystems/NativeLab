@@ -1091,20 +1091,22 @@ class PipelineExecutionWorker(QThread):
     # ── MCP server block ────────────────────────────────────────────────────
 
     def _run_mcp_block(self, b: "PipelineBlock", context: str) -> Optional[str]:
-        """Execute an MCP tool call via the configured server."""
+        """Execute an MCP tool call via the configured server with autonomous retries."""
         transport = b.metadata.get("mcp_transport", "sse")
         url = b.metadata.get("mcp_url", "")
         tool_name = b.metadata.get("mcp_tool_name", "")
         arg_name = b.metadata.get("mcp_arg_name", "")
         auth_token = b.metadata.get("mcp_auth_token", "")
         auth_env_text = b.metadata.get("mcp_auth_env", "")
+        max_retries = int(b.metadata.get("mcp_max_retries", 2))
+        passthrough_on_err = bool(b.metadata.get("mcp_passthrough_on_err", True))
 
         if not url:
             self.log_msg.emit(f"MCP block '{b.label}': no server URL configured.")
-            return None
+            return f"[Tool Notice: MCP block '{b.label}' has no server URL configured]\n\n{context}" if passthrough_on_err else None
         if not tool_name:
             self.log_msg.emit(f"MCP block '{b.label}': no tool selected.")
-            return None
+            return f"[Tool Notice: MCP block '{b.label}' has no tool selected]\n\n{context}" if passthrough_on_err else None
 
         # Build arguments - use configured arg name or default to "input"
         arguments = {}
@@ -1127,45 +1129,58 @@ class PipelineExecutionWorker(QThread):
                     if k:
                         auth_env[k] = v
 
-            client = McpClient()
-            ok, result = client.execute(
-                transport, url, tool_name, arguments,
-                auth_token=auth_token or None,
-                auth_env=auth_env or None,
-            )
-            client.shutdown()
+            last_err = ""
+            for attempt in range(max_retries + 1):
+                if self._abort:
+                    return None
+                if attempt > 0:
+                    delay = min(2.0, 0.4 * (2 ** (attempt - 1)))
+                    self.log_msg.emit(f"MCP '{b.label}': retry {attempt}/{max_retries} in {delay:.1f}s...")
+                    time.sleep(delay)
 
-            if not ok:
-                err = result if isinstance(result, str) else "Tool call failed"
-                self.log_msg.emit(f"MCP '{b.label}' error: {err}")
-                return None
+                client = McpClient()
+                ok, result = client.execute(
+                    transport, url, tool_name, arguments,
+                    auth_token=auth_token or None,
+                    auth_env=auth_env or None,
+                )
+                client.shutdown()
 
-            text = str(result) if result else ""
-            if not text.strip():
-                self.log_msg.emit(f"MCP '{b.label}': tool returned empty result")
-                return context  # pass through unchanged
+                if ok:
+                    text = str(result) if result else ""
+                    if not text.strip():
+                        self.log_msg.emit(f"MCP '{b.label}': tool returned empty result")
+                        return context  # pass through unchanged
+                    self.log_msg.emit(f"MCP '{b.label}': tool returned {len(text):,} chars")
+                    return text
 
-            self.log_msg.emit(
-                f"MCP '{b.label}': tool returned {len(text):,} chars")
-            return text
+                last_err = result if isinstance(result, str) else "Tool call failed"
+                self.log_msg.emit(f"MCP '{b.label}' attempt {attempt + 1} failed: {last_err}")
+
+            if passthrough_on_err:
+                self.log_msg.emit(f"MCP '{b.label}': tool call failed after retries, passing through context with error notice.")
+                return f"[Tool Notice: MCP '{b.label}' ({tool_name}) call failed: {last_err}]\n\n{context}"
+            return None
+
         except ImportError:
             self.log_msg.emit(
                 f"MCP '{b.label}': mcp_client module not found. "
                 f"Ensure nativelab.integrations.mcp_client is installed.")
-            return None
+            return f"[Tool Notice: mcp_client module not found]\n\n{context}" if passthrough_on_err else None
         except Exception as e:
             self.log_msg.emit(f"MCP '{b.label}' exception: {e}")
-            return None
+            return f"[Tool Notice: MCP '{b.label}' exception: {e}]\n\n{context}" if passthrough_on_err else None
 
     # ── web search block ────────────────────────────────────────────────────
 
     def _run_web_search_block(self, b: "PipelineBlock", context: str) -> Optional[str]:
-        """Execute a web search using SearXNG in-process."""
+        """Execute a web search using SearXNG in-process with autonomous retry."""
         categories = b.metadata.get("ws_categories", ["general"])
         language = b.metadata.get("ws_language", "en")
         max_results = int(b.metadata.get("ws_max_results", 10))
         timeout = int(b.metadata.get("ws_timeout", 10))
         output_format = b.metadata.get("ws_output_format", "text")
+        passthrough_on_err = bool(b.metadata.get("ws_passthrough_on_err", True))
 
         # Use incoming context as the search query
         query = context.strip()
@@ -1180,40 +1195,48 @@ class PipelineExecutionWorker(QThread):
         try:
             from nativelab.web_search import web_search, web_search_text
 
-            if output_format == "json":
-                import json
-                results = web_search(
-                    query,
-                    categories=categories,
-                    language=language,
-                    max_results=max_results,
-                    timeout=timeout,
-                )
-                text = json.dumps(results, ensure_ascii=False, indent=2)
-            else:
-                text = web_search_text(
-                    query,
-                    categories=categories,
-                    language=language,
-                    max_results=max_results,
-                    timeout=timeout,
-                )
+            for attempt in range(2):
+                if self._abort:
+                    return None
+                cats = categories if attempt == 0 else ["general"]
+                if attempt > 0:
+                    self.log_msg.emit(f"Web Search '{b.label}': retrying with fallback category ['general']...")
 
-            if not text or text.startswith("No results"):
-                self.log_msg.emit(f"Web Search '{b.label}': no results found")
-                # Pass through original context with a note
-                return f"[Web search returned no results for: {query}]\n\n{context}"
+                try:
+                    if output_format == "json":
+                        import json
+                        results = web_search(
+                            query,
+                            categories=cats,
+                            language=language,
+                            max_results=max_results,
+                            timeout=timeout,
+                        )
+                        text = json.dumps(results, ensure_ascii=False, indent=2) if results else ""
+                    else:
+                        text = web_search_text(
+                            query,
+                            categories=cats,
+                            language=language,
+                            max_results=max_results,
+                            timeout=timeout,
+                        )
 
-            self.log_msg.emit(
-                f"Web Search '{b.label}': got {len(text):,} chars of results")
-            return text
+                    if text and not text.startswith("No results"):
+                        self.log_msg.emit(f"Web Search '{b.label}': got {len(text):,} chars of results")
+                        return text
+                except Exception as e:
+                    self.log_msg.emit(f"Web Search '{b.label}' attempt {attempt + 1} error: {e}")
+
+            self.log_msg.emit(f"Web Search '{b.label}': no results found after search attempts")
+            return f"[Web search returned no results for: {query}]\n\n{context}"
 
         except ImportError:
             self.log_msg.emit(
                 f"Web Search '{b.label}': nativelab.web_search not available. "
                 f"Ensure SearXNG is installed in nativelab/web_search/searxng/")
-            return None
+            return f"[Web search unavailable: SearXNG not installed]\n\n{context}" if passthrough_on_err else None
         except Exception as e:
             self.log_msg.emit(f"Web Search '{b.label}' error: {e}")
-            return None
+            return f"[Web search error: {e}]\n\n{context}" if passthrough_on_err else None
     

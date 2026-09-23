@@ -7,6 +7,7 @@ and reports results back to the build worker.
 """
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import subprocess
@@ -15,9 +16,28 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 
+VALID_WEB_SEARCH_CATEGORIES = {
+    "general", "images", "videos", "news", "science", "it", "files", "music", "social media"
+}
+
+WEB_SEARCH_CATEGORY_SYNONYMS: Dict[str, str] = {
+    "tech": "it", "technology": "it", "code": "it", "coding": "it",
+    "developer": "it", "programming": "it", "software": "it", "github": "it", "computer": "it",
+    "paper": "science", "papers": "science", "academic": "science", "research": "science",
+    "arxiv": "science", "scientific": "science", "scholar": "science",
+    "finance": "news", "economy": "news", "politics": "news", "world": "news",
+    "headlines": "news", "current": "news", "breaking": "news",
+    "image": "images", "picture": "images", "pictures": "images", "photo": "images", "photos": "images",
+    "video": "videos", "youtube": "videos", "movies": "videos", "clips": "videos",
+    "audio": "music", "song": "music", "songs": "music", "podcast": "music",
+    "social": "social media", "twitter": "social media", "reddit": "social media",
+    "web": "general", "all": "general", "search": "general",
+}
+
+
 @dataclass
 class McpVerifyResult:
-    """Result of verifying one MCP server block."""
+    """Result of verifying one MCP server or tool block."""
     block_bid: int
     block_label: str
     transport: str
@@ -31,11 +51,14 @@ class McpVerifyResult:
     retries: int = 0
     auth_needed: bool = False
     auth_error_detail: str = ""
+    block_type: str = "mcp_server"
+    auto_repaired: bool = False
+    repair_notes: str = ""
 
 
 @dataclass
 class McpVerificationReport:
-    """Aggregated report for all MCP blocks in a pipeline."""
+    """Aggregated report for all tool/MCP blocks in a pipeline."""
     results: List[McpVerifyResult] = field(default_factory=list)
     all_ok: bool = True
     fixed_blocks: List[int] = field(default_factory=list)
@@ -43,6 +66,10 @@ class McpVerificationReport:
 
     @property
     def has_mcp(self) -> bool:
+        return any(r.block_type == "mcp_server" for r in self.results)
+
+    @property
+    def has_tools(self) -> bool:
         return len(self.results) > 0
 
     @property
@@ -57,10 +84,160 @@ class McpVerificationReport:
     def auth_needed(self) -> List[McpVerifyResult]:
         return [r for r in self.results if r.auth_needed]
 
+    @property
+    def web_search_results(self) -> List[McpVerifyResult]:
+        return [r for r in self.results if r.block_type == "web_search"]
+
+    @property
+    def mcp_results(self) -> List[McpVerifyResult]:
+        return [r for r in self.results if r.block_type == "mcp_server"]
+
 
 def extract_mcp_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Extract MCP server blocks from a pipeline block list."""
     return [b for b in blocks if b.get("btype") == "mcp_server"]
+
+
+def extract_tool_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Extract all tool blocks (MCP server and Web Search) from pipeline block list."""
+    return [b for b in blocks if b.get("btype") in ("mcp_server", "web_search")]
+
+
+def verify_web_search_block(
+    block: Dict[str, Any],
+    *,
+    log_cb: Optional[Callable[[str], None]] = None,
+) -> McpVerifyResult:
+    """
+    Verify and normalize a Web Search block (SearXNG).
+    Validates categories with synonym repair, clamps limits, checks subsystem.
+    """
+    bid = block.get("bid", 0)
+    label = block.get("label", "Web Search")
+    meta = block.setdefault("metadata", {})
+
+    raw_cats = meta.get("ws_categories", ["general"])
+    if not isinstance(raw_cats, list):
+        raw_cats = [str(raw_cats)]
+
+    clean_cats = []
+    for c in raw_cats:
+        c_str = str(c).strip().lower()
+        if c_str in VALID_WEB_SEARCH_CATEGORIES:
+            clean_cats.append(c_str)
+        elif c_str in WEB_SEARCH_CATEGORY_SYNONYMS:
+            clean_cats.append(WEB_SEARCH_CATEGORY_SYNONYMS[c_str])
+    if not clean_cats:
+        clean_cats = ["general"]
+
+    seen = set()
+    deduped = []
+    for c in clean_cats:
+        if c not in seen:
+            seen.add(c)
+            deduped.append(c)
+    meta["ws_categories"] = deduped
+
+    lang = str(meta.get("ws_language") or "en").strip().lower()
+    meta["ws_language"] = lang[:10] if lang else "en"
+
+    try:
+        max_r = int(meta.get("ws_max_results", 10))
+    except Exception:
+        max_r = 10
+    meta["ws_max_results"] = min(50, max(1, max_r))
+
+    try:
+        timeout = int(meta.get("ws_timeout", 10))
+    except Exception:
+        timeout = 10
+    meta["ws_timeout"] = min(30, max(3, timeout))
+
+    fmt = str(meta.get("ws_output_format") or "text").strip().lower()
+    meta["ws_output_format"] = fmt if fmt in ("text", "json") else "text"
+
+    result = McpVerifyResult(
+        block_bid=bid,
+        block_label=label,
+        transport="in-process",
+        url="searxng",
+        tool_name="web_search",
+        success=True,
+        block_type="web_search",
+    )
+
+    try:
+        import nativelab.web_search  # noqa: F401
+        if log_cb:
+            log_cb(f"  ✓ Web Search '{label}': verified with categories {deduped}")
+    except ImportError as e:
+        result.success = False
+        result.error = f"SearXNG web search dependencies missing: {e}"
+        if log_cb:
+            log_cb(f"  ✗ Web Search '{label}': {result.error}")
+    except Exception as e:
+        result.error = str(e)
+
+    return result
+
+
+def heal_connections_after_removal(
+    connections: List[Dict[str, Any]],
+    removed_bids: List[int],
+) -> List[Dict[str, Any]]:
+    """
+    Auto-bridge connections across removed blocks so the pipeline graph remains connected.
+    For each removed block X, all (A -> X) and (X -> B) become (A -> B).
+    Connections involving X are removed, duplicate or self-loop edges are pruned.
+    """
+    if not removed_bids or not connections:
+        return [dict(c) for c in connections]
+
+    removed_set = set(removed_bids)
+    in_edges: Dict[int, List[Dict[str, Any]]] = {}
+    out_edges: Dict[int, List[Dict[str, Any]]] = {}
+    clean_connections = []
+
+    for c in connections:
+        from_id = c.get("from_block_id")
+        to_id = c.get("to_block_id")
+        if from_id in removed_set or to_id in removed_set:
+            out_edges.setdefault(from_id, []).append(c)
+            in_edges.setdefault(to_id, []).append(c)
+        else:
+            clean_connections.append(dict(c))
+
+    seen_edges = {
+        (c["from_block_id"], c.get("from_port", "E"), c["to_block_id"], c.get("to_port", "W"))
+        for c in clean_connections
+    }
+
+    for r_bid in removed_bids:
+        preds = in_edges.get(r_bid, [])
+        succs = out_edges.get(r_bid, [])
+        for p in preds:
+            from_bid = p.get("from_block_id")
+            from_port = p.get("from_port", "E")
+            if from_bid in removed_set:
+                continue
+            for s in succs:
+                to_bid = s.get("to_block_id")
+                to_port = s.get("to_port", "W")
+                if to_bid in removed_set or from_bid == to_bid:
+                    continue
+                edge_key = (from_bid, from_port, to_bid, to_port)
+                if edge_key not in seen_edges:
+                    seen_edges.add(edge_key)
+                    clean_connections.append({
+                        "from_block_id": from_bid,
+                        "from_port": from_port,
+                        "to_block_id": to_bid,
+                        "to_port": to_port,
+                        "is_loop": False,
+                        "loop_times": 1,
+                    })
+
+    return clean_connections
 
 
 def _is_npx_command(url: str) -> bool:
@@ -545,6 +722,204 @@ def verify_mcp_block(
     return result
 
 
+def _infer_arg_name(block: Dict[str, Any], tool_dict: Dict[str, Any]) -> None:
+    """If block's mcp_arg_name is empty or default 'input', infer best parameter from tool schema."""
+    meta = block.setdefault("metadata", {})
+    curr = str(meta.get("mcp_arg_name") or "").strip()
+    schema = tool_dict.get("inputSchema") or tool_dict.get("parameters") or {}
+    props = schema.get("properties") if isinstance(schema, dict) else {}
+    if not isinstance(props, dict) or not props:
+        return
+    # If currently specified arg name is already valid, keep it
+    if curr and curr in props:
+        return
+
+    # Check required fields
+    raw_required = schema.get("required")
+    required_fields: List[str] = [str(r) for r in raw_required] if isinstance(raw_required, list) else []
+    for req in required_fields:
+        if req in props:
+            meta["mcp_arg_name"] = str(req)
+            return
+
+    # Check common semantic parameter names for tools
+    for cand in ("query", "q", "text", "prompt", "input_text", "path", "file_path", "url", "message", "content"):
+        if cand in props:
+            meta["mcp_arg_name"] = cand
+            return
+
+    # Default to first property in schema
+    first_key = next(iter(props.keys()))
+    meta["mcp_arg_name"] = str(first_key)
+
+
+def _find_tool_for_block(
+    block: Dict[str, Any],
+    available_tools: List[Dict[str, Any]],
+) -> Optional[str]:
+    """
+    Find the best matching tool name for a block's configured tool using multi-tier
+    matching (exact, case-insensitive, normalized, substring, token overlap, and fuzzy ratio).
+    Also auto-infers input argument name from schema.
+    """
+    configured = str(block.get("metadata", {}).get("mcp_tool_name", "")).strip()
+    if not configured or not available_tools:
+        return None
+
+    # 1. Exact match
+    for t in available_tools:
+        name = str(t.get("name") or "")
+        if name == configured:
+            _infer_arg_name(block, t)
+            return configured
+
+    # 2. Case-insensitive match
+    cfg_lower = configured.lower()
+    for t in available_tools:
+        name = str(t.get("name") or "")
+        if name.lower() == cfg_lower:
+            _infer_arg_name(block, t)
+            return name
+
+    # 3. Normalized punctuation / snake / kebab / camel match
+    def _norm(s: str) -> str:
+        return re.sub(r"[-_.\s]+", "", s.lower())
+
+    cfg_norm = _norm(configured)
+    for t in available_tools:
+        name = str(t.get("name") or "")
+        if _norm(name) == cfg_norm:
+            _infer_arg_name(block, t)
+            return name
+
+    # 4. Substring containment match
+    substring_matches = []
+    for t in available_tools:
+        name = str(t.get("name") or "")
+        name_lower = name.lower()
+        if cfg_lower in name_lower or name_lower in cfg_lower:
+            substring_matches.append(name)
+    if substring_matches:
+        best = min(substring_matches, key=lambda n: abs(len(n) - len(configured)))
+        match_tool = next((t for t in available_tools if t.get("name") == best), None)
+        if match_tool:
+            _infer_arg_name(block, match_tool)
+        return best
+
+    # 5. Fuzzy match using difflib & token overlap
+    best_name = None
+    best_score = 0.0
+    cfg_tokens = set(re.findall(r"[a-z0-9]+", cfg_lower))
+    for t in available_tools:
+        name = str(t.get("name") or "")
+        name_lower = name.lower()
+        name_tokens = set(re.findall(r"[a-z0-9]+", name_lower))
+        jaccard = (
+            len(cfg_tokens & name_tokens) / max(1, len(cfg_tokens | name_tokens))
+            if (cfg_tokens and name_tokens)
+            else 0.0
+        )
+        ratio = difflib.SequenceMatcher(None, cfg_lower, name_lower).ratio()
+        score = max(jaccard, ratio)
+        if score > best_score:
+            best_score = score
+            best_name = name
+
+    if best_name and best_score >= 0.55:
+        match_tool = next((t for t in available_tools if t.get("name") == best_name), None)
+        if match_tool:
+            _infer_arg_name(block, match_tool)
+        return best_name
+
+    return None
+
+
+def verify_all_tool_blocks(
+    blocks: List[Dict[str, Any]],
+    *,
+    max_retries: int = 2,
+    auto_install: bool = True,
+    log_cb: Optional[Callable[[str], None]] = None,
+    abort_cb: Optional[Callable[[], bool]] = None,
+    max_workers: int = 4,
+) -> McpVerificationReport:
+    """
+    Verify all tool blocks (MCP servers and Web Search) in a pipeline concurrently.
+    Runs probes across a worker thread pool for high efficiency and fail-safe execution.
+    """
+    mcp_blocks = extract_mcp_blocks(blocks)
+    web_blocks = [b for b in blocks if b.get("btype") == "web_search"]
+    all_tool_blocks = mcp_blocks + web_blocks
+    report = McpVerificationReport()
+
+    if not all_tool_blocks:
+        return report
+
+    if log_cb:
+        log_cb(f"Verifying {len(all_tool_blocks)} tool block(s) concurrently...")
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _verify_one(b: Dict[str, Any]) -> McpVerifyResult:
+        if abort_cb and abort_cb():
+            return McpVerifyResult(
+                block_bid=b.get("bid", 0),
+                block_label=b.get("label", "Tool"),
+                transport="aborted",
+                url="",
+                tool_name="",
+                success=False,
+                error="Cancelled",
+                block_type=b.get("btype", "tool"),
+            )
+        if b.get("btype") == "web_search":
+            return verify_web_search_block(b, log_cb=log_cb)
+        return verify_mcp_block(
+            b,
+            max_retries=max_retries,
+            auto_install=auto_install,
+            log_cb=log_cb,
+        )
+
+    workers = min(max_workers, len(all_tool_blocks) or 1)
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(_verify_one, b): b for b in all_tool_blocks}
+        for future in as_completed(futures):
+            if abort_cb and abort_cb():
+                if log_cb:
+                    log_cb("Tool verification cancelled.")
+                break
+            try:
+                res = future.result()
+                report.results.append(res)
+                if not res.success:
+                    report.all_ok = False
+            except Exception as e:
+                b = futures[future]
+                err_res = McpVerifyResult(
+                    block_bid=b.get("bid", 0),
+                    block_label=b.get("label", "Tool"),
+                    transport="unknown",
+                    url="",
+                    tool_name="",
+                    success=False,
+                    error=str(e),
+                    block_type=b.get("btype", "tool"),
+                )
+                report.results.append(err_res)
+                report.all_ok = False
+
+    passed = len(report.passed)
+    failed = len(report.failed)
+    if log_cb:
+        if failed:
+            log_cb(f"Tool verification: {passed} passed, {failed} failed")
+        else:
+            log_cb(f"Tool verification: all {passed} tool(s) OK")
+
+    return report
+
+
 def verify_all_mcp_blocks(
     blocks: List[Dict[str, Any]],
     *,
@@ -553,78 +928,27 @@ def verify_all_mcp_blocks(
     log_cb: Optional[Callable[[str], None]] = None,
     abort_cb: Optional[Callable[[], bool]] = None,
 ) -> McpVerificationReport:
-    """
-    Verify all MCP server blocks in a pipeline.
-    Returns a report with per-block results.
-    """
-    mcp_blocks = extract_mcp_blocks(blocks)
-    report = McpVerificationReport()
-
-    if not mcp_blocks:
-        return report
-
-    if log_cb:
-        log_cb(f"Verifying {len(mcp_blocks)} MCP server block(s)...")
-
-    for block in mcp_blocks:
-        if abort_cb and abort_cb():
-            if log_cb:
-                log_cb("MCP verification cancelled.")
-            break
-
-        result = verify_mcp_block(
-            block,
-            max_retries=max_retries,
-            auto_install=auto_install,
-            log_cb=log_cb,
-        )
-        report.results.append(result)
-
-        if not result.success:
-            report.all_ok = False
-
-    passed = len(report.passed)
-    failed = len(report.failed)
-    if log_cb:
-        if failed:
-            log_cb(f"MCP verification: {passed} passed, {failed} failed")
-        else:
-            log_cb(f"MCP verification: all {passed} server(s) OK")
-
-    return report
-
-
-def _find_tool_for_block(
-    block: Dict[str, Any],
-    available_tools: List[Dict[str, Any]],
-) -> Optional[str]:
-    """Find the best matching tool name for a block's configured tool."""
-    configured = block.get("metadata", {}).get("mcp_tool_name", "")
-    if not configured:
-        return None
-
-    # Exact match
-    for t in available_tools:
-        if t.get("name") == configured:
-            return configured
-
-    # Case-insensitive match
-    for t in available_tools:
-        if t.get("name", "").lower() == configured.lower():
-            return t["name"]
-
-    return None
+    """Backwards-compatible wrapper calling verify_all_tool_blocks."""
+    return verify_all_tool_blocks(
+        blocks,
+        max_retries=max_retries,
+        auto_install=auto_install,
+        log_cb=log_cb,
+        abort_cb=abort_cb,
+    )
 
 
 def fix_mcp_blocks_after_verification(
     blocks: List[Dict[str, Any]],
     report: McpVerificationReport,
     *,
+    connections: Optional[List[Dict[str, Any]]] = None,
     log_cb: Optional[Callable[[str], None]] = None,
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     """
-    Fix or remove MCP blocks based on verification results.
-    Returns (fixed_blocks, messages) where messages describe what was changed.
+    Fix or remove tool blocks based on verification results.
+    If connections list is provided and blocks are removed, connections are automatically healed.
+    Returns (fixed_blocks, messages).
     """
     fixed = []
     messages = []
@@ -633,12 +957,24 @@ def fix_mcp_blocks_after_verification(
 
     for block in blocks:
         bid = block.get("bid", 0)
+        btype = block.get("btype", "")
 
         if bid not in result_map:
             fixed.append(block)
             continue
 
         result = result_map[bid]
+
+        if result.block_type == "web_search":
+            if result.success:
+                fixed.append(block)
+                if result.error:
+                    messages.append(f"Web Search '{result.block_label}': noted {result.error}")
+            else:
+                # Web search failed (e.g. dependencies missing)
+                messages.append(f"Web Search '{result.block_label}': {result.error}")
+                fixed.append(block)  # Keep block with normalized metadata
+            continue
 
         if result.success:
             # Update tools list from verification
@@ -657,6 +993,7 @@ def fix_mcp_blocks_after_verification(
                 first_tool = result.tools_found[0].get("name", "")
                 if first_tool:
                     block["metadata"]["mcp_tool_name"] = first_tool
+                    _infer_arg_name(block, result.tools_found[0])
                     messages.append(
                         f"MCP '{result.block_label}': configured tool not found, "
                         f"switched to '{first_tool}'"
@@ -683,5 +1020,14 @@ def fix_mcp_blocks_after_verification(
             )
             if log_cb:
                 log_cb(f"  Removed MCP block '{result.block_label}' - server failed verification")
+
+    # If blocks were removed and connections list was provided, auto-heal connections
+    if report.removed_blocks and connections is not None:
+        healed = heal_connections_after_removal(connections, report.removed_blocks)
+        connections.clear()
+        connections.extend(healed)
+        messages.append(f"Auto-healed {len(connections)} connection(s) across removed tool block(s).")
+        if log_cb:
+            log_cb(f"  Auto-healed pipeline graph connections across removed tool block(s).")
 
     return fixed, messages

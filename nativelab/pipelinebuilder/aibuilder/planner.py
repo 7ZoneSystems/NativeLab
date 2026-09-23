@@ -342,6 +342,87 @@ def estimate_ai_builder_retry_budget(
     )
 
 
+def build_ai_builder_diagnostic_retry_messages(
+    user_request: str,
+    pipeline_name: str,
+    error_feedback: str,
+    *,
+    active_model_label: str = "",
+    previous_response: str = "",
+) -> List[Dict[str, str]]:
+    safe_name = sanitize_pipeline_name(pipeline_name)
+    request = str(user_request or "").strip()
+    active_line = active_model_label.strip() or "NativeLab active model"
+    previous = str(previous_response or "").strip()
+    if len(previous) > 1800:
+        previous = previous[:1800] + "\n...[truncated]"
+    error_msg = str(error_feedback or "").strip()
+    if len(error_msg) > 800:
+        error_msg = error_msg[:800] + "...[truncated]"
+
+    return [
+        {
+            "role": "system",
+            "content": (
+                "You are generating NativeLab pipeline JSON. "
+                "Your previous attempt had validation or schema issues. "
+                "Correct the specific errors noted below and return exactly one valid JSON object. "
+                "The first character must be { and the last character must be }. "
+                "No markdown, no explanation, no code fences."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                f"File name: {safe_name}\n"
+                f"Active model for empty model_path placeholders: {active_line}\n\n"
+                f"Validation/Error Feedback to Fix:\n{error_msg}\n\n"
+                "Key Rules to ensure valid pipeline:\n"
+                "- Exactly one Input block (bid=1, btype='input').\n"
+                "- At least one Output block (btype='output').\n"
+                "- Direct model-to-model connections are FORBIDDEN. Place an intermediate or transform block between two models.\n"
+                "- Connections must connect valid existing bids from port (E) to port (W).\n"
+                "- For web_search: ws_categories must be a list of valid categories (e.g. ['general']).\n"
+                "- For mcp_server: must have valid mcp_transport, mcp_url, and mcp_tool_name.\n\n"
+                f"Original Pipeline Request:\n{request}\n\n"
+                f"Previous Response with issues:\n{previous}\n\n"
+                "Return only the corrected JSON object now."
+            ),
+        },
+    ]
+
+
+def estimate_ai_builder_diagnostic_retry_budget(
+    engine: Any,
+    pipeline_name: str,
+    user_request: str,
+    error_feedback: str,
+    *,
+    active_model_label: str = "",
+    previous_response: str = "",
+    n_predict: int = AI_BUILDER_RETRY_N_PREDICT,
+) -> PipelinePromptBudget:
+    messages = build_ai_builder_diagnostic_retry_messages(
+        user_request,
+        pipeline_name,
+        error_feedback,
+        active_model_label=active_model_label,
+        previous_response=previous_response,
+    )
+    input_tokens = _native_estimate_tokens(messages_text(messages))
+    reserved = max(0, int(n_predict or 0))
+    limit = _engine_limit(engine)
+    projected = input_tokens + reserved
+    return PipelinePromptBudget(
+        input_tokens=input_tokens,
+        reserved_tokens=reserved,
+        projected_tokens=projected,
+        limit_tokens=limit,
+        overflow=projected > limit,
+        messages=messages,
+    )
+
+
 def _json_span(text: str) -> Optional[Tuple[int, int]]:
     value = str(text or "")
     if _native is not None:
@@ -499,17 +580,34 @@ def _normalize_metadata(btype: str, metadata: Dict[str, Any]) -> Dict[str, Any]:
         md.setdefault("mcp_connected", False)
         md.setdefault("mcp_auth_required", False)
         md.setdefault("mcp_tools", [])
+        md.setdefault("mcp_passthrough_on_err", True)
+        md.setdefault("mcp_max_retries", 2)
     elif btype == PipelineBlockType.WEB_SEARCH:
+        from .mcp_verify import VALID_WEB_SEARCH_CATEGORIES, WEB_SEARCH_CATEGORY_SYNONYMS
         cats = md.get("ws_categories", ["general"])
         if not isinstance(cats, list):
-            cats = ["general"]
-        valid_cats = {"general", "images", "videos", "news", "science", "it", "files", "music", "social media"}
-        md["ws_categories"] = [c for c in cats if c in valid_cats] or ["general"]
+            cats = [str(cats)]
+        clean_cats = []
+        for c in cats:
+            c_str = str(c).strip().lower()
+            if c_str in VALID_WEB_SEARCH_CATEGORIES:
+                clean_cats.append(c_str)
+            elif c_str in WEB_SEARCH_CATEGORY_SYNONYMS:
+                clean_cats.append(WEB_SEARCH_CATEGORY_SYNONYMS[c_str])
+        seen_cats = set()
+        deduped = []
+        for c in clean_cats:
+            if c not in seen_cats:
+                seen_cats.add(c)
+                deduped.append(c)
+        md["ws_categories"] = deduped or ["general"]
         md["ws_language"] = _clean_text(md.get("ws_language"), "en", limit=10)
         md["ws_max_results"] = _coerce_int(md.get("ws_max_results"), 10, lo=1, hi=50)
         md["ws_timeout"] = _coerce_int(md.get("ws_timeout"), 10, lo=3, hi=30)
         fmt = _clean_text(md.get("ws_output_format"), "text", limit=10)
         md["ws_output_format"] = fmt if fmt in ("text", "json") else "text"
+        md.setdefault("ws_passthrough_on_err", True)
+        md.setdefault("ws_max_retries", 1)
     return md
 
 
@@ -634,7 +732,7 @@ def apply_active_model(
             continue  # Already assigned by AI Builder
 
         # Try smart device assignment
-        assigned = _assign_device_for_block(block, devices)
+        assigned = _assign_device_for_block(block, devices, active_model_ref=model_ref)
         if assigned:
             block["model_path"] = assigned["ref"]
             block["label"] = assigned["label"]
@@ -669,7 +767,11 @@ def _get_available_devices() -> List[Dict[str, Any]]:
     return devices
 
 
-def _assign_device_for_block(block: Dict[str, Any], devices: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _assign_device_for_block(
+    block: Dict[str, Any],
+    devices: List[Dict[str, Any]],
+    active_model_ref: str = "",
+) -> Optional[Dict[str, Any]]:
     """Assign the best device for a block based on task requirements.
     Returns dict with 'ref', 'label', and 'params' (recommended config)."""
     if not devices:
@@ -728,8 +830,8 @@ def _assign_device_for_block(block: Dict[str, Any], devices: List[Dict[str, Any]
                 "params": {"temperature": 0.4, "top_p": 0.9, "top_k": 30, "repeat_penalty": 1.1},
             }
 
-    # Default: use the device with most RAM
-    if ready:
+    # Default fallback: assign highest-RAM device only if no explicit active model was provided
+    if not active_model_ref and ready:
         best = max(ready, key=lambda d: d["ram_mb"])
         return {
             "ref": best["ref"],
@@ -785,6 +887,165 @@ def pipeline_data_to_blocks(data: Dict[str, Any]) -> Tuple[List[PipelineBlock], 
     return blocks, connections
 
 
+def auto_repair_pipeline_graph(
+    blocks: List[Dict[str, Any]],
+    connections: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[str]]:
+    """
+    Autonomously repair structural defects in a generated pipeline graph:
+    1. Ensures required Input and Output blocks exist.
+    2. Inserts Intermediate blocks between forbidden direct Model-to-Model connections.
+    3. Heals disconnected blocks and connects source to target.
+    4. Validates port directions (N, S, E, W) and removes invalid/self-loop edges.
+    5. Normalizes metadata for all blocks with fail-safe defaults.
+    """
+    repaired_blocks: List[Dict[str, Any]] = [dict(b) for b in blocks if isinstance(b, dict)]
+    repaired_connections: List[Dict[str, Any]] = [dict(c) for c in connections if isinstance(c, dict)]
+    notes: List[str] = []
+
+    used_ids = {b.get("bid") for b in repaired_blocks if isinstance(b.get("bid"), int)}
+    max_bid = max(used_ids) if used_ids else 0
+
+    # 1. Ensure at least one input block
+    has_input = any(b.get("btype") == PipelineBlockType.INPUT for b in repaired_blocks)
+    if not has_input:
+        in_id = _next_free_id(used_ids, 1)
+        max_bid = max(max_bid, in_id)
+        repaired_blocks.insert(0, {
+            "bid": in_id,
+            "btype": PipelineBlockType.INPUT,
+            "x": 80, "y": 120, "w": 148, "h": 76,
+            "model_path": "", "role": "general", "label": "Input", "metadata": {},
+        })
+        notes.append("Inserted missing Input block.")
+
+    # 2. Ensure at least one output block
+    has_output = any(b.get("btype") == PipelineBlockType.OUTPUT for b in repaired_blocks)
+    if not has_output:
+        out_id = _next_free_id(used_ids, max_bid + 1)
+        max_bid = max(max_bid, out_id)
+        repaired_blocks.append({
+            "bid": out_id,
+            "btype": PipelineBlockType.OUTPUT,
+            "x": 80 + len(repaired_blocks) * 220, "y": 120, "w": 148, "h": 76,
+            "model_path": "", "role": "general", "label": "Output", "metadata": {},
+        })
+        notes.append("Inserted missing Output block.")
+
+    # Re-index valid block IDs and types
+    block_map = {b["bid"]: b for b in repaired_blocks if "bid" in b}
+    valid_ids = set(block_map.keys())
+
+    # 3. Filter invalid connections (missing blocks, self-loops)
+    valid_conns = []
+    seen_edges = set()
+    for c in repaired_connections:
+        f_id = c.get("from_block_id")
+        t_id = c.get("to_block_id")
+        if f_id not in valid_ids or t_id not in valid_ids or f_id == t_id:
+            continue
+        f_port = str(c.get("from_port") or "E").upper()
+        t_port = str(c.get("to_port") or "W").upper()
+        if f_port not in _PORTS:
+            f_port = "E"
+        if t_port not in _PORTS:
+            t_port = "W"
+        edge = (f_id, f_port, t_id, t_port)
+        if edge in seen_edges:
+            continue
+        seen_edges.add(edge)
+        valid_conns.append({
+            "from_block_id": f_id,
+            "from_port": f_port,
+            "to_block_id": t_id,
+            "to_port": t_port,
+            "is_loop": bool(c.get("is_loop", False)),
+            "loop_times": _coerce_int(c.get("loop_times"), 1, lo=1, hi=20),
+        })
+
+    # 4. Fix direct model-to-model connections
+    final_conns = []
+    for c in valid_conns:
+        from_b = block_map.get(c["from_block_id"], {})
+        to_b = block_map.get(c["to_block_id"], {})
+        if from_b.get("btype") in _MODEL_BACKED_TYPES and to_b.get("btype") in _MODEL_BACKED_TYPES:
+            inter_id = _next_free_id(used_ids, max_bid + 1)
+            max_bid = max(max_bid, inter_id)
+            mid_x = (from_b.get("x", 80) + to_b.get("x", 300)) // 2
+            mid_y = (from_b.get("y", 120) + to_b.get("y", 120)) // 2
+            inter_block = {
+                "bid": inter_id,
+                "btype": PipelineBlockType.INTERMEDIATE,
+                "x": mid_x, "y": mid_y, "w": 148, "h": 76,
+                "model_path": "", "role": "general", "label": "Intermediate", "metadata": {},
+            }
+            repaired_blocks.append(inter_block)
+            block_map[inter_id] = inter_block
+            valid_ids.add(inter_id)
+            final_conns.append({
+                "from_block_id": c["from_block_id"],
+                "from_port": c["from_port"],
+                "to_block_id": inter_id,
+                "to_port": "W",
+                "is_loop": False,
+                "loop_times": 1,
+            })
+            final_conns.append({
+                "from_block_id": inter_id,
+                "from_port": "E",
+                "to_block_id": c["to_block_id"],
+                "to_port": c["to_port"],
+                "is_loop": False,
+                "loop_times": 1,
+            })
+            notes.append(f"Inserted Intermediate block {inter_id} between direct models {c['from_block_id']} and {c['to_block_id']}.")
+        else:
+            final_conns.append(c)
+
+    # 5. Ensure at least one incoming edge to output
+    out_block = next((b for b in repaired_blocks if b.get("btype") == PipelineBlockType.OUTPUT), None)
+    in_block = next((b for b in repaired_blocks if b.get("btype") == PipelineBlockType.INPUT), None)
+    if out_block and in_block:
+        has_in_to_out = any(c["to_block_id"] == out_block["bid"] for c in final_conns)
+        if not has_in_to_out:
+            candidates = [b for b in repaired_blocks if b["bid"] != out_block["bid"]]
+            if candidates:
+                best_source = max(candidates, key=lambda b: (b.get("x", 0), b["bid"]))
+                final_conns.append({
+                    "from_block_id": best_source["bid"],
+                    "from_port": "E",
+                    "to_block_id": out_block["bid"],
+                    "to_port": "W",
+                    "is_loop": False,
+                    "loop_times": 1,
+                })
+                notes.append(f"Connected block {best_source['bid']} to Output block {out_block['bid']}.")
+
+    # 6. Ensure at least one outgoing edge from input
+    if in_block and out_block:
+        has_out_from_in = any(c["from_block_id"] == in_block["bid"] for c in final_conns)
+        if not has_out_from_in:
+            candidates = [b for b in repaired_blocks if b["bid"] != in_block["bid"]]
+            if candidates:
+                best_target = min(candidates, key=lambda b: (b.get("x", 0), b["bid"]))
+                final_conns.append({
+                    "from_block_id": in_block["bid"],
+                    "from_port": "E",
+                    "to_block_id": best_target["bid"],
+                    "to_port": "W",
+                    "is_loop": False,
+                    "loop_times": 1,
+                })
+                notes.append(f"Connected Input block {in_block['bid']} to block {best_target['bid']}.")
+
+    # 7. Normalize metadata for all blocks
+    for b in repaired_blocks:
+        btype = b.get("btype", PipelineBlockType.INTERMEDIATE)
+        b["metadata"] = _normalize_metadata(btype, b.get("metadata", {}))
+
+    return repaired_blocks, final_conns, notes
+
+
 def save_generated_pipeline(
     name: str,
     raw_response: str,
@@ -797,6 +1058,18 @@ def save_generated_pipeline(
     data = apply_active_model(data, active_model_ref, active_model_role)
     blocks, connections = pipeline_data_to_blocks(data)
     validation_error = validate_pipeline(blocks, connections)
+    if validation_error:
+        # Autonomously attempt graph healing and repair before giving up
+        try:
+            repaired_blocks, repaired_conns, _notes = auto_repair_pipeline_graph(
+                data.get("blocks", []), data.get("connections", [])
+            )
+            data["blocks"] = repaired_blocks
+            data["connections"] = repaired_conns
+            blocks, connections = pipeline_data_to_blocks(data)
+            validation_error = validate_pipeline(blocks, connections)
+        except Exception:
+            pass
     if validation_error:
         raise ValueError(f"Generated pipeline did not pass validation:\n\n{validation_error}")
     save_pipeline(safe_name, blocks, connections)
