@@ -77,5 +77,5 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.1.0")
 
     // Splash screen
-    implementation("androidx.core:core-splashscreen:1.2.0-alpha02")
+    implementation("androidx.core:core-splashscreen:1.2.0")
 }
